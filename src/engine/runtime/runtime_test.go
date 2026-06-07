@@ -172,6 +172,127 @@ function Main() : Int {
 	assertRuntimeErrorContains(t, err, "function Main returns Int, got String")
 }
 
+func TestRuntimeRejectsMissingReturnValue(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local Int value = 1;
+}
+`)
+	assertRuntimeErrorContains(t, err, "function Main returns Int, got Null")
+}
+
+func TestRuntimeRejectsTypeChangingAssignment(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local mut Int value = 1;
+    value = "bad";
+    return value;
+}
+`)
+	assertRuntimeErrorContains(t, err, `cannot assign String to Int variable "value"`)
+}
+
+func TestRuntimeRejectsTypedListAndMapMutationMismatch(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local mut List[Int] values = [];
+    values[0] = "bad";
+    return 1;
+}
+`)
+	assertRuntimeErrorContains(t, err, "cannot assign String to list element type Int")
+
+	_, err = runParsedSourceWithError(`
+function Main() : Int {
+    local mut Map[String, Int] values = {};
+    values[1] = 10;
+    return 1;
+}
+`)
+	assertRuntimeErrorContains(t, err, "cannot use Int as map key type String")
+
+	_, err = runParsedSourceWithError(`
+function Main() : Int {
+    local mut Map[String, Int] values = {};
+    values["bad"] = "value";
+    return 1;
+}
+`)
+	assertRuntimeErrorContains(t, err, "cannot assign String to map value type Int")
+}
+
+func TestRuntimeShortCircuitsLogicalOperators(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    if False and missingFunction() {
+        return 1;
+    }
+    if True or missingFunction() {
+        return 2;
+    }
+    return 3;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 2 {
+		t.Fatalf("expected short-circuit program to return 2, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsDuplicateAndAmbiguousFunctions(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    return 1;
+}
+
+function Main() : Int {
+    return 2;
+}
+`)
+	assertRuntimeErrorContains(t, err, `function "Main" is already defined`)
+
+	_, err = runParsedSourceWithError(`
+namespace A {
+    function Pick() : Int { return 1; }
+}
+
+namespace B {
+    function Pick() : Int { return 2; }
+}
+
+function Main() : Int {
+    return Pick();
+}
+`)
+	assertRuntimeErrorContains(t, err, `ambiguous function "Pick"`)
+}
+
+func TestRuntimeRejectsRunawayRecursion(t *testing.T) {
+	runtime := New()
+	runtime.maxDepth = 8
+
+	parsedProgram, errors := parser.Parse(`
+function Loop() : Int {
+    return Loop();
+}
+
+function Main() : Int {
+    return Loop();
+}
+`)
+	if len(errors) != 0 {
+		t.Fatalf("unexpected parse errors: %#v", errors)
+	}
+
+	_, err := runtime.Run(parser.ParsedProgram{
+		Name: "recursion",
+		Sources: []parser.ParsedSource{
+			{Path: "recursion.klang", Program: parsedProgram},
+		},
+	})
+	assertRuntimeErrorContains(t, err, "maximum call depth 8 exceeded")
+}
+
 func TestRuntimeBorrowCheckerRejectsConflictingMutableBorrow(t *testing.T) {
 	memory := NewMemory()
 	objectID := memory.Allocate(IntValue(10))

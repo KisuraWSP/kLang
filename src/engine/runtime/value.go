@@ -149,6 +149,13 @@ func asInt(value Value) (int, error) {
 	}
 }
 
+func asIndex(value Value) (int, error) {
+	if value.Kind != ValueInt {
+		return 0, Error{Message: fmt.Sprintf("list index must be Int, got %s", value.Kind)}
+	}
+	return value.Data.(int), nil
+}
+
 func asFloat(value Value) (float64, error) {
 	switch value.Kind {
 	case ValueFloat:
@@ -224,6 +231,7 @@ func mapKey(value Value) (string, error) {
 }
 
 func valueMatchesType(value Value, typeName string) bool {
+	typeName = strings.TrimSpace(typeName)
 	switch {
 	case typeName == "" || typeName == "T":
 		return true
@@ -246,6 +254,53 @@ func valueMatchesType(value Value, typeName string) bool {
 	default:
 		return true
 	}
+}
+
+func listElementType(typeName string) (string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	if !strings.HasPrefix(typeName, "List[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	elementType := strings.TrimSpace(typeName[len("List[") : len(typeName)-1])
+	return elementType, elementType != "" && elementType != "...$Items"
+}
+
+func mapTypes(typeName string) (string, string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	if !strings.HasPrefix(typeName, "Map[") || !strings.HasSuffix(typeName, "]") {
+		return "", "", false
+	}
+	inner := typeName[len("Map[") : len(typeName)-1]
+	parts := splitTopLevelType(inner, ',')
+	if len(parts) != 2 {
+		return "", "", false
+	}
+	keyType := strings.TrimSpace(parts[0])
+	valueType := strings.TrimSpace(parts[1])
+	return keyType, valueType, keyType != "" && valueType != ""
+}
+
+func splitTopLevelType(input string, separator rune) []string {
+	var parts []string
+	start := 0
+	depth := 0
+	for index, char := range input {
+		switch char {
+		case '[':
+			depth++
+		case ']':
+			if depth > 0 {
+				depth--
+			}
+		default:
+			if char == separator && depth == 0 {
+				parts = append(parts, input[start:index])
+				start = index + len(string(char))
+			}
+		}
+	}
+	parts = append(parts, input[start:])
+	return parts
 }
 
 func parseRangeHeader(expr parser.Expression) (string, parser.Expression, bool) {

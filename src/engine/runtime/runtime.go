@@ -55,13 +55,18 @@ type Runtime struct {
 	global    *Environment
 	functions map[string]parser.FunctionStatement
 	output    []string
+	callDepth int
+	maxDepth  int
 }
+
+const defaultMaxCallDepth = 1024
 
 func New() *Runtime {
 	return &Runtime{
 		memory:    NewMemory(),
 		global:    NewEnvironment(nil),
 		functions: map[string]parser.FunctionStatement{},
+		maxDepth:  defaultMaxCallDepth,
 	}
 }
 
@@ -87,7 +92,9 @@ func RunProgram(program file.Program) (Result, error) {
 func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 	for _, source := range program.Sources {
 		for _, stmt := range source.Program.Statements {
-			runtime.collectFunctions(stmt, "")
+			if err := runtime.collectFunctions(stmt, ""); err != nil {
+				return Result{}, err
+			}
 		}
 	}
 
@@ -101,7 +108,10 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 		}
 	}
 
-	mainName := runtime.resolveFunctionName("Main")
+	mainName, err := runtime.resolveFunctionName("Main")
+	if err != nil {
+		return Result{}, err
+	}
 	if mainName == "" {
 		return Result{Value: NullValue(), Output: runtime.output}, nil
 	}
@@ -113,16 +123,22 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 	return Result{Value: value, Output: runtime.output}, nil
 }
 
-func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string) {
+func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string) error {
 	switch current := stmt.(type) {
 	case parser.FunctionStatement:
 		name := namespace + current.Name
+		if _, exists := runtime.functions[name]; exists {
+			return errorAt(current.Pos, fmt.Sprintf("function %q is already defined", name))
+		}
 		runtime.functions[name] = current
 	case parser.NamespaceStatement:
 		for _, nested := range current.Body {
-			runtime.collectFunctions(nested, namespace+current.Name+".")
+			if err := runtime.collectFunctions(nested, namespace+current.Name+"."); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 type signalKind int
@@ -171,7 +187,7 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		if current.Scope == "global" {
 			targetEnv = runtime.global
 		}
-		if err := targetEnv.Define(current.Name, current.Mutable, value, runtime.memory.Allocate(value)); err != nil {
+		if err := targetEnv.Define(current.Name, current.Mutable, current.Type, value, runtime.memory.Allocate(value)); err != nil {
 			return signal{}, errorAt(current.Pos, err.Error())
 		}
 		return signal{kind: signalNone}, nil
@@ -279,7 +295,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 		for index := 0; index < count; index++ {
 			loopEnv := NewEnvironment(env)
 			value := IntValue(index)
-			if err := loopEnv.Define(iterator, false, value, runtime.memory.Allocate(value)); err != nil {
+			if err := loopEnv.Define(iterator, false, "Int", value, runtime.memory.Allocate(value)); err != nil {
 				return signal{}, errorAt(stmt.Pos, err.Error())
 			}
 			currentSignal, err := runtime.executeBlock(stmt.Body, loopEnv, true)
@@ -421,6 +437,9 @@ func (runtime *Runtime) executeAssignment(stmt parser.AssignmentStatement, env *
 	if err != nil {
 		return err
 	}
+	if !valueMatchesType(next, binding.Type) {
+		return Error{Message: fmt.Sprintf("cannot assign %s to %s variable %q", next.Kind, binding.Type, identifier.Name)}
+	}
 	binding.Value = next
 	runtime.memory.Store(binding.ObjectID, next)
 	return nil
@@ -449,8 +468,9 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 
 	switch binding.Value.Kind {
 	case ValueList:
+		elementType, hasElementType := listElementType(binding.Type)
 		items := binding.Value.Data.([]Value)
-		position, err := asInt(index)
+		position, err := asIndex(index)
 		if err != nil {
 			return err
 		}
@@ -465,10 +485,17 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 		if err != nil {
 			return err
 		}
+		if hasElementType && !valueMatchesType(next, elementType) {
+			return Error{Message: fmt.Sprintf("cannot assign %s to list element type %s", next.Kind, elementType)}
+		}
 		items[position] = next
 		binding.Value = Value{Kind: ValueList, Data: items}
 	case ValueMap:
+		keyType, valueType, hasMapTypes := mapTypes(binding.Type)
 		items := binding.Value.Data.(map[string]Value)
+		if hasMapTypes && !valueMatchesType(index, keyType) {
+			return Error{Message: fmt.Sprintf("cannot use %s as map key type %s", index.Kind, keyType)}
+		}
 		key, err := mapKey(index)
 		if err != nil {
 			return err
@@ -477,6 +504,9 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 		next, err := applyAssignmentOperator(current, operator, value)
 		if err != nil {
 			return err
+		}
+		if hasMapTypes && !valueMatchesType(next, valueType) {
+			return Error{Message: fmt.Sprintf("cannot assign %s to map value type %s", next.Kind, valueType)}
 		}
 		items[key] = next
 		binding.Value = Value{Kind: ValueMap, Data: items}
@@ -503,7 +533,11 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 		if isBuiltinFunction(current.Name) {
 			return FunctionValue(current.Name), nil
 		}
-		if name := runtime.resolveFunctionName(current.Name); name != "" {
+		name, err := runtime.resolveFunctionName(current.Name)
+		if err != nil {
+			return NullValue(), err
+		}
+		if name != "" {
 			return FunctionValue(name), nil
 		}
 		return NullValue(), Error{Message: fmt.Sprintf("unknown identifier %q", current.Name)}
@@ -595,6 +629,28 @@ func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environmen
 	if err != nil {
 		return NullValue(), err
 	}
+
+	switch expr.Operator {
+	case "and":
+		if !isTruthy(left) {
+			return BoolValue(false), nil
+		}
+		right, err := runtime.evalExpression(expr.Right, env)
+		if err != nil {
+			return NullValue(), err
+		}
+		return BoolValue(isTruthy(right)), nil
+	case "or":
+		if isTruthy(left) {
+			return BoolValue(true), nil
+		}
+		right, err := runtime.evalExpression(expr.Right, env)
+		if err != nil {
+			return NullValue(), err
+		}
+		return BoolValue(isTruthy(right)), nil
+	}
+
 	right, err := runtime.evalExpression(expr.Right, env)
 	if err != nil {
 		return NullValue(), err
@@ -626,10 +682,6 @@ func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environmen
 		return compareNumeric(left, right, func(a, b float64) bool { return a < b })
 	case "<=":
 		return compareNumeric(left, right, func(a, b float64) bool { return a <= b })
-	case "and":
-		return BoolValue(isTruthy(left) && isTruthy(right)), nil
-	case "or":
-		return BoolValue(isTruthy(left) || isTruthy(right)), nil
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported binary operator %q", expr.Operator)}
 	}
@@ -667,7 +719,7 @@ func (runtime *Runtime) evalIndex(expr parser.IndexExpression, env *Environment)
 	switch target.Kind {
 	case ValueList:
 		items := target.Data.([]Value)
-		position, err := asInt(index)
+		position, err := asIndex(index)
 		if err != nil {
 			return NullValue(), err
 		}
@@ -714,9 +766,15 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		return args[0], nil
 	}
 
-	resolvedName := runtime.resolveFunctionName(name)
+	resolvedName, err := runtime.resolveFunctionName(name)
+	if err != nil {
+		return NullValue(), err
+	}
 	if resolvedName == "" {
 		return NullValue(), Error{Message: fmt.Sprintf("unknown function %q", name)}
+	}
+	if runtime.callDepth >= runtime.maxDepth {
+		return NullValue(), Error{Message: fmt.Sprintf("maximum call depth %d exceeded while calling %s", runtime.maxDepth, name)}
 	}
 	function := runtime.functions[resolvedName]
 	if len(args) != len(function.Params) {
@@ -724,12 +782,16 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 	}
 
 	env := NewEnvironment(runtime.global)
+	runtime.callDepth++
+	defer func() {
+		runtime.callDepth--
+	}()
 	for index, param := range function.Params {
 		value := args[index]
 		if !valueMatchesType(value, param.Type) {
 			return NullValue(), Error{Message: fmt.Sprintf("function %s argument %q expects %s, got %s", name, param.Name, param.Type, value.Kind)}
 		}
-		if err := env.Define(param.Name, false, value, runtime.memory.Allocate(value)); err != nil {
+		if err := env.Define(param.Name, false, param.Type, value, runtime.memory.Allocate(value)); err != nil {
 			return NullValue(), err
 		}
 	}
@@ -743,19 +805,29 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		}
 		return currentSignal.value, nil
 	}
+	if function.ReturnType != "" && function.ReturnType != "T" {
+		return NullValue(), Error{Message: fmt.Sprintf("function %s returns %s, got Null", name, function.ReturnType)}
+	}
 	return NullValue(), nil
 }
 
-func (runtime *Runtime) resolveFunctionName(name string) string {
+func (runtime *Runtime) resolveFunctionName(name string) (string, error) {
 	if _, ok := runtime.functions[name]; ok {
-		return name
+		return name, nil
 	}
+	var matches []string
 	for functionName := range runtime.functions {
 		if strings.HasSuffix(functionName, "."+name) {
-			return functionName
+			matches = append(matches, functionName)
 		}
 	}
-	return ""
+	if len(matches) > 1 {
+		return "", Error{Message: fmt.Sprintf("ambiguous function %q matches %s", name, strings.Join(matches, ", "))}
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	return "", nil
 }
 
 func isBuiltinFunction(name string) bool {
