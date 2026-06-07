@@ -1,0 +1,41 @@
+{
+  "name": "klang-vscode",
+  "displayName": "Klang Language Support",
+  "description": "Syntax highlighting, language configuration, and snippets for the Klang programming language.",
+  "version": "0.1.0",
+  "publisher": "klang",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "klang",
+        "aliases": [
+          "Klang",
+          "klang"
+        ],
+        "extensions": [
+          ".klang"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "klang",
+        "scopeName": "source.klang",
+        "path": "./syntaxes/klang.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "klang",
+        "path": "./snippets/klang.code-snippets"
+      }
+    ]
+  }
+}

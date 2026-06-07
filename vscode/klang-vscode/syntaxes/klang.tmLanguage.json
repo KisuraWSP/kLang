@@ -1,0 +1,241 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Klang",
+  "scopeName": "source.klang",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#chars" },
+    { "include": "#imports" },
+    { "include": "#namespace" },
+    { "include": "#function-declaration" },
+    { "include": "#variable-declaration" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#numbers" },
+    { "include": "#function-call" },
+    { "include": "#operators" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-dash.klang",
+          "match": "--.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.klang",
+          "begin": "\"",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.klang" }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.klang" }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.klang",
+              "match": "\\\\([\\\\\"'nrt])"
+            },
+            {
+              "name": "invalid.illegal.escape.klang",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "chars": {
+      "patterns": [
+        {
+          "name": "string.quoted.single.klang",
+          "begin": "'",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.klang" }
+          },
+          "end": "'",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.klang" }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.klang",
+              "match": "\\\\([\\\\\"'nrt])"
+            },
+            {
+              "name": "invalid.illegal.escape.klang",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "imports": {
+      "patterns": [
+        {
+          "name": "meta.import.klang",
+          "match": "\\b(import)\\s+(\"[^\"]*\")",
+          "captures": {
+            "1": { "name": "keyword.control.import.klang" },
+            "2": { "name": "string.quoted.double.import.klang" }
+          }
+        }
+      ]
+    },
+    "namespace": {
+      "patterns": [
+        {
+          "name": "meta.namespace.klang",
+          "match": "\\b(namespace)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.control.namespace.klang" },
+            "2": { "name": "entity.name.namespace.klang" }
+          }
+        }
+      ]
+    },
+    "function-declaration": {
+      "patterns": [
+        {
+          "name": "meta.function.klang",
+          "match": "\\b(function)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+          "captures": {
+            "1": { "name": "keyword.declaration.function.klang" },
+            "2": { "name": "entity.name.function.klang" },
+            "3": { "name": "punctuation.section.parameters.begin.klang" }
+          }
+        }
+      ]
+    },
+    "variable-declaration": {
+      "patterns": [
+        {
+          "name": "meta.variable.declaration.klang",
+          "match": "\\b(global|local)\\s+(?:(mut)\\s+)?([A-Za-z_][A-Za-z0-9_]*(?:\\[[^\\]]+\\])?)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.modifier.scope.klang" },
+            "2": { "name": "storage.modifier.mutability.klang" },
+            "3": { "name": "storage.type.klang" },
+            "4": { "name": "variable.other.readwrite.klang" }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.klang",
+          "match": "\\b(if|else|unless|for|while|do|do_while|return|break|and|or|not|import|namespace|call)\\b"
+        },
+        {
+          "name": "storage.modifier.klang",
+          "match": "\\b(global|local|mut)\\b"
+        },
+        {
+          "name": "keyword.operator.word.klang",
+          "match": "\\b(is|as|in)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.primitive.klang",
+          "match": "\\b(Int|UInt|String|Float|Bool|Char|Map|List|T)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.klang",
+          "match": "\\b(True|False)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.klang",
+          "match": "\\b\\d+\\.\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.klang",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "function-call": {
+      "patterns": [
+        {
+          "name": "meta.function-call.qualified.klang",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(\\.)([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.namespace.klang" },
+            "2": { "name": "punctuation.accessor.klang" },
+            "3": { "name": "entity.name.function.klang" }
+          }
+        },
+        {
+          "name": "entity.name.function.call.klang",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.comparison.klang",
+          "match": "(==|!=|>=|<=|>|<)"
+        },
+        {
+          "name": "keyword.operator.assignment.klang",
+          "match": "(:=|\\+=|-=|\\*=|/=|=)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.klang",
+          "match": "(\\*\\*|//|[+\\-*/%])"
+        },
+        {
+          "name": "keyword.operator.arrow.klang",
+          "match": "->"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.terminator.statement.klang",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.separator.comma.klang",
+          "match": ","
+        },
+        {
+          "name": "punctuation.definition.type.return.klang",
+          "match": ":"
+        },
+        {
+          "name": "punctuation.section.block.klang",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.section.brackets.klang",
+          "match": "[\\[\\]()]"
+        },
+        {
+          "name": "punctuation.accessor.klang",
+          "match": "\\."
+        }
+      ]
+    }
+  }
+}
