@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"kLang/src/engine/file"
+	modulesystem "kLang/src/engine/module_system"
 	typechecker "kLang/src/engine/type_checker"
 )
 
@@ -56,7 +57,20 @@ func printPrograms(programs []file.Program) {
 func checkPrograms(programs []file.Program) {
 	hasErrors := false
 	for _, program := range programs {
-		report := typechecker.CheckProgram(program)
+		resolvedProgram, moduleReport := modulesystem.ResolveProgram(program)
+		if !moduleReport.Passed() {
+			hasErrors = true
+			fmt.Printf("%s module resolution: failed\n", program.Name)
+			for _, err := range moduleReport.Errors {
+				fmt.Printf("%s:%d:%d: %s\n", err.File, err.Line, err.Column, err.Message)
+			}
+			continue
+		}
+		for _, module := range moduleReport.Modules {
+			fmt.Printf("%s import: %s -> %s (%s)\n", program.Name, module.Name, module.Path, module.Kind)
+		}
+
+		report := typechecker.CheckProgram(resolvedProgram)
 		if report.Passed() {
 			fmt.Printf("%s type check: ok\n", program.Name)
 			continue
