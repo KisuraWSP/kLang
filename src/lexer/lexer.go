@@ -157,14 +157,25 @@ func (lexer *Lexer) readNumber() (string, TokenType) {
 		}
 	}
 
+	if lexer.ch == '.' || isLetter(lexer.ch) {
+		for lexer.ch == '.' || isLetter(lexer.ch) || isDigit(lexer.ch) {
+			lexer.readChar()
+		}
+		return lexer.input[position:lexer.position], TokenIllegal
+	}
+
 	return lexer.input[position:lexer.position], tokenType
 }
 
 func (lexer *Lexer) readString() (string, bool) {
 	lexer.readChar()
 	position := lexer.position
+	valid := true
 	for lexer.ch != '"' && lexer.ch != 0 && lexer.ch != '\n' {
 		if lexer.ch == '\\' && lexer.peekChar() != 0 {
+			if !isValidEscape(lexer.peekChar()) {
+				valid = false
+			}
 			lexer.readChar()
 		}
 		lexer.readChar()
@@ -176,14 +187,18 @@ func (lexer *Lexer) readString() (string, bool) {
 	}
 
 	lexer.readChar()
-	return literal, true
+	return literal, valid
 }
 
 func (lexer *Lexer) readCharLiteral() (string, bool) {
 	lexer.readChar()
 	position := lexer.position
+	valid := true
 	for lexer.ch != '\'' && lexer.ch != 0 && lexer.ch != '\n' {
 		if lexer.ch == '\\' && lexer.peekChar() != 0 {
+			if !isValidEscape(lexer.peekChar()) {
+				valid = false
+			}
 			lexer.readChar()
 		}
 		lexer.readChar()
@@ -195,7 +210,7 @@ func (lexer *Lexer) readCharLiteral() (string, bool) {
 	}
 
 	lexer.readChar()
-	return literal, isValidCharLiteral(literal)
+	return literal, valid && isValidCharLiteral(literal)
 }
 
 func (lexer *Lexer) readOperator() (TokenType, string, bool) {
@@ -244,4 +259,13 @@ func isValidCharLiteral(literal string) bool {
 		return true
 	}
 	return len(literal) == 2 && literal[0] == '\\'
+}
+
+func isValidEscape(ch byte) bool {
+	switch ch {
+	case 'n', 'r', 't', '\\', '"', '\'':
+		return true
+	default:
+		return false
+	}
 }

@@ -229,8 +229,26 @@ func TestLexerTokenizesEscapedStringAndCharLiterals(t *testing.T) {
 	})
 }
 
+func TestLexerReportsIllegalStringEscapes(t *testing.T) {
+	for _, input := range []string{`"bad \q escape"`, `"bad \0 escape"`} {
+		tokens := New(input).Tokenize()
+		if tokens[0].Type != TokenIllegal {
+			t.Fatalf("%q: expected illegal string literal, got %#v", input, tokens[0])
+		}
+	}
+}
+
 func TestLexerReportsIllegalCharLiterals(t *testing.T) {
 	for _, input := range []string{`''`, `'ab'`, `'unterminated`} {
+		tokens := New(input).Tokenize()
+		if tokens[0].Type != TokenIllegal {
+			t.Fatalf("%q: expected illegal char literal, got %#v", input, tokens[0])
+		}
+	}
+}
+
+func TestLexerReportsIllegalCharEscapes(t *testing.T) {
+	for _, input := range []string{`'\q'`, `'\0'`} {
 		tokens := New(input).Tokenize()
 		if tokens[0].Type != TokenIllegal {
 			t.Fatalf("%q: expected illegal char literal, got %#v", input, tokens[0])
@@ -247,12 +265,32 @@ func TestLexerReportsIllegalUnterminatedString(t *testing.T) {
 	}
 }
 
+func TestLexerReportsMalformedNumbers(t *testing.T) {
+	for _, input := range []string{`123abc`, `1.2.3`, `10.`} {
+		tokens := New(input).Tokenize()
+		if tokens[0].Type != TokenIllegal {
+			t.Fatalf("%q: expected malformed number to be illegal, got %#v", input, tokens[0])
+		}
+	}
+}
+
 func TestLexerReportsIllegalUnknownCharacters(t *testing.T) {
 	tokens := New(`local Int value = @;`).Tokenize()
 
 	atToken := tokens[4]
 	if atToken.Type != TokenIllegal || atToken.Literal != "@" {
 		t.Fatalf("expected illegal @ token, got %#v", atToken)
+	}
+}
+
+func TestLexerSkipsCommentAtEOF(t *testing.T) {
+	tokens := New(`local Int value = 1; -- final comment`).Tokenize()
+
+	if tokens[len(tokens)-1].Type != TokenEOFDescriptor {
+		t.Fatalf("expected EOF after trailing comment, got %#v", tokens[len(tokens)-1])
+	}
+	if tokens[len(tokens)-2].Type != TokenSemicolon {
+		t.Fatalf("expected semicolon before EOF, got %#v", tokens[len(tokens)-2])
 	}
 }
 
@@ -265,6 +303,18 @@ func TestLexerTracksLineAndColumn(t *testing.T) {
 	}
 	if returnToken.Line != 2 || returnToken.Column != 1 {
 		t.Fatalf("expected return at line 2 column 1, got line %d column %d", returnToken.Line, returnToken.Column)
+	}
+}
+
+func TestLexerTracksPositionAfterSkippedComment(t *testing.T) {
+	tokens := New("-- ignored\n  local Int x = 1;").Tokenize()
+
+	firstToken := tokens[0]
+	if firstToken.Type != TokenLocal {
+		t.Fatalf("expected local token, got %#v", firstToken)
+	}
+	if firstToken.Line != 2 || firstToken.Column != 3 {
+		t.Fatalf("expected local at line 2 column 3, got line %d column %d", firstToken.Line, firstToken.Column)
 	}
 }
 
