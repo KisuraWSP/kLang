@@ -28,7 +28,7 @@ namespace random {
         local mut Int range = max - min;
         unless range > 0 { range = 1; } else { range = range + 0; }
         
-        local Int chunk = randVal / 10000;
+        local mut Int chunk = randVal / 10000;
         local mut Int result = min;
         
         do_while step := chunk > range {

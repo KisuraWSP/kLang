@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"kLang/src/engine/file"
+	typechecker "kLang/src/engine/type_checker"
 )
 
 func main() {
@@ -19,6 +20,7 @@ func main() {
 		}
 
 		printPrograms(programs)
+		checkPrograms(programs)
 		return
 	}
 
@@ -30,7 +32,9 @@ func main() {
 			os.Exit(1)
 		}
 
-		printPrograms([]file.Program{program})
+		programs := []file.Program{program}
+		printPrograms(programs)
+		checkPrograms(programs)
 		return
 	}
 
@@ -46,5 +50,26 @@ func main() {
 func printPrograms(programs []file.Program) {
 	for _, program := range programs {
 		fmt.Printf("%s -> %s (%d file(s))\n", program.Name, program.EntryPoint, len(program.Files))
+	}
+}
+
+func checkPrograms(programs []file.Program) {
+	hasErrors := false
+	for _, program := range programs {
+		report := typechecker.CheckProgram(program)
+		if report.Passed() {
+			fmt.Printf("%s type check: ok\n", program.Name)
+			continue
+		}
+
+		hasErrors = true
+		fmt.Printf("%s type check: failed\n", program.Name)
+		for _, err := range report.Errors {
+			fmt.Printf("%s:%d: %s\n", err.File, err.Line, err.Message)
+		}
+	}
+
+	if hasErrors {
+		os.Exit(1)
 	}
 }

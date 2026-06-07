@@ -1,1 +1,198 @@
 package typechecker
+
+import (
+	"strings"
+	"testing"
+
+	"kLang/src/engine/file"
+)
+
+func TestCheckProgramAcceptsTypedVariablesFunctionsAndCalls(t *testing.T) {
+	program := programFromSource(`
+global mut Int counter = 0;
+
+function Add(left : Int, right : Int) : Int {
+    local Int total = left + right;
+    counter += 1;
+    return total;
+}
+
+function Main() : Int {
+    local Int value = Add(1, 2);
+    print(value);
+    return value;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsVariableTypeMismatch(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local String value = 10;
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "cannot assign Int to local String value")
+}
+
+func TestCheckProgramRejectsReturnTypeMismatch(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    return "wrong";
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "returns Int but return expression is String")
+}
+
+func TestCheckProgramRejectsImmutableMutation(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Int value = 1;
+    value = 2;
+    return value;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "cannot mutate immutable variable")
+}
+
+func TestCheckProgramRejectsFunctionArgumentMismatch(t *testing.T) {
+	program := programFromSource(`
+function Add(left : Int, right : Int) : Int {
+    return left + right;
+}
+
+function Main() : Int {
+    return Add("nope", 1);
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "argument 1 expects Int, got String")
+}
+
+func TestCheckProgramAcceptsMutableMapAndListIndexAssignments(t *testing.T) {
+	if !isKnownType("Map[String,Int]") {
+		t.Fatal("expected Map[String,Int] to be a known type")
+	}
+	typeName, name, ok := splitTypeAndName("Map[String, Int] rowResults")
+	if !ok || typeName != "Map[String,Int]" || name != "rowResults" {
+		t.Fatalf("expected split type and name to handle map types, got %q, %q, %v", typeName, name, ok)
+	}
+	decl, ok := parseVariableDeclaration(`local mut Map[String, Int] rowResults = {}`, "local")
+	if !ok || decl.Type != "Map[String,Int]" || decl.Name != "rowResults" {
+		t.Fatalf("expected map declaration to parse, got %#v, %v", decl, ok)
+	}
+
+	program := programFromSource(`
+global mut Map[String, Int] memoryStore = {};
+
+function Main() : Int {
+    local mut List[Int] values = [];
+    local mut Map[String, Int] rowResults = {};
+    values[0] = 1;
+    rowResults["sum"] = values[0];
+    memoryStore["sum"] = rowResults["sum"];
+    return memoryStore["sum"];
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsBlockShadowing(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut Int value = 1;
+    if True {
+        local mut Int value = 2;
+        value += 1;
+    }
+    value += 1;
+    return value;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsNestedFunctionAsFirstClassValue(t *testing.T) {
+	program := programFromSource(`
+function NumberFactory(multiplier : Int) : T {
+    function InnerGenerator(val : Int) : Int {
+        return val * multiplier;
+    }
+    return InnerGenerator;
+}
+
+global T timesTen = NumberFactory(10);
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsNamespaceLocalFunctionCalls(t *testing.T) {
+	program := programFromSource(`
+namespace random {
+    function Random() : Int {
+        return 1;
+    }
+
+    function RandomRange(min : Int, max : Int) : Int {
+        local Int value = Random();
+        return value + min + max;
+    }
+}
+
+function Main() : Int {
+    return call random.RandomRange(1, 2);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
+func programFromSource(source string) file.Program {
+	lines := strings.Split(strings.TrimSpace(source), "\n")
+	return file.Program{
+		Name:       "test",
+		Root:       "tests",
+		EntryPoint: "tests/test.klang",
+		Files: []file.SourceFile{
+			{
+				Path:  "tests/test.klang",
+				Lines: lines,
+			},
+		},
+	}
+}
+
+func assertTypeError(t *testing.T, report Report, expected string) {
+	t.Helper()
+
+	for _, err := range report.Errors {
+		if strings.Contains(err.Message, expected) {
+			return
+		}
+	}
+
+	t.Fatalf("expected type error containing %q, got %#v", expected, report.Errors)
+}
