@@ -134,10 +134,62 @@ function Main() : Int {
 	}
 }
 
+func TestParseCompactConditionStatement(t *testing.T) {
+	program, errors := Parse(`
+function Main() : Int {
+    local mut Int i = 0;
+    if i == 3 break;
+    unless i > 0 return 1;
+    return i;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn := program.Statements[0].(FunctionStatement)
+	if len(fn.Body) != 4 {
+		t.Fatalf("expected 4 function body statements, got %d", len(fn.Body))
+	}
+
+	firstCondition, ok := fn.Body[1].(IfStatement)
+	if !ok || firstCondition.Kind != "if" {
+		t.Fatalf("expected compact if statement, got %#v", fn.Body[1])
+	}
+	if firstCondition.Condition.Literal() != "i == 3" {
+		t.Fatalf("unexpected compact if condition: %q", firstCondition.Condition.Literal())
+	}
+	if len(firstCondition.Consequence) != 1 {
+		t.Fatalf("expected compact if consequence, got %#v", firstCondition.Consequence)
+	}
+	if _, ok := firstCondition.Consequence[0].(BreakStatement); !ok {
+		t.Fatalf("expected compact if consequence to be break, got %T", firstCondition.Consequence[0])
+	}
+
+	secondCondition, ok := fn.Body[2].(IfStatement)
+	if !ok || secondCondition.Kind != "unless" {
+		t.Fatalf("expected compact unless statement, got %#v", fn.Body[2])
+	}
+	if secondCondition.Condition.Literal() != "i > 0" {
+		t.Fatalf("unexpected compact unless condition: %q", secondCondition.Condition.Literal())
+	}
+	if len(secondCondition.Consequence) != 1 {
+		t.Fatalf("expected compact unless consequence, got %#v", secondCondition.Consequence)
+	}
+	if _, ok := secondCondition.Consequence[0].(ReturnStatement); !ok {
+		t.Fatalf("expected compact unless consequence to be return, got %T", secondCondition.Consequence[0])
+	}
+}
+
 func TestParseRejectsIllegalTokens(t *testing.T) {
 	_, errors := Parse(`local Int value = @;`)
 	if len(errors) == 0 {
 		t.Fatal("expected parse errors for illegal token")
+	}
+}
+
+func TestParseRejectsMalformedGenericType(t *testing.T) {
+	_, errors := Parse(`local Map[String, Int table = {};`)
+	if len(errors) == 0 {
+		t.Fatal("expected parse errors for malformed generic type")
 	}
 }
 
@@ -154,6 +206,24 @@ func TestParseFixturePrograms(t *testing.T) {
 				t.Fatalf("%s parse errors: %#v", source.Path, errors)
 			}
 		}
+	}
+}
+
+func TestParseLoadedProgramParsesEverySourceFile(t *testing.T) {
+	loadedProgram, err := file.LoadProgram(filepath.Join("..", "..", "tests", "test21"))
+	if err != nil {
+		t.Fatalf("failed to load fixture program: %v", err)
+	}
+
+	parsed := ParseLoadedProgram(loadedProgram)
+	if !parsed.Passed() {
+		t.Fatalf("expected loaded program to parse, got %#v", parsed.Errors())
+	}
+	if parsed.Name != "test21" {
+		t.Fatalf("expected parsed program name test21, got %q", parsed.Name)
+	}
+	if len(parsed.Sources) != 2 {
+		t.Fatalf("expected test21 to parse two source files, got %d", len(parsed.Sources))
 	}
 }
 

@@ -190,6 +190,7 @@ func (parser *Parser) parseCondition(kind string) Statement {
 		consequence = parser.parseBlock()
 	} else {
 		parser.consumeOptionalSemicolon()
+		condition, consequence = parseInlineCondition(condition)
 	}
 
 	stmt := IfStatement{
@@ -210,16 +211,43 @@ func (parser *Parser) parseCondition(kind string) Statement {
 		} else {
 			expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
 			parser.consumeOptionalSemicolon()
-			if len(expr.Tokens) > 0 {
-				stmt.Alternative = []Statement{ExpressionStatement{
-					Pos:        positionFromToken(expr.Tokens[0]),
-					Expression: expr,
-				}}
-			}
+			stmt.Alternative = parseInlineStatements(expr.Tokens)
 		}
 	}
 
 	return stmt
+}
+
+func parseInlineCondition(expr Expression) (Expression, []Statement) {
+	index := inlineStatementStart(expr.Tokens)
+	if index == -1 {
+		return expr, nil
+	}
+	return Expression{Tokens: expr.Tokens[:index]}, parseInlineStatements(expr.Tokens[index:])
+}
+
+func parseInlineStatements(tokens []lexer.Token) []Statement {
+	if len(tokens) == 0 {
+		return nil
+	}
+	inlineTokens := append([]lexer.Token{}, tokens...)
+	inlineTokens = append(inlineTokens, lexer.Token{Type: lexer.TokenEOFDescriptor})
+	inlineParser := New(inlineTokens)
+	stmt := inlineParser.parseStatement()
+	if stmt == nil {
+		return nil
+	}
+	return []Statement{stmt}
+}
+
+func inlineStatementStart(tokens []lexer.Token) int {
+	for index, token := range tokens {
+		switch token.Type {
+		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenCall:
+			return index
+		}
+	}
+	return -1
 }
 
 func (parser *Parser) parseLoop(kind string) Statement {
@@ -301,6 +329,10 @@ func (parser *Parser) parseType() string {
 			depth++
 			parts = append(parts, token.Literal)
 		case lexer.TokenRightSquareBrace:
+			if depth == 0 {
+				parser.addError(token, "unexpected ']' in type")
+				return strings.Join(parts, "")
+			}
 			depth--
 			parts = append(parts, token.Literal)
 		case lexer.TokenComma:
@@ -309,6 +341,9 @@ func (parser *Parser) parseType() string {
 			if len(parts) == 0 {
 				parser.addError(token, "expected type")
 				return ""
+			}
+			if depth != 0 {
+				parser.addError(token, "expected ']' to close type")
 			}
 			return strings.Join(parts, "")
 		}
@@ -321,6 +356,9 @@ func (parser *Parser) parseType() string {
 	if len(parts) == 0 {
 		parser.addError(start, "expected type")
 		return ""
+	}
+	if depth != 0 {
+		parser.addError(start, "expected ']' to close type")
 	}
 	return strings.Join(parts, "")
 }
