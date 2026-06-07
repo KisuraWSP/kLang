@@ -41,11 +41,15 @@ const (
 	TokenLessThanOrEqualTo    // <=
 
 	TokenArrow            // ->
+	TokenEvaluationAssign // :=
 	TokenLeftSquareBrace  // [
 	TokenRightSquareBrace // ]
 	TokenLeftBrace        // (
 	TokenRightBrace       // )
 	TokenInferReturn      // :
+	TokenSemicolon        // ;
+	TokenComma            // ,
+	TokenDot              // .
 
 	// Special Scope Operators
 	TokenScopeBegin // {
@@ -72,11 +76,16 @@ const (
 	TokenLocal      // local
 	TokenCall       // call
 	TokenNameSpace  // namespace
+	TokenReturn     // return
+	TokenBreak      // break
+	TokenDoWhile    // do_while
 )
 
 type Token struct {
 	Type    TokenType
 	Literal string
+	Line    int
+	Column  int
 }
 
 var Keywords = map[string]TokenType{
@@ -100,6 +109,9 @@ var Keywords = map[string]TokenType{
 	"local":     TokenLocal,
 	"call":      TokenCall,
 	"namespace": TokenNameSpace,
+	"return":    TokenReturn,
+	"break":     TokenBreak,
+	"do_while":  TokenDoWhile,
 }
 
 var Operators = map[string]TokenType{
@@ -122,6 +134,7 @@ var Operators = map[string]TokenType{
 	">=": TokenGreaterThanOrEqualTo,
 	"<=": TokenLessThanOrEqualTo,
 	"->": TokenArrow,
+	":=": TokenEvaluationAssign,
 	":":  TokenInferReturn,
 }
 
@@ -132,4 +145,7 @@ var Punctuations = map[string]TokenType{
 	")": TokenRightBrace,
 	"{": TokenScopeBegin,
 	"}": TokenScopeEnd,
+	";": TokenSemicolon,
+	",": TokenComma,
+	".": TokenDot,
 }
