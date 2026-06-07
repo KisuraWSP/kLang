@@ -3,6 +3,7 @@ package runtime
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"kLang/src/lexer"
 	"kLang/src/parser"
@@ -61,20 +62,20 @@ func literalValue(expr parser.LiteralExpression) (Value, error) {
 	}
 }
 
-func applyAssignmentOperator(left Value, operator string, right Value) Value {
+func applyAssignmentOperator(left Value, operator string, right Value) (Value, error) {
 	switch operator {
 	case "=":
-		return right
+		return right, nil
 	case "+=":
-		return mustValue(numericOrString(left, right, func(a, b float64) float64 { return a + b }))
+		return numericOrString(left, right, func(a, b float64) float64 { return a + b })
 	case "-=":
 		return numericBinary(left, right, func(a, b float64) float64 { return a - b })
 	case "*=":
 		return numericBinary(left, right, func(a, b float64) float64 { return a * b })
 	case "/=":
-		return numericBinary(left, right, func(a, b float64) float64 { return a / b })
+		return divideValues(left, right)
 	default:
-		return right
+		return NullValue(), Error{Message: fmt.Sprintf("unsupported assignment operator %q", operator)}
 	}
 }
 
@@ -82,50 +83,85 @@ func numericOrString(left Value, right Value, op func(float64, float64) float64)
 	if left.Kind == ValueString || right.Kind == ValueString {
 		return StringValue(valueString(left) + valueString(right)), nil
 	}
-	return numericBinary(left, right, op), nil
+	return numericBinary(left, right, op)
 }
 
-func numericBinary(left Value, right Value, op func(float64, float64) float64) Value {
+func numericBinary(left Value, right Value, op func(float64, float64) float64) (Value, error) {
+	if !isNumeric(left) || !isNumeric(right) {
+		return NullValue(), Error{Message: fmt.Sprintf("numeric operation requires Int or Float, got %s and %s", left.Kind, right.Kind)}
+	}
 	if left.Kind == ValueFloat || right.Kind == ValueFloat {
-		return FloatValue(op(asFloat(left), asFloat(right)))
+		leftFloat, _ := asFloat(left)
+		rightFloat, _ := asFloat(right)
+		return FloatValue(op(leftFloat, rightFloat)), nil
 	}
-	return IntValue(int(op(float64(asInt(left)), float64(asInt(right)))))
+	leftInt, _ := asInt(left)
+	rightInt, _ := asInt(right)
+	return IntValue(int(op(float64(leftInt), float64(rightInt)))), nil
 }
 
-func mustValue(value Value, _ error) Value {
-	return value
+func divideValues(left Value, right Value) (Value, error) {
+	if !isNumeric(left) || !isNumeric(right) {
+		return NullValue(), Error{Message: fmt.Sprintf("division requires Int or Float, got %s and %s", left.Kind, right.Kind)}
+	}
+	rightFloat, _ := asFloat(right)
+	if rightFloat == 0 {
+		return NullValue(), Error{Message: "division by zero"}
+	}
+	return numericBinary(left, right, func(a, b float64) float64 { return a / b })
 }
 
-func asInt(value Value) int {
+func moduloValues(left Value, right Value) (Value, error) {
+	leftInt, err := asInt(left)
+	if err != nil {
+		return NullValue(), err
+	}
+	rightInt, err := asInt(right)
+	if err != nil {
+		return NullValue(), err
+	}
+	if rightInt == 0 {
+		return NullValue(), Error{Message: "modulo by zero"}
+	}
+	return IntValue(leftInt % rightInt), nil
+}
+
+func compareNumeric(left Value, right Value, op func(float64, float64) bool) (Value, error) {
+	leftFloat, err := asFloat(left)
+	if err != nil {
+		return NullValue(), err
+	}
+	rightFloat, err := asFloat(right)
+	if err != nil {
+		return NullValue(), err
+	}
+	return BoolValue(op(leftFloat, rightFloat)), nil
+}
+
+func asInt(value Value) (int, error) {
 	switch value.Kind {
 	case ValueInt:
-		return value.Data.(int)
+		return value.Data.(int), nil
 	case ValueFloat:
-		return int(value.Data.(float64))
-	case ValueBool:
-		if value.Data.(bool) {
-			return 1
-		}
-		return 0
+		return int(value.Data.(float64)), nil
 	default:
-		return 0
+		return 0, Error{Message: fmt.Sprintf("expected Int-compatible value, got %s", value.Kind)}
 	}
 }
 
-func asFloat(value Value) float64 {
+func asFloat(value Value) (float64, error) {
 	switch value.Kind {
 	case ValueFloat:
-		return value.Data.(float64)
+		return value.Data.(float64), nil
 	case ValueInt:
-		return float64(value.Data.(int))
-	case ValueBool:
-		if value.Data.(bool) {
-			return 1
-		}
-		return 0
+		return float64(value.Data.(int)), nil
 	default:
-		return 0
+		return 0, Error{Message: fmt.Sprintf("expected numeric value, got %s", value.Kind)}
 	}
+}
+
+func isNumeric(value Value) bool {
+	return value.Kind == ValueInt || value.Kind == ValueFloat
 }
 
 func isTruthy(value Value) bool {
@@ -165,21 +201,51 @@ func valueString(value Value) string {
 	}
 }
 
-func valueLen(value Value) int {
+func valueLen(value Value) (int, error) {
 	switch value.Kind {
 	case ValueString:
-		return len(value.Data.(string))
+		return len(value.Data.(string)), nil
 	case ValueList:
-		return len(value.Data.([]Value))
+		return len(value.Data.([]Value)), nil
 	case ValueMap:
-		return len(value.Data.(map[string]Value))
+		return len(value.Data.(map[string]Value)), nil
 	default:
-		return 0
+		return 0, Error{Message: fmt.Sprintf("len does not support %s", value.Kind)}
 	}
 }
 
-func mapKey(value Value) string {
-	return valueString(value)
+func mapKey(value Value) (string, error) {
+	switch value.Kind {
+	case ValueInt, ValueFloat, ValueString, ValueBool, ValueChar:
+		return valueString(value), nil
+	default:
+		return "", Error{Message: fmt.Sprintf("%s cannot be used as a map key", value.Kind)}
+	}
+}
+
+func valueMatchesType(value Value, typeName string) bool {
+	switch {
+	case typeName == "" || typeName == "T":
+		return true
+	case typeName == "Int":
+		return value.Kind == ValueInt
+	case typeName == "UInt":
+		return value.Kind == ValueInt && value.Data.(int) >= 0
+	case typeName == "Float":
+		return value.Kind == ValueFloat || value.Kind == ValueInt
+	case typeName == "String":
+		return value.Kind == ValueString
+	case typeName == "Bool":
+		return value.Kind == ValueBool
+	case typeName == "Char":
+		return value.Kind == ValueChar
+	case strings.HasPrefix(typeName, "List["):
+		return value.Kind == ValueList
+	case strings.HasPrefix(typeName, "Map["):
+		return value.Kind == ValueMap
+	default:
+		return true
+	}
 }
 
 func parseRangeHeader(expr parser.Expression) (string, parser.Expression, bool) {
@@ -194,6 +260,14 @@ func parseRangeHeader(expr parser.Expression) (string, parser.Expression, bool) 
 	return tokens[0].Literal, parser.Expression{Tokens: valueTokens, Node: parser.ParseExpressionTokens(valueTokens)}, true
 }
 
+func parseCStyleForHeader(expr parser.Expression) (parser.Expression, parser.Expression, parser.Expression, bool) {
+	parts := splitTopLevel(expr.Tokens, lexer.TokenSemicolon)
+	if len(parts) != 3 {
+		return parser.Expression{}, parser.Expression{}, parser.Expression{}, false
+	}
+	return expressionFromRuntimeTokens(parts[0]), expressionFromRuntimeTokens(parts[1]), expressionFromRuntimeTokens(parts[2]), true
+}
+
 func loopCondition(expr parser.Expression) parser.Expression {
 	tokens := expr.Tokens
 	for index, token := range tokens {
@@ -203,4 +277,58 @@ func loopCondition(expr parser.Expression) parser.Expression {
 		}
 	}
 	return expr
+}
+
+func splitTopLevel(tokens []lexer.Token, separator lexer.TokenType) [][]lexer.Token {
+	var parts [][]lexer.Token
+	start := 0
+	parenDepth := 0
+	bracketDepth := 0
+	braceDepth := 0
+	for index, token := range tokens {
+		switch token.Type {
+		case lexer.TokenLeftBrace:
+			parenDepth++
+		case lexer.TokenRightBrace:
+			if parenDepth > 0 {
+				parenDepth--
+			}
+		case lexer.TokenLeftSquareBrace:
+			bracketDepth++
+		case lexer.TokenRightSquareBrace:
+			if bracketDepth > 0 {
+				bracketDepth--
+			}
+		case lexer.TokenScopeBegin:
+			braceDepth++
+		case lexer.TokenScopeEnd:
+			if braceDepth > 0 {
+				braceDepth--
+			}
+		default:
+			if token.Type == separator && parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 {
+				parts = append(parts, trimRuntimeTokens(tokens[start:index]))
+				start = index + 1
+			}
+		}
+	}
+	parts = append(parts, trimRuntimeTokens(tokens[start:]))
+	return parts
+}
+
+func trimRuntimeTokens(tokens []lexer.Token) []lexer.Token {
+	start := 0
+	end := len(tokens)
+	for start < end && tokens[start].Type == lexer.TokenSemicolon {
+		start++
+	}
+	for end > start && tokens[end-1].Type == lexer.TokenSemicolon {
+		end--
+	}
+	return tokens[start:end]
+}
+
+func expressionFromRuntimeTokens(tokens []lexer.Token) parser.Expression {
+	tokens = trimRuntimeTokens(tokens)
+	return parser.Expression{Tokens: tokens, Node: parser.ParseExpressionTokens(tokens)}
 }

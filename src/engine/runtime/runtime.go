@@ -7,6 +7,7 @@ import (
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
 	typechecker "kLang/src/engine/type_checker"
+	"kLang/src/lexer"
 	"kLang/src/parser"
 )
 
@@ -40,6 +41,13 @@ type Error struct {
 
 func (err Error) Error() string {
 	return err.Message
+}
+
+func errorAt(pos parser.Position, message string) error {
+	if pos.Line > 0 {
+		return Error{Message: fmt.Sprintf("line %d:%d: %s", pos.Line, pos.Column, message)}
+	}
+	return Error{Message: message}
 }
 
 type Runtime struct {
@@ -84,7 +92,7 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 	}
 
 	for _, source := range program.Sources {
-		signal, err := runtime.executeBlock(source.Program.Statements, runtime.global)
+		signal, err := runtime.executeBlock(source.Program.Statements, runtime.global, false)
 		if err != nil {
 			return Result{}, err
 		}
@@ -130,9 +138,9 @@ type signal struct {
 	value Value
 }
 
-func (runtime *Runtime) executeBlock(statements []parser.Statement, env *Environment) (signal, error) {
+func (runtime *Runtime) executeBlock(statements []parser.Statement, env *Environment, inLoop bool) (signal, error) {
 	for _, stmt := range statements {
-		currentSignal, err := runtime.executeStatement(stmt, env)
+		currentSignal, err := runtime.executeStatement(stmt, env, inLoop)
 		if err != nil {
 			return signal{}, err
 		}
@@ -143,7 +151,7 @@ func (runtime *Runtime) executeBlock(statements []parser.Statement, env *Environ
 	return signal{kind: signalNone}, nil
 }
 
-func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment) (signal, error) {
+func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment, inLoop bool) (signal, error) {
 	switch current := stmt.(type) {
 	case parser.ImportStatement:
 		return signal{kind: signalNone}, nil
@@ -156,7 +164,16 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		if err != nil {
 			return signal{}, err
 		}
-		env.Define(current.Name, current.Mutable, value, runtime.memory.Allocate(value))
+		if !valueMatchesType(value, current.Type) {
+			return signal{}, errorAt(current.Pos, fmt.Sprintf("cannot assign %s to %s variable %q", value.Kind, current.Type, current.Name))
+		}
+		targetEnv := env
+		if current.Scope == "global" {
+			targetEnv = runtime.global
+		}
+		if err := targetEnv.Define(current.Name, current.Mutable, value, runtime.memory.Allocate(value)); err != nil {
+			return signal{}, errorAt(current.Pos, err.Error())
+		}
 		return signal{kind: signalNone}, nil
 	case parser.ReturnStatement:
 		value, err := runtime.evalExpression(current.Expression.Node, env)
@@ -165,14 +182,20 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		}
 		return signal{kind: signalReturn, value: value}, nil
 	case parser.BreakStatement:
+		if !inLoop {
+			return signal{}, errorAt(current.Pos, "break is only allowed inside a loop")
+		}
 		return signal{kind: signalBreak}, nil
 	case parser.ExpressionStatement:
 		_, err := runtime.evalExpression(current.Expression.Node, env)
 		return signal{kind: signalNone}, err
 	case parser.AssignmentStatement:
-		return signal{kind: signalNone}, runtime.executeAssignment(current, env)
+		if err := runtime.executeAssignment(current, env); err != nil {
+			return signal{}, errorAt(current.Pos, err.Error())
+		}
+		return signal{kind: signalNone}, nil
 	case parser.IfStatement:
-		return runtime.executeIf(current, env)
+		return runtime.executeIf(current, env, inLoop)
 	case parser.LoopStatement:
 		return runtime.executeLoop(current, env)
 	default:
@@ -180,7 +203,7 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 	}
 }
 
-func (runtime *Runtime) executeIf(stmt parser.IfStatement, env *Environment) (signal, error) {
+func (runtime *Runtime) executeIf(stmt parser.IfStatement, env *Environment, inLoop bool) (signal, error) {
 	condition, err := runtime.evalExpression(stmt.Condition.Node, env)
 	if err != nil {
 		return signal{}, err
@@ -193,29 +216,73 @@ func (runtime *Runtime) executeIf(stmt parser.IfStatement, env *Environment) (si
 	}
 
 	if shouldRun {
-		return runtime.executeBlock(stmt.Consequence, NewEnvironment(env))
+		return runtime.executeBlock(stmt.Consequence, NewEnvironment(env), inLoop)
 	}
 	if stmt.ElseIf != nil {
-		return runtime.executeIf(*stmt.ElseIf, env)
+		return runtime.executeIf(*stmt.ElseIf, env, inLoop)
 	}
 	if len(stmt.Alternative) != 0 {
-		return runtime.executeBlock(stmt.Alternative, NewEnvironment(env))
+		return runtime.executeBlock(stmt.Alternative, NewEnvironment(env), inLoop)
 	}
 	return signal{kind: signalNone}, nil
 }
 
 func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment) (signal, error) {
+	if init, condition, post, ok := parseCStyleForHeader(stmt.Header); ok {
+		loopEnv := NewEnvironment(env)
+		if len(init.Tokens) != 0 {
+			if err := runtime.executeLoopHeaderAssignment(init, loopEnv); err != nil {
+				return signal{}, errorAt(stmt.Pos, err.Error())
+			}
+		}
+		for {
+			if len(condition.Tokens) != 0 {
+				conditionValue, err := runtime.evalExpression(condition.Node, loopEnv)
+				if err != nil {
+					return signal{}, err
+				}
+				if !isTruthy(conditionValue) {
+					break
+				}
+			}
+			currentSignal, err := runtime.executeBlock(stmt.Body, NewEnvironment(loopEnv), true)
+			if err != nil {
+				return signal{}, err
+			}
+			if currentSignal.kind == signalBreak {
+				break
+			}
+			if currentSignal.kind == signalReturn {
+				return currentSignal, nil
+			}
+			if len(post.Tokens) != 0 {
+				if err := runtime.executeLoopHeaderAssignment(post, loopEnv); err != nil {
+					return signal{}, errorAt(stmt.Pos, err.Error())
+				}
+			}
+		}
+		return signal{kind: signalNone}, nil
+	}
+
 	if iterator, iterable, ok := parseRangeHeader(stmt.Header); ok {
 		countValue, err := runtime.evalExpression(iterable.Node, env)
 		if err != nil {
 			return signal{}, err
 		}
-		count := asInt(countValue)
+		count, err := asInt(countValue)
+		if err != nil {
+			return signal{}, errorAt(stmt.Pos, "range expects an Int count")
+		}
+		if count < 0 {
+			return signal{}, errorAt(stmt.Pos, "range count cannot be negative")
+		}
 		for index := 0; index < count; index++ {
 			loopEnv := NewEnvironment(env)
 			value := IntValue(index)
-			loopEnv.Define(iterator, false, value, runtime.memory.Allocate(value))
-			currentSignal, err := runtime.executeBlock(stmt.Body, loopEnv)
+			if err := loopEnv.Define(iterator, false, value, runtime.memory.Allocate(value)); err != nil {
+				return signal{}, errorAt(stmt.Pos, err.Error())
+			}
+			currentSignal, err := runtime.executeBlock(stmt.Body, loopEnv, true)
 			if err != nil {
 				return signal{}, err
 			}
@@ -241,7 +308,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 			}
 		}
 		first = false
-		currentSignal, err := runtime.executeBlock(stmt.Body, NewEnvironment(env))
+		currentSignal, err := runtime.executeBlock(stmt.Body, NewEnvironment(env), true)
 		if err != nil {
 			return signal{}, err
 		}
@@ -253,6 +320,75 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 		}
 	}
 	return signal{kind: signalNone}, nil
+}
+
+func (runtime *Runtime) executeLoopHeaderAssignment(expr parser.Expression, env *Environment) error {
+	if len(expr.Tokens) == 0 {
+		return nil
+	}
+	if stmt, ok := loopHeaderStatement(expr); ok {
+		currentSignal, err := runtime.executeStatement(stmt, env, true)
+		if err != nil {
+			return err
+		}
+		if currentSignal.kind != signalNone {
+			return Error{Message: "loop header cannot return or break"}
+		}
+		return nil
+	}
+	_, err := runtime.evalExpression(expr.Node, env)
+	return err
+}
+
+func loopHeaderStatement(expr parser.Expression) (parser.Statement, bool) {
+	tokens := expr.Tokens
+	if len(tokens) < 3 {
+		return nil, false
+	}
+
+	if tokens[0].Type == lexer.TokenIdentifier && tokens[1].Type == lexer.TokenEvaluationAssign {
+		value := parser.Expression{Tokens: tokens[2:], Node: parser.ParseExpressionTokens(tokens[2:])}
+		return parser.VariableStatement{
+			Pos:        parser.Position{Line: tokens[0].Line, Column: tokens[0].Column},
+			Scope:      "local",
+			Mutable:    true,
+			Type:       "Int",
+			Name:       tokens[0].Literal,
+			Expression: value,
+		}, true
+	}
+
+	if index := assignmentOperatorIndex(tokens); index != -1 {
+		target := parser.Expression{Tokens: tokens[:index], Node: parser.ParseExpressionTokens(tokens[:index])}
+		value := parser.Expression{Tokens: tokens[index+1:], Node: parser.ParseExpressionTokens(tokens[index+1:])}
+		return parser.AssignmentStatement{
+			Pos:        parser.Position{Line: tokens[0].Line, Column: tokens[0].Column},
+			Target:     target,
+			Operator:   tokens[index].Literal,
+			Expression: value,
+		}, true
+	}
+
+	return nil, false
+}
+
+func assignmentOperatorIndex(tokens []lexer.Token) int {
+	depth := 0
+	for index, token := range tokens {
+		switch token.Type {
+		case lexer.TokenLeftBrace, lexer.TokenLeftSquareBrace:
+			depth++
+		case lexer.TokenRightBrace, lexer.TokenRightSquareBrace:
+			if depth > 0 {
+				depth--
+			}
+		case lexer.TokenAssign, lexer.TokenPlusEqual, lexer.TokenMinusEqual, lexer.TokenMultiEqual, lexer.TokenDivideEqual:
+			if depth == 0 {
+				return index
+			}
+		}
+	}
+	return -1
 }
 
 func (runtime *Runtime) executeAssignment(stmt parser.AssignmentStatement, env *Environment) error {
@@ -281,7 +417,10 @@ func (runtime *Runtime) executeAssignment(stmt parser.AssignmentStatement, env *
 		return Error{Message: fmt.Sprintf("cannot mutate immutable variable %q", identifier.Name)}
 	}
 
-	next := applyAssignmentOperator(binding.Value, stmt.Operator, value)
+	next, err := applyAssignmentOperator(binding.Value, stmt.Operator, value)
+	if err != nil {
+		return err
+	}
 	binding.Value = next
 	runtime.memory.Store(binding.ObjectID, next)
 	return nil
@@ -311,18 +450,35 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 	switch binding.Value.Kind {
 	case ValueList:
 		items := binding.Value.Data.([]Value)
-		position := asInt(index)
+		position, err := asInt(index)
+		if err != nil {
+			return err
+		}
+		if position < 0 {
+			return Error{Message: fmt.Sprintf("list index %d is out of bounds", position)}
+		}
 		for len(items) <= position {
 			items = append(items, NullValue())
 		}
 		current := items[position]
-		items[position] = applyAssignmentOperator(current, operator, value)
+		next, err := applyAssignmentOperator(current, operator, value)
+		if err != nil {
+			return err
+		}
+		items[position] = next
 		binding.Value = Value{Kind: ValueList, Data: items}
 	case ValueMap:
 		items := binding.Value.Data.(map[string]Value)
-		key := mapKey(index)
+		key, err := mapKey(index)
+		if err != nil {
+			return err
+		}
 		current := items[key]
-		items[key] = applyAssignmentOperator(current, operator, value)
+		next, err := applyAssignmentOperator(current, operator, value)
+		if err != nil {
+			return err
+		}
+		items[key] = next
 		binding.Value = Value{Kind: ValueMap, Data: items}
 	default:
 		return Error{Message: fmt.Sprintf("%s is not index-assignable", binding.Value.Kind)}
@@ -393,7 +549,11 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			if err != nil {
 				return NullValue(), err
 			}
-			items[mapKey(key)] = value
+			mapKeyValue, err := mapKey(key)
+			if err != nil {
+				return NullValue(), err
+			}
+			items[mapKeyValue] = value
 		}
 		return Value{Kind: ValueMap, Data: items}, nil
 	case parser.RawExpression:
@@ -413,7 +573,11 @@ func (runtime *Runtime) evalUnary(expr parser.UnaryExpression, env *Environment)
 		if value.Kind == ValueFloat {
 			return FloatValue(-value.Data.(float64)), nil
 		}
-		return IntValue(-asInt(value)), nil
+		intValue, err := asInt(value)
+		if err != nil {
+			return NullValue(), err
+		}
+		return IntValue(-intValue), nil
 	case "not":
 		return BoolValue(!isTruthy(value)), nil
 	case "call":
@@ -441,27 +605,27 @@ func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environmen
 		if left.Kind == ValueString || right.Kind == ValueString {
 			return StringValue(valueString(left) + valueString(right)), nil
 		}
-		return numericBinary(left, right, func(a, b float64) float64 { return a + b }), nil
+		return numericBinary(left, right, func(a, b float64) float64 { return a + b })
 	case "-":
-		return numericBinary(left, right, func(a, b float64) float64 { return a - b }), nil
+		return numericBinary(left, right, func(a, b float64) float64 { return a - b })
 	case "*":
-		return numericBinary(left, right, func(a, b float64) float64 { return a * b }), nil
+		return numericBinary(left, right, func(a, b float64) float64 { return a * b })
 	case "/", "//":
-		return numericBinary(left, right, func(a, b float64) float64 { return a / b }), nil
+		return divideValues(left, right)
 	case "%":
-		return IntValue(asInt(left) % asInt(right)), nil
+		return moduloValues(left, right)
 	case "==":
 		return BoolValue(valueString(left) == valueString(right)), nil
 	case "!=":
 		return BoolValue(valueString(left) != valueString(right)), nil
 	case ">":
-		return BoolValue(asFloat(left) > asFloat(right)), nil
+		return compareNumeric(left, right, func(a, b float64) bool { return a > b })
 	case ">=":
-		return BoolValue(asFloat(left) >= asFloat(right)), nil
+		return compareNumeric(left, right, func(a, b float64) bool { return a >= b })
 	case "<":
-		return BoolValue(asFloat(left) < asFloat(right)), nil
+		return compareNumeric(left, right, func(a, b float64) bool { return a < b })
 	case "<=":
-		return BoolValue(asFloat(left) <= asFloat(right)), nil
+		return compareNumeric(left, right, func(a, b float64) bool { return a <= b })
 	case "and":
 		return BoolValue(isTruthy(left) && isTruthy(right)), nil
 	case "or":
@@ -503,16 +667,23 @@ func (runtime *Runtime) evalIndex(expr parser.IndexExpression, env *Environment)
 	switch target.Kind {
 	case ValueList:
 		items := target.Data.([]Value)
-		position := asInt(index)
+		position, err := asInt(index)
+		if err != nil {
+			return NullValue(), err
+		}
 		if position < 0 || position >= len(items) {
-			return NullValue(), nil
+			return NullValue(), Error{Message: fmt.Sprintf("list index %d is out of bounds", position)}
 		}
 		return items[position], nil
 	case ValueMap:
 		items := target.Data.(map[string]Value)
-		value, ok := items[mapKey(index)]
+		key, err := mapKey(index)
+		if err != nil {
+			return NullValue(), err
+		}
+		value, ok := items[key]
 		if !ok {
-			return NullValue(), nil
+			return NullValue(), Error{Message: fmt.Sprintf("map key %q does not exist", key)}
 		}
 		return value, nil
 	default:
@@ -531,7 +702,11 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		if len(args) != 1 {
 			return NullValue(), Error{Message: "len expects one argument"}
 		}
-		return IntValue(valueLen(args[0])), nil
+		length, err := valueLen(args[0])
+		if err != nil {
+			return NullValue(), err
+		}
+		return IntValue(length), nil
 	case "range":
 		if len(args) != 1 {
 			return NullValue(), Error{Message: "range expects one argument"}
@@ -551,13 +726,21 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 	env := NewEnvironment(runtime.global)
 	for index, param := range function.Params {
 		value := args[index]
-		env.Define(param.Name, false, value, runtime.memory.Allocate(value))
+		if !valueMatchesType(value, param.Type) {
+			return NullValue(), Error{Message: fmt.Sprintf("function %s argument %q expects %s, got %s", name, param.Name, param.Type, value.Kind)}
+		}
+		if err := env.Define(param.Name, false, value, runtime.memory.Allocate(value)); err != nil {
+			return NullValue(), err
+		}
 	}
-	currentSignal, err := runtime.executeBlock(function.Body, env)
+	currentSignal, err := runtime.executeBlock(function.Body, env, false)
 	if err != nil {
 		return NullValue(), err
 	}
 	if currentSignal.kind == signalReturn {
+		if !valueMatchesType(currentSignal.value, function.ReturnType) {
+			return NullValue(), Error{Message: fmt.Sprintf("function %s returns %s, got %s", name, function.ReturnType, currentSignal.value.Kind)}
+		}
 		return currentSignal.value, nil
 	}
 	return NullValue(), nil

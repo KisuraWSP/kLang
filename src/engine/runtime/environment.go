@@ -1,5 +1,7 @@
 package runtime
 
+import "fmt"
+
 type Binding struct {
 	Mutable  bool
 	Value    Value
@@ -18,12 +20,16 @@ func NewEnvironment(parent *Environment) *Environment {
 	}
 }
 
-func (env *Environment) Define(name string, mutable bool, value Value, objectID int) {
+func (env *Environment) Define(name string, mutable bool, value Value, objectID int) error {
+	if _, exists := env.bindings[name]; exists {
+		return Error{Message: fmt.Sprintf("variable %q is already defined in this scope", name)}
+	}
 	env.bindings[name] = &Binding{
 		Mutable:  mutable,
 		Value:    value,
 		ObjectID: objectID,
 	}
+	return nil
 }
 
 func (env *Environment) Get(name string) (*Binding, bool) {

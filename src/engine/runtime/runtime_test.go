@@ -57,6 +57,22 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesCStyleForLoop(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local mut Int total = 0;
+    for i := 0; i < 5; i += 1 {
+        total += i;
+    }
+    return total;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 10 {
+		t.Fatalf("expected C-style for loop to return 10, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesListsMapsAndPrint(t *testing.T) {
 	result := runSource(t, `
 function Main() : Int {
@@ -90,6 +106,72 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeRejectsDivisionByZero(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    return 10 / 0;
+}
+`)
+	assertRuntimeErrorContains(t, err, "division by zero")
+}
+
+func TestRuntimeRejectsUnsupportedLenTarget(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    return len(True);
+}
+`)
+	assertRuntimeErrorContains(t, err, "len does not support Bool")
+}
+
+func TestRuntimeRejectsInvalidIndexes(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local List[Int] values = [1];
+    return values[2];
+}
+`)
+	assertRuntimeErrorContains(t, err, "list index 2 is out of bounds")
+
+	_, err = runParsedSourceWithError(`
+function Main() : Int {
+    local Map[String, Int] values = {"ok": 1};
+    return values["missing"];
+}
+`)
+	assertRuntimeErrorContains(t, err, `map key "missing" does not exist`)
+}
+
+func TestRuntimeRejectsBreakOutsideLoop(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    break;
+    return 1;
+}
+`)
+	assertRuntimeErrorContains(t, err, "break is only allowed inside a loop")
+}
+
+func TestRuntimeRejectsDuplicateVariablesInSameScope(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local Int value = 1;
+    local Int value = 2;
+    return value;
+}
+`)
+	assertRuntimeErrorContains(t, err, `variable "value" is already defined`)
+}
+
+func TestRuntimeRejectsReturnTypeMismatch(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    return "bad";
+}
+`)
+	assertRuntimeErrorContains(t, err, "function Main returns Int, got String")
+}
+
 func TestRuntimeBorrowCheckerRejectsConflictingMutableBorrow(t *testing.T) {
 	memory := NewMemory()
 	objectID := memory.Allocate(IntValue(10))
@@ -104,51 +186,6 @@ func TestRuntimeBorrowCheckerRejectsConflictingMutableBorrow(t *testing.T) {
 	if err := memory.BorrowMutable(objectID); err != nil {
 		t.Fatalf("expected mutable borrow after release to pass, got %v", err)
 	}
-}
-
-func runSource(t *testing.T, source string) Result {
-	t.Helper()
-
-	result, err := runSourceWithError(source)
-	if err != nil {
-		t.Fatalf("runtime failed: %v", err)
-	}
-	return result
-}
-
-func runParsedSource(t *testing.T, source string) Result {
-	t.Helper()
-
-	parsedProgram, errors := parser.Parse(source)
-	if len(errors) != 0 {
-		t.Fatalf("unexpected parse errors: %#v", errors)
-	}
-
-	result, err := New().Run(parser.ParsedProgram{
-		Name: "parsed",
-		Sources: []parser.ParsedSource{
-			{Path: "parsed.klang", Program: parsedProgram},
-		},
-	})
-	if err != nil {
-		t.Fatalf("runtime failed: %v", err)
-	}
-	return result
-}
-
-func runSourceWithError(source string) (Result, error) {
-	program := file.Program{
-		Name:       "test",
-		Root:       "tests",
-		EntryPoint: "tests/test.klang",
-		Files: []file.SourceFile{
-			{
-				Path:  "tests/test.klang",
-				Lines: strings.Split(strings.TrimSpace(source), "\n"),
-			},
-		},
-	}
-	return RunProgram(program)
 }
 
 func TestRuntimeCanRunParsedProgramDirectly(t *testing.T) {
@@ -172,5 +209,64 @@ function Main() : Int {
 	}
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 81 {
 		t.Fatalf("expected direct parsed program to return 81, got %#v", result.Value)
+	}
+}
+
+func runSource(t *testing.T, source string) Result {
+	t.Helper()
+
+	result, err := runSourceWithError(source)
+	if err != nil {
+		t.Fatalf("runtime failed: %v", err)
+	}
+	return result
+}
+
+func runParsedSource(t *testing.T, source string) Result {
+	t.Helper()
+
+	result, err := runParsedSourceWithError(source)
+	if err != nil {
+		t.Fatalf("runtime failed: %v", err)
+	}
+	return result
+}
+
+func runParsedSourceWithError(source string) (Result, error) {
+	parsedProgram, errors := parser.Parse(source)
+	if len(errors) != 0 {
+		return Result{}, Error{Message: "parse failed"}
+	}
+
+	return New().Run(parser.ParsedProgram{
+		Name: "parsed",
+		Sources: []parser.ParsedSource{
+			{Path: "parsed.klang", Program: parsedProgram},
+		},
+	})
+}
+
+func runSourceWithError(source string) (Result, error) {
+	program := file.Program{
+		Name:       "test",
+		Root:       "tests",
+		EntryPoint: "tests/test.klang",
+		Files: []file.SourceFile{
+			{
+				Path:  "tests/test.klang",
+				Lines: strings.Split(strings.TrimSpace(source), "\n"),
+			},
+		},
+	}
+	return RunProgram(program)
+}
+
+func assertRuntimeErrorContains(t *testing.T, err error, expected string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected runtime error containing %q, got nil", expected)
+	}
+	if !strings.Contains(err.Error(), expected) {
+		t.Fatalf("expected runtime error containing %q, got %v", expected, err)
 	}
 }
