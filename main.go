@@ -6,7 +6,9 @@ import (
 
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
+	"kLang/src/engine/runtime"
 	typechecker "kLang/src/engine/type_checker"
+	"kLang/src/parser"
 )
 
 func main() {
@@ -21,7 +23,7 @@ func main() {
 		}
 
 		printPrograms(programs)
-		checkPrograms(programs)
+		checkPrograms(programs, file.HasRunFlag(args))
 		return
 	}
 
@@ -35,7 +37,7 @@ func main() {
 
 		programs := []file.Program{program}
 		printPrograms(programs)
-		checkPrograms(programs)
+		checkPrograms(programs, file.HasRunFlag(args))
 		return
 	}
 
@@ -45,7 +47,7 @@ func main() {
 		return
 	}
 
-	fmt.Println("usage: kLang --program path/to/file-or-folder | --tests tests | --file path/to/file.klang")
+	fmt.Println("usage: kLang --program path/to/file-or-folder [--run] | --tests tests [--run] | --file path/to/file.klang")
 }
 
 func printPrograms(programs []file.Program) {
@@ -54,7 +56,7 @@ func printPrograms(programs []file.Program) {
 	}
 }
 
-func checkPrograms(programs []file.Program) {
+func checkPrograms(programs []file.Program, run bool) {
 	hasErrors := false
 	resolver := modulesystem.NewResolver("")
 	for _, program := range programs {
@@ -74,6 +76,24 @@ func checkPrograms(programs []file.Program) {
 		report := typechecker.CheckProgram(resolvedProgram)
 		if report.Passed() {
 			fmt.Printf("%s type check: ok\n", program.Name)
+			if run {
+				parsedProgram := parser.ParseLoadedProgram(resolvedProgram)
+				if !parsedProgram.Passed() {
+					hasErrors = true
+					fmt.Printf("%s parse: failed: %v\n", program.Name, parsedProgram.Errors())
+					continue
+				}
+				result, err := runtime.New().Run(parsedProgram)
+				if err != nil {
+					hasErrors = true
+					fmt.Printf("%s runtime: failed: %v\n", program.Name, err)
+					continue
+				}
+				for _, line := range result.Output {
+					fmt.Println(line)
+				}
+				fmt.Printf("%s runtime: returned %v\n", program.Name, result.Value.Data)
+			}
 			continue
 		}
 

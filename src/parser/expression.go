@@ -34,6 +34,10 @@ func parseExpressionNode(tokens []lexer.Token) ExpressionNode {
 	return node
 }
 
+func ParseExpressionTokens(tokens []lexer.Token) ExpressionNode {
+	return parseExpressionNode(tokens)
+}
+
 func (parser *expressionParser) parseExpression(precedence int) ExpressionNode {
 	left := parser.parsePrefix()
 	if left == nil {

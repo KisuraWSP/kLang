@@ -223,7 +223,8 @@ func parseInlineCondition(expr Expression) (Expression, []Statement) {
 	if index == -1 {
 		return expr, nil
 	}
-	return Expression{Tokens: expr.Tokens[:index]}, parseInlineStatements(expr.Tokens[index:])
+	condition := expressionFromTokens(expr.Tokens[:index])
+	return condition, parseInlineStatements(expr.Tokens[index:])
 }
 
 func parseInlineStatements(tokens []lexer.Token) []Statement {
