@@ -1,0 +1,6 @@
+-- this module contains the functions
+-- rand() rand implements pseudo-random number generators suitable for tasks such as simulation, but it should not be used for security-sensitive work.
+-- randv2() rand implements pseudo-random number generators suitable for tasks such as simulation, but it should not be used for security-sensitive work.
+-- cmplx() cmplx provides basic constants and mathematical functions for complex numbers.
+-- bits() bits implements bit counting and manipulation functions for the predeclared unsigned integer types.
+-- big() big implements arbitrary-precision arithmetic (big numbers).

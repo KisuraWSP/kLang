@@ -1,0 +1,7 @@
+-- basic functions that any programmer use like 
+
+-- this module contains
+-- input() from python
+-- print() basic print function from python
+-- readline() more advanced version of input
+-- printf() basic print function from c
