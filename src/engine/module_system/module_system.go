@@ -2,6 +2,7 @@ package modulesystem
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"kLang/src/engine/file"
@@ -43,6 +44,8 @@ func (report Report) Passed() bool {
 type Resolver struct {
 	StdlibRoot string
 	visited    map[string]bool
+	resolving  map[string]bool
+	reported   map[string]bool
 }
 
 func NewResolver(stdlibRoot string) *Resolver {
@@ -53,6 +56,8 @@ func NewResolver(stdlibRoot string) *Resolver {
 	return &Resolver{
 		StdlibRoot: stdlibRoot,
 		visited:    map[string]bool{},
+		resolving:  map[string]bool{},
+		reported:   map[string]bool{},
 	}
 }
 
@@ -76,6 +81,10 @@ func (resolver *Resolver) ResolveProgram(program file.Program) (file.Program, Re
 }
 
 func (resolver *Resolver) resolveSource(program *file.Program, report *Report, source file.SourceFile) {
+	sourceKey := resolver.pathKey(source.Path)
+	resolver.resolving[sourceKey] = true
+	defer delete(resolver.resolving, sourceKey)
+
 	parsed := parser.ParseSource(source)
 	for _, parseError := range parsed.Errors {
 		report.Errors = append(report.Errors, Error{
@@ -89,12 +98,7 @@ func (resolver *Resolver) resolveSource(program *file.Program, report *Report, s
 		return
 	}
 
-	for _, stmt := range parsed.Program.Statements {
-		importStmt, ok := stmt.(parser.ImportStatement)
-		if !ok {
-			continue
-		}
-
+	for _, importStmt := range collectImports(parsed.Program.Statements) {
 		imported, module, err := resolver.resolveImport(source.Path, importStmt.Path)
 		if err != nil {
 			report.Errors = append(report.Errors, Error{
@@ -106,7 +110,17 @@ func (resolver *Resolver) resolveSource(program *file.Program, report *Report, s
 			continue
 		}
 
-		report.Modules = append(report.Modules, module)
+		if resolver.moduleIsResolving(imported) {
+			report.Errors = append(report.Errors, Error{
+				File:    source.Path,
+				Line:    importStmt.Pos.Line,
+				Column:  importStmt.Pos.Column,
+				Message: fmt.Sprintf("import cycle detected for %q", importStmt.Path),
+			})
+			continue
+		}
+
+		resolver.addModuleReport(report, module)
 		for _, importedSource := range imported.Files {
 			if resolver.isVisited(importedSource.Path) {
 				continue
@@ -121,7 +135,7 @@ func (resolver *Resolver) resolveSource(program *file.Program, report *Report, s
 func (resolver *Resolver) resolveImport(importedBy string, importPath string) (file.Program, Module, error) {
 	candidates := resolver.localCandidates(importedBy, importPath)
 	for _, candidate := range candidates {
-		if file.FileExists(candidate) {
+		if pathExists(candidate) {
 			program, err := file.LoadProgram(candidate)
 			if err != nil {
 				return file.Program{}, Module{}, err
@@ -137,7 +151,7 @@ func (resolver *Resolver) resolveImport(importedBy string, importPath string) (f
 
 	candidates = resolver.stdlibCandidates(importPath)
 	for _, candidate := range candidates {
-		if file.FileExists(candidate) {
+		if pathExists(candidate) {
 			program, err := file.LoadProgram(candidate)
 			if err != nil {
 				return file.Program{}, Module{}, err
@@ -187,4 +201,50 @@ func (resolver *Resolver) pathKey(path string) string {
 		return filepath.Clean(path)
 	}
 	return filepath.Clean(absolute)
+}
+
+func (resolver *Resolver) moduleIsResolving(program file.Program) bool {
+	for _, source := range program.Files {
+		if resolver.resolving[resolver.pathKey(source.Path)] {
+			return true
+		}
+	}
+	return false
+}
+
+func (resolver *Resolver) addModuleReport(report *Report, module Module) {
+	key := resolver.pathKey(module.Path)
+	if resolver.reported[key] {
+		return
+	}
+	resolver.reported[key] = true
+	report.Modules = append(report.Modules, module)
+}
+
+func collectImports(statements []parser.Statement) []parser.ImportStatement {
+	var imports []parser.ImportStatement
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.ImportStatement:
+			imports = append(imports, current)
+		case parser.NamespaceStatement:
+			imports = append(imports, collectImports(current.Body)...)
+		case parser.FunctionStatement:
+			imports = append(imports, collectImports(current.Body)...)
+		case parser.IfStatement:
+			imports = append(imports, collectImports(current.Consequence)...)
+			imports = append(imports, collectImports(current.Alternative)...)
+			if current.ElseIf != nil {
+				imports = append(imports, collectImports([]parser.Statement{*current.ElseIf})...)
+			}
+		case parser.LoopStatement:
+			imports = append(imports, collectImports(current.Body)...)
+		}
+	}
+	return imports
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

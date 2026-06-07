@@ -113,6 +113,96 @@ func TestResolveProgramKeepsAlreadyLoadedProjectImportDeduped(t *testing.T) {
 	}
 }
 
+func TestResolveProgramLoadsDirectoryModuleWithEntryPoint(t *testing.T) {
+	root := t.TempDir()
+	moduleRoot := filepath.Join(root, "stdlib", "crypto")
+	writeModuleTestFile(t, moduleRoot, "first.klang", `function Hash(value : String) : String { return value; }`)
+	writeModuleTestFile(t, moduleRoot, "helper.klang", `function Salt() : String { return "salt"; }`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `import "crypto";`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolved, report := NewResolver(filepath.Join(root, "stdlib")).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected directory module resolution to pass, got %#v", report.Errors)
+	}
+	if len(resolved.Files) != 3 {
+		t.Fatalf("expected directory module to add two source files, got %d", len(resolved.Files))
+	}
+	if len(report.Modules) != 1 || report.Modules[0].Kind != ImportStdlib {
+		t.Fatalf("expected one stdlib directory module report, got %#v", report.Modules)
+	}
+}
+
+func TestResolveProgramRecursivelyLoadsImportedModuleImports(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "a.klang", `import "b"; function A() : Int { return B(); }`)
+	writeModuleTestFile(t, stdlibRoot, "b.klang", `function B() : Int { return 1; }`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `import "a";`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolved, report := NewResolver(stdlibRoot).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected recursive module resolution to pass, got %#v", report.Errors)
+	}
+	if len(resolved.Files) != 3 {
+		t.Fatalf("expected recursive imports to add two source files, got %d", len(resolved.Files))
+	}
+	if len(report.Modules) != 2 {
+		t.Fatalf("expected two module reports, got %#v", report.Modules)
+	}
+}
+
+func TestResolveProgramReportsDuplicateImportOnce(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "mathg.klang", `function Sqrt(value : Int) : Int { return value; }`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `
+import "mathg";
+import "mathg";
+`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolved, report := NewResolver(stdlibRoot).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected duplicate import resolution to pass, got %#v", report.Errors)
+	}
+	if len(resolved.Files) != 2 {
+		t.Fatalf("expected duplicate import to add one source file, got %d", len(resolved.Files))
+	}
+	if len(report.Modules) != 1 {
+		t.Fatalf("expected duplicate import to be reported once, got %#v", report.Modules)
+	}
+}
+
+func TestResolveProgramDetectsImportCycle(t *testing.T) {
+	root := t.TempDir()
+	writeModuleTestFile(t, root, "main.klang", `import "helper";`)
+	writeModuleTestFile(t, root, "helper.klang", `import "main";`)
+
+	program, err := file.LoadProgram(filepath.Join(root, "main.klang"))
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	_, report := NewResolver(filepath.Join(root, "stdlib")).ResolveProgram(program)
+	if report.Passed() {
+		t.Fatal("expected import cycle to fail module resolution")
+	}
+}
+
 func writeModuleTestFile(t *testing.T, root string, name string, content string) string {
 	t.Helper()
 
