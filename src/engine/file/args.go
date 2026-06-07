@@ -4,7 +4,16 @@ import "slices"
 
 func GetFilePath(argument []string) string {
 	for index, arg := range argument {
-		if arg == "--file" {
+		if arg == "--file" && index+1 < len(argument) {
+			return argument[index+1]
+		}
+	}
+	return ""
+}
+
+func GetTestsPath(argument []string) string {
+	for index, arg := range argument {
+		if arg == "--tests" && index+1 < len(argument) {
 			return argument[index+1]
 		}
 	}
