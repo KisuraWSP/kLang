@@ -1,0 +1,31 @@
+-- Core conversion and comparison helpers.
+
+namespace core {
+    function BoolToInt(value : Bool) : Int {
+        if value { return 1; } else { return 0; }
+    }
+
+    function IntToBool(value : Int) : Bool {
+        return value != 0;
+    }
+
+    function EqualInt(left : Int, right : Int) : Bool {
+        return left == right;
+    }
+
+    function EqualString(left : String, right : String) : Bool {
+        return left == right;
+    }
+
+    function CompareInt(left : Int, right : Int) : Int {
+        if left < right { return -1; } else if left > right { return 1; } else { return 0; }
+    }
+
+    function MaxInt(left : Int, right : Int) : Int {
+        if left > right { return left; } else { return right; }
+    }
+
+    function MinInt(left : Int, right : Int) : Int {
+        if left < right { return left; } else { return right; }
+    }
+}

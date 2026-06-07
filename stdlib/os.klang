@@ -1,0 +1,15 @@
+-- OS capability helpers. Direct filesystem/process access needs host bindings.
+
+namespace os {
+    function PathSeparator() : String {
+        return "/";
+    }
+
+    function ArgsCount() : Int {
+        return 0;
+    }
+
+    function IsHostAccessAvailable() : Bool {
+        return False;
+    }
+}

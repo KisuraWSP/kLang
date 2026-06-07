@@ -1,0 +1,24 @@
+-- JSON helpers inspired by Go's encoding/json package.
+-- Full JSON parsing needs strings with indexing; these helpers build small values.
+
+namespace json {
+    function Null() : String {
+        return "null";
+    }
+
+    function Bool(value : Bool) : String {
+        if value { return "true"; } else { return "false"; }
+    }
+
+    function String(value : String) : String {
+        return "\"" + value + "\"";
+    }
+
+    function PairString(key : String, value : String) : String {
+        return String(key) + ":" + String(value);
+    }
+
+    function Object1(pair : String) : String {
+        return "{" + pair + "}";
+    }
+}

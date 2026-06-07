@@ -1,0 +1,23 @@
+-- Small wrappers around runtime builtins.
+
+namespace builtin {
+    function LenString(value : String) : Int {
+        return len(value);
+    }
+
+    function LenIntList(value : List[Int]) : Int {
+        return len(value);
+    }
+
+    function LenStringList(value : List[String]) : Int {
+        return len(value);
+    }
+
+    function LenStringIntMap(value : Map[String, Int]) : Int {
+        return len(value);
+    }
+
+    function RangeCount(count : Int) : Int {
+        return range(count);
+    }
+}

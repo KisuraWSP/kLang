@@ -1,0 +1,15 @@
+-- Encoding helpers. These are identity operations until byte/rune arrays exist.
+
+namespace encoding {
+    function EncodeString(value : String) : String {
+        return value;
+    }
+
+    function DecodeString(value : String) : String {
+        return value;
+    }
+
+    function Quote(value : String) : String {
+        return "\"" + value + "\"";
+    }
+}

@@ -1,0 +1,37 @@
+-- String helpers inspired by Go's strings package.
+
+namespace strings {
+    function Len(value : String) : Int {
+        return len(value);
+    }
+
+    function IsEmpty(value : String) : Bool {
+        return len(value) == 0;
+    }
+
+    function NotEmpty(value : String) : Bool {
+        return len(value) != 0;
+    }
+
+    function Equal(left : String, right : String) : Bool {
+        return left == right;
+    }
+
+    function Concat(left : String, right : String) : String {
+        return left + right;
+    }
+
+    function Repeat(value : String, count : Int) : String {
+        local mut String result = "";
+        local mut Int remaining = count;
+        while remaining > 0 {
+            result += value;
+            remaining -= 1;
+        }
+        return result;
+    }
+
+    function DefaultIfEmpty(value : String, fallback : String) : String {
+        if len(value) == 0 { return fallback; } else { return value; }
+    }
+}

@@ -1,7 +1,41 @@
--- basic functions that any programmer use like 
+-- Basic user-facing helpers inspired by simple IO functions.
+-- Klang currently exposes print as a runtime builtin, so this module wraps it
+-- with small typed functions that return status values.
 
--- this module contains
--- input() from python
--- print() basic print function from python
--- readline() more advanced version of input
--- printf() basic print function from c
+namespace basic {
+    function Print(value : T) : Int {
+        print(value);
+        return 0;
+    }
+
+    function PrintString(value : String) : Int {
+        print(value);
+        return 0;
+    }
+
+    function PrintInt(value : Int) : Int {
+        print(value);
+        return 0;
+    }
+
+    function PrintBool(value : Bool) : Int {
+        print(value);
+        return 0;
+    }
+
+    function EchoString(value : String) : String {
+        return value;
+    }
+
+    function EchoInt(value : Int) : Int {
+        return value;
+    }
+
+    function ChooseString(condition : Bool, whenTrue : String, whenFalse : String) : String {
+        if condition { return whenTrue; } else { return whenFalse; }
+    }
+
+    function ChooseInt(condition : Bool, whenTrue : Int, whenFalse : Int) : Int {
+        if condition { return whenTrue; } else { return whenFalse; }
+    }
+}

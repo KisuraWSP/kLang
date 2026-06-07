@@ -1,0 +1,33 @@
+-- Sorting helpers inspired by Go's sort package.
+
+namespace sort {
+    function IsSortedInt(values : List[Int]) : Bool {
+        local Int count = len(values);
+        if count < 2 { return True; }
+        local mut Int index = 1;
+        while index < count {
+            if values[index - 1] > values[index] { return False; }
+            index += 1;
+        }
+        return True;
+    }
+
+    function SortInt(values : List[Int]) : List[Int] {
+        local mut List[Int] result = values;
+        local Int count = len(result);
+        local mut Int outer = 0;
+        while outer < count {
+            local mut Int inner = 1;
+            while inner < count {
+                if result[inner - 1] > result[inner] {
+                    local Int temp = result[inner - 1];
+                    result[inner - 1] = result[inner];
+                    result[inner] = temp;
+                }
+                inner += 1;
+            }
+            outer += 1;
+        }
+        return result;
+    }
+}

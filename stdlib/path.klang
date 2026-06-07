@@ -1,0 +1,23 @@
+-- Path string helpers inspired by Go's path package.
+
+namespace path {
+    function Separator() : String {
+        return "/";
+    }
+
+    function Join(left : String, right : String) : String {
+        if len(left) == 0 { return right; }
+        if len(right) == 0 { return left; }
+        return left + "/" + right;
+    }
+
+    function Ext(name : String) : String {
+        -- Klang does not have string slicing yet, so extension parsing is not available.
+        return "";
+    }
+
+    function IsAbs(name : String) : Bool {
+        -- Klang does not have string indexing yet.
+        return False;
+    }
+}

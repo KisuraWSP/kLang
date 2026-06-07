@@ -239,6 +239,23 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeComparesCharsAndStrings(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    if '7' >= '0' and '7' <= '9' {
+        if "beta" > "alpha" {
+            return 1;
+        }
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected char/string comparison program to return 1, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeRejectsDuplicateAndAmbiguousFunctions(t *testing.T) {
 	_, err := runParsedSourceWithError(`
 function Main() : Int {

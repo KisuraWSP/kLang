@@ -675,13 +675,13 @@ func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environmen
 	case "!=":
 		return BoolValue(valueString(left) != valueString(right)), nil
 	case ">":
-		return compareNumeric(left, right, func(a, b float64) bool { return a > b })
+		return compareOrdered(left, right, func(compare int) bool { return compare > 0 })
 	case ">=":
-		return compareNumeric(left, right, func(a, b float64) bool { return a >= b })
+		return compareOrdered(left, right, func(compare int) bool { return compare >= 0 })
 	case "<":
-		return compareNumeric(left, right, func(a, b float64) bool { return a < b })
+		return compareOrdered(left, right, func(compare int) bool { return compare < 0 })
 	case "<=":
-		return compareNumeric(left, right, func(a, b float64) bool { return a <= b })
+		return compareOrdered(left, right, func(compare int) bool { return compare <= 0 })
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported binary operator %q", expr.Operator)}
 	}

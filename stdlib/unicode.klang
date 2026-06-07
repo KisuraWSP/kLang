@@ -1,0 +1,20 @@
+-- Unicode-like helpers for Char values.
+-- Full rune tables need richer language support; these handle common ASCII cases.
+
+namespace unicode {
+    function IsDigit(value : Char) : Bool {
+        return value >= '0' and value <= '9';
+    }
+
+    function IsLower(value : Char) : Bool {
+        return value >= 'a' and value <= 'z';
+    }
+
+    function IsUpper(value : Char) : Bool {
+        return value >= 'A' and value <= 'Z';
+    }
+
+    function IsLetter(value : Char) : Bool {
+        return IsLower(value) or IsUpper(value);
+    }
+}

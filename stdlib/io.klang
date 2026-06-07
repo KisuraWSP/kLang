@@ -1,0 +1,17 @@
+-- IO helpers around currently available runtime output.
+
+namespace io {
+    function Print(value : T) : Int {
+        print(value);
+        return 0;
+    }
+
+    function PrintString(value : String) : Int {
+        print(value);
+        return 0;
+    }
+
+    function ReadLineUnsupported() : String {
+        return "";
+    }
+}

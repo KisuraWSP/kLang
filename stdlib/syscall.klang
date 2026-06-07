@@ -1,0 +1,11 @@
+-- Syscall placeholders. Klang code cannot perform host syscalls yet.
+
+namespace syscall {
+    function IsAvailable() : Bool {
+        return False;
+    }
+
+    function Unsupported(message : String) : String {
+        return "syscall unsupported: " + message;
+    }
+}

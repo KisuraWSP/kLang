@@ -1,0 +1,19 @@
+-- Deterministic date/time helpers. Real current time needs host bindings.
+
+namespace datetime {
+    function UnixEpoch() : Int {
+        return 0;
+    }
+
+    function SecondsToMinutes(seconds : Int) : Int {
+        return seconds / 60;
+    }
+
+    function MinutesToSeconds(minutes : Int) : Int {
+        return minutes * 60;
+    }
+
+    function HoursToSeconds(hours : Int) : Int {
+        return hours * 3600;
+    }
+}

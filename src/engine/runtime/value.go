@@ -138,6 +138,32 @@ func compareNumeric(left Value, right Value, op func(float64, float64) bool) (Va
 	return BoolValue(op(leftFloat, rightFloat)), nil
 }
 
+func compareOrdered(left Value, right Value, op func(int) bool) (Value, error) {
+	if isNumeric(left) && isNumeric(right) {
+		leftFloat, _ := asFloat(left)
+		rightFloat, _ := asFloat(right)
+		if leftFloat < rightFloat {
+			return BoolValue(op(-1)), nil
+		}
+		if leftFloat > rightFloat {
+			return BoolValue(op(1)), nil
+		}
+		return BoolValue(op(0)), nil
+	}
+	if left.Kind == ValueString && right.Kind == ValueString || left.Kind == ValueChar && right.Kind == ValueChar {
+		leftString := valueString(left)
+		rightString := valueString(right)
+		if leftString < rightString {
+			return BoolValue(op(-1)), nil
+		}
+		if leftString > rightString {
+			return BoolValue(op(1)), nil
+		}
+		return BoolValue(op(0)), nil
+	}
+	return NullValue(), Error{Message: fmt.Sprintf("ordered comparison requires matching numeric, String, or Char values, got %s and %s", left.Kind, right.Kind)}
+}
+
 func asInt(value Value) (int, error) {
 	switch value.Kind {
 	case ValueInt:

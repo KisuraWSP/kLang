@@ -1,0 +1,11 @@
+-- Exception-style helpers represented as string messages.
+
+namespace exceptions {
+    function Panic(message : String) : String {
+        return message;
+    }
+
+    function Recover(message : String, fallback : String) : String {
+        if len(message) == 0 { return fallback; } else { return message; }
+    }
+}

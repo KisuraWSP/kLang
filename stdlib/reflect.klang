@@ -1,0 +1,19 @@
+-- Reflection-style type name helpers.
+
+namespace reflect {
+    function TypeOfInt(value : Int) : String {
+        return "Int";
+    }
+
+    function TypeOfString(value : String) : String {
+        return "String";
+    }
+
+    function TypeOfBool(value : Bool) : String {
+        return "Bool";
+    }
+
+    function TypeOfFloat(value : Float) : String {
+        return "Float";
+    }
+}

@@ -1,6 +1,49 @@
--- this module contains the functions
--- rand() rand implements pseudo-random number generators suitable for tasks such as simulation, but it should not be used for security-sensitive work.
--- randv2() rand implements pseudo-random number generators suitable for tasks such as simulation, but it should not be used for security-sensitive work.
--- cmplx() cmplx provides basic constants and mathematical functions for complex numbers.
--- bits() bits implements bit counting and manipulation functions for the predeclared unsigned integer types.
--- big() big implements arbitrary-precision arithmetic (big numbers).
+-- Mathematical helpers inspired by Go's math, math/rand, and math/bits.
+-- This is pure Klang code, so random values use a deterministic LCG seed.
+
+global mut Int mathgSeed = 12345;
+
+namespace mathg {
+    function AbsInt(value : Int) : Int {
+        if value < 0 { return value * -1; } else { return value; }
+    }
+
+    function MaxInt(left : Int, right : Int) : Int {
+        if left > right { return left; } else { return right; }
+    }
+
+    function MinInt(left : Int, right : Int) : Int {
+        if left < right { return left; } else { return right; }
+    }
+
+    function ClampInt(value : Int, minimum : Int, maximum : Int) : Int {
+        if value < minimum { return minimum; } else if value > maximum { return maximum; } else { return value; }
+    }
+
+    function ModInt(value : Int, divisor : Int) : Int {
+        if divisor == 0 { return 0; } else { return value % divisor; }
+    }
+
+    function PowInt(base : Int, exponent : Int) : Int {
+        local mut Int result = 1;
+        local mut Int remaining = exponent;
+        while remaining > 0 {
+            result *= base;
+            remaining -= 1;
+        }
+        return result;
+    }
+
+    function Rand() : Int {
+        mathgSeed = (mathgSeed * 1664525) + 1013904223;
+        if mathgSeed < 0 { mathgSeed = mathgSeed * -1; } else { mathgSeed = mathgSeed + 0; }
+        return mathgSeed;
+    }
+
+    function RandRange(minimum : Int, maximum : Int) : Int {
+        local mut Int width = maximum - minimum;
+        if width <= 0 { return minimum; }
+        local Int next = Rand();
+        return minimum + ModInt(next, width);
+    }
+}
