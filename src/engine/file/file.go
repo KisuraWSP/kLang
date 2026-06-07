@@ -18,7 +18,7 @@ type SourceFile struct {
 	Lines []string
 }
 
-type TestProgram struct {
+type Program struct {
 	Name       string
 	Root       string
 	EntryPoint string
@@ -55,25 +55,53 @@ func ReadLines(file string) ([]string, error) {
 	return lines, nil
 }
 
-func DiscoverTestPrograms(testsDir string) ([]TestProgram, error) {
-	var programs []TestProgram
+func LoadProgram(path string) (Program, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return Program{}, err
+	}
 
-	entries, err := os.ReadDir(testsDir)
+	if info.IsDir() {
+		return readDirectoryProgram(path)
+	}
+
+	if filepath.Ext(path) != KlangExtension {
+		return Program{}, fmt.Errorf("expected a %s file or folder with %s: %s", KlangExtension, KlangEntryPoint, path)
+	}
+
+	source, err := readSourceFile(path)
+	if err != nil {
+		return Program{}, err
+	}
+
+	return Program{
+		Name:       strings.TrimSuffix(filepath.Base(path), KlangExtension),
+		Root:       filepath.Dir(path),
+		EntryPoint: path,
+		Files:      []SourceFile{source},
+	}, nil
+}
+
+func DiscoverPrograms(root string) ([]Program, error) {
+	var programs []Program
+
+	entries, err := os.ReadDir(root)
 	if err != nil {
 		return programs, err
 	}
 
 	for _, entry := range entries {
-		entryPath := filepath.Join(testsDir, entry.Name())
+		entryPath := filepath.Join(root, entry.Name())
 
 		if entry.IsDir() {
-			program, err := readDirectoryProgram(entryPath)
+			if !FileExists(filepath.Join(entryPath, KlangEntryPoint)) {
+				continue
+			}
+			program, err := LoadProgram(entryPath)
 			if err != nil {
 				return nil, err
 			}
-			if program.EntryPoint != "" {
-				programs = append(programs, program)
-			}
+			programs = append(programs, program)
 			continue
 		}
 
@@ -81,17 +109,12 @@ func DiscoverTestPrograms(testsDir string) ([]TestProgram, error) {
 			continue
 		}
 
-		source, err := readSourceFile(entryPath)
+		program, err := LoadProgram(entryPath)
 		if err != nil {
 			return nil, err
 		}
 
-		programs = append(programs, TestProgram{
-			Name:       strings.TrimSuffix(entry.Name(), KlangExtension),
-			Root:       testsDir,
-			EntryPoint: entryPath,
-			Files:      []SourceFile{source},
-		})
+		programs = append(programs, program)
 	}
 
 	sort.Slice(programs, func(left, right int) bool {
@@ -101,10 +124,14 @@ func DiscoverTestPrograms(testsDir string) ([]TestProgram, error) {
 	return programs, nil
 }
 
-func readDirectoryProgram(programDir string) (TestProgram, error) {
+func DiscoverTestPrograms(testsDir string) ([]Program, error) {
+	return DiscoverPrograms(testsDir)
+}
+
+func readDirectoryProgram(programDir string) (Program, error) {
 	entryPoint := filepath.Join(programDir, KlangEntryPoint)
 	if !FileExists(entryPoint) {
-		return TestProgram{}, nil
+		return Program{}, fmt.Errorf("program folder must contain %s: %s", KlangEntryPoint, programDir)
 	}
 
 	var paths []string
@@ -119,7 +146,7 @@ func readDirectoryProgram(programDir string) (TestProgram, error) {
 		return nil
 	})
 	if err != nil {
-		return TestProgram{}, err
+		return Program{}, err
 	}
 
 	sort.Slice(paths, func(left, right int) bool {
@@ -136,12 +163,12 @@ func readDirectoryProgram(programDir string) (TestProgram, error) {
 	for _, path := range paths {
 		source, err := readSourceFile(path)
 		if err != nil {
-			return TestProgram{}, err
+			return Program{}, err
 		}
 		files = append(files, source)
 	}
 
-	return TestProgram{
+	return Program{
 		Name:       filepath.Base(programDir),
 		Root:       programDir,
 		EntryPoint: entryPoint,
