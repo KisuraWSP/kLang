@@ -1,0 +1,6 @@
+namespace App {
+    function Start() : Int {
+        print("Welcome to snake");
+        return 0;
+    }
+}
