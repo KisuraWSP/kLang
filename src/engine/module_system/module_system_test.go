@@ -203,6 +203,47 @@ func TestResolveProgramDetectsImportCycle(t *testing.T) {
 	}
 }
 
+func TestResolverCachesImportsWithoutLeakingVisitedState(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "mathg.klang", `function Sqrt(value : Int) : Int { return value; }`)
+	firstProgramPath := writeModuleTestFile(t, filepath.Join(root, "first"), "main.klang", `import "mathg";`)
+	secondProgramPath := writeModuleTestFile(t, filepath.Join(root, "second"), "main.klang", `import "mathg";`)
+
+	firstProgram, err := file.LoadProgram(firstProgramPath)
+	if err != nil {
+		t.Fatalf("failed to load first test program: %v", err)
+	}
+	secondProgram, err := file.LoadProgram(secondProgramPath)
+	if err != nil {
+		t.Fatalf("failed to load second test program: %v", err)
+	}
+
+	resolver := NewResolver(stdlibRoot)
+	firstResolved, firstReport := resolver.ResolveProgram(firstProgram)
+	if !firstReport.Passed() {
+		t.Fatalf("expected first module resolution to pass, got %#v", firstReport.Errors)
+	}
+	secondResolved, secondReport := resolver.ResolveProgram(secondProgram)
+	if !secondReport.Passed() {
+		t.Fatalf("expected second module resolution to pass, got %#v", secondReport.Errors)
+	}
+
+	if len(firstResolved.Files) != 2 || len(secondResolved.Files) != 2 {
+		t.Fatalf("expected both programs to receive imported source, got %d and %d", len(firstResolved.Files), len(secondResolved.Files))
+	}
+	if len(firstReport.Modules) != 1 || len(secondReport.Modules) != 1 {
+		t.Fatalf("expected both reports to include the import, got %#v and %#v", firstReport.Modules, secondReport.Modules)
+	}
+	stats := resolver.Stats()
+	if stats.ProgramEntries != 1 {
+		t.Fatalf("expected shared resolver to cache one imported program, got %d", stats.ProgramEntries)
+	}
+	if stats.ImportEntries != 3 {
+		t.Fatalf("expected import cache for two mains and one stdlib module, got %d", stats.ImportEntries)
+	}
+}
+
 func writeModuleTestFile(t *testing.T, root string, name string, content string) string {
 	t.Helper()
 

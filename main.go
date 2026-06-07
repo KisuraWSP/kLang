@@ -56,8 +56,9 @@ func printPrograms(programs []file.Program) {
 
 func checkPrograms(programs []file.Program) {
 	hasErrors := false
+	resolver := modulesystem.NewResolver("")
 	for _, program := range programs {
-		resolvedProgram, moduleReport := modulesystem.ResolveProgram(program)
+		resolvedProgram, moduleReport := resolver.ResolveProgram(program)
 		if !moduleReport.Passed() {
 			hasErrors = true
 			fmt.Printf("%s module resolution: failed\n", program.Name)

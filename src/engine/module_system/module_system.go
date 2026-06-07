@@ -41,11 +41,23 @@ func (report Report) Passed() bool {
 	return len(report.Errors) == 0
 }
 
+type CacheStats struct {
+	ExistsEntries  int
+	ProgramEntries int
+	ImportEntries  int
+}
+
 type Resolver struct {
 	StdlibRoot string
-	visited    map[string]bool
-	resolving  map[string]bool
-	reported   map[string]bool
+	exists     map[string]bool
+	programs   map[string]file.Program
+	imports    map[string][]parser.ImportStatement
+}
+
+type resolutionState struct {
+	visited   map[string]bool
+	resolving map[string]bool
+	reported  map[string]bool
 }
 
 func NewResolver(stdlibRoot string) *Resolver {
@@ -55,9 +67,9 @@ func NewResolver(stdlibRoot string) *Resolver {
 
 	return &Resolver{
 		StdlibRoot: stdlibRoot,
-		visited:    map[string]bool{},
-		resolving:  map[string]bool{},
-		reported:   map[string]bool{},
+		exists:     map[string]bool{},
+		programs:   map[string]file.Program{},
+		imports:    map[string][]parser.ImportStatement{},
 	}
 }
 
@@ -65,28 +77,41 @@ func ResolveProgram(program file.Program) (file.Program, Report) {
 	return NewResolver(DefaultStdlibRoot).ResolveProgram(program)
 }
 
+func (resolver *Resolver) Stats() CacheStats {
+	return CacheStats{
+		ExistsEntries:  len(resolver.exists),
+		ProgramEntries: len(resolver.programs),
+		ImportEntries:  len(resolver.imports),
+	}
+}
+
 func (resolver *Resolver) ResolveProgram(program file.Program) (file.Program, Report) {
 	resolved := program
 	report := Report{}
-
-	for _, source := range program.Files {
-		resolver.markVisited(source.Path)
+	state := &resolutionState{
+		visited:   map[string]bool{},
+		resolving: map[string]bool{},
+		reported:  map[string]bool{},
 	}
 
 	for _, source := range program.Files {
-		resolver.resolveSource(&resolved, &report, source)
+		resolver.markVisited(state, source.Path)
+	}
+
+	for _, source := range program.Files {
+		resolver.resolveSource(state, &resolved, &report, source)
 	}
 
 	return resolved, report
 }
 
-func (resolver *Resolver) resolveSource(program *file.Program, report *Report, source file.SourceFile) {
+func (resolver *Resolver) resolveSource(state *resolutionState, program *file.Program, report *Report, source file.SourceFile) {
 	sourceKey := resolver.pathKey(source.Path)
-	resolver.resolving[sourceKey] = true
-	defer delete(resolver.resolving, sourceKey)
+	state.resolving[sourceKey] = true
+	defer delete(state.resolving, sourceKey)
 
-	parsed := parser.ParseSource(source)
-	for _, parseError := range parsed.Errors {
+	imports, errors := resolver.importsFor(source)
+	for _, parseError := range errors {
 		report.Errors = append(report.Errors, Error{
 			File:    source.Path,
 			Line:    parseError.Line,
@@ -94,11 +119,11 @@ func (resolver *Resolver) resolveSource(program *file.Program, report *Report, s
 			Message: parseError.Message,
 		})
 	}
-	if len(parsed.Errors) != 0 {
+	if len(errors) != 0 {
 		return
 	}
 
-	for _, importStmt := range collectImports(parsed.Program.Statements) {
+	for _, importStmt := range imports {
 		imported, module, err := resolver.resolveImport(source.Path, importStmt.Path)
 		if err != nil {
 			report.Errors = append(report.Errors, Error{
@@ -110,7 +135,7 @@ func (resolver *Resolver) resolveSource(program *file.Program, report *Report, s
 			continue
 		}
 
-		if resolver.moduleIsResolving(imported) {
+		if resolver.moduleIsResolving(state, imported) {
 			report.Errors = append(report.Errors, Error{
 				File:    source.Path,
 				Line:    importStmt.Pos.Line,
@@ -120,14 +145,14 @@ func (resolver *Resolver) resolveSource(program *file.Program, report *Report, s
 			continue
 		}
 
-		resolver.addModuleReport(report, module)
+		resolver.addModuleReport(state, report, module)
 		for _, importedSource := range imported.Files {
-			if resolver.isVisited(importedSource.Path) {
+			if resolver.isVisited(state, importedSource.Path) {
 				continue
 			}
-			resolver.markVisited(importedSource.Path)
+			resolver.markVisited(state, importedSource.Path)
 			program.Files = append(program.Files, importedSource)
-			resolver.resolveSource(program, report, importedSource)
+			resolver.resolveSource(state, program, report, importedSource)
 		}
 	}
 }
@@ -135,8 +160,8 @@ func (resolver *Resolver) resolveSource(program *file.Program, report *Report, s
 func (resolver *Resolver) resolveImport(importedBy string, importPath string) (file.Program, Module, error) {
 	candidates := resolver.localCandidates(importedBy, importPath)
 	for _, candidate := range candidates {
-		if pathExists(candidate) {
-			program, err := file.LoadProgram(candidate)
+		if resolver.pathExists(candidate) {
+			program, err := resolver.loadProgram(candidate)
 			if err != nil {
 				return file.Program{}, Module{}, err
 			}
@@ -151,8 +176,8 @@ func (resolver *Resolver) resolveImport(importedBy string, importPath string) (f
 
 	candidates = resolver.stdlibCandidates(importPath)
 	for _, candidate := range candidates {
-		if pathExists(candidate) {
-			program, err := file.LoadProgram(candidate)
+		if resolver.pathExists(candidate) {
+			program, err := resolver.loadProgram(candidate)
 			if err != nil {
 				return file.Program{}, Module{}, err
 			}
@@ -185,14 +210,14 @@ func (resolver *Resolver) stdlibCandidates(importPath string) []string {
 	return candidates
 }
 
-func (resolver *Resolver) isVisited(path string) bool {
+func (resolver *Resolver) isVisited(state *resolutionState, path string) bool {
 	key := resolver.pathKey(path)
-	return resolver.visited[key]
+	return state.visited[key]
 }
 
-func (resolver *Resolver) markVisited(path string) {
+func (resolver *Resolver) markVisited(state *resolutionState, path string) {
 	key := resolver.pathKey(path)
-	resolver.visited[key] = true
+	state.visited[key] = true
 }
 
 func (resolver *Resolver) pathKey(path string) string {
@@ -203,22 +228,52 @@ func (resolver *Resolver) pathKey(path string) string {
 	return filepath.Clean(absolute)
 }
 
-func (resolver *Resolver) moduleIsResolving(program file.Program) bool {
+func (resolver *Resolver) moduleIsResolving(state *resolutionState, program file.Program) bool {
 	for _, source := range program.Files {
-		if resolver.resolving[resolver.pathKey(source.Path)] {
+		if state.resolving[resolver.pathKey(source.Path)] {
 			return true
 		}
 	}
 	return false
 }
 
-func (resolver *Resolver) addModuleReport(report *Report, module Module) {
+func (resolver *Resolver) addModuleReport(state *resolutionState, report *Report, module Module) {
 	key := resolver.pathKey(module.Path)
-	if resolver.reported[key] {
+	if state.reported[key] {
 		return
 	}
-	resolver.reported[key] = true
+	state.reported[key] = true
 	report.Modules = append(report.Modules, module)
+}
+
+func (resolver *Resolver) importsFor(source file.SourceFile) ([]parser.ImportStatement, []parser.Error) {
+	key := resolver.pathKey(source.Path)
+	if imports, ok := resolver.imports[key]; ok {
+		return imports, nil
+	}
+
+	parsed := parser.ParseSource(source)
+	if len(parsed.Errors) != 0 {
+		return nil, parsed.Errors
+	}
+
+	imports := collectImports(parsed.Program.Statements)
+	resolver.imports[key] = imports
+	return imports, nil
+}
+
+func (resolver *Resolver) loadProgram(path string) (file.Program, error) {
+	key := resolver.pathKey(path)
+	if program, ok := resolver.programs[key]; ok {
+		return program, nil
+	}
+
+	program, err := file.LoadProgram(path)
+	if err != nil {
+		return file.Program{}, err
+	}
+	resolver.programs[key] = program
+	return program, nil
 }
 
 func collectImports(statements []parser.Statement) []parser.ImportStatement {
@@ -244,7 +299,14 @@ func collectImports(statements []parser.Statement) []parser.ImportStatement {
 	return imports
 }
 
-func pathExists(path string) bool {
+func (resolver *Resolver) pathExists(path string) bool {
+	key := resolver.pathKey(path)
+	if exists, ok := resolver.exists[key]; ok {
+		return exists
+	}
+
 	_, err := os.Stat(path)
-	return err == nil
+	exists := err == nil
+	resolver.exists[key] = exists
+	return exists
 }
