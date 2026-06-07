@@ -1,0 +1,309 @@
+-- file: klang_dungeon_engine.klang
+-- =========================================================================
+-- KLANG DUNGEON CRAWLER ENGINE
+-- A comprehensive 300+ line stress test for the Klang Compiler.
+-- Tests: Global state, pseudo-RNG, parallel arrays, deep loops, 
+-- first-class function dispatch, and extensive 'unless' branching.
+-- =========================================================================
+
+-- ==========================================
+-- 1. GLOBAL STATE & CONSTANTS
+-- ==========================================
+
+import "math.klang";
+
+global Int MAX_ROOMS = 20;
+global Int MAX_INVENTORY = 10;
+
+-- Player State Map
+global mut Map[String, Int] player = {};
+global mut Map[String, String] playerMetadata = {};
+
+-- Inventory Map (Item Name -> Quantity)
+global mut Map[String, Int] inventory = {};
+
+-- Parallel Arrays for Enemy Database
+-- We don't have structs, so we map properties by index
+global mut List[String] enemyNames = ["Goblin", "Orc", "Skeleton", "Dragon"];
+global mut List[Int] enemyMaxHp = [20, 50, 30, 200];
+global mut List[Int] enemyAtk = [5, 12, 8, 35];
+global mut List[Int] enemyDef = [2, 5, 1, 15];
+
+-- PRNG State
+global mut Int seed = 12345;
+
+
+-- ==========================================
+-- 3. INITIALIZATION
+-- ==========================================
+function InitPlayer(name : String) : Int {
+    playerMetadata["Name"] = name;
+    playerMetadata["Status"] = "Alive";
+    
+    player["HP"] = 100;
+    player["MaxHP"] = 100;
+    player["Atk"] = 15;
+    player["Def"] = 5;
+    player["Gold"] = 0;
+    player["Potions"] = 3;
+    player["Level"] = 1;
+    player["Exp"] = 0;
+    
+    inventory["HealthPotion"] = 3;
+    inventory["Bomb"] = 1;
+    
+    return 1;
+}
+
+function LevelUpCheck() : Bool {
+    local Int currentExp = player["Exp"];
+    local Int threshold = player["Level"] * 50;
+    
+    unless currentExp < threshold {
+        player["Level"] += 1;
+        player["MaxHP"] += 20;
+        player["HP"] = player["MaxHP"];
+        player["Atk"] += 5;
+        player["Def"] += 2;
+        print("LEVEL UP! You are now level: ");
+        print(player["Level"]);
+        return True;
+    } else {
+        return False;
+    }
+}
+
+-- ==========================================
+-- 5. COMBAT SYSTEM
+-- ==========================================
+function CalculateDamage(attack : Int, defense : Int) : Int {
+    local mut Int baseDamage = attack - defense;
+    -- Introduce slight randomness (+/- 2)
+    local Int variance = call random.RandomRange(-2, 3);
+    baseDamage += variance;
+    
+    -- Ensure minimum 1 damage unless heavily armored
+    unless baseDamage > 0 {
+        return 1;
+    } else {
+        return baseDamage;
+    }
+}
+
+function CombatEncounter(enemyIndex : Int) : Bool {
+    local String eName = enemyNames[enemyIndex];
+    local mut Int eHp = enemyMaxHp[enemyIndex];
+    local Int eAtk = enemyAtk[enemyIndex];
+    local Int eDef = enemyDef[enemyIndex];
+    
+    print("A wild monster appears! It's a ");
+    print(eName);
+    
+    do_while combatActive := player["HP"] > 0 {
+        -- Player Turn
+        print("Your HP: "); print(player["HP"]);
+        print("Enemy HP: "); print(eHp);
+        
+        -- Auto-use potion if low
+        if player["HP"] < 30 {
+            if inventory["HealthPotion"] > 0 {
+                inventory["HealthPotion"] -= 1;
+                player["HP"] = call math.Min(player["HP"] + 50, player["MaxHP"]);
+                print("Used a potion! Recovered 50 HP.");
+            } else {
+                print("Warning: Low HP and no potions!");
+            }
+        }
+        
+        local Int pDamage = CalculateDamage(player["Atk"], eDef);
+        eHp -= pDamage;
+        print("You dealt damage: "); print(pDamage);
+        
+        if eHp <= 0 {
+            print("You defeated the "); print(eName);
+            local Int goldDrop = call random.RandomRange(10, 50);
+            local Int expDrop = call random.RandomRange(20, 60);
+            player["Gold"] += goldDrop;
+            player["Exp"] += expDrop;
+            LevelUpCheck();
+            return True; -- Player wins
+        }
+        
+        -- Enemy Turn
+        local Int eDamage = CalculateDamage(eAtk, player["Def"]);
+        player["HP"] -= eDamage;
+        print("Enemy hit you for: "); print(eDamage);
+        
+        if player["HP"] <= 0 {
+            playerMetadata["Status"] = "Dead";
+            print("You have been slain...");
+            return False; -- Player loses
+        }
+    }
+    
+    return False;
+}
+
+-- ==========================================
+-- 6. FIRST-CLASS EVENT SYSTEM
+-- ==========================================
+-- These functions represent different room events
+
+function EventEmptyRoom() : Int {
+    print("The room is empty and quiet. You rest for a moment.");
+    player["HP"] = call math.Min(player["HP"] + 10, player["MaxHP"]);
+    return 1;
+}
+
+function EventTreasure() : Int {
+    print("You found a treasure chest!");
+    local Int foundGold = call random.RandomRange(50, 150);
+    player["Gold"] += foundGold;
+    
+    local Int itemRoll = call random.RandomRange(0, 10);
+    unless itemRoll < 7 {
+        inventory["Bomb"] += 1;
+        print("You found a Bomb!");
+    } else {
+        inventory["HealthPotion"] += 2;
+        print("You found 2 Health Potions!");
+    }
+    
+    return 2;
+}
+
+function EventTrap() : Int {
+    print("It's a trap! Darts shoot from the walls.");
+    local Int trapDmg = call random.RandomRange(10, 25);
+    player["HP"] -= trapDmg;
+    print("You took trap damage: "); print(trapDmg);
+    
+    unless player["HP"] > 0 {
+        playerMetadata["Status"] = "Dead";
+        print("The trap was fatal.");
+    } else {
+        -- Do nothing, survived
+    }
+    
+    return 3;
+}
+
+function EventMonster() : Int {
+    -- Pick a random monster based on player level scaling
+    local Int maxMonsterIndex = call math.Min(player["Level"], 3);
+    local Int chosenEnemy = call random.RandomRange(0, maxMonsterIndex + 1);
+    
+    local Bool victory = CombatEncounter(chosenEnemy);
+    if victory {
+        return 4;
+    } else {
+        return -1; -- Death signal
+    }
+}
+
+-- Map to store event pointers
+global mut Map[Int, T] eventDispatcher = {};
+
+function SetupEvents() : Int {
+    -- Assigning functions to a generic Map
+    eventDispatcher[0] = EventEmptyRoom;
+    eventDispatcher[1] = EventMonster;
+    eventDispatcher[2] = EventMonster; -- Monsters are more common
+    eventDispatcher[3] = EventTreasure;
+    eventDispatcher[4] = EventTrap;
+    return 1;
+}
+
+-- ==========================================
+-- 7. MAP GENERATION & EXPLORATION
+-- ==========================================
+function GenerateDungeon() : List[Int] {
+    local mut List[Int] dungeonMap = [];
+    for i := range(MAX_ROOMS) {
+        -- Fill dungeon with random event IDs (0 to 4)
+        local Int eventType = call random.RandomRange(0, 5);
+        
+        -- Force a boss at the end
+        if i == (MAX_ROOMS - 1) {
+            dungeonMap[i] = 99; -- Boss code
+        } else {
+            dungeonMap[i] = eventType;
+        }
+    }
+    return dungeonMap;
+}
+
+function BossFight() : Bool {
+    print("====================================");
+    print("BOSS ROOM ENTERED: THE ANCIENT DRAGON");
+    print("====================================");
+    
+    -- The Dragon is index 3
+    local Bool bossDefeated = CombatEncounter(3);
+    
+    if bossDefeated {
+        print("YOU HAVE SLAIN THE DRAGON AND CLEARED THE DUNGEON!");
+        return True;
+    } else {
+        print("The dungeon claims another soul.");
+        return False;
+    }
+}
+
+-- ==========================================
+-- 8. MAIN GAME LOOP
+-- ==========================================
+function Main() : Int {
+    print("Initializing Klang Engine...");
+    
+    InitPlayer("Hero");
+    SetupEvents();
+    
+    local List[Int] currentDungeon = GenerateDungeon();
+    local mut Int currentRoom = 0;
+    
+    print("Welcome, "); print(playerMetadata["Name"]);
+    print("Entering the infinite labyrinth...");
+    
+    -- The core evaluation loop testing := syntax
+    while isExploring := (currentRoom < MAX_ROOMS) {
+        
+        unless player["HP"] > 0 {
+            break; -- Player died, exit loop
+        } else {
+            print("--- Entering Room ---");
+            print(currentRoom + 1);
+            
+            local Int roomEventID = currentDungeon[currentRoom];
+            
+            if roomEventID == 99 {
+                BossFight();
+                break; -- End of dungeon
+            } else {
+                -- Dispatch the event via first-class function mapping
+                local T roomFunction = eventDispatcher[roomEventID];
+                local Int eventResult = roomFunction();
+                
+                if eventResult == -1 {
+                    break; -- Death signal returned from event
+                }
+            }
+            
+            currentRoom += 1;
+        }
+    }
+    
+    print("====================================");
+    print("GAME OVER. FINAL STATS:");
+    print("Level reached: "); print(player["Level"]);
+    print("Gold collected: "); print(player["Gold"]);
+    print("Status: "); print(playerMetadata["Status"]);
+    print("====================================");
+    
+    -- Return exit code based on survival
+    if playerMetadata["Status"] == "Alive" {
+        return 0; -- Success
+    } else {
+        return 1; -- Failure
+    }
+}

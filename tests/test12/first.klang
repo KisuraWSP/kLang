@@ -1,0 +1,30 @@
+-- file: stack_smasher.klang
+
+function DeepDive(currentDepth : Int, maxDepth : Int) : Int {
+    -- If we hit the bottom, start returning
+    if currentDepth == maxDepth {
+        return currentDepth;
+    }
+    
+    -- Allocate local variables at every single frame to apply memory pressure
+    local String frameName = "Frame_";
+    local mut List[Int] frameData = [currentDepth];
+    
+    -- Recursive call
+    return DeepDive(currentDepth + 1, maxDepth);
+}
+
+function Main() : Int {
+    print("Initiating Deep Dive...");
+    
+    -- Try pushing this to 10000 to see if your language engine crashes
+    local Int result = DeepDive(0, 1000); 
+    
+    unless result == 1000 {
+        print("Stack failed or returned wrong value.");
+        return 1;
+    } else {
+        print("Stack survived recursion!");
+        return 0;
+    }
+}

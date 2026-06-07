@@ -1,0 +1,66 @@
+-- file: chaos_seed.klang
+
+global UInt GRID_WIDTH = 15;
+
+function DetermineNextState(left : Int, center : Int, right : Int) : Int {
+    -- We pack the states into a pseudo-binary integer for easy matching
+    local Int state = (left * 100) + (center * 10) + right;
+    
+    -- Rule 30 logic: 100->1, 011->1, 010->1, 001->1. All others->0.
+    if state == 100 { return 1; }
+    else if state == 11 { return 1; }
+    else if state == 10 { return 1; }
+    else if state == 1 { return 1; }
+    else { return 0; }
+}
+
+function GenerateGenerations(gens : Int) : Int {
+    local mut List[Int] currentRow = [];
+    local mut Int cellsAlive = 0;
+    
+    -- Initialize blank grid, set exact middle cell to 1
+    for i := range(GRID_WIDTH) {
+        currentRow[i] = 0;
+    }
+    currentRow[7] = 1; 
+    
+    -- Run the simulation
+    for g := range(gens) {
+        local mut List[Int] nextRow = [];
+        
+        for i := range(GRID_WIDTH) {
+            local mut Int left = 0;
+            local mut Int right = 0;
+            
+            -- Edge handling logic
+            unless i == 0 { left = currentRow[i - 1]; } else { left = 0; }
+            unless i == (GRID_WIDTH - 1) { right = currentRow[i + 1]; } else { right = 0; }
+            
+            local Int center = currentRow[i];
+            
+            nextRow[i] = DetermineNextState(left, center, right);
+            
+            if nextRow[i] == 1 {
+                cellsAlive += 1;
+            }
+        }
+        
+        -- Swap generation
+        currentRow = nextRow;
+    }
+    
+    return cellsAlive;
+}
+
+function Main() : Int {
+    local Int finalLifeCount = GenerateGenerations(5);
+    
+    unless finalLifeCount > 0 {
+        print("Simulation failed: All cells died.");
+        return 1;
+    } else {
+        print("Simulation success. Total historical life nodes: ");
+        print(finalLifeCount);
+        return 0;
+    }
+}

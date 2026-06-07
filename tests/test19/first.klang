@@ -1,0 +1,45 @@
+-- file: signal_hub.klang
+
+global mut Map[String, List[T]] eventBus = {};
+
+function Subscribe(eventName : String, callback : T) : Bool {
+    -- Get the current list of listeners (assuming it returns an empty list if new)
+    local mut List[T] listeners = eventBus[eventName];
+    local Int nextIndex = len(listeners);
+    
+    listeners[nextIndex] = callback;
+    eventBus[eventName] = listeners;
+    
+    return True;
+}
+
+function Emit(eventName : String, payload : String) : Int {
+    local List[T] listeners = eventBus[eventName];
+    local Int count = len(listeners);
+    
+    for i := range(count) {
+        local T currentFunc = listeners[i];
+        -- Execute the listener with the payload
+        currentFunc(payload);
+    }
+    
+    return count;
+}
+
+-- Some test listeners
+function OnUserLogin(user : String) : String { print("Login: "); print(user); return user; }
+function OnSecurityAlert(user : String) : String { print("Alert triggered by: "); print(user); return user; }
+
+function Main() : Int {
+    Subscribe("AUTH_EVENT", OnUserLogin);
+    Subscribe("AUTH_EVENT", OnSecurityAlert);
+    
+    local Int handlersFired = Emit("AUTH_EVENT", "Admin_01");
+    
+    unless handlersFired == 2 {
+        print("Event Bus failed to trigger all listeners.");
+        return 1;
+    } else {
+        return 0;
+    }
+}

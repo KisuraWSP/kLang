@@ -45,6 +45,7 @@ const (
 	TokenRightSquareBrace // ]
 	TokenLeftBrace        // (
 	TokenRightBrace       // )
+	TokenInferReturn      // :
 
 	// Special Scope Operators
 	TokenScopeBegin // {
@@ -69,6 +70,8 @@ const (
 	TokenGlobal     // global
 	TokenMut        // mut
 	TokenLocal      // local
+	TokenCall       // call
+	TokenNameSpace  // namespace
 )
 
 type Token struct {
@@ -77,24 +80,26 @@ type Token struct {
 }
 
 var Keywords = map[string]TokenType{
-	"and":      TokenAnd,
-	"or":       TokenOr,
-	"not":      TokenNot,
-	"function": TokenFunc,
-	"if":       TokenIf,
-	"else":     TokenElse,
-	"unless":   TokenUnless,
-	"for":      TokenFor,
-	"while":    TokenWhile,
-	"do":       TokenDo,
-	"is":       TokenIs,
-	"as":       TokenAs,
-	"in":       TokenIn,
-	"import":   TokenImport,
-	"global":   TokenGlobal,
-	"fun":      TokenLambdaFunc,
-	"mut":      TokenMut,
-	"local":    TokenLocal,
+	"and":       TokenAnd,
+	"or":        TokenOr,
+	"not":       TokenNot,
+	"function":  TokenFunc,
+	"if":        TokenIf,
+	"else":      TokenElse,
+	"unless":    TokenUnless,
+	"for":       TokenFor,
+	"while":     TokenWhile,
+	"do":        TokenDo,
+	"is":        TokenIs,
+	"as":        TokenAs,
+	"in":        TokenIn,
+	"import":    TokenImport,
+	"global":    TokenGlobal,
+	"fun":       TokenLambdaFunc,
+	"mut":       TokenMut,
+	"local":     TokenLocal,
+	"call":      TokenCall,
+	"namespace": TokenNameSpace,
 }
 
 var Operators = map[string]TokenType{
@@ -116,6 +121,8 @@ var Operators = map[string]TokenType{
 	"<":  TokenLessThan,
 	">=": TokenGreaterThanOrEqualTo,
 	"<=": TokenLessThanOrEqualTo,
+	"->": TokenArrow,
+	":":  TokenInferReturn,
 }
 
 var Punctuations = map[string]TokenType{

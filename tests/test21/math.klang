@@ -1,0 +1,56 @@
+-- ==========================================
+-- 2. PSEUDO-RANDOM NUMBER GENERATOR
+-- ==========================================
+-- A simple Linear Congruential Generator since Klang has no math lib yet.
+
+namespace random {
+    function Random() : Int {
+        -- LCG constants
+        local Int a = 1664525;
+        local Int c = 1013904223;
+        local Int m = 2147483647; -- 2^31 - 1
+        
+        seed = (seed * a + c);
+        
+        -- Simulate modulo (Klang might not have %, so we do division math if needed, 
+        -- but assuming basic operators exist, we'll use a simulated bound)
+        unless seed > 0 {
+            seed = seed * -1; 
+        } else {
+            seed = seed + 0;
+        }
+        return seed;
+    }
+
+    function RandomRange(min : Int, max : Int) : Int {
+        local Int randVal = Random();
+        -- A hacky way to get a range without modulo operator
+        local mut Int range = max - min;
+        unless range > 0 { range = 1; } else { range = range + 0; }
+        
+        local Int chunk = randVal / 10000;
+        local mut Int result = min;
+        
+        do_while step := chunk > range {
+            chunk -= range;
+            if chunk <= range break;
+        }
+        
+        result = min + chunk;
+        return result;
+    }
+}
+
+-- ==========================================
+-- 4. UTILITY FUNCTIONS
+-- ==========================================
+
+namespace math {
+    function Max(a : Int, b : Int) : Int {
+        if a > b { return a; } else { return b; }
+    }
+
+    function Min(a : Int, b : Int) : Int {
+        if a < b { return a; } else { return b; }
+    }
+}

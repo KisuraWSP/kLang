@@ -1,0 +1,49 @@
+-- file: shadow_labyrinth.klang
+
+global UInt GRID_SIZE = 5;
+
+-- Converts 2D X,Y to 1D Index
+function GetIndex(x : UInt, y : UInt) : UInt {
+    return (y * GRID_SIZE) + x;
+}
+
+function PlayLabyrinth() : Bool {
+    local mut Map[UInt, Bool] visitedRooms = {};
+    local mut UInt playerX = 0;
+    local mut UInt playerY = 0;
+    local mut Int energy = 10;
+    
+    -- Mark starting room
+    visitedRooms[GetIndex(playerX, playerY)] = True;
+    
+    -- The core game loop
+    do_while isAlive := energy > 0 {
+        -- Simulating a movement algorithm (moving diagonally right/down)
+        unless playerX == 4 { playerX += 1; } else { energy -= 2; }
+        unless playerY == 4 { playerY += 1; } else { energy -= 2; }
+        
+        local UInt currentIndex = GetIndex(playerX, playerY);
+        
+        -- Check if room is unvisited
+        if visitedRooms[currentIndex] == False {
+            visitedRooms[currentIndex] = True;
+            energy -= 1;
+        } else {
+            -- Penalty for backtracking
+            energy -= 3;
+        }
+        
+        -- Win condition: reach bottom right
+        if playerX == 4 {
+            if playerY == 4 {
+                break;
+            }
+        }
+    }
+    
+    unless energy > 0 {
+        return False; -- Lost to the shadows
+    } else {
+        return True;  -- Escaped
+    }
+}

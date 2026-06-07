@@ -1,0 +1,20 @@
+global mut String acc="";
+
+function WeirdFormatting(x:Int,y:Float):String{
+    local mut Int z=0;
+    
+    -- Condensed do_while with immediate break and attached unless
+    do_while i:=range(5){unless i>2{z+=1;}else{break;}}
+    
+    -- Rapid if/else chain with zero spacing
+    if z==3{return "Valid";}else if z<3{return "Too Low";}else{return "Too High";}
+}
+
+function Main():Int{
+    -- Testing if the parser respects the evaluation assignment natively
+    while condition:=(WeirdFormatting(1, 1.0) == "Valid"){
+        acc = "Success";
+        break;
+    }
+    return 0;
+}

@@ -1,0 +1,65 @@
+-- file: quantum_bazaar.klang
+
+global mut Map[String, Float] marketPrices = {};
+global mut Map[String, Int] playerInventory = {};
+global mut Float playerCredits = 100.50;
+
+function InitializeMarket() : Int {
+    marketPrices["NebulaDust"] = 12.5;
+    marketPrices["VoidCore"] = 45.0;
+    playerInventory["NebulaDust"] = 0;
+    playerInventory["VoidCore"] = 0;
+    return 1;
+}
+
+-- Executes an order only if the volatility threshold isn't breached
+function ExecuteTrade(item : String, amount : Int, isBuy : Bool, maxPrice : Float) : Float {
+    local Float currentPrice = marketPrices[item];
+    
+    unless currentPrice > maxPrice {
+        if isBuy {
+            local Float cost = currentPrice * amount;
+            if playerCredits > cost {
+                playerCredits -= cost;
+                playerInventory[item] += amount;
+                -- Buying increases market price
+                marketPrices[item] += 1.25; 
+            }
+        } else {
+            local Float revenue = currentPrice * amount;
+            if playerInventory[item] >= amount {
+                playerCredits += revenue;
+                playerInventory[item] -= amount;
+                -- Selling crashes market price
+                marketPrices[item] -= 2.0;
+            }
+        }
+    } else {
+        print("Trade blocked: Price too high.");
+    }
+    
+    return playerCredits;
+}
+
+function Main() : Int {
+    InitializeMarket();
+    local mut Int day = 1;
+    
+    -- Evaluate assignment inside the while loop using logical checks
+    while marketActive := (day < 5) {
+        -- Simulated queued trades for the day
+        ExecuteTrade("NebulaDust", 3, True, 15.0);
+        ExecuteTrade("VoidCore", 1, True, 50.0);
+        ExecuteTrade("NebulaDust", 3, False, 99.0); -- Sell all
+        
+        day += 1;
+    }
+    
+    unless playerCredits > 100.50 {
+        print("Bankrupt. The alien mafia is looking for you.");
+        return 1;
+    } else {
+        print("Profit secured.");
+        return 0;
+    }
+}

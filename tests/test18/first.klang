@@ -1,0 +1,70 @@
+-- file: klang_vm.klang
+
+-- Opcodes
+global Int HALT = 0;
+global Int PUSH = 1;
+global Int ADD  = 2;
+global Int JUMP_IF_ZERO = 3;
+
+function RunVM(program : List[Int]) : Int {
+    local mut List[Int] stack = [];
+    local mut Int sp = 0;  -- Stack Pointer
+    local mut Int pc = 0;  -- Program Counter
+    
+    -- The execution loop
+    while running := pc < len(program) {
+        local Int instruction = program[pc];
+        
+        if instruction == PUSH {
+            pc += 1;
+            stack[sp] = program[pc];
+            sp += 1;
+        } else if instruction == ADD {
+            sp -= 1;
+            local Int b = stack[sp];
+            sp -= 1;
+            local Int a = stack[sp];
+            
+            stack[sp] = a + b;
+            sp += 1;
+        } else if instruction == JUMP_IF_ZERO {
+            sp -= 1;
+            local Int condition = stack[sp];
+            pc += 1; 
+            
+            unless condition > 0 {
+                -- Jump to the address specified in the next byte
+                pc = program[pc] - 1; -- -1 because pc increments at the loop end
+            } else {
+                -- Skip the jump address
+            }
+        } else if instruction == HALT {
+            break;
+        }
+        
+        pc += 1;
+    }
+    
+    -- Return the top of the stack
+    unless sp > 0 {
+        return -1; -- Error: Stack underflow
+    } else {
+        return stack[sp - 1];
+    }
+}
+
+function Main() : Int {
+    -- Bytecode: PUSH 5, PUSH 0, JUMP_IF_ZERO 8, PUSH 10, ADD, HALT
+    -- Address:  0     1  2      3             4  5       6    7
+    local List[Int] myProgram = [1, 5, 1, 0, 3, 8, 1, 10, 2, 0];
+    
+    local Int result = RunVM(myProgram);
+    
+    unless result == 15 {
+        print("VM crash! Core dumped.");
+        return 1;
+    } else {
+        print("VM execution successful.");
+        return 0;
+    }
+}

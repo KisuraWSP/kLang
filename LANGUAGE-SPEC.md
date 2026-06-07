@@ -3,3 +3,4 @@
 3. Has small standard library containing important modules
 4. Simple Module System
 5. All Important Data Types are built into the language
+6. Language Operates as file-based system (Meaning each file can execute as a script unless defined as a entry point to a project via the first.klang file)

@@ -1,0 +1,24 @@
+-- file: global_init.klang
+
+function ComputeSystemOffset() : Int {
+    local mut Int base = 512;
+    for i := range(3) {
+        base += 128;
+    }
+    return base; -- Should return 896
+}
+
+-- Function call at the global scope to define an immutable global
+global Int MEMORY_OFFSET = ComputeSystemOffset();
+
+function Main() : Int {
+    -- If the global call failed, MEMORY_OFFSET will be undefined or 0
+    unless MEMORY_OFFSET == 896 {
+        print("FATAL: Global offset not initialized correctly.");
+        return 1;
+    } else {
+        print("System initialized with offset: ");
+        print(MEMORY_OFFSET);
+        return 0;
+    }
+}

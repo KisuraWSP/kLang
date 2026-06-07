@@ -1,0 +1,30 @@
+-- file: ast_black_hole.klang
+
+function EvaluateDeepNesting() : Bool {
+    local mut Int coreValue = 0;
+    
+    if True {
+        unless coreValue > 0 {
+            while info1 := coreValue < 1 {
+                for i := range(2) {
+                    if i == 1 {
+                        unless coreValue == 100 {
+                            do_while j := range(1) {
+                                if True {
+                                    unless False {
+                                        -- 9 levels deep. Can your parser handle 50?
+                                        coreValue = 999;
+                                        break;
+                                    } else { coreValue = -1; }
+                                }
+                            }
+                        } else { coreValue = -2; }
+                    }
+                }
+                if coreValue == 999 break;
+            }
+        } else { coreValue = -3; }
+    }
+    
+    if coreValue == 999 { return True; } else { return False; }
+}

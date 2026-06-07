@@ -1,1 +1,14 @@
-global Int x = 69420;
+function EvaluateThreshold(threshold : Int) : String {
+    local mut String result = "";
+    
+    for i := range(5) {
+        -- 'unless' executes if the condition is FALSE
+        unless i > threshold {
+            result += "Below or equal. ";
+        } else {
+            result += "Above. ";
+        }
+    }
+    
+    return result;
+}

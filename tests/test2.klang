@@ -1,0 +1,17 @@
+global mut Int globalCounter = 0;
+global String appName = "KlangTest";
+
+function TestMutability() : Bool {
+    local Int constantValue = 10;
+    local mut Int changingValue = 5;
+    
+    changingValue += 5;
+    globalCounter += 1;
+    
+    -- This tests if the equality operator works
+    if changingValue == constantValue {
+        return True;
+    } else {
+        return False;
+    }
+}

@@ -1,0 +1,28 @@
+function ProcessMatrix(matrix : List[List[Int]], metadata : Map[String, T]) : Map[String, Int] {
+    local mut Map[String, Int] rowResults = {};
+    local Int rows = len(matrix);
+    
+    for i := 0; i < rows; i += 1 {
+        -- Extracting a list from a list
+        local List[Int] currentRow = matrix[i];
+        local mut Int rowSum = 0;
+        
+        for j := range(len(currentRow)) {
+            -- Inverted logic test
+            unless currentRow[j] < 0 {
+                rowSum += currentRow[j];
+            } else {
+                -- Skip negative processing
+                rowSum += 0; 
+            }
+        }
+        
+        -- Testing implicit string coercion or concatenation for Map keys
+        local String key = "Row_Sum";
+        
+        -- Updating mutable map
+        rowResults[key] = rowSum;
+    }
+    
+    return rowResults;
+}

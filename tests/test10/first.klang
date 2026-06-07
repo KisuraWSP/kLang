@@ -1,0 +1,33 @@
+-- file: global_chain.klang
+
+global mut List[String] bootLog = [];
+
+function LogEvent(event : String) : Int {
+    -- Assuming we can use len() to append to the end of the list
+    local Int index = len(bootLog);
+    bootLog[index] = event;
+    return 1;
+}
+
+function GenerateConfig() : Map[String, Int] {
+    local mut Map[String, Int] conf = {};
+    conf["max_threads"] = 8;
+    return conf;
+}
+
+-- 1. Standalone function call at global scope (Side effect: mutates global list)
+LogEvent("Starting boot sequence...");
+
+-- 2. Global assignment via function call
+global Map[String, Int] SYS_CONFIG = GenerateConfig();
+
+-- 3. Another global call relying on the successful creation of SYS_CONFIG
+LogEvent("Configuration loaded with max_threads: "); 
+
+function Main() : Int {
+    if len(bootLog) > 1 {
+        print("Boot sequence logged successfully.");
+        return 0;
+    }
+    return 1;
+}

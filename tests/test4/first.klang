@@ -1,0 +1,26 @@
+global mut Map[String, Int] memoryStore = {};
+
+function Main() : Int {
+    local mut Int statusCode = 0;
+    local List[Int] dataList = [1, 2, 3, 4, 5];
+    
+    print("Starting Klang execution...");
+    
+    -- Testing do_while loop
+    local mut Int index = 0;
+    do_while index := range(5) {
+        memoryStore["iteration"] = dataList[index];
+        index += 1;
+        
+        if index == 5 break;
+    }
+    
+    unless memoryStore["iteration"] == 5 {
+        print("Error in loop execution");
+        statusCode = 1;
+    } else {
+        print("Execution successful!");
+    }
+    
+    return statusCode;
+}

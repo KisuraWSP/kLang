@@ -1,0 +1,24 @@
+function Add(a : Int, b : Int) : Int { return a + b; }
+function Subtract(a : Int, b : Int) : Int { return a - b; }
+
+function BuildOpTable() : Map[String, T] {
+    local mut Map[String, T] dispatcher = {};
+    
+    -- Assigning function references to Map keys
+    dispatcher["ADD"] = Add;
+    dispatcher["SUB"] = Subtract;
+    
+    return dispatcher;
+}
+
+function ExecuteDynamic(operation : String, x : Int, y : Int) : Int {
+    local Map[String, T] opsTable = BuildOpTable();
+    
+    -- Fetching the function from the map into a generic type
+    local T selectedFunc = opsTable[operation];
+    
+    -- Executing the generic type as a function signature
+    local Int result = selectedFunc(x, y);
+    
+    return result;
+}

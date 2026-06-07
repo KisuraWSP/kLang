@@ -1,0 +1,38 @@
+global mut Int globalDepth = 0;
+
+function TraverseLabyrinth(maxDepth : Int) : Bool {
+    local mut Int currentPath = 0;
+    
+    -- Using the evaluation assignment syntax
+    while info := currentPath < maxDepth {
+        -- INTENTIONAL SHADOWING: The parser must isolate this from the outer 'currentPath'
+        local mut Int currentPath = 999; 
+        
+        for i := range(10) {
+            unless i > 5 {
+                globalDepth += 1;
+                
+                -- Deeply nested do_while inside an unless
+                do_while j := range(3) {
+                    currentPath -= 1; 
+                    if currentPath == 990 break;
+                }
+            } else {
+                globalDepth -= 1;
+            }
+        }
+        
+        -- If scoping is broken, this loop runs forever. 
+        -- If scoping is correct, we increment the OUTER variable.
+        -- Assuming we need to bypass the shadow to increment the outer, 
+        -- let's use a standard C-style for-loop as a hacky manual incrementer.
+        for step := 0; step < 1; step += 1 {
+            currentPath += 1; -- Wait, this still hits the local shadow. 
+        }
+        
+        -- Let's force a break to prevent actual infinite loops during your testing
+        if globalDepth > 50 break;
+    }
+    
+    return True;
+}

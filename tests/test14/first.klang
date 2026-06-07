@@ -1,0 +1,34 @@
+-- file: heap_exhaustion.klang
+
+function ConsumeMemory() : Int {
+    local mut Map[Int, List[String]] massiveMap = {};
+    local mut Int elementsCreated = 0;
+    
+    print("Beginning heap allocation test...");
+    
+    for i := 0; i < 5000; i += 1 {
+        local mut List[String] chunk = [];
+        
+        for j := range(100) {
+            -- Appending large strings to force memory reallocation
+            chunk[j] = "KLANG_MEMORY_STRESS_TEST_PAYLOAD_DATA_";
+            elementsCreated += 1;
+        }
+        
+        massiveMap[i] = chunk;
+    }
+    
+    -- Now iterate through and destroy/overwrite them to test garbage collection
+    for k := range(5000) {
+        massiveMap[k] = ["CLEARED"];
+    }
+    
+    return elementsCreated;
+}
+
+function Main() : Int {
+    local Int total = ConsumeMemory();
+    print("Total elements allocated before clearing: ");
+    print(total);
+    return 0;
+}

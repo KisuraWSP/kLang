@@ -1,0 +1,31 @@
+-- file: global_factory.klang
+
+-- Returns a function that returns an Int
+function NumberFactory(multiplier : Int) : T {
+    -- A mock nested/anonymous function return behavior based on first-class rules
+    -- (Assuming your language allows returning internal functions or you bind them)
+    function InnerGenerator(val : Int) : Int {
+        return val * multiplier;
+    }
+    return InnerGenerator;
+}
+
+-- Creates a specific generator function globally
+global T timesTen = NumberFactory(10);
+
+-- Invokes the global function at the global scope to set another variable
+global Int MAGIC_NUMBER = timesTen(42); 
+
+-- Invokes the factory AND the returned function in one line globally
+global Int QUICK_MATH = NumberFactory(5)(10);
+
+function Main() : Int {
+    unless QUICK_MATH == 50 {
+        print("Chained global evaluation failed!");
+        return 1;
+    } else {
+        print("Success! Magic number is:");
+        print(MAGIC_NUMBER); -- Should be 420
+        return 0;
+    }
+}
