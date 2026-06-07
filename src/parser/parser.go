@@ -271,11 +271,15 @@ func (parser *Parser) parseExpressionOrAssignment() Statement {
 	}
 
 	if index := assignmentOperatorIndex(expr.Tokens); index != -1 {
+		target := Expression{Tokens: expr.Tokens[:index]}
+		target.Node = parseExpressionNode(target.Tokens)
+		value := Expression{Tokens: expr.Tokens[index+1:]}
+		value.Node = parseExpressionNode(value.Tokens)
 		return AssignmentStatement{
 			Pos:        positionFromToken(start),
-			Target:     Expression{Tokens: expr.Tokens[:index]},
+			Target:     target,
 			Operator:   expr.Tokens[index].Literal,
-			Expression: Expression{Tokens: expr.Tokens[index+1:]},
+			Expression: value,
 		}
 	}
 
@@ -394,7 +398,7 @@ func (parser *Parser) parseExpressionUntil(stopTypes ...lexer.TokenType) Express
 			braceDepth++
 		case lexer.TokenScopeEnd:
 			if braceDepth == 0 && tokenTypeIn(lexer.TokenScopeEnd, stopTypes) {
-				return Expression{Tokens: tokens}
+				return expressionFromTokens(tokens)
 			}
 			if braceDepth > 0 {
 				braceDepth--
@@ -404,7 +408,7 @@ func (parser *Parser) parseExpressionUntil(stopTypes ...lexer.TokenType) Express
 		tokens = append(tokens, token)
 		parser.advance()
 	}
-	return Expression{Tokens: trimExpressionTokens(tokens)}
+	return expressionFromTokens(tokens)
 }
 
 func (parser *Parser) consume(expected lexer.TokenType, message string) lexer.Token {
@@ -526,4 +530,12 @@ func trimExpressionTokens(tokens []lexer.Token) []lexer.Token {
 		end--
 	}
 	return tokens[start:end]
+}
+
+func expressionFromTokens(tokens []lexer.Token) Expression {
+	tokens = trimExpressionTokens(tokens)
+	return Expression{
+		Tokens: tokens,
+		Node:   parseExpressionNode(tokens),
+	}
 }

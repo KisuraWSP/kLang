@@ -179,6 +179,84 @@ function Main() : Int {
 	}
 }
 
+func TestParseExpressionTreeForBinaryPrecedence(t *testing.T) {
+	program, errors := Parse(`local Int result = 1 + 2 * 3;`)
+	assertNoParseErrors(t, errors)
+
+	decl := program.Statements[0].(VariableStatement)
+	root, ok := decl.Expression.Node.(BinaryExpression)
+	if !ok || root.Operator != "+" {
+		t.Fatalf("expected root + binary expression, got %#v", decl.Expression.Node)
+	}
+	if _, ok := root.Left.(LiteralExpression); !ok {
+		t.Fatalf("expected left literal, got %#v", root.Left)
+	}
+	right, ok := root.Right.(BinaryExpression)
+	if !ok || right.Operator != "*" {
+		t.Fatalf("expected right * binary expression, got %#v", root.Right)
+	}
+}
+
+func TestParseExpressionTreeForCallsSelectorsAndIndexes(t *testing.T) {
+	program, errors := Parse(`local Int value = call random.RandomRange(items[0], 10);`)
+	assertNoParseErrors(t, errors)
+
+	decl := program.Statements[0].(VariableStatement)
+	callPrefix, ok := decl.Expression.Node.(UnaryExpression)
+	if !ok || callPrefix.Operator != "call" {
+		t.Fatalf("expected call unary expression, got %#v", decl.Expression.Node)
+	}
+	call, ok := callPrefix.Right.(CallExpression)
+	if !ok {
+		t.Fatalf("expected call expression, got %#v", callPrefix.Right)
+	}
+	selector, ok := call.Callee.(SelectorExpression)
+	if !ok || selector.Field != "RandomRange" {
+		t.Fatalf("expected selector callee, got %#v", call.Callee)
+	}
+	if len(call.Arguments) != 2 {
+		t.Fatalf("expected two call args, got %d", len(call.Arguments))
+	}
+	if _, ok := call.Arguments[0].(IndexExpression); !ok {
+		t.Fatalf("expected first arg index expression, got %#v", call.Arguments[0])
+	}
+}
+
+func TestParseExpressionTreeForListAndMapLiterals(t *testing.T) {
+	listProgram, listErrors := Parse(`local List[Int] values = [1, 2, 3];`)
+	assertNoParseErrors(t, listErrors)
+	listDecl := listProgram.Statements[0].(VariableStatement)
+	list, ok := listDecl.Expression.Node.(ListExpression)
+	if !ok || len(list.Items) != 3 {
+		t.Fatalf("expected list expression with 3 items, got %#v", listDecl.Expression.Node)
+	}
+
+	mapProgram, mapErrors := Parse(`local Map[String, Int] values = {"one": 1, "two": 2};`)
+	assertNoParseErrors(t, mapErrors)
+	mapDecl := mapProgram.Statements[0].(VariableStatement)
+	mapExpr, ok := mapDecl.Expression.Node.(MapExpression)
+	if !ok || len(mapExpr.Entries) != 2 {
+		t.Fatalf("expected map expression with 2 entries, got %#v", mapDecl.Expression.Node)
+	}
+}
+
+func TestParseAssignmentExpressionTree(t *testing.T) {
+	program, errors := Parse(`items[index + 1] = value * 2;`)
+	assertNoParseErrors(t, errors)
+
+	assignment, ok := program.Statements[0].(AssignmentStatement)
+	if !ok {
+		t.Fatalf("expected assignment statement, got %T", program.Statements[0])
+	}
+	if _, ok := assignment.Target.Node.(IndexExpression); !ok {
+		t.Fatalf("expected indexed assignment target, got %#v", assignment.Target.Node)
+	}
+	value, ok := assignment.Expression.Node.(BinaryExpression)
+	if !ok || value.Operator != "*" {
+		t.Fatalf("expected binary assignment value, got %#v", assignment.Expression.Node)
+	}
+}
+
 func TestParseRejectsIllegalTokens(t *testing.T) {
 	_, errors := Parse(`local Int value = @;`)
 	if len(errors) == 0 {

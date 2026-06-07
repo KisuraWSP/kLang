@@ -96,6 +96,67 @@ type LoopStatement struct {
 
 type Expression struct {
 	Tokens []lexer.Token
+	Node   ExpressionNode
+}
+
+type ExpressionNode interface {
+	expressionNode()
+}
+
+type IdentifierExpression struct {
+	Name string
+}
+
+type LiteralExpression struct {
+	Kind  string
+	Value string
+}
+
+type UnaryExpression struct {
+	Operator string
+	Right    ExpressionNode
+}
+
+type BinaryExpression struct {
+	Left     ExpressionNode
+	Operator string
+	Right    ExpressionNode
+}
+
+type CallExpression struct {
+	Callee    ExpressionNode
+	Arguments []ExpressionNode
+}
+
+type IndexExpression struct {
+	Target ExpressionNode
+	Index  ExpressionNode
+}
+
+type SelectorExpression struct {
+	Target ExpressionNode
+	Field  string
+}
+
+type ListExpression struct {
+	Items []ExpressionNode
+}
+
+type MapExpression struct {
+	Entries []MapEntry
+}
+
+type MapEntry struct {
+	Key   ExpressionNode
+	Value ExpressionNode
+}
+
+type GroupExpression struct {
+	Inner ExpressionNode
+}
+
+type RawExpression struct {
+	Tokens []lexer.Token
 }
 
 func (stmt ImportStatement) statementNode()     {}
@@ -119,6 +180,18 @@ func (stmt AssignmentStatement) Position() Position { return stmt.Pos }
 func (stmt ExpressionStatement) Position() Position { return stmt.Pos }
 func (stmt IfStatement) Position() Position         { return stmt.Pos }
 func (stmt LoopStatement) Position() Position       { return stmt.Pos }
+
+func (expr IdentifierExpression) expressionNode() {}
+func (expr LiteralExpression) expressionNode()    {}
+func (expr UnaryExpression) expressionNode()      {}
+func (expr BinaryExpression) expressionNode()     {}
+func (expr CallExpression) expressionNode()       {}
+func (expr IndexExpression) expressionNode()      {}
+func (expr SelectorExpression) expressionNode()   {}
+func (expr ListExpression) expressionNode()       {}
+func (expr MapExpression) expressionNode()        {}
+func (expr GroupExpression) expressionNode()      {}
+func (expr RawExpression) expressionNode()        {}
 
 func (expr Expression) Literal() string {
 	parts := make([]string, 0, len(expr.Tokens))
