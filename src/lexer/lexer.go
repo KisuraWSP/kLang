@@ -195,7 +195,7 @@ func (lexer *Lexer) readCharLiteral() (string, bool) {
 	}
 
 	lexer.readChar()
-	return literal, true
+	return literal, isValidCharLiteral(literal)
 }
 
 func (lexer *Lexer) readOperator() (TokenType, string, bool) {
@@ -237,4 +237,11 @@ func isLetter(ch byte) bool {
 
 func isDigit(ch byte) bool {
 	return '0' <= ch && ch <= '9'
+}
+
+func isValidCharLiteral(literal string) bool {
+	if len(literal) == 1 {
+		return true
+	}
+	return len(literal) == 2 && literal[0] == '\\'
 }

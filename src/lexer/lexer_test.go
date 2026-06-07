@@ -121,6 +121,123 @@ func TestLexerTokenizesLiteralsNamespaceCallsAndOperators(t *testing.T) {
 	})
 }
 
+func TestLexerKeepsCommentMarkersInsideStringLiterals(t *testing.T) {
+	input := `local String text = "--not a comment"; -- real comment
+local Int value = 1;`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "String"},
+		{Type: TokenIdentifier, Literal: "text"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenString, Literal: "--not a comment"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "value"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "1"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
+func TestLexerDistinguishesFloorDivisionFromComments(t *testing.T) {
+	input := `local Int half = total // divisor; -- comment
+local Int value = 1;`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "half"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenIdentifier, Literal: "total"},
+		{Type: TokenFloorDivision, Literal: "//"},
+		{Type: TokenIdentifier, Literal: "divisor"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "value"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "1"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
+func TestLexerUsesLongestOperatorMatch(t *testing.T) {
+	input := `a**b; a->b; a>=b; a<=b; a/=b; a*=b; a-=b; a+=b; a:=b;`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenIdentifier, Literal: "a"},
+		{Type: TokenExponent, Literal: "**"},
+		{Type: TokenIdentifier, Literal: "b"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenIdentifier, Literal: "a"},
+		{Type: TokenArrow, Literal: "->"},
+		{Type: TokenIdentifier, Literal: "b"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenIdentifier, Literal: "a"},
+		{Type: TokenGreaterThanOrEqualTo, Literal: ">="},
+		{Type: TokenIdentifier, Literal: "b"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenIdentifier, Literal: "a"},
+		{Type: TokenLessThanOrEqualTo, Literal: "<="},
+		{Type: TokenIdentifier, Literal: "b"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenIdentifier, Literal: "a"},
+		{Type: TokenDivideEqual, Literal: "/="},
+		{Type: TokenIdentifier, Literal: "b"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenIdentifier, Literal: "a"},
+		{Type: TokenMultiEqual, Literal: "*="},
+		{Type: TokenIdentifier, Literal: "b"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenIdentifier, Literal: "a"},
+		{Type: TokenMinusEqual, Literal: "-="},
+		{Type: TokenIdentifier, Literal: "b"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenIdentifier, Literal: "a"},
+		{Type: TokenPlusEqual, Literal: "+="},
+		{Type: TokenIdentifier, Literal: "b"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenIdentifier, Literal: "a"},
+		{Type: TokenEvaluationAssign, Literal: ":="},
+		{Type: TokenIdentifier, Literal: "b"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
+func TestLexerTokenizesEscapedStringAndCharLiterals(t *testing.T) {
+	input := `local String text = "hello \"world\""; local Char newline = '\n';`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "String"},
+		{Type: TokenIdentifier, Literal: "text"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenString, Literal: `hello \"world\"`},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Char"},
+		{Type: TokenIdentifier, Literal: "newline"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenChar, Literal: `\n`},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
+func TestLexerReportsIllegalCharLiterals(t *testing.T) {
+	for _, input := range []string{`''`, `'ab'`, `'unterminated`} {
+		tokens := New(input).Tokenize()
+		if tokens[0].Type != TokenIllegal {
+			t.Fatalf("%q: expected illegal char literal, got %#v", input, tokens[0])
+		}
+	}
+}
+
 func TestLexerReportsIllegalUnterminatedString(t *testing.T) {
 	tokens := New(`local String text = "unterminated`).Tokenize()
 	lastRealToken := tokens[len(tokens)-2]
@@ -130,8 +247,29 @@ func TestLexerReportsIllegalUnterminatedString(t *testing.T) {
 	}
 }
 
+func TestLexerReportsIllegalUnknownCharacters(t *testing.T) {
+	tokens := New(`local Int value = @;`).Tokenize()
+
+	atToken := tokens[4]
+	if atToken.Type != TokenIllegal || atToken.Literal != "@" {
+		t.Fatalf("expected illegal @ token, got %#v", atToken)
+	}
+}
+
 func TestLexerTracksLineAndColumn(t *testing.T) {
 	tokens := New("local Int x = 1;\nreturn x;").Tokenize()
+
+	returnToken := tokens[6]
+	if returnToken.Type != TokenReturn {
+		t.Fatalf("expected return token, got %#v", returnToken)
+	}
+	if returnToken.Line != 2 || returnToken.Column != 1 {
+		t.Fatalf("expected return at line 2 column 1, got line %d column %d", returnToken.Line, returnToken.Column)
+	}
+}
+
+func TestLexerSkipsCRLFWhitespace(t *testing.T) {
+	tokens := New("local Int x = 1;\r\nreturn x;").Tokenize()
 
 	returnToken := tokens[6]
 	if returnToken.Type != TokenReturn {
