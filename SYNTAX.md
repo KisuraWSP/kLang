@@ -34,5 +34,53 @@ function Print(formatString : String, value : List[T]) : Int {
     
     return 0;
 }
+```
 
+3. Condition Handling
+- Used to do basic boolean based condition operations
+```lua
+-- if .. else if .. else statement
+if x > y {
+    print(x);
+} else if y < x {
+    print(y);
+} else {
+    print("this is interesting");
+}
+
+-- unless .. else
+-- If the Boolean expression evaluates to false, then the block of code inside the unless statement will be executed. If the Boolean expression evaluates to true, then the code after the else keyword of the given unless statement will be executed.
+unless x > y {
+    print(y);
+} else {
+    print(x);
+}
+```
+
+4. Loops
+- These are basic repetition constructs used by programming languages
+```lua
+-- basic for loop (like in C)
+for i:=0; i > 10; i+=1 {
+    print(i);
+}
+
+-- for range loop
+-- iterates from 0..N-1
+for i := range(10) {
+    print(i);
+}
+
+-- while loop
+while i:= 1 {
+    print(True);
+    i += 1;
+    if i == 3 break;
+}
+
+-- do_while loop
+do_while i := range(10) {
+    print(i);
+    if i == 2 break;
+}
 ```
