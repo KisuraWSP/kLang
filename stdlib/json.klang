@@ -21,4 +21,67 @@ namespace json {
     function Object1(pair : String) : String {
         return "{" + pair + "}";
     }
+
+    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
+    array_finish_fun()
+    array_push_fun()
+    array_start_fun()
+    continuation_state()
+    decode_value()
+    decoders()
+    encode_map(Value)
+    encode_value()
+    Simple JSON value encodeable with json:encode/1.
+    encoder()
+    formatter()
+    from_binary_fun()
+    object_finish_fun()
+    object_push_fun()
+    object_start_fun()
+    decode(Binary)
+    Parses a JSON value from Binary.
+    decode(Binary, Acc0, Decoders)
+    Parses a JSON value from Binary.
+    decode_continue/2
+    Continue parsing a stream of bytes of a JSON value.
+    decode_start(Binary, Acc, Decoders)
+    Begin parsing a stream of bytes of a JSON value.
+    encode(Term)
+    Generates JSON corresponding to Term.
+    encode(Term, Encoder)
+    Generates JSON corresponding to Term.
+    encode_atom/2
+    Default encoder for atoms used by json:encode/1.
+    encode_binary(Bin)
+    Default encoder for binaries as JSON strings used by json:encode/1.
+    encode_binary_escape_all(Bin)
+    Encoder for binaries as JSON strings producing pure-ASCII JSON.
+    encode_float(Float)
+    Default encoder for floats as JSON numbers used by json:encode/1.
+    encode_integer(Integer)
+    Default encoder for integers as JSON numbers used by json:encode/1.
+    encode_key_value_list(List, Encode)
+    Encoder for lists of key-value pairs as JSON objects.
+    encode_key_value_list_checked(List, Encode)
+    Encoder for lists of key-value pairs as JSON objects.
+    encode_list(List, Encode)
+    Default encoder for lists as JSON arrays used by json:encode/1.
+    encode_map(Map, Encode)
+    Default encoder for maps as JSON objects used by json:encode/1.
+    encode_map_checked(Map, Encode)
+    Encoder for maps as JSON objects.
+    encode_value(Value, Encode)
+    Default encoder used by json:encode/1.
+    format(Term)
+    Generates formatted JSON corresponding to Term.
+    format/2
+    Generates formatted JSON corresponding to Term.
+    format(Term, Encoder, Options)
+    Generates formatted JSON corresponding to Term.
+    format_key_value_list/3
+    Format function for lists of key-value pairs as JSON objects.
+    format_key_value_list_checked(KVList, UserEnc, State)
+    Format function for lists of key-value pairs as JSON objects.
+    format_value(Value, Encode, State)
+    Default format function used by json:format/1.
 }

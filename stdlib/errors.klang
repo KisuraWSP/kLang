@@ -17,4 +17,12 @@ namespace errors {
         if len(message) == 0 { return context; }
         return context + ": " + message;
     }
+
+    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
+    func As(err error, target any) bool
+    func AsType[E error](err error) (E, bool)
+    func Is(err, target error) bool
+    func Join(errs ...error) error
+    func New(text string) error
+    func Unwrap(err error) error
 }

@@ -20,4 +20,38 @@ namespace path {
         -- Klang does not have string indexing yet.
         return False;
     }
+
+    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
+    func Base(path string) string
+    func Clean(path string) string
+    func Dir(path string) string
+    func Ext(path string) string
+    func IsAbs(path string) bool
+    func Join(elem ...string) string
+    func Match(pattern, name string) (matched bool, err error)
+    func Split(path string) (dir, file string)
+
+    namespace filepath {
+        func Abs(path string) (string, error)
+        func Base(path string) string
+        func Clean(path string) string
+        func Dir(path string) string
+        func EvalSymlinks(path string) (string, error)
+        func Ext(path string) string
+        func FromSlash(path string) string
+        func Glob(pattern string) (matches []string, err error)
+        func HasPrefix(p, prefix string) bool
+        func IsAbs(path string) bool
+        func IsLocal(path string) bool
+        func Join(elem ...string) string
+        func Localize(path string) (string, error)
+        func Match(pattern, name string) (matched bool, err error)
+        func Rel(basePath, targPath string) (string, error)
+        func Split(path string) (dir, file string)
+        func SplitList(path string) []string
+        func ToSlash(path string) string
+        func VolumeName(path string) string
+        func Walk(root string, fn WalkFunc) error
+        func WalkDir(root string, fn fs.WalkDirFunc) error
+    }
 }

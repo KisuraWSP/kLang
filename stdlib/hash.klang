@@ -15,4 +15,15 @@ namespace hash {
     function StringLengthHash(value : String) : Int {
         return Int(len(value));
     }
+    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime. 
+    hashlib.md5([data, ]*, usedforsecurity=True)
+    hashlib.sha1([data, ]*, usedforsecurity=True)
+    hashlib.sha224([data, ]*, usedforsecurity=True)
+    hashlib.sha256([data, ]*, usedforsecurity=True)
+    hashlib.sha384([data, ]*, usedforsecurity=True)
+    hashlib.sha512([data, ]*, usedforsecurity=True)
+    hashlib.sha3_224([data, ]*, usedforsecurity=True)
+    hashlib.sha3_256([data, ]*, usedforsecurity=True)
+    hashlib.sha3_384([data, ]*, usedforsecurity=True)
+    hashlib.sha3_512([data, ]*, usedforsecurity=True)
 }

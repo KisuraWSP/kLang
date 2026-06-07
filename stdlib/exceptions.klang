@@ -8,4 +8,22 @@ namespace exceptions {
     function Recover(message : String, fallback : String) : String {
         if len(message) == 0 { return fallback; } else { return message; }
     }
+
+    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
+    column()
+    Start column number. Default is 1.
+    format_fun()
+    A fun used to format function arguments for BIF and function calls. By default the following fun will be used
+    format_options()
+    A map with formatting options.
+    stack_trim_fun()
+    A fun used to trim the end of the stacktrace. It is called with module, function, and arity from an entry from the stacktrace. The fun is to return true if the entry should be trimmed, and false otherwise. The default value is
+
+    format_error(Reason, StackTrace)
+    This callback is called when format_exception/4 or similar functionality wants to provide extra information about an error. The Module:Function called is the one specificed by the error_info map.
+
+    format_exception(Class, Reason, StackTrace)
+    Equivalent to format_exception/4.
+    format_exception(Class, Reason, StackTrace, Options)
+    Format the error reason and stack back-trace caught using try ... catch in the same style as the shell formats them.
 }

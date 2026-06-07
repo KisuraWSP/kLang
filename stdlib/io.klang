@@ -14,4 +14,548 @@ namespace io {
     function ReadLineUnsupported() : String {
         return "";
     }
+
+    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
+    device()
+    An I/O device, either standard_io/0, standard_error/0, user/0, a file:io_server/0, a registered name, or any pid handling I/O protocols.
+    encoding()
+    expand_fun()
+    format()
+    getopt()
+    option()
+    parse_form_ret()
+    parse_ret()
+    prompt()
+    server_no_data()
+    What the I/O server sends when there is no data.
+    setopt()
+    standard_error()
+    The I/O device standard_error can be used to direct output to whatever the current operating system considers a suitable I/O device for error output. This can be useful when standard output is redirected.
+    standard_io()
+    The default standard I/O device assigned to a process. This device is used when no IoDevice argument is specified in the function calls in this module.
+    user()
+    An I/O device that can be used to interact with the node local stdout and stdin. This can be either a terminal, a pipe, a file, or a combination.
+
+    columns()
+    Equivalent to columns(standard_io).
+    columns(IoDevice)
+    Retrieves the number of columns of the IoDevice (that is, the width of a terminal).
+    format(Format)
+    Equivalent to format(Format, []).
+    format(Format, Data)
+    Equivalent to format(standard_io, Format, Data).
+    format(IoDevice, Format, Data)
+    Equivalent to fwrite(IoDevice, Format, Data).
+    fread(Prompt, Format)
+    Equivalent to fread(standard_io, Prompt, Format).
+    fread(IoDevice, Prompt, Format)
+    Reads characters from IoDevice, prompting it with Prompt. Interprets the characters in accordance with Format.
+    fwrite(Format)
+    Equivalent to fwrite(Format, []).
+    fwrite(Format, Data)
+    Equivalent to fwrite(standard_io, Format, Data).
+    fwrite(IoDevice, Format, Data)
+    Writes the items in Data on the IoDevice in accordance with Format.
+    get_chars(Prompt, Count)
+    Equivalent to get_chars(standard_io, Prompt, Count).
+    get_chars(IoDevice, Prompt, Count)
+    Reads Count characters from IoDevice, prompting it with Prompt.
+    get_line(Prompt)
+    Equivalent to get_line(standard_io, Prompt).
+    get_line(IoDevice, Prompt)
+    Reads a line from IoDevice, prompting it with Prompt.
+    get_password()
+    Reads a password from user/0. Works just as get_line/2 except that the typed characters are not printed to the terminal.
+    getopts()
+    Equivalent to getopts(standard_io).
+    getopts(IoDevice)
+    Requests all available options and their current values for a IoDevice.
+    nl()
+    Equivalent to nl(standard_io).
+    nl(IoDevice)
+    Writes new line to the standard output (IoDevice).
+    parse_erl_exprs(Prompt)
+    Equivalent to parse_erl_exprs(standard_io, Prompt).
+    parse_erl_exprs(IoDevice, Prompt)
+    Equivalent to parse_erl_exprs(IoDevice, Prompt, 1).
+    parse_erl_exprs(IoDevice, Prompt, StartLocation)
+    Equivalent to parse_erl_exprs(IoDevice, Prompt, StartLocation, []).
+    parse_erl_exprs(IoDevice, Prompt, StartLocation, Options)
+    Reads data from IoDevice, prompting it with Prompt.
+    parse_erl_form(Prompt)
+    Equivalent to parse_erl_form(standard_io, Prompt).
+    parse_erl_form(IoDevice, Prompt)
+    Equivalent to parse_erl_form(IoDevice, Prompt, 1).
+    parse_erl_form(IoDevice, Prompt, StartLocation)
+    Equivalent to parse_erl_form(IoDevice, Prompt, StartLocation, []).
+    parse_erl_form(IoDevice, Prompt, StartLocation, Options)
+    Reads data from IoDevice, prompting it with Prompt.
+    printable_range()
+    Returns the user-requested range of printable Unicode characters.
+    put_chars(CharData)
+    Equivalent to put_chars(standard_io, CharData).
+    put_chars(IoDevice, CharData)
+    Writes the characters of CharData to the IoDevice.
+    read(Prompt)
+    Equivalent to read(standard_io, Prompt).
+    read(IoDevice, Prompt)
+    Reads a term Term from the standard input (IoDevice), prompting it with Prompt.
+    read(IoDevice, Prompt, StartLocation)
+    Equivalent to read(IoDevice, Prompt, StartLocation, []).
+    read(IoDevice, Prompt, StartLocation, Options)
+    Reads a term Term from IoDevice, prompting it with Prompt.
+    rows()
+    Equivalent to rows(standard_io).
+    rows(IoDevice)
+    Retrieves the number of rows of IoDevice (that is, the height of a terminal).
+    scan_erl_exprs(Prompt)
+    Equivalent to scan_erl_exprs(standard_io, Prompt).
+    scan_erl_exprs(Device, Prompt)
+    Equivalent to scan_erl_exprs(Device, Prompt, 1).
+    scan_erl_exprs(Device, Prompt, StartLocation)
+    Equivalent to scan_erl_exprs(Device, Prompt, StartLocation, []).
+    scan_erl_exprs(Device, Prompt, StartLocation, Options)
+    Reads data from IoDevice, prompting it with Prompt.
+    scan_erl_form(Prompt)
+    Equivalent to scan_erl_form(standard_io, Prompt).
+    scan_erl_form(IoDevice, Prompt)
+    Equivalent to scan_erl_form(IoDevice, Prompt, 1).
+    scan_erl_form(IoDevice, Prompt, StartLocation)
+    Equivalent to scan_erl_form(IoDevice, Prompt, StartLocation, []).
+    scan_erl_form(IoDevice, Prompt, StartLocation, Options)
+    Reads data from IoDevice, prompting it with Prompt.
+    setopts(Opts)
+    Equivalent to setopts(standard_io, Opts).
+    setopts(IoDevice, Opts)
+    Set options for IoDevice. Possible options and values vary depending on the I/O device.
+    write(Term)
+    Equivalent to write(standard_io, Term).
+    write(IoDevice, Term)
+    Writes term Term to IoDevice.
+
+    background_color()
+    Virtual terminal sequences that control the background color.
+    color()
+    Virtual terminal sequences that control color.
+    color_atom()
+    cursor()
+    Virtual terminal sequences that controls the cursor.
+    foreground_color()
+    Virtual terminal sequences that control the foreground (aka text) color.
+    format()
+    The format string that can be passed to format/3 and fwrite/4
+    hyperlink()
+    Virtual terminal sequences that control whether emitted text shall be a hyper link or not.
+    hyperlink_params()
+    input()
+    Virtual terminal sequences for cursor input.
+    option()
+    options()
+    style()
+    Virtual terminal sequences that control text style.
+    tab()
+    Virtual terminal sequences that works with tabs.
+    text()
+    Virtual terminal sequences that works on text.
+    text_formatting()
+    Virtual terminal sequences that control text formatting.
+    text_modification()
+    Virtual terminal sequences that can erase or overwrite text.
+    underline_color()
+    Virtual terminal sequences that control underline color.
+    underline_style()
+    Virtual terminal sequences that control underline style.
+    vts()
+    Virtual terminal sequences.
+    window()
+    Virtual terminal sequences that controls the screen.
+
+    namespace ansi {
+        alternate_character_set_mode()
+        Enable the alternate characters set mode
+        alternate_character_set_mode_off()
+        Disable the alternate characters set mode
+        alternate_screen()
+        Activate the alternate screen buffer.
+        alternate_screen_off()
+        Deactivate the alternate screen.
+        background(Index)
+        Change background color to index color. Index 0-15 are equivilant to the named colors in background_color/0 in the order that they are listed.
+        background(Red, Green, Blue)
+        Change background color to RGB color.
+        black()
+        Change foreground (aka text) color to black.
+        black_background()
+        Change background color to black.
+        black_underline()
+        Change underline color to black. Not widely supported.
+        blink()
+        Turn on blink text style. Not widely supported.
+        blink_off()
+        Turn off blink text style.
+        blue()
+        Change foreground (aka text) color to blue.
+        blue_background()
+        Change background color to blue.
+        blue_underline()
+        Change underline color to blue. Not widely supported.
+        bold()
+        Turn on bold text style.
+        bold_off()
+        Turn off bold text style.
+        clear()
+        Clear screen and set cursor to home.
+        color(Index)
+        Change foreground (aka text) color to index color. Index 0-15 are equivalent to the named colors in foreground_color/0 in the order that they are listed.
+        color(Red, Green, Blue)
+        Change foreground (aka text) color to RGB color.
+        color_name_to_index(Color)
+        Convert a color atom to its corresponding index (0-15).
+        curly_underline()
+        Turn on curly underline text style. Not widely supported.
+        cursor(Line, Column)
+        Move the cursor to the given position. Position 0,0 is at the top left of the terminal.
+        cursor_backward()
+        Move the cursor backward N characters.
+        cursor_backward(N)
+        Move the cursor backward N characters.
+        cursor_down()
+        Move the cursor down one line.
+        cursor_down(N)
+        Move the cursor down N lines.
+        cursor_forward()
+        Move the cursor forward one character.
+        cursor_forward(N)
+        Move the cursor forward N characters.
+        cursor_get_position()
+        Get the current cursor position as {Row, Column}. Example
+        cursor_hide()
+        Hide the cursor.
+        cursor_home()
+        Move the cursor to the start of the current line.
+        cursor_horizontal_absolute(X)
+        Move the cursor to column X.
+        cursor_horizontal_vertical(X, Y)
+        Move the cursor to line X and column Y. Position 1,1 is at the top left of the terminal.
+        cursor_move(DeltaLine, DeltaColumn)
+        Move the cursor relative to its current position.
+        cursor_next_line()
+        Move the cursor down one line and then returns it to home.
+        cursor_previous_line()
+        Move the cursor up one line and then returns it to home.
+        cursor_report_position()
+        Instruct the terminal to report the current cursor position.
+        cursor_restore()
+        Restore a saved cursor position.
+        cursor_save()
+        Save the current cursor position.
+        cursor_show()
+        Show the cursor.
+        cursor_up()
+        Move the cursor up one line.
+        cursor_up(N)
+        Move the cursor up N lines.
+        cursor_vertical_absolute(X)
+        Move the cursor to line X.
+        cyan()
+        Change foreground (aka text) color to cyan.
+        cyan_background()
+        Change background color to cyan.
+        cyan_underline()
+        Change underline color to cyan. Not widely supported.
+        dashed_underline()
+        Turn on dashed underline text style. Not widely supported.
+        default_background()
+        Change background color to the default color.
+        default_color()
+        Change foreground (aka text) color to the default color.
+        default_underline_color()
+        Reset underline color to the default.
+        delete_character()
+        Delete 1 character at cursor.
+        delete_character(Chars)
+        Delete Chars characters at cursor by shifting the text Chars characters to the left.
+        delete_line()
+        Delete 1 line at cursor.
+        delete_line(Lines)
+        Delete Lines lines at cursor.
+        device_report_attributes()
+        Tell the terminal emulator to report its device attributes.
+        dim()
+        Turn on dim text style. Not widely supported.
+        dim_off()
+        Turn off dim text style.
+        dotted_underline()
+        Turn on dotted underline text style. Not widely supported.
+        double_underline()
+        Turn on double underline text style. Not widely supported.
+        enabled()
+        Check if io:user/0 can interpret ANSI escape sequences.
+        enabled(Device)
+        Check if Device can interpret ANSI escape sequences.
+        erase_character(Chars)
+        Erase Chars characters at cursor by making Chars characters before the cursor blank.
+        erase_display()
+        Clear screen after cursor.
+        erase_line()
+        Erase line at cursor.
+        format(Format)
+        Equivalent to format(Format, []).
+        format(Format, Data)
+        Equivalent to format(Format, Data, []).
+        format(Format, Data, Options)
+        Returns a character list that represents Data formatted in accordance with Format.
+        fwrite(Format)
+        Equivalent to fwrite(standard_io, Format, [], []).
+        fwrite(Format, Data)
+        Equivalent to fwrite(standard_io, Format, Data, []).
+        fwrite(Format, Data, Options)
+        Equivalent to fwrite(standard_io, Format, Data, Options).
+        fwrite(Device, Format, Data, Options)
+        Writes the items in Data on the IoDevice in accordance with Format.
+        green()
+        Change foreground (aka text) color to green.
+        green_background()
+        Change background color to green.
+        green_underline()
+        Change underline color to green. Not widely supported.
+        hyperlink_reset()
+        Stop emitting a hyperlink.
+        hyperlink_start(URL)
+        Equivalent to hyperlink_start(URL, []).
+        hyperlink_start(URL, Params)
+        Start a hyperlink pointing to the given URL using Params.
+        insert_character(Chars)
+        Insert Chars at cursor.
+        insert_line()
+        Insert 1 line at cursor.
+        insert_line(Lines)
+        Insert Lines lines at cursor.
+        inverse()
+        Turn on inverse text style.
+        inverse_off()
+        Turn off inverse text style.
+        invisible()
+        Turn on invisible text style. Not widely supported.
+        invisible_off()
+        Turn off invisible text style.
+        italic()
+        Turn on italic text style. Not widely supported.
+        italic_off()
+        Turn off italic text style.
+        keypad_transmit_mode()
+        Enable keypad transmit mode.
+        keypad_transmit_mode_off()
+        Disable keypad transmit mode.
+        light_black()
+        Change foreground (aka text) color to light black.
+        light_black_background()
+        Change background color to light black.
+        light_black_underline()
+        Change underline color to light black. Not widely supported.
+        light_blue()
+        Change foreground (aka text) color to light blue.
+        light_blue_background()
+        Change background color to light blue.
+        light_blue_underline()
+        Change underline color to light blue. Not widely supported.
+        light_cyan()
+        Change foreground (aka text) color to light cyan.
+        light_cyan_background()
+        Change background color to light cyan.
+        light_cyan_underline()
+        Change underline color to light cyan. Not widely supported.
+        light_green()
+        Change foreground (aka text) color to light green.
+        light_green_background()
+        Change background color to light green.
+        light_green_underline()
+        Change underline color to light green. Not widely supported.
+        light_magenta()
+        Change foreground (aka text) color to light magenta.
+        light_magenta_background()
+        Change background color to light magenta.
+        light_magenta_underline()
+        Change underline color to light magenta. Not widely supported.
+        light_red()
+        Change foreground (aka text) color to light red.
+        light_red_background()
+        Change background color to light red.
+        light_red_underline()
+        Change underline color to light red. Not widely supported.
+        light_white()
+        Change foreground (aka text) color to light white.
+        light_white_background()
+        Change background color to light white.
+        light_white_underline()
+        Change underline color to light white. Not widely supported.
+        light_yellow()
+        Change foreground (aka text) color to light yellow.
+        light_yellow_background()
+        Change background color to light yellow.
+        light_yellow_underline()
+        Change underline color to light yellow. Not widely supported.
+        magenta()
+        Change foreground (aka text) color to magenta.
+        magenta_background()
+        Change background color to magenta.
+        magenta_underline()
+        Change underline color to magenta. Not widely supported.
+        modify_color(Index, R, G, B)
+        Modify the color referenced by Index to be RGB.
+        overline()
+        Turn on overline text style.
+        overline_off()
+        Turn off overline text style.
+        red()
+        Change foreground (aka text) color to red.
+        red_background()
+        Change background color to red.
+        red_underline()
+        Change underline color to red. Not widely supported.
+        render(Data)
+        Equivalent to render(Data, []).
+        render(Data, Options)
+        Renders terminal sequences in Data.
+        reset()
+        Reset virtual terminal sequences to their original state.
+        reverse_index()
+        Move the cursor up one line, but keeps the cursor on the same location on the screen by scrolling the screen down.
+        scan(Data)
+        Scan the string for virtial terminal sequences.
+        scroll_backward()
+        Scroll the screen backward 1 step.
+        scroll_backward(Steps)
+        Scroll the screen backward N step.
+        scroll_change_region(Line1, Line2)
+        Change the scolling region to be from Line1 to Line2.
+        scroll_forward()
+        Scroll the screen forward 1 step.
+        scroll_forward(N)
+        Scroll the screen forward N step.
+        strikethrough()
+        Turn on strikethrough text style. Not widely supported.
+        strikethrough_off()
+        Turn off strikethrough text style.
+        tab()
+        Move cursor one tab forward.
+        tab_backward()
+        Move cursor one tab backward.
+        tab_clear()
+        Clear any tab location at the current cursor location.
+        tab_clear_all()
+        Clear all tab locations.
+        tab_set()
+        Set a new tab location at the current cursor location.
+        underline()
+        Turn on underline text style.
+        underline_color(Index)
+        Set underline color to a named color or index color. Not widely supported.
+        underline_color(Red, Green, Blue)
+        Set underline color to RGB color. Not widely supported.
+        underline_off()
+        Turn off underline text style.
+        white()
+        Change foreground (aka text) color to white.
+        white_background()
+        Change background color to white.
+        white_underline()
+        Change underline color to white. Not widely supported.
+        yellow()
+        Change foreground (aka text) color to yellow.
+        yellow_background()
+        Change background color to yellow.
+        yellow_underline()
+        Change underline color to yellow. Not widely supported.
+    }
+
+    namespace lib {
+        chars()
+        An possibly deep list containing only char/0s.
+        chars_limit()
+        A soft limit on the number of characters returned.
+        continuation()
+        A continuation as returned by fread/3.
+        depth()
+        format_options()
+        Options that can be passed to format/3 and fwrite/3.
+        format_spec()
+        A map describing the contents of a format string.
+        fread_error()
+        fread_item()
+        latin1_string()
+
+        bformat(Format, Data)
+        Equivalent to bfwrite(Format, Data, []).
+        bformat(Format, Data, Options)
+        Equivalent to bfwrite(Format, Data, Options).
+        bfwrite(Format, Data)
+        Equivalent to bfwrite(Format, Data, []).
+        bfwrite(Format, Data, Options)
+        Binary variant of fwrite/3
+        build_text(FormatList)
+        For details, see scan_format/2.
+        bwrite(Term, Options)
+        Behaves as write/2 but returns a UTF-8 encoded binary string.
+        bwrite_string(String, Qoute, InEnc)
+        Returns the UTF-8 encoded binary String surrounded by Qoute.
+        char_list(Term)
+        Returns true if Term is a flat list of characters in the Unicode range, otherwise false.
+        deep_char_list(Term)
+        Returns true if Term is a, possibly deep, list of characters in the Unicode range, otherwise false.
+        deep_latin1_char_list(Term)
+        Returns true if Term is a, possibly deep, list of characters in the ISO Latin-1 range, otherwise false.
+        format(Format, Data)
+        Equivalent to fwrite(Format, Data).
+        format(Format, Data, Options)
+        Equivalent to fwrite(Format, Data, Options).
+        fread(Format, String)
+        Tries to read String in accordance with the control sequences in Format.
+        fread(Continuation, CharSpec, Format)
+        This is the re-entrant formatted reader. The continuation of the first call to the functions must be [].
+        fwrite(Format, Data)
+        Returns a character list that represents Data formatted in accordance with Format.
+        fwrite(Format, Data, Options)
+        Returns a character list that represents Data formatted in accordance with Format in the same way as fwrite/2 and format/2, but takes an extra argument, a list of options.
+        indentation(String, StartIndent)
+        Returns the indentation if String has been printed, starting at StartIndent.
+        latin1_char_list(Term)
+        Returns true if Term is a flat list of characters in the ISO Latin-1 range, otherwise false.
+        nl()
+        Returns a character list that represents a new line character.
+        print(Term)
+        Equivalent to print(Term, 1, 80, -1).
+        print(Term, Column, LineLength, Depth)
+        Returns a list of characters that represents Term, but breaks representations longer than one line into many lines and indents each line sensibly.
+        printable_latin1_list(Term)
+        Returns true if Term is a flat list of printable ISO Latin-1 characters, otherwise false.
+        printable_list(Term)
+        Returns true if Term is a flat list of printable characters, otherwise false.
+        printable_unicode_list(Term)
+        Returns true if Term is a flat list of printable Unicode characters, otherwise false.
+        scan_format(Format, Data)
+        Returns a list corresponding to the specified format string, where control sequences have been replaced with corresponding tuples. This list can be passed to
+        unscan_format(FormatList)
+        For details, see scan_format/2.
+        write(Term)
+        Equivalent to write(Term, -1).
+        write(Term, DepthOrOptions)
+        Returns a character list that represents Term. Option Depth controls the depth of the structures written.
+        write_atom(Atom)
+        Returns the list of characters needed to print atom Atom.
+        write_atom_as_latin1(Atom)
+        Returns the list of characters needed to print atom Atom. Non-Latin-1 characters are escaped.
+        write_char(Char)
+        Returns the list of characters needed to print a character constant in the Unicode character set.
+        write_char_as_latin1(Char)
+        Returns the list of characters needed to print a character constant in the Unicode character set. Non-Latin-1 characters are escaped.
+        write_latin1_char(Latin1Char)
+        Returns the list of characters needed to print a character constant in the ISO Latin-1 character set.
+        write_latin1_string(Latin1String)
+        Returns the list of characters needed to print Latin1String as a string.
+        write_string(String)
+        Returns the list of characters needed to print String as a string.
+        write_string_as_latin1(String)
+        Returns the list of characters needed to print String as a string. Non-Latin-1 characters are escaped
+    }
 }

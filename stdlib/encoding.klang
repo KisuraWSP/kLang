@@ -12,4 +12,120 @@ namespace encoding {
     function Quote(value : String) : String {
         return "\"" + value + "\"";
     }
+
+     -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
+    namespace ascii {
+        func Decode(dst, src []byte, flush bool) (ndst, nsrc int, err error)
+        func Encode(dst, src []byte) int
+        func MaxEncodedLen(n int) int
+        func NewDecoder(r io.Reader) io.Reader
+        func NewEncoder(w io.Writer) io.WriteCloser
+        func (e CorruptInputError) Error() string
+    }
+
+    namespace asn1 {
+        func Marshal(val any) ([]byte, error)
+        func MarshalWithParams(val any, params string) ([]byte, error)
+        func Unmarshal(b []byte, val any) (rest []byte, err error)
+        func UnmarshalWithParams(b []byte, val any, params string) (rest []byte, err error)
+        func (b BitString) At(i int) int
+        func (b BitString) RightAlign() []byte
+
+        func (oi ObjectIdentifier) Equal(other ObjectIdentifier) bool
+        func (oi ObjectIdentifier) String() string
+        func (e StructuralError) Error() string
+        func (e SyntaxError) Error() string
+    }
+
+    namespace base32 {
+        func NewDecoder(enc *Encoding, r io.Reader) io.Reader
+        func NewEncoder(enc *Encoding, w io.Writer) io.WriteCloser
+        func (e CorruptInputError) Error() string
+        func NewEncoding(encoder string) *Encoding
+        func (enc *Encoding) AppendDecode(dst, src []byte) ([]byte, error)
+        func (enc *Encoding) AppendEncode(dst, src []byte) []byte
+        func (enc *Encoding) Decode(dst, src []byte) (n int, err error)
+        func (enc *Encoding) DecodeString(s string) ([]byte, error)
+        func (enc *Encoding) DecodedLen(n int) int
+        func (enc *Encoding) Encode(dst, src []byte)
+        func (enc *Encoding) EncodeToString(src []byte) string
+        func (enc *Encoding) EncodedLen(n int) int
+        func (enc Encoding) WithPadding(padding rune) *Encoding
+    }
+
+    namespace base64 {
+        func NewDecoder(enc *Encoding, r io.Reader) io.Reader
+        func NewEncoder(enc *Encoding, w io.Writer) io.WriteCloser
+        func (e CorruptInputError) Error() string
+        func NewEncoding(encoder string) *Encoding
+        func (enc *Encoding) AppendDecode(dst, src []byte) ([]byte, error)
+        func (enc *Encoding) AppendEncode(dst, src []byte) []byte
+        func (enc *Encoding) Decode(dst, src []byte) (n int, err error)
+        func (enc *Encoding) DecodeString(s string) ([]byte, error)
+        func (enc *Encoding) DecodedLen(n int) int
+        func (enc *Encoding) Encode(dst, src []byte)
+        func (enc *Encoding) EncodeToString(src []byte) string
+        func (enc *Encoding) EncodedLen(n int) int
+        func (enc Encoding) Strict() *Encoding
+        func (enc Encoding) WithPadding(padding rune) *Encoding
+    }
+
+    namespace binary {
+        func Append(buf []byte, order ByteOrder, data any) ([]byte, error)
+        func AppendUvarint(buf []byte, x uint64) []byte
+        func AppendVarint(buf []byte, x int64) []byte
+        func Decode(buf []byte, order ByteOrder, data any) (int, error)
+        func Encode(buf []byte, order ByteOrder, data any) (int, error)
+        func PutUvarint(buf []byte, x uint64) int
+        func PutVarint(buf []byte, x int64) int
+        func Read(r io.Reader, order ByteOrder, data any) error
+        func ReadUvarint(r io.ByteReader) (uint64, error)
+        func ReadVarint(r io.ByteReader) (int64, error)
+        func Size(v any) int
+        func Uvarint(buf []byte) (uint64, int)
+        func Varint(buf []byte) (int64, int)
+        func Write(w io.Writer, order ByteOrder, data any) error
+    }
+
+    namespace csv {
+        func (e *ParseError) Error() string
+        func (e *ParseError) Unwrap() error
+        func NewReader(r io.Reader) *Reader
+        func (r *Reader) FieldPos(field int) (line, column int)
+        func (r *Reader) InputOffset() int64
+        func (r *Reader) Read() (record []string, err error)
+        func (r *Reader) ReadAll() (records [][]string, err error)
+        func NewWriter(w io.Writer) *Writer
+        func (w *Writer) Error() error
+        func (w *Writer) Flush()
+        func (w *Writer) Write(record []string) error
+        func (w *Writer) WriteAll(records [][]string) error
+    }
+
+    namespace hex {
+        func AppendDecode(dst, src []byte) ([]byte, error)
+        func AppendEncode(dst, src []byte) []byte
+        func Decode(dst, src []byte) (int, error)
+        func DecodeString(s string) ([]byte, error)
+        func DecodedLen(x int) int
+        func Dump(data []byte) string
+        func Dumper(w io.Writer) io.WriteCloser
+        func Encode(dst, src []byte) int
+        func EncodeToString(src []byte) string
+        func EncodedLen(n int) int
+        func NewDecoder(r io.Reader) io.Reader
+        func NewEncoder(w io.Writer) io.Writer
+        func (e InvalidByteError) Error() string
+    }
+
+    namespace gob {
+        func Register(value any)
+        func RegisterName(name string, value any)
+        func NewDecoder(r io.Reader) *Decoder
+        func (dec *Decoder) Decode(e any) error
+        func (dec *Decoder) DecodeValue(v reflect.Value) error
+        func NewEncoder(w io.Writer) *Encoder
+        func (enc *Encoder) Encode(e any) error
+        func (enc *Encoder) EncodeValue(value reflect.Value) error
+    }
 }
