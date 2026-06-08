@@ -1,0 +1,8 @@
+import "";
+
+namespace App {
+    function Start() : Int {
+        print("Starting stress test...");
+        return 0;
+    }
+}
