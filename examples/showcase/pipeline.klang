@@ -1,0 +1,37 @@
+namespace PipeTools {
+    function Add(left : Int, right : Int) : Int {
+        return left + right;
+    }
+
+    function Double(value : Int) : Int {
+        return value * 2;
+    }
+
+    function ClampHigh(value : Int, max : Int) : Int {
+        unless value > max {
+            return value;
+        } else {
+            return max;
+        }
+    }
+
+    function Weighted(value : Int, multiplier : Int, bonus : Int) : Int {
+        local Int scaled = value * multiplier + bonus;
+        return scaled;
+    }
+
+    function PowerExample() : Int {
+        local Int powered = 2 ** 3 ** 2;
+        local Int grouped = (2 ** 3) ** 2;
+        local Int difference = powered - grouped;
+        return difference // 7;
+    }
+
+    function RunPipeline() : Int {
+        local Int first = 2 |> Add(3) |> Double;
+        local Int second = first |> Weighted(3, 1) |> ClampHigh(40);
+        local Int third = PowerExample();
+        local Int expression = 1 + 2 * 3 + (4 as Int);
+        return second + third + expression;
+    }
+}

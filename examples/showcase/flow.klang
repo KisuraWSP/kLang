@@ -1,0 +1,41 @@
+namespace FlowTools {
+    function RunFlowChecks() : Int {
+        local mut Int score = 0;
+        local Bool ready = True;
+        local Bool active = True;
+        local Bool failed = False;
+        local Bool retrying = True;
+        local Bool fallback = False;
+
+        if ready and active xor failed or fallback {
+            score += 5;
+        }
+
+        unless not ready or failed {
+            score += 7;
+        } else {
+            score -= 100;
+        }
+
+        local mut Int stepTotal = 0;
+        while keepGoing := stepTotal < 3 and not failed {
+            stepTotal += 1;
+            score += stepTotal;
+        }
+
+        do_while firstPass := retrying xor False {
+            score += 4;
+            break;
+        }
+
+        for i := 0; i < 4 and score < 30; i += 1 {
+            score += i;
+        }
+
+        if score > 0 and ready? {
+            score += 3;
+        }
+
+        return score;
+    }
+}

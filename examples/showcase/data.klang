@@ -1,0 +1,49 @@
+namespace DataTools {
+    function TextScore(text : String) : Int {
+        local Char first = text[0];
+        local Char second = text[1];
+        local mut Int score = 0;
+
+        if first == 'k' {
+            score += 10;
+        }
+        if second == 'L' {
+            score += 20;
+        }
+
+        local Int length = len(text);
+        return score + length;
+    }
+
+    function ListScore() : Int {
+        local mut List[Int] values = [];
+        values[0] = 3;
+        values[1] = 5;
+        values[2] = 8;
+
+        local mut Int total = 0;
+        for i := range(3) {
+            total += values[i];
+        }
+
+        return total;
+    }
+
+    function MapScore() : Int {
+        local mut Map[String, Int] scores = {};
+        scores["pipe"] = 10;
+        scores["flow"] = 20;
+        scores["data"] = 30;
+
+        local Int base = scores["pipe"] + scores["flow"];
+        scores["total"] = base + scores["data"];
+        return scores["total"];
+    }
+
+    function RunDataChecks() : Int {
+        local Int textScore = TextScore("kLang");
+        local Int listScore = ListScore();
+        local Int mapScore = MapScore();
+        return textScore + listScore + mapScore;
+    }
+}

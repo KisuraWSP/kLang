@@ -1,0 +1,41 @@
+namespace SafetyTools {
+    function MissingValue() : T {
+    }
+
+    function PresentValue() : T {
+        return 11;
+    }
+
+    function ConfigureGlobals() : Int {
+        if True {
+            global mut Int showcaseGlobal = 5;
+            export local Int exportedShowcaseValue = showcaseGlobal + 7;
+        }
+
+        showcaseGlobal += 1;
+        return exportedShowcaseValue + showcaseGlobal;
+    }
+
+    @deprecated("use ParseModern")
+    function ParseLegacy(value : String) : Int {
+        return value as Int;
+    }
+
+    function ParseModern(value : String) : Int {
+        return value as Int;
+    }
+
+    function RunSafetyChecks() : Int {
+        local Bool missing = MissingValue()?;
+        local Bool present = PresentValue()?;
+        local Int globalScore = ConfigureGlobals();
+        local Int modern = ParseModern("12");
+        local Int legacy = ParseLegacy("3");
+
+        if present and not missing {
+            return globalScore + modern + legacy;
+        }
+
+        return 0;
+    }
+}

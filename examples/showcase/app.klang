@@ -1,0 +1,31 @@
+namespace App {
+    function Banner() : Int {
+        print("=== Klang language feature showcase ===");
+        print("This example exercises the features implemented so far.");
+        return 0;
+    }
+
+    function Start() : Int {
+        Banner();
+
+        local Int pipelineScore = PipeTools.RunPipeline();
+        local Int flowScore = FlowTools.RunFlowChecks();
+        local Int dataScore = DataTools.RunDataChecks();
+        local Int safetyScore = SafetyTools.RunSafetyChecks();
+
+        local Int total = pipelineScore + flowScore + dataScore + safetyScore;
+        print("pipeline score: " + pipelineScore as String);
+        print("flow score: " + flowScore as String);
+        print("data score: " + dataScore as String);
+        print("safety score: " + safetyScore as String);
+        print("total score: " + total as String);
+
+        if total > 0 and pipelineScore > 0 xor False {
+            print("feature showcase completed");
+        } else {
+            print("feature showcase failed");
+        }
+
+        return total;
+    }
+}

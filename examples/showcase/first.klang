@@ -1,0 +1,7 @@
+import "app";
+
+-- Showcase project entry point.
+-- The directory contains multiple Klang files, and first.klang delegates to App.Start.
+function Main() : Int {
+    return App.Start();
+}
