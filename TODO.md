@@ -39,7 +39,6 @@ Test().Eval();
 - Table Data type to be builtin data type to the language which is used by lua (this is the only dynamically typed data type)
 - traits system from rust
 - move semantics
-- Null Safety Operator
 - Improved CLI for better user experience and creation of ".klang" projects
 - pattern matching switch statement (like the below)
     - should support boolean operations

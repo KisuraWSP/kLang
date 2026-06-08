@@ -264,6 +264,20 @@ func TestParseExpressionTreeForTypeCast(t *testing.T) {
 	}
 }
 
+func TestParseExpressionTreeForNullSafetyOperator(t *testing.T) {
+	program, errors := Parse(`local Bool exists = MaybeValue()?;`)
+	assertNoParseErrors(t, errors)
+
+	decl := program.Statements[0].(VariableStatement)
+	nullCheck, ok := decl.Expression.Node.(NullCheckExpression)
+	if !ok {
+		t.Fatalf("expected null check expression, got %#v", decl.Expression.Node)
+	}
+	if _, ok := nullCheck.Value.(CallExpression); !ok {
+		t.Fatalf("expected null check value to be a call, got %#v", nullCheck.Value)
+	}
+}
+
 func TestParseExpressionTreeForCallsSelectorsAndIndexes(t *testing.T) {
 	program, errors := Parse(`local Int value = call random.RandomRange(items[0], 10);`)
 	assertNoParseErrors(t, errors)
@@ -325,7 +339,7 @@ func TestParseAssignmentExpressionTree(t *testing.T) {
 }
 
 func TestParseRejectsIllegalTokens(t *testing.T) {
-	_, errors := Parse(`local Int value = ?;`)
+	_, errors := Parse(`local Int value = ~;`)
 	if len(errors) == 0 {
 		t.Fatal("expected parse errors for illegal token")
 	}

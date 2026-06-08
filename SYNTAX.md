@@ -39,6 +39,10 @@ local Int total = scores["total"];
 local Int expression = 1 + 2 * 3;
 local Int powered = -2 ** 3 ** 2;
 local Int grouped = (1 + 2) * 3;
+
+-- null safety
+-- The postfix ? operator returns True when an expression is not Null, otherwise False.
+local Bool hasValue = MaybeValue()?;
 ```
 
 2. Functions
@@ -122,6 +126,11 @@ while i:= 1 {
 
 -- cast in a loop header binding
 while active := i as Bool {
+    break;
+}
+
+-- null safety in a loop header binding
+while active := MaybeValue()? {
     break;
 }
 

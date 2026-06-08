@@ -589,6 +589,12 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			return NullValue(), err
 		}
 		return castValue(value, current.Type)
+	case parser.NullCheckExpression:
+		value, err := runtime.evalExpression(current.Value, env)
+		if err != nil {
+			return NullValue(), err
+		}
+		return BoolValue(value.Kind != ValueNull), nil
 	case parser.IndexExpression:
 		return runtime.evalIndex(current, env)
 	case parser.ListExpression:

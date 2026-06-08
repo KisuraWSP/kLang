@@ -106,6 +106,23 @@ func TestLexerTokenizesFunctionMarkerTags(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesNullSafetyOperator(t *testing.T) {
+	input := `local Bool exists = MaybeValue()?;`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Bool"},
+		{Type: TokenIdentifier, Literal: "exists"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenIdentifier, Literal: "MaybeValue"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenQuestion, Literal: "?"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesLiteralsNamespaceCallsAndOperators(t *testing.T) {
 	input := `call random.RandomRange(-2, 3.5); local String text = "hello"; local Char letter = 'K'; unless True != False { return text; }`
 
@@ -300,11 +317,11 @@ func TestLexerReportsMalformedNumbers(t *testing.T) {
 }
 
 func TestLexerReportsIllegalUnknownCharacters(t *testing.T) {
-	tokens := New(`local Int value = ?;`).Tokenize()
+	tokens := New(`local Int value = ~;`).Tokenize()
 
 	unknownToken := tokens[4]
-	if unknownToken.Type != TokenIllegal || unknownToken.Literal != "?" {
-		t.Fatalf("expected illegal ? token, got %#v", unknownToken)
+	if unknownToken.Type != TokenIllegal || unknownToken.Literal != "~" {
+		t.Fatalf("expected illegal ~ token, got %#v", unknownToken)
 	}
 }
 

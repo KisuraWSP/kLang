@@ -324,6 +324,29 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsNullSafetyOperator(t *testing.T) {
+	program := programFromSource(`
+function MaybeValue() : T {
+}
+
+function Main() : Int {
+    local Bool exists = MaybeValue()?;
+    while active := MaybeValue()? {
+        return 1;
+    }
+    if exists == False {
+        return 0;
+    }
+    return 1;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected null safety type check to pass, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramRejectsInvalidTypeCast(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

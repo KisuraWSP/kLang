@@ -130,6 +130,30 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesNullSafetyOperator(t *testing.T) {
+	result := runParsedSource(t, `
+function MissingValue() : T {
+}
+
+function PresentValue() : T {
+    return 7;
+}
+
+function Main() : Int {
+    local Bool missing = MissingValue()?;
+    local Bool present = PresentValue()?;
+    if missing == False and present {
+        return 1;
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected null safety program to return 1, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeRejectsInvalidTypeCast(t *testing.T) {
 	_, err := runParsedSourceWithError(`
 function Main() : Int {

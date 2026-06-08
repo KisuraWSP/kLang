@@ -51,6 +51,7 @@ const (
 	TokenComma            // ,
 	TokenDot              // .
 	TokenAt               // @
+	TokenQuestion         // ?
 
 	// Special Scope Operators
 	TokenScopeBegin // {
@@ -152,4 +153,5 @@ var Punctuations = map[string]TokenType{
 	",": TokenComma,
 	".": TokenDot,
 	"@": TokenAt,
+	"?": TokenQuestion,
 }

@@ -571,6 +571,10 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		right := checker.inferExpression(expr[index+len("**"):], locals, source, line)
 		return numericResult(left, right)
 	}
+	if inner, ok := splitPostfixNullCheckExpression(expr); ok {
+		checker.inferExpression(inner, locals, source, line)
+		return "Bool"
+	}
 
 	if targetExpr, indexExpr, ok := splitTrailingIndexExpression(expr); ok {
 		targetType := checker.inferExpression(targetExpr, locals, source, line)
@@ -1150,6 +1154,37 @@ func splitTrailingIndexExpression(expr string) (string, string, bool) {
 	target := strings.TrimSpace(expr[:open])
 	index := strings.TrimSpace(expr[open+1 : close])
 	return target, index, target != "" && index != ""
+}
+
+func splitPostfixNullCheckExpression(expr string) (string, bool) {
+	expr = strings.TrimSpace(expr)
+	if !strings.HasSuffix(expr, "?") {
+		return "", false
+	}
+	inner := strings.TrimSpace(expr[:len(expr)-1])
+	if inner == "" || isInsideOpenStringOrChar(inner) {
+		return "", false
+	}
+	return inner, true
+}
+
+func isInsideOpenStringOrChar(input string) bool {
+	inString := false
+	inChar := false
+	for index := 0; index < len(input); index++ {
+		current := input[index]
+		if current == '\\' && index+1 < len(input) {
+			index++
+			continue
+		}
+		if current == '"' && !inChar {
+			inString = !inString
+		}
+		if current == '\'' && !inString {
+			inChar = !inChar
+		}
+	}
+	return inString || inChar
 }
 
 func looksLikeCall(stmt string) bool {

@@ -146,6 +146,10 @@ type CastExpression struct {
 	Type  string
 }
 
+type NullCheckExpression struct {
+	Value ExpressionNode
+}
+
 type ListExpression struct {
 	Items []ExpressionNode
 }
@@ -197,6 +201,7 @@ func (expr CallExpression) expressionNode()       {}
 func (expr IndexExpression) expressionNode()      {}
 func (expr SelectorExpression) expressionNode()   {}
 func (expr CastExpression) expressionNode()       {}
+func (expr NullCheckExpression) expressionNode()  {}
 func (expr ListExpression) expressionNode()       {}
 func (expr MapExpression) expressionNode()        {}
 func (expr GroupExpression) expressionNode()      {}
