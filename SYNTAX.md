@@ -33,6 +33,12 @@ local Int firstItem = itemsList[0];
 
 -- Map indexes use the map key type.
 local Int total = scores["total"];
+
+-- operator precedence
+-- From strongest to weakest: call/index/selector, cast, exponent, unary, multiply/divide/modulo, add/subtract, comparison, equality, and, or.
+local Int expression = 1 + 2 * 3;
+local Int powered = -2 ** 3 ** 2;
+local Int grouped = (1 + 2) * 3;
 ```
 
 2. Functions

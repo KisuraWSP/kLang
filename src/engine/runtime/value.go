@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -235,6 +236,35 @@ func divideValues(left Value, right Value) (Value, error) {
 		return NullValue(), Error{Message: "division by zero"}
 	}
 	return numericBinary(left, right, func(a, b float64) float64 { return a / b })
+}
+
+func floorDivideValues(left Value, right Value) (Value, error) {
+	if !isNumeric(left) || !isNumeric(right) {
+		return NullValue(), Error{Message: fmt.Sprintf("floor division requires Int or Float, got %s and %s", left.Kind, right.Kind)}
+	}
+	rightFloat, _ := asFloat(right)
+	if rightFloat == 0 {
+		return NullValue(), Error{Message: "division by zero"}
+	}
+	leftFloat, _ := asFloat(left)
+	result := math.Floor(leftFloat / rightFloat)
+	if left.Kind == ValueFloat || right.Kind == ValueFloat {
+		return FloatValue(result), nil
+	}
+	return IntValue(int(result)), nil
+}
+
+func exponentValues(left Value, right Value) (Value, error) {
+	if !isNumeric(left) || !isNumeric(right) {
+		return NullValue(), Error{Message: fmt.Sprintf("exponent requires Int or Float, got %s and %s", left.Kind, right.Kind)}
+	}
+	leftFloat, _ := asFloat(left)
+	rightFloat, _ := asFloat(right)
+	result := math.Pow(leftFloat, rightFloat)
+	if left.Kind == ValueFloat || right.Kind == ValueFloat || rightFloat < 0 {
+		return FloatValue(result), nil
+	}
+	return IntValue(int(result)), nil
 }
 
 func moduloValues(left Value, right Value) (Value, error) {

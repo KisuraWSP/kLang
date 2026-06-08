@@ -526,10 +526,19 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		return checker.inferListLiteral(expr, locals, source, line)
 	}
 
-	if index := findTopLevelOperator(expr, []string{"==", "!=", ">=", "<=", ">", "<"}); index != -1 {
+	if index := findTopLevelOperator(expr, []string{" or "}); index != -1 {
+		checker.inferExpression(expr[:index], locals, source, line)
+		checker.inferExpression(expr[index+len(" or "):], locals, source, line)
 		return "Bool"
 	}
-	if index := findTopLevelOperator(expr, []string{" and ", " or "}); index != -1 {
+	if index := findTopLevelOperator(expr, []string{" and "}); index != -1 {
+		checker.inferExpression(expr[:index], locals, source, line)
+		checker.inferExpression(expr[index+len(" and "):], locals, source, line)
+		return "Bool"
+	}
+	if index, operator := findTopLevelOperatorWithMatch(expr, []string{"==", "!=", ">=", "<=", ">", "<"}); index != -1 {
+		checker.inferExpression(expr[:index], locals, source, line)
+		checker.inferExpression(expr[index+len(operator):], locals, source, line)
 		return "Bool"
 	}
 	if index := findTopLevelOperator(expr, []string{"+", "-"}); index != -1 && index > 0 {
@@ -540,9 +549,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		}
 		return numericResult(left, right)
 	}
-	if index := findTopLevelOperator(expr, []string{"*", "/", "%"}); index != -1 && index > 0 {
+	if index, operator := findTopLevelOperatorWithMatch(expr, []string{"*", "//", "/", "%"}); index != -1 && index > 0 {
 		left := checker.inferExpression(expr[:index], locals, source, line)
-		right := checker.inferExpression(expr[index+1:], locals, source, line)
+		right := checker.inferExpression(expr[index+len(operator):], locals, source, line)
 		return numericResult(left, right)
 	}
 	if index := findTopLevelOperator(expr, []string{" as "}); index != -1 && index > 0 {
@@ -556,6 +565,11 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 			checker.addError(source, line, fmt.Sprintf("cannot cast %s to %s", sourceType, targetType))
 		}
 		return targetType
+	}
+	if index := findTopLevelOperator(expr, []string{"**"}); index != -1 && index > 0 {
+		left := checker.inferExpression(expr[:index], locals, source, line)
+		right := checker.inferExpression(expr[index+len("**"):], locals, source, line)
+		return numericResult(left, right)
 	}
 
 	if targetExpr, indexExpr, ok := splitTrailingIndexExpression(expr); ok {
@@ -1181,6 +1195,11 @@ func splitTopLevel(input string, separator rune) []string {
 }
 
 func findTopLevelOperator(input string, operators []string) int {
+	index, _ := findTopLevelOperatorWithMatch(input, operators)
+	return index
+}
+
+func findTopLevelOperatorWithMatch(input string, operators []string) (int, string) {
 	depthParen := 0
 	depthBracket := 0
 	inString := false
@@ -1213,13 +1232,13 @@ func findTopLevelOperator(input string, operators []string) int {
 						if (operator == "+" || operator == "-") && start == 0 {
 							continue
 						}
-						return start
+						return start, operator
 					}
 				}
 			}
 		}
 	}
-	return -1
+	return -1, ""
 }
 
 func findTopLevelChar(input string, target byte) int {

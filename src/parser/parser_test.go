@@ -228,6 +228,25 @@ func TestParseExpressionTreeForBinaryPrecedence(t *testing.T) {
 	}
 }
 
+func TestParseExpressionTreeForPowerPrecedenceAndAssociativity(t *testing.T) {
+	program, errors := Parse(`local Int result = -2 ** 3 ** 2;`)
+	assertNoParseErrors(t, errors)
+
+	decl := program.Statements[0].(VariableStatement)
+	unary, ok := decl.Expression.Node.(UnaryExpression)
+	if !ok || unary.Operator != "-" {
+		t.Fatalf("expected root unary -, got %#v", decl.Expression.Node)
+	}
+	power, ok := unary.Right.(BinaryExpression)
+	if !ok || power.Operator != "**" {
+		t.Fatalf("expected unary to contain power expression, got %#v", unary.Right)
+	}
+	rightPower, ok := power.Right.(BinaryExpression)
+	if !ok || rightPower.Operator != "**" {
+		t.Fatalf("expected power to be right-associative, got %#v", power.Right)
+	}
+}
+
 func TestParseExpressionTreeForTypeCast(t *testing.T) {
 	program, errors := Parse(`local Float value = 10 as Float;`)
 	assertNoParseErrors(t, errors)

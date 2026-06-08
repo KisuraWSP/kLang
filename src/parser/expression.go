@@ -10,8 +10,8 @@ const (
 	precedenceComparison
 	precedenceTerm
 	precedenceFactor
-	precedencePower
 	precedencePrefix
+	precedencePower
 	precedenceCast
 	precedenceCall
 )
@@ -109,6 +109,9 @@ func (parser *expressionParser) parsePrefix() ExpressionNode {
 func (parser *expressionParser) parseBinary(left ExpressionNode) ExpressionNode {
 	token := parser.advance()
 	precedence := tokenPrecedence(token.Type)
+	if token.Type == lexer.TokenExponent {
+		precedence--
+	}
 	right := parser.parseExpression(precedence)
 	return BinaryExpression{
 		Left:     left,

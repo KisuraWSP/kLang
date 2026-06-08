@@ -96,6 +96,25 @@ function Main() : Int {
 	assertTypeWarning(t, report, "function OldValue is deprecated: use NewValue")
 }
 
+func TestCheckProgramChecksNestedCallsThroughOperatorPrecedence(t *testing.T) {
+	program := programFromSource(`
+@deprecated("use NewFlag")
+function OldValue() : Int {
+    return 1;
+}
+
+function Main() : Int {
+    return OldValue() + 2 * 3;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected precedence expression to pass type check, got: %v", report.Errors)
+	}
+	assertTypeWarning(t, report, "function OldValue is deprecated: use NewFlag")
+}
+
 func TestCheckProgramAcceptsMutableMapAndListIndexAssignments(t *testing.T) {
 	if !isKnownType("Map[String,Int]") {
 		t.Fatal("expected Map[String,Int] to be a known type")

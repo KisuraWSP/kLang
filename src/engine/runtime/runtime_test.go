@@ -357,6 +357,29 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeAppliesOperatorPrecedenceEverywhere(t *testing.T) {
+	result := runParsedSource(t, `
+function Twice(value : Int) : Int {
+    return value * 2 + 1;
+}
+
+function Main() : Int {
+    local mut Int total = 1 + 2 * 3;
+    local Int powered = -2 ** 3 ** 2;
+    local Int grouped = (1 + 2) * 3;
+    total += Twice(2 + 3 * 4) // 5;
+    while active := total > 10 and grouped == 9 or False {
+        return total + grouped + powered;
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != -491 {
+		t.Fatalf("expected precedence program to return -491, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeRejectsDuplicateAndAmbiguousFunctions(t *testing.T) {
 	_, err := runParsedSourceWithError(`
 function Main() : Int {

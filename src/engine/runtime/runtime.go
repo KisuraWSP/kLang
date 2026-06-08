@@ -695,10 +695,14 @@ func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environmen
 		return numericBinary(left, right, func(a, b float64) float64 { return a - b })
 	case "*":
 		return numericBinary(left, right, func(a, b float64) float64 { return a * b })
-	case "/", "//":
+	case "/":
 		return divideValues(left, right)
+	case "//":
+		return floorDivideValues(left, right)
 	case "%":
 		return moduloValues(left, right)
+	case "**":
+		return exponentValues(left, right)
 	case "==":
 		return BoolValue(valueString(left) == valueString(right)), nil
 	case "!=":
