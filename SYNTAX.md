@@ -20,6 +20,11 @@ export local Int sharedValue = 10;
 
 -- global declarations are valid in any scope.
 global mut Int sharedCounter = 0;
+
+-- type casts
+-- cast any expression with "as Type"; this works in variables, returns, calls, and loop headers.
+local Float ratio = count as Float;
+local String label = ratio as String;
 ```
 
 2. Functions
@@ -40,6 +45,10 @@ function Print(formatString : String, value : List[T]) : Int {
     }
     
     return 0;
+}
+
+function ToNumber(value : String) : Int {
+    return value as Int;
 }
 ```
 
@@ -83,6 +92,11 @@ while i:= 1 {
     print(True);
     i += 1;
     if i == 3 break;
+}
+
+-- cast in a loop header binding
+while active := i as Bool {
+    break;
 }
 
 -- do_while loop

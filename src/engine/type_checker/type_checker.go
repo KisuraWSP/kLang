@@ -507,6 +507,18 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		right := checker.inferExpression(expr[index+1:], locals, source, line)
 		return numericResult(left, right)
 	}
+	if index := findTopLevelOperator(expr, []string{" as "}); index != -1 && index > 0 {
+		sourceType := checker.inferExpression(expr[:index], locals, source, line)
+		targetType := normalizeType(expr[index+len(" as "):])
+		if !isKnownType(targetType) {
+			checker.addError(source, line, fmt.Sprintf("unknown cast target type %s", targetType))
+			return anyType
+		}
+		if !canCast(sourceType, targetType) {
+			checker.addError(source, line, fmt.Sprintf("cannot cast %s to %s", sourceType, targetType))
+		}
+		return targetType
+	}
 
 	if callName, args, ok := parseFunctionCall(expr); ok {
 		return checker.checkCall(callName, args, locals, source, line)
@@ -893,6 +905,29 @@ func isAssignable(target string, source string) bool {
 		return true
 	}
 	return false
+}
+
+func canCast(source string, target string) bool {
+	source = normalizeType(source)
+	target = normalizeType(target)
+	if source == anyType || target == anyType || source == target {
+		return true
+	}
+	if isScalarType(source) && isScalarType(target) {
+		return true
+	}
+	if strings.HasPrefix(target, "List[") && strings.HasPrefix(source, "List[") {
+		return isAssignable(target, source)
+	}
+	if strings.HasPrefix(target, "Map[") && strings.HasPrefix(source, "Map[") {
+		return isAssignable(target, source)
+	}
+	return false
+}
+
+func isScalarType(typeName string) bool {
+	return typeName == "Int" || typeName == "UInt" || typeName == "String" ||
+		typeName == "Float" || typeName == "Bool" || typeName == "Char"
 }
 
 func isNumeric(typeName string) bool {

@@ -12,6 +12,7 @@ const (
 	precedenceFactor
 	precedencePower
 	precedencePrefix
+	precedenceCast
 	precedenceCall
 )
 
@@ -53,6 +54,8 @@ func (parser *expressionParser) parseExpression(precedence int) ExpressionNode {
 			left = parser.parseIndex(left)
 		case lexer.TokenDot:
 			left = parser.parseSelector(left)
+		case lexer.TokenAs:
+			left = parser.parseCast(left)
 		default:
 			left = parser.parseBinary(left)
 		}
@@ -149,6 +152,15 @@ func (parser *expressionParser) parseSelector(target ExpressionNode) ExpressionN
 	return SelectorExpression{Target: target, Field: field.Literal}
 }
 
+func (parser *expressionParser) parseCast(value ExpressionNode) ExpressionNode {
+	parser.advance()
+	typeName := parser.parseTypeName()
+	if typeName == "" {
+		return nil
+	}
+	return CastExpression{Value: value, Type: typeName}
+}
+
 func (parser *expressionParser) parseList() ExpressionNode {
 	var items []ExpressionNode
 	if !parser.check(lexer.TokenRightSquareBrace) {
@@ -163,6 +175,40 @@ func (parser *expressionParser) parseList() ExpressionNode {
 		return nil
 	}
 	return ListExpression{Items: items}
+}
+
+func (parser *expressionParser) parseTypeName() string {
+	if parser.atEnd() || parser.current().Type != lexer.TokenIdentifier {
+		return ""
+	}
+	parts := []string{parser.advance().Literal}
+	if !parser.match(lexer.TokenLeftSquareBrace) {
+		return parts[0]
+	}
+
+	parts = append(parts, "[")
+	depth := 1
+	for !parser.atEnd() && depth > 0 {
+		token := parser.advance()
+		switch token.Type {
+		case lexer.TokenIdentifier:
+			parts = append(parts, token.Literal)
+		case lexer.TokenComma:
+			parts = append(parts, ",")
+		case lexer.TokenLeftSquareBrace:
+			depth++
+			parts = append(parts, "[")
+		case lexer.TokenRightSquareBrace:
+			depth--
+			parts = append(parts, "]")
+		default:
+			return ""
+		}
+	}
+	if depth != 0 {
+		return ""
+	}
+	return joinTypeParts(parts)
 }
 
 func (parser *expressionParser) parseMap() ExpressionNode {
@@ -209,11 +255,21 @@ func tokenPrecedence(tokenType lexer.TokenType) int {
 		return precedenceFactor
 	case lexer.TokenExponent:
 		return precedencePower
+	case lexer.TokenAs:
+		return precedenceCast
 	case lexer.TokenLeftBrace, lexer.TokenLeftSquareBrace, lexer.TokenDot:
 		return precedenceCall
 	default:
 		return precedenceLowest
 	}
+}
+
+func joinTypeParts(parts []string) string {
+	result := ""
+	for _, part := range parts {
+		result += part
+	}
+	return result
 }
 
 func (parser *expressionParser) match(tokenType lexer.TokenType) bool {

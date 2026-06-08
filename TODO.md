@@ -4,7 +4,6 @@ Todo
 - add rusts' Option(), Some(), None, Err(), Result()
 - add first class functions
 - make the runtime be able to work on users native os
-- add type casting 
 - add list comprehension from python
 - lazy evaluated functions
 - async await

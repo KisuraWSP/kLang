@@ -212,6 +212,39 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsTypeCastsInExpressions(t *testing.T) {
+	program := programFromSource(`
+function Echo(value : String) : String {
+    return value as String;
+}
+
+function Main() : Int {
+    local Float f = 10 as Float;
+    local Int i = f as Int;
+    while active := i as Bool {
+        return (Echo("42") as Int) + i;
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected cast type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsInvalidTypeCast(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Int value = [1] as Int;
+    return value;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "cannot cast List[Int] to Int")
+}
+
 func TestCheckProgramAcceptsNestedFunctionAsFirstClassValue(t *testing.T) {
 	program := programFromSource(`
 function NumberFactory(multiplier : Int) : T {

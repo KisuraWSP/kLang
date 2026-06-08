@@ -210,6 +210,23 @@ func TestParseExpressionTreeForBinaryPrecedence(t *testing.T) {
 	}
 }
 
+func TestParseExpressionTreeForTypeCast(t *testing.T) {
+	program, errors := Parse(`local Float value = 10 as Float;`)
+	assertNoParseErrors(t, errors)
+
+	decl := program.Statements[0].(VariableStatement)
+	cast, ok := decl.Expression.Node.(CastExpression)
+	if !ok {
+		t.Fatalf("expected cast expression, got %#v", decl.Expression.Node)
+	}
+	if cast.Type != "Float" {
+		t.Fatalf("expected cast target Float, got %q", cast.Type)
+	}
+	if literal, ok := cast.Value.(LiteralExpression); !ok || literal.Kind != "Int" || literal.Value != "10" {
+		t.Fatalf("unexpected cast value: %#v", cast.Value)
+	}
+}
+
 func TestParseExpressionTreeForCallsSelectorsAndIndexes(t *testing.T) {
 	program, errors := Parse(`local Int value = call random.RandomRange(items[0], 10);`)
 	assertNoParseErrors(t, errors)

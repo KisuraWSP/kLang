@@ -139,6 +139,11 @@ type SelectorExpression struct {
 	Field  string
 }
 
+type CastExpression struct {
+	Value ExpressionNode
+	Type  string
+}
+
 type ListExpression struct {
 	Items []ExpressionNode
 }
@@ -189,6 +194,7 @@ func (expr BinaryExpression) expressionNode()     {}
 func (expr CallExpression) expressionNode()       {}
 func (expr IndexExpression) expressionNode()      {}
 func (expr SelectorExpression) expressionNode()   {}
+func (expr CastExpression) expressionNode()       {}
 func (expr ListExpression) expressionNode()       {}
 func (expr MapExpression) expressionNode()        {}
 func (expr GroupExpression) expressionNode()      {}

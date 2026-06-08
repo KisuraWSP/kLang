@@ -113,6 +113,32 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesTypeCasts(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Float f = 3 as Float;
+    local Int i = f as Int;
+    while active := i as Bool {
+        return ("40" as Int) + (True as Int) + i;
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 44 {
+		t.Fatalf("expected cast program to return 44, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsInvalidTypeCast(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    return "abc" as Int;
+}
+`)
+	assertRuntimeErrorContains(t, err, `cannot cast String "abc" to Int`)
+}
+
 func TestRuntimeExecutesListsMapsAndPrint(t *testing.T) {
 	result := runSource(t, `
 function Main() : Int {

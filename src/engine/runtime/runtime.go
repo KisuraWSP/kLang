@@ -583,6 +583,12 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			return FunctionValue(target.Name + "." + current.Field), nil
 		}
 		return NullValue(), Error{Message: "unsupported selector target"}
+	case parser.CastExpression:
+		value, err := runtime.evalExpression(current.Value, env)
+		if err != nil {
+			return NullValue(), err
+		}
+		return castValue(value, current.Type)
 	case parser.IndexExpression:
 		return runtime.evalIndex(current, env)
 	case parser.ListExpression:

@@ -272,6 +272,8 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 			return
 		}
 		checker.checkScopeExpression(current.Target, scope, namespace, source, line)
+	case parser.CastExpression:
+		checker.checkScopeExpression(current.Value, scope, namespace, source, line)
 	case parser.ListExpression:
 		for _, item := range current.Items {
 			checker.checkScopeExpression(item, scope, namespace, source, line)

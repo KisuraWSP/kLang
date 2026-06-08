@@ -83,6 +83,111 @@ func literalValue(expr parser.LiteralExpression) (Value, error) {
 	}
 }
 
+func castValue(value Value, typeName string) (Value, error) {
+	typeName = strings.TrimSpace(typeName)
+	if typeName == "" || typeName == "T" {
+		return value, nil
+	}
+	if valueMatchesType(value, typeName) {
+		return value, nil
+	}
+
+	switch typeName {
+	case "Int", "UInt":
+		return castToInt(value, typeName)
+	case "Float":
+		return castToFloat(value)
+	case "String":
+		return StringValue(valueString(value)), nil
+	case "Bool":
+		return castToBool(value), nil
+	case "Char":
+		return castToChar(value)
+	default:
+		if strings.HasPrefix(typeName, "List[") || strings.HasPrefix(typeName, "Map[") {
+			return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to %s", value.Kind, typeName)}
+		}
+		return NullValue(), Error{Message: fmt.Sprintf("unknown cast target type %q", typeName)}
+	}
+}
+
+func castToInt(value Value, typeName string) (Value, error) {
+	var result int
+	switch value.Kind {
+	case ValueInt:
+		result = value.Data.(int)
+	case ValueFloat:
+		result = int(value.Data.(float64))
+	case ValueBool:
+		if value.Data.(bool) {
+			result = 1
+		}
+	case ValueString, ValueChar:
+		parsed, err := strconv.Atoi(value.Data.(string))
+		if err != nil {
+			return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s %q to %s", value.Kind, value.Data.(string), typeName)}
+		}
+		result = parsed
+	default:
+		return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to %s", value.Kind, typeName)}
+	}
+	if typeName == "UInt" && result < 0 {
+		return NullValue(), Error{Message: "cannot cast negative Int to UInt"}
+	}
+	return IntValue(result), nil
+}
+
+func castToFloat(value Value) (Value, error) {
+	switch value.Kind {
+	case ValueFloat:
+		return value, nil
+	case ValueInt:
+		return FloatValue(float64(value.Data.(int))), nil
+	case ValueBool:
+		if value.Data.(bool) {
+			return FloatValue(1), nil
+		}
+		return FloatValue(0), nil
+	case ValueString, ValueChar:
+		parsed, err := strconv.ParseFloat(value.Data.(string), 64)
+		if err != nil {
+			return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s %q to Float", value.Kind, value.Data.(string))}
+		}
+		return FloatValue(parsed), nil
+	default:
+		return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to Float", value.Kind)}
+	}
+}
+
+func castToBool(value Value) Value {
+	if value.Kind == ValueString {
+		switch value.Data.(string) {
+		case "True", "true", "1":
+			return BoolValue(true)
+		case "False", "false", "0", "":
+			return BoolValue(false)
+		}
+	}
+	return BoolValue(isTruthy(value))
+}
+
+func castToChar(value Value) (Value, error) {
+	switch value.Kind {
+	case ValueChar:
+		return value, nil
+	case ValueString:
+		runes := []rune(value.Data.(string))
+		if len(runes) != 1 {
+			return NullValue(), Error{Message: fmt.Sprintf("cannot cast String %q to Char", value.Data.(string))}
+		}
+		return CharValue(string(runes[0])), nil
+	case ValueInt:
+		return CharValue(string(rune(value.Data.(int)))), nil
+	default:
+		return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to Char", value.Kind)}
+	}
+}
+
 func applyAssignmentOperator(left Value, operator string, right Value) (Value, error) {
 	switch operator {
 	case "=":
