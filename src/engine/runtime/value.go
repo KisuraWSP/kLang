@@ -37,6 +37,27 @@ func FunctionValue(name string) Value {
 	return Value{Kind: ValueFunction, Data: name}
 }
 
+func runtimeTypeName(value Value) string {
+	switch value.Kind {
+	case ValueInt:
+		return "Int"
+	case ValueFloat:
+		return "Float"
+	case ValueString:
+		return "String"
+	case ValueBool:
+		return "Bool"
+	case ValueChar:
+		return "Char"
+	case ValueList:
+		return "List[T]"
+	case ValueMap:
+		return "Map[T,T]"
+	default:
+		return "T"
+	}
+}
+
 func literalValue(expr parser.LiteralExpression) (Value, error) {
 	switch expr.Kind {
 	case "Int":
@@ -358,6 +379,21 @@ func loopCondition(expr parser.Expression) parser.Expression {
 		}
 	}
 	return expr
+}
+
+func parseEvaluationHeader(expr parser.Expression) (string, parser.Expression, bool) {
+	tokens := expr.Tokens
+	for index, token := range tokens {
+		if token.Type != lexer.TokenEvaluationAssign || index == 0 || index+1 >= len(tokens) {
+			continue
+		}
+		if tokens[index-1].Type != lexer.TokenIdentifier {
+			return "", parser.Expression{}, false
+		}
+		valueTokens := tokens[index+1:]
+		return tokens[index-1].Literal, parser.Expression{Tokens: valueTokens, Node: parser.ParseExpressionTokens(valueTokens)}, true
+	}
+	return "", parser.Expression{}, false
 }
 
 func splitTopLevel(tokens []lexer.Token, separator lexer.TokenType) [][]lexer.Token {

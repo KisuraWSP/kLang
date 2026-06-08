@@ -128,6 +128,67 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramRejectsLocalLeakFromIfBlock(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    if True {
+        local Int hidden = 1;
+    }
+    return hidden;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `unknown identifier "hidden"`)
+}
+
+func TestCheckProgramRejectsLoopVariableLeak(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    for i := range(3) {
+        print(i);
+    }
+    return i;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `unknown identifier "i"`)
+}
+
+func TestCheckProgramAcceptsLoopHeaderScopeInsideLoop(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut Int total = 0;
+    for i := range(3) {
+        total += i;
+    }
+    while active := total < 10 {
+        if active {
+            total += 10;
+        }
+        break;
+    }
+    return total;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected loop header scope to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsDuplicateLocalInSameScope(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Int value = 1;
+    local Int value = 2;
+    return value;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `variable "value" is already defined in this scope`)
+}
+
 func TestCheckProgramAcceptsNestedFunctionAsFirstClassValue(t *testing.T) {
 	program := programFromSource(`
 function NumberFactory(multiplier : Int) : T {

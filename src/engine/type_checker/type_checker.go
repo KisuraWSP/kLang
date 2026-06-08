@@ -81,6 +81,7 @@ func CheckProgram(program file.Program) Report {
 	for _, fn := range checker.functions {
 		checker.checkFunction(fn)
 	}
+	checker.checkLexicalScopes(program)
 
 	return Report{Errors: checker.errors}
 }
@@ -187,6 +188,9 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 
 	for nestedName := range collectNestedFunctionNames(fn.Body) {
 		locals[nestedName] = variableSymbol{Name: nestedName, Type: anyType}
+	}
+	for loopName := range collectEvaluationAssignmentNames(fn.Body) {
+		locals[loopName] = variableSymbol{Name: loopName, Type: anyType, Mutable: true}
 	}
 
 	body := maskNestedFunctions(fn.Body)
@@ -711,6 +715,29 @@ func collectNestedFunctionNames(input string) map[string]bool {
 			continue
 		}
 		index = close + 1
+	}
+	return names
+}
+
+func collectEvaluationAssignmentNames(input string) map[string]bool {
+	names := map[string]bool{}
+	for index := 0; index+1 < len(input); index++ {
+		if input[index] != ':' || input[index+1] != '=' {
+			continue
+		}
+		nameEnd := index
+		nameStart := nameEnd - 1
+		for nameStart >= 0 && unicode.IsSpace(rune(input[nameStart])) {
+			nameStart--
+		}
+		nameEnd = nameStart + 1
+		for nameStart >= 0 && isIdentifierRune(rune(input[nameStart])) {
+			nameStart--
+		}
+		name := strings.TrimSpace(input[nameStart+1 : nameEnd])
+		if isIdentifier(name) {
+			names[name] = true
+		}
 	}
 	return names
 }

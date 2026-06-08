@@ -73,6 +73,24 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesWhileHeaderScope(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local mut Int total = 0;
+    while active := total < 1 {
+        if active {
+            total += 1;
+        }
+    }
+    return total;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected while header scope to return 1, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesListsMapsAndPrint(t *testing.T) {
 	result := runSource(t, `
 function Main() : Int {

@@ -312,19 +312,33 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 		return signal{kind: signalNone}, nil
 	}
 
+	loopEnv := env
+	headerName, headerExpr, hasHeaderBinding := parseEvaluationHeader(stmt.Header)
+	if hasHeaderBinding {
+		loopEnv = NewEnvironment(env)
+	}
 	first := true
 	for {
 		if stmt.Kind != "do_while" && stmt.Kind != "do" || !first {
-			condition, err := runtime.evalExpression(loopCondition(stmt.Header).Node, env)
+			conditionExpression := loopCondition(stmt.Header)
+			if hasHeaderBinding {
+				conditionExpression = headerExpr
+			}
+			condition, err := runtime.evalExpression(conditionExpression.Node, loopEnv)
 			if err != nil {
 				return signal{}, err
+			}
+			if hasHeaderBinding {
+				if err := runtime.storeLoopHeaderBinding(headerName, condition, loopEnv); err != nil {
+					return signal{}, errorAt(stmt.Pos, err.Error())
+				}
 			}
 			if !isTruthy(condition) {
 				break
 			}
 		}
 		first = false
-		currentSignal, err := runtime.executeBlock(stmt.Body, NewEnvironment(env), true)
+		currentSignal, err := runtime.executeBlock(stmt.Body, NewEnvironment(loopEnv), true)
 		if err != nil {
 			return signal{}, err
 		}
@@ -336,6 +350,15 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 		}
 	}
 	return signal{kind: signalNone}, nil
+}
+
+func (runtime *Runtime) storeLoopHeaderBinding(name string, value Value, env *Environment) error {
+	if binding, ok := env.bindings[name]; ok {
+		binding.Value = value
+		runtime.memory.Store(binding.ObjectID, value)
+		return nil
+	}
+	return env.Define(name, true, runtimeTypeName(value), value, runtime.memory.Allocate(value))
 }
 
 func (runtime *Runtime) executeLoopHeaderAssignment(expr parser.Expression, env *Environment) error {
