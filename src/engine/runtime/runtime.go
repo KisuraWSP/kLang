@@ -666,6 +666,8 @@ func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environmen
 	}
 
 	switch expr.Operator {
+	case "|>":
+		return runtime.evalPipe(left, expr.Right, env)
 	case "and":
 		if !isTruthy(left) {
 			return BoolValue(false), nil
@@ -730,6 +732,42 @@ func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environmen
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported binary operator %q", expr.Operator)}
 	}
+}
+
+func (runtime *Runtime) evalPipe(value Value, target parser.ExpressionNode, env *Environment) (Value, error) {
+	switch current := target.(type) {
+	case parser.CallExpression:
+		callee, err := runtime.evalExpression(current.Callee, env)
+		if err != nil {
+			return NullValue(), err
+		}
+		if callee.Kind != ValueFunction {
+			return NullValue(), Error{Message: "pipe target is not a function"}
+		}
+		args := []Value{value}
+		for _, arg := range current.Arguments {
+			argValue, err := runtime.evalExpression(arg, env)
+			if err != nil {
+				return NullValue(), err
+			}
+			args = append(args, argValue)
+		}
+		return runtime.callFunction(callee.Data.(string), args)
+	case parser.UnaryExpression:
+		if current.Operator == "call" {
+			return runtime.evalPipe(value, current.Right, env)
+		}
+	case parser.IdentifierExpression, parser.SelectorExpression:
+		callee, err := runtime.evalExpression(current, env)
+		if err != nil {
+			return NullValue(), err
+		}
+		if callee.Kind != ValueFunction {
+			return NullValue(), Error{Message: "pipe target is not a function"}
+		}
+		return runtime.callFunction(callee.Data.(string), []Value{value})
+	}
+	return NullValue(), Error{Message: "pipe target must be a function or function call"}
 }
 
 func (runtime *Runtime) evalCall(expr parser.CallExpression, env *Environment) (Value, error) {

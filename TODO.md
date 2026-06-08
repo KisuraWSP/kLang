@@ -12,7 +12,6 @@ Todo
 - SIMD Data Types to be built in the langauge
 - better type checking via Unification-Based Constraint Solving (Hindley-Milner / Algorithm W) and Dataflow-Based (Flow-Sensitive) Type Checking
 - lambda functions
-- pipe operator
 - tail call optimization for recursive functions
 - referential transparency
 - support for polymorphic functions

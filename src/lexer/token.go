@@ -26,6 +26,7 @@ const (
 	TokenModulus        // %
 	TokenExponent       // **
 	TokenFloorDivision  // //
+	TokenPipe           // |>
 
 	TokenAssign      // =
 	TokenPlusEqual   // +=
@@ -128,6 +129,7 @@ var Operators = map[string]TokenType{
 	"%":  TokenModulus,
 	"**": TokenExponent,
 	"//": TokenFloorDivision,
+	"|>": TokenPipe,
 	"=":  TokenAssign,
 	"+=": TokenPlusEqual,
 	"-=": TokenMinusEqual,

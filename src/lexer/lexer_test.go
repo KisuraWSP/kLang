@@ -145,6 +145,27 @@ func TestLexerTokenizesBooleanOperators(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesPipeOperator(t *testing.T) {
+	input := `local Int result = 2 |> Add(3) |> Double;`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "result"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "2"},
+		{Type: TokenPipe, Literal: "|>"},
+		{Type: TokenIdentifier, Literal: "Add"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenInt, Literal: "3"},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenPipe, Literal: "|>"},
+		{Type: TokenIdentifier, Literal: "Double"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesLiteralsNamespaceCallsAndOperators(t *testing.T) {
 	input := `call random.RandomRange(-2, 3.5); local String text = "hello"; local Char letter = 'K'; unless True != False { return text; }`
 

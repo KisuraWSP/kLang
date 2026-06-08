@@ -368,6 +368,42 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsPipeOperator(t *testing.T) {
+	program := programFromSource(`
+function Add(left : Int, right : Int) : Int {
+    return left + right;
+}
+
+function Double(value : Int) : Int {
+    return value * 2;
+}
+
+function Main() : Int {
+    local Int result = 2 |> Add(3) |> Double;
+    return result;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected pipe operator type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsPipeArgumentMismatch(t *testing.T) {
+	program := programFromSource(`
+function Double(value : Int) : Int {
+    return value * 2;
+}
+
+function Main() : Int {
+    return "bad" |> Double;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "function Double argument 1 expects Int, got String")
+}
+
 func TestCheckProgramRejectsInvalidTypeCast(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

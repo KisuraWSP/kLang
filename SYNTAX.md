@@ -47,6 +47,10 @@ local Bool hasValue = MaybeValue()?;
 -- boolean operators
 -- not binds tighter than and, and binds tighter than xor, and xor binds tighter than or.
 local Bool shouldRun = not failed and active xor retrying or fallback;
+
+-- pipe operator
+-- The left value is passed as the first argument to the function on the right.
+local Int piped = 2 |> Add(3) |> Double;
 ```
 
 2. Functions
@@ -71,6 +75,14 @@ function Print(formatString : String, value : List[T]) : Int {
 
 function ToNumber(value : String) : Int {
     return value as Int;
+}
+
+function Add(left : Int, right : Int) : Int {
+    return left + right;
+}
+
+function Double(value : Int) : Int {
+    return value * 2;
 }
 
 -- deprecation marker tag

@@ -526,6 +526,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		return checker.inferListLiteral(expr, locals, source, line)
 	}
 
+	if index := findTopLevelOperator(expr, []string{"|>"}); index != -1 {
+		return checker.checkPipe(expr[:index], expr[index+len("|>"):], locals, source, line)
+	}
 	if strings.HasPrefix(expr, "not ") {
 		checker.inferExpression(strings.TrimSpace(strings.TrimPrefix(expr, "not")), locals, source, line)
 		return "Bool"
@@ -603,6 +606,26 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	}
 
 	checker.addError(source, line, fmt.Sprintf("unknown expression %q", expr))
+	return anyType
+}
+
+func (checker *TypeChecker) checkPipe(left string, right string, locals map[string]variableSymbol, source string, line int) string {
+	left = strings.TrimSpace(left)
+	right = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(right), "call "))
+	if left == "" || right == "" {
+		checker.addError(source, line, "pipe operator requires a value and a function target")
+		return anyType
+	}
+
+	if callName, args, ok := parseFunctionCall(right); ok {
+		return checker.checkCall(callName, append([]string{left}, args...), locals, source, line)
+	}
+	if isIdentifierPath(right) {
+		return checker.checkCall(right, []string{left}, locals, source, line)
+	}
+
+	checker.inferExpression(left, locals, source, line)
+	checker.addError(source, line, "pipe target must be a function or function call")
 	return anyType
 }
 

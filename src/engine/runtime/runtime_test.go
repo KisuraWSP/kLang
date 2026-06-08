@@ -399,6 +399,26 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesPipeOperator(t *testing.T) {
+	result := runParsedSource(t, `
+function Add(left : Int, right : Int) : Int {
+    return left + right;
+}
+
+function Double(value : Int) : Int {
+    return value * 2;
+}
+
+function Main() : Int {
+    return 2 |> Add(3) |> Double;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 10 {
+		t.Fatalf("expected pipe operator program to return 10, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeComparesCharsAndStrings(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {

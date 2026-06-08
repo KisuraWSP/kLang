@@ -269,6 +269,27 @@ func TestParseExpressionTreeForBooleanPrecedence(t *testing.T) {
 	}
 }
 
+func TestParseExpressionTreeForPipeOperator(t *testing.T) {
+	program, errors := Parse(`local Int result = 2 |> Add(3) |> Double;`)
+	assertNoParseErrors(t, errors)
+
+	decl := program.Statements[0].(VariableStatement)
+	root, ok := decl.Expression.Node.(BinaryExpression)
+	if !ok || root.Operator != "|>" {
+		t.Fatalf("expected root pipe expression, got %#v", decl.Expression.Node)
+	}
+	if _, ok := root.Right.(IdentifierExpression); !ok {
+		t.Fatalf("expected bare function target on right pipe, got %#v", root.Right)
+	}
+	leftPipe, ok := root.Left.(BinaryExpression)
+	if !ok || leftPipe.Operator != "|>" {
+		t.Fatalf("expected pipe to be left-associative, got %#v", root.Left)
+	}
+	if _, ok := leftPipe.Right.(CallExpression); !ok {
+		t.Fatalf("expected function call target on left pipe, got %#v", leftPipe.Right)
+	}
+}
+
 func TestParseExpressionTreeForTypeCast(t *testing.T) {
 	program, errors := Parse(`local Float value = 10 as Float;`)
 	assertNoParseErrors(t, errors)
