@@ -347,6 +347,27 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsBooleanOperatorsInExpressions(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Bool ready = True;
+    local Bool active = False;
+    local Bool failed = False;
+    local Bool fallback = False;
+    local Bool result = not ready and active xor failed or fallback;
+    if result == False {
+        return 1;
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected boolean operator type check to pass, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramRejectsInvalidTypeCast(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

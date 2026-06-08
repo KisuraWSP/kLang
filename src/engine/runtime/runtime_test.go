@@ -364,6 +364,41 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesBooleanOperatorsInConditionsAndLoops(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local mut Int total = 0;
+    local Bool ready = True;
+    local Bool active = True;
+    local Bool failed = False;
+    local Bool fallback = False;
+
+    if ready and active xor failed or fallback {
+        total += 1;
+    }
+    unless not ready or failed {
+        total += 2;
+    }
+    while keepGoing := total == 3 and not failed {
+        total += 3;
+        break;
+    }
+    do_while firstPass := failed xor True {
+        total += 4;
+        break;
+    }
+    for i := 0; i < 3 and total < 11; i += 1 {
+        total += 1;
+    }
+    return total;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 11 {
+		t.Fatalf("expected boolean operator program to return 11, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeComparesCharsAndStrings(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {

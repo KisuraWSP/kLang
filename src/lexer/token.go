@@ -60,6 +60,7 @@ const (
 	// Keywords
 	TokenAnd        // and
 	TokenOr         // or
+	TokenXor        // xor
 	TokenNot        // not
 	TokenFunc       // function
 	TokenIf         // if
@@ -94,6 +95,7 @@ type Token struct {
 var Keywords = map[string]TokenType{
 	"and":       TokenAnd,
 	"or":        TokenOr,
+	"xor":       TokenXor,
 	"not":       TokenNot,
 	"function":  TokenFunc,
 	"if":        TokenIf,

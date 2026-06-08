@@ -526,9 +526,18 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		return checker.inferListLiteral(expr, locals, source, line)
 	}
 
+	if strings.HasPrefix(expr, "not ") {
+		checker.inferExpression(strings.TrimSpace(strings.TrimPrefix(expr, "not")), locals, source, line)
+		return "Bool"
+	}
 	if index := findTopLevelOperator(expr, []string{" or "}); index != -1 {
 		checker.inferExpression(expr[:index], locals, source, line)
 		checker.inferExpression(expr[index+len(" or "):], locals, source, line)
+		return "Bool"
+	}
+	if index := findTopLevelOperator(expr, []string{" xor "}); index != -1 {
+		checker.inferExpression(expr[:index], locals, source, line)
+		checker.inferExpression(expr[index+len(" xor "):], locals, source, line)
 		return "Bool"
 	}
 	if index := findTopLevelOperator(expr, []string{" and "}); index != -1 {

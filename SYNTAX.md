@@ -43,6 +43,10 @@ local Int grouped = (1 + 2) * 3;
 -- null safety
 -- The postfix ? operator returns True when an expression is not Null, otherwise False.
 local Bool hasValue = MaybeValue()?;
+
+-- boolean operators
+-- not binds tighter than and, and binds tighter than xor, and xor binds tighter than or.
+local Bool shouldRun = not failed and active xor retrying or fallback;
 ```
 
 2. Functions
@@ -94,6 +98,11 @@ if x > y {
     print("this is interesting");
 }
 
+-- boolean operations in conditions
+if not failed and active xor retrying or fallback {
+    print("running");
+}
+
 -- unless .. else
 -- If the Boolean expression evaluates to false, then the block of code inside the unless statement will be executed. If the Boolean expression evaluates to true, then the code after the else keyword of the given unless statement will be executed.
 unless x > y {
@@ -131,6 +140,11 @@ while active := i as Bool {
 
 -- null safety in a loop header binding
 while active := MaybeValue()? {
+    break;
+}
+
+-- boolean operations in loop conditions
+while active := ready and not failed xor retrying {
     break;
 }
 

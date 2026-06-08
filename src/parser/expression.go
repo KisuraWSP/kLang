@@ -5,6 +5,7 @@ import "kLang/src/lexer"
 const (
 	precedenceLowest = iota
 	precedenceOr
+	precedenceXor
 	precedenceAnd
 	precedenceEquality
 	precedenceComparison
@@ -253,6 +254,8 @@ func tokenPrecedence(tokenType lexer.TokenType) int {
 	switch tokenType {
 	case lexer.TokenOr:
 		return precedenceOr
+	case lexer.TokenXor:
+		return precedenceXor
 	case lexer.TokenAnd:
 		return precedenceAnd
 	case lexer.TokenStrictEquality, lexer.TokenNotEqual:

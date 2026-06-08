@@ -684,6 +684,12 @@ func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environmen
 			return NullValue(), err
 		}
 		return BoolValue(isTruthy(right)), nil
+	case "xor":
+		right, err := runtime.evalExpression(expr.Right, env)
+		if err != nil {
+			return NullValue(), err
+		}
+		return BoolValue(isTruthy(left) != isTruthy(right)), nil
 	}
 
 	right, err := runtime.evalExpression(expr.Right, env)

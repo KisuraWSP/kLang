@@ -123,6 +123,28 @@ func TestLexerTokenizesNullSafetyOperator(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesBooleanOperators(t *testing.T) {
+	input := `if not ready and active xor failed or fallback { return 1; }`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenIf, Literal: "if"},
+		{Type: TokenNot, Literal: "not"},
+		{Type: TokenIdentifier, Literal: "ready"},
+		{Type: TokenAnd, Literal: "and"},
+		{Type: TokenIdentifier, Literal: "active"},
+		{Type: TokenXor, Literal: "xor"},
+		{Type: TokenIdentifier, Literal: "failed"},
+		{Type: TokenOr, Literal: "or"},
+		{Type: TokenIdentifier, Literal: "fallback"},
+		{Type: TokenScopeBegin, Literal: "{"},
+		{Type: TokenReturn, Literal: "return"},
+		{Type: TokenInt, Literal: "1"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenScopeEnd, Literal: "}"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesLiteralsNamespaceCallsAndOperators(t *testing.T) {
 	input := `call random.RandomRange(-2, 3.5); local String text = "hello"; local Char letter = 'K'; unless True != False { return text; }`
 

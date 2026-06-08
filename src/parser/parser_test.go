@@ -247,6 +247,28 @@ func TestParseExpressionTreeForPowerPrecedenceAndAssociativity(t *testing.T) {
 	}
 }
 
+func TestParseExpressionTreeForBooleanPrecedence(t *testing.T) {
+	program, errors := Parse(`local Bool result = not ready and active xor failed or fallback;`)
+	assertNoParseErrors(t, errors)
+
+	decl := program.Statements[0].(VariableStatement)
+	root, ok := decl.Expression.Node.(BinaryExpression)
+	if !ok || root.Operator != "or" {
+		t.Fatalf("expected root or expression, got %#v", decl.Expression.Node)
+	}
+	xorExpr, ok := root.Left.(BinaryExpression)
+	if !ok || xorExpr.Operator != "xor" {
+		t.Fatalf("expected xor below or, got %#v", root.Left)
+	}
+	andExpr, ok := xorExpr.Left.(BinaryExpression)
+	if !ok || andExpr.Operator != "and" {
+		t.Fatalf("expected and below xor, got %#v", xorExpr.Left)
+	}
+	if unary, ok := andExpr.Left.(UnaryExpression); !ok || unary.Operator != "not" {
+		t.Fatalf("expected not to bind before and, got %#v", andExpr.Left)
+	}
+}
+
 func TestParseExpressionTreeForTypeCast(t *testing.T) {
 	program, errors := Parse(`local Float value = 10 as Float;`)
 	assertNoParseErrors(t, errors)
