@@ -184,7 +184,7 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 			return signal{}, errorAt(current.Pos, fmt.Sprintf("cannot assign %s to %s variable %q", value.Kind, current.Type, current.Name))
 		}
 		targetEnv := env
-		if current.Scope == "global" {
+		if current.Scope == "global" || current.Exported {
 			targetEnv = runtime.global
 		}
 		if err := targetEnv.Define(current.Name, current.Mutable, current.Type, value, runtime.memory.Allocate(value)); err != nil {

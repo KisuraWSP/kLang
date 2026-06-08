@@ -51,6 +51,7 @@ type Parameter struct {
 type VariableStatement struct {
 	Pos        Position
 	Scope      string
+	Exported   bool
 	Mutable    bool
 	Type       string
 	Name       string

@@ -1,5 +1,4 @@
 Todo
-- global variable declarations must work within any scope (add a new operator called) "export" to make this variable be accessible no matter which scope it is in
 - improve the standard library more by adding more functions
 - add error handling (error by values / exceptions)
 - add rusts' Option(), Some(), None, Err(), Result()

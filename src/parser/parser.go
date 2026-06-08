@@ -64,10 +64,12 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseNamespace()
 	case lexer.TokenFunc:
 		return parser.parseFunction()
+	case lexer.TokenExport:
+		return parser.parseExport()
 	case lexer.TokenGlobal:
-		return parser.parseVariable("global")
+		return parser.parseVariable("global", false)
 	case lexer.TokenLocal:
-		return parser.parseVariable("local")
+		return parser.parseVariable("local", false)
 	case lexer.TokenReturn:
 		return parser.parseReturn()
 	case lexer.TokenBreak:
@@ -147,8 +149,27 @@ func (parser *Parser) parseParameters() []Parameter {
 	return params
 }
 
-func (parser *Parser) parseVariable(scope string) Statement {
+func (parser *Parser) parseExport() Statement {
+	start := parser.consume(lexer.TokenExport, "expected export")
+	if parser.check(lexer.TokenGlobal) {
+		return parser.parseVariableFromStart(start, "global", true)
+	}
+	if parser.check(lexer.TokenLocal) {
+		return parser.parseVariableFromStart(start, "local", true)
+	}
+	parser.addError(parser.current(), "expected local or global after export")
+	return nil
+}
+
+func (parser *Parser) parseVariable(scope string, exported bool) Statement {
 	start := parser.advance()
+	return parser.parseVariableFromStart(start, scope, exported)
+}
+
+func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, exported bool) Statement {
+	if exported {
+		parser.consume(scopeToken(scope), fmt.Sprintf("expected %s after export", scope))
+	}
 	mutable := parser.match(lexer.TokenMut)
 	typeName := parser.parseType()
 	name := parser.consume(lexer.TokenIdentifier, "expected variable name")
@@ -159,6 +180,7 @@ func (parser *Parser) parseVariable(scope string) Statement {
 	return VariableStatement{
 		Pos:        positionFromToken(start),
 		Scope:      scope,
+		Exported:   exported,
 		Mutable:    mutable,
 		Type:       typeName,
 		Name:       name.Literal,
@@ -244,7 +266,7 @@ func parseInlineStatements(tokens []lexer.Token) []Statement {
 func inlineStatementStart(tokens []lexer.Token) int {
 	for index, token := range tokens {
 		switch token.Type {
-		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenCall:
+		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport, lexer.TokenCall:
 			return index
 		}
 	}
@@ -482,13 +504,20 @@ func (parser *Parser) synchronize() {
 			return
 		}
 		switch parser.current().Type {
-		case lexer.TokenFunc, lexer.TokenGlobal, lexer.TokenLocal, lexer.TokenReturn,
+		case lexer.TokenFunc, lexer.TokenGlobal, lexer.TokenLocal, lexer.TokenExport, lexer.TokenReturn,
 			lexer.TokenIf, lexer.TokenUnless, lexer.TokenFor, lexer.TokenWhile,
 			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenNameSpace:
 			return
 		}
 		parser.advance()
 	}
+}
+
+func scopeToken(scope string) lexer.TokenType {
+	if scope == "global" {
+		return lexer.TokenGlobal
+	}
+	return lexer.TokenLocal
 }
 
 func positionFromToken(token lexer.Token) Position {

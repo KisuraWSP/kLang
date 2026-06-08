@@ -79,6 +79,7 @@ const (
 	TokenReturn     // return
 	TokenBreak      // break
 	TokenDoWhile    // do_while
+	TokenExport     // export
 )
 
 type Token struct {
@@ -112,6 +113,7 @@ var Keywords = map[string]TokenType{
 	"return":    TokenReturn,
 	"break":     TokenBreak,
 	"do_while":  TokenDoWhile,
+	"export":    TokenExport,
 }
 
 var Operators = map[string]TokenType{

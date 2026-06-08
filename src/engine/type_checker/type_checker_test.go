@@ -189,6 +189,29 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), `variable "value" is already defined in this scope`)
 }
 
+func TestCheckProgramAcceptsNestedGlobalAndExportedDeclarations(t *testing.T) {
+	program := programFromSource(`
+function Configure() : Int {
+    if True {
+        global mut Int nestedGlobal = 10;
+        export local Int exportedLocal = nestedGlobal + 2;
+    }
+    return exportedLocal;
+}
+
+function Main() : Int {
+    Configure();
+    nestedGlobal += 1;
+    return exportedLocal + nestedGlobal;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected nested global/exported declarations to pass, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramAcceptsNestedFunctionAsFirstClassValue(t *testing.T) {
 	program := programFromSource(`
 function NumberFactory(multiplier : Int) : T {

@@ -75,6 +75,7 @@ func CheckProgram(program file.Program) Report {
 	for _, unit := range units {
 		checker.collectGlobals(unit)
 	}
+	checker.collectASTGlobals(program)
 	for _, unit := range units {
 		checker.checkTopLevelCalls(unit)
 	}
@@ -217,6 +218,10 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 			continue
 		}
 
+		if _, ok := parseVariableDeclaration(current, "global"); ok {
+			continue
+		}
+
 		if strings.HasPrefix(current, "return ") {
 			expr := strings.TrimSpace(strings.TrimPrefix(current, "return "))
 			exprType := checker.inferExpression(expr, locals, fn.File, line)
@@ -239,6 +244,7 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 
 type variableDeclaration struct {
 	Mutable    bool
+	Exported   bool
 	Type       string
 	Name       string
 	Expression string
@@ -335,6 +341,11 @@ func parseParams(input string) ([]variableSymbol, error) {
 
 func parseVariableDeclaration(stmt string, scope string) (variableDeclaration, bool) {
 	stmt = trimStatementPrefix(stmt)
+	exported := false
+	if strings.HasPrefix(stmt, "export ") {
+		exported = true
+		stmt = strings.TrimSpace(strings.TrimPrefix(stmt, "export"))
+	}
 	if !strings.HasPrefix(stmt, scope+" ") {
 		return variableDeclaration{}, false
 	}
@@ -360,6 +371,7 @@ func parseVariableDeclaration(stmt string, scope string) (variableDeclaration, b
 
 	return variableDeclaration{
 		Mutable:    mutable,
+		Exported:   exported,
 		Type:       typeName,
 		Name:       name,
 		Expression: expr,
@@ -371,7 +383,8 @@ func parseAssignment(stmt string) (assignmentStatement, bool) {
 	if strings.Contains(stmt, ":=") {
 		return assignmentStatement{}, false
 	}
-	if strings.HasPrefix(stmt, "if ") || strings.HasPrefix(stmt, "else ") || strings.HasPrefix(stmt, "unless ") ||
+	if strings.HasPrefix(stmt, "global ") || strings.HasPrefix(stmt, "local ") || strings.HasPrefix(stmt, "export ") ||
+		strings.HasPrefix(stmt, "if ") || strings.HasPrefix(stmt, "else ") || strings.HasPrefix(stmt, "unless ") ||
 		strings.HasPrefix(stmt, "while ") || strings.HasPrefix(stmt, "for ") || strings.HasPrefix(stmt, "do_while ") {
 		return assignmentStatement{}, false
 	}

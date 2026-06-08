@@ -91,6 +91,28 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExportsNestedVariablesToGlobalScope(t *testing.T) {
+	result := runParsedSource(t, `
+function Configure() : Int {
+    if True {
+        global mut Int nestedGlobal = 10;
+        export local Int exportedLocal = nestedGlobal + 2;
+    }
+    return exportedLocal;
+}
+
+function Main() : Int {
+    Configure();
+    nestedGlobal += 1;
+    return exportedLocal + nestedGlobal;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 23 {
+		t.Fatalf("expected exported nested variables to return 23, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesListsMapsAndPrint(t *testing.T) {
 	result := runSource(t, `
 function Main() : Int {

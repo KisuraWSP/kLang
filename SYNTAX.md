@@ -13,6 +13,13 @@ global Bool isTrue = False;
 
 -- global mutable variable
 global mut List[Int] itemsList = [10, 20, 30, 40];
+
+-- exported variable
+-- export makes the variable accessible through the global scope even when declared inside a block or function.
+export local Int sharedValue = 10;
+
+-- global declarations are valid in any scope.
+global mut Int sharedCounter = 0;
 ```
 
 2. Functions

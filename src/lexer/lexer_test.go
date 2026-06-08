@@ -9,9 +9,10 @@ import (
 )
 
 func TestLexerTokenizesVariableDeclaration(t *testing.T) {
-	input := `local mut Map[String, Int] rowResults = {};`
+	input := `export local mut Map[String, Int] rowResults = {};`
 
 	assertTokens(t, input, []Token{
+		{Type: TokenExport, Literal: "export"},
 		{Type: TokenLocal, Literal: "local"},
 		{Type: TokenMut, Literal: "mut"},
 		{Type: TokenIdentifier, Literal: "Map"},

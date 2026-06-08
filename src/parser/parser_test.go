@@ -59,6 +59,19 @@ func TestParseGlobalGenericVariableDeclaration(t *testing.T) {
 	}
 }
 
+func TestParseExportedVariableDeclaration(t *testing.T) {
+	program, errors := Parse(`export local mut Int shared = 1;`)
+	assertNoParseErrors(t, errors)
+
+	decl, ok := program.Statements[0].(VariableStatement)
+	if !ok {
+		t.Fatalf("expected variable statement, got %T", program.Statements[0])
+	}
+	if decl.Scope != "local" || !decl.Exported || !decl.Mutable || decl.Type != "Int" || decl.Name != "shared" {
+		t.Fatalf("unexpected exported declaration: %#v", decl)
+	}
+}
+
 func TestParseNamespaceImportAndCallExpression(t *testing.T) {
 	program, errors := Parse(`
 import "math.klang";

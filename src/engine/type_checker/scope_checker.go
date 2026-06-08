@@ -9,6 +9,53 @@ import (
 	"kLang/src/parser"
 )
 
+func (checker *TypeChecker) collectASTGlobals(program file.Program) {
+	parsed := parser.ParseLoadedProgram(program)
+	if !parsed.Passed() {
+		return
+	}
+	for _, source := range parsed.Sources {
+		checker.collectASTGlobalsFromStatements(source.Program.Statements, source.Path, true)
+	}
+}
+
+func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.Statement, source string, topLevel bool) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.VariableStatement:
+			if current.Scope != "global" && !current.Exported {
+				continue
+			}
+			if existing, exists := checker.globals[current.Name]; exists {
+				if topLevel && existing.File == source {
+					continue
+				}
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("global variable %q is already defined", current.Name))
+				continue
+			}
+			checker.globals[current.Name] = variableSymbol{
+				Name:    current.Name,
+				Type:    normalizeType(current.Type),
+				Mutable: current.Mutable,
+				File:    source,
+				Line:    current.Pos.Line,
+			}
+		case parser.NamespaceStatement:
+			checker.collectASTGlobalsFromStatements(current.Body, source, false)
+		case parser.FunctionStatement:
+			checker.collectASTGlobalsFromStatements(current.Body, source, false)
+		case parser.IfStatement:
+			checker.collectASTGlobalsFromStatements(current.Consequence, source, false)
+			checker.collectASTGlobalsFromStatements(current.Alternative, source, false)
+			if current.ElseIf != nil {
+				checker.collectASTGlobalsFromStatements([]parser.Statement{*current.ElseIf}, source, false)
+			}
+		case parser.LoopStatement:
+			checker.collectASTGlobalsFromStatements(current.Body, source, false)
+		}
+	}
+}
+
 type lexicalScope struct {
 	parent    *lexicalScope
 	variables map[string]variableSymbol
@@ -91,7 +138,7 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		checker.checkFunctionScope(current, scope, namespace, source)
 	case parser.VariableStatement:
 		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
-		if current.Scope == "global" {
+		if current.Scope == "global" || current.Exported {
 			return
 		}
 		if !scope.define(variableSymbol{Name: current.Name, Type: normalizeType(current.Type), Mutable: current.Mutable, File: source, Line: current.Pos.Line}) {
