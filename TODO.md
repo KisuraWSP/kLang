@@ -18,10 +18,31 @@ function X[T restrict[UInt, Int, Float]](x : T) : Int {
 }
 ```
 - default values on functions and restricted generic types, and zero initialized variables no matter the type  <do>
-- add support for boolean like expressions on variables like the below, start of ternary operator
+- add support for boolean like expressions on variables like the below, start of ternary operator <do>
 ```lua
 local Bool x = if Init() > 0 then return False : True; 
 ```
+- support for chained namespaces (like the below) <do>
+```lua
+namespace std {
+    namespace lib {
+        function LuaInit() {
+            print("std.lib.LuaInit(); is called");
+        }
+    }
+}
+
+-- so now u will be able to call the function as
+std.lib.LuaInit();
+```
+- also support for namespace aliasing <do>
+```lua
+-- this is to prevent weird issues in runtime execution regarding namespaces/functions/methods/callbacks or etc
+alias std_lib = std.lib;
+
+std_lib::LuaInit();
+```
+- add support for callbacks for functions <do>
 
 
 # LATER
