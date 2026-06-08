@@ -87,6 +87,7 @@ if x == {
 - data race condition prevention mechanics and atomic data handling
 - multi threaded interpretter runtime
 - coroutines
+- better error/exception messages like similar to elms error messages (like the message should like tell the user whats wrong in the program and actually point the line of code where the error occurred)
 
 
 # TODO When All Previous todos are done (End Goal)
