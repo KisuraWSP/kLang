@@ -82,6 +82,30 @@ function Add(a : Int, b : Int) : Int {
 	})
 }
 
+func TestLexerTokenizesFunctionMarkerTags(t *testing.T) {
+	input := `@deprecated("use NewAdd") function OldAdd() : Int { return 1; }`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenAt, Literal: "@"},
+		{Type: TokenIdentifier, Literal: "deprecated"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenString, Literal: "use NewAdd"},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenFunc, Literal: "function"},
+		{Type: TokenIdentifier, Literal: "OldAdd"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenInferReturn, Literal: ":"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenScopeBegin, Literal: "{"},
+		{Type: TokenReturn, Literal: "return"},
+		{Type: TokenInt, Literal: "1"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenScopeEnd, Literal: "}"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesLiteralsNamespaceCallsAndOperators(t *testing.T) {
 	input := `call random.RandomRange(-2, 3.5); local String text = "hello"; local Char letter = 'K'; unless True != False { return text; }`
 
@@ -276,11 +300,11 @@ func TestLexerReportsMalformedNumbers(t *testing.T) {
 }
 
 func TestLexerReportsIllegalUnknownCharacters(t *testing.T) {
-	tokens := New(`local Int value = @;`).Tokenize()
+	tokens := New(`local Int value = ?;`).Tokenize()
 
-	atToken := tokens[4]
-	if atToken.Type != TokenIllegal || atToken.Literal != "@" {
-		t.Fatalf("expected illegal @ token, got %#v", atToken)
+	unknownToken := tokens[4]
+	if unknownToken.Type != TokenIllegal || unknownToken.Literal != "?" {
+		t.Fatalf("expected illegal ? token, got %#v", unknownToken)
 	}
 }
 

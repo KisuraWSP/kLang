@@ -58,6 +58,18 @@ function Print(formatString : String, value : List[T]) : Int {
 function ToNumber(value : String) : Int {
     return value as Int;
 }
+
+-- deprecation marker tag
+-- Calling a deprecated function is allowed, but the checker reports a warning.
+@deprecated
+function OldToNumber(value : String) : Int {
+    return value as Int;
+}
+
+@deprecated("use ToNumber")
+function ParseNumber(value : String) : Int {
+    return value as Int;
+}
 ```
 
 3. Condition Handling

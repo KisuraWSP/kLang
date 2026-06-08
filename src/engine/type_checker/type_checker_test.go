@@ -77,6 +77,25 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "argument 1 expects Int, got String")
 }
 
+func TestCheckProgramWarnsOnDeprecatedFunctionCall(t *testing.T) {
+	program := programFromSource(`
+@deprecated("use NewValue")
+function OldValue() : Int {
+    return 1;
+}
+
+function Main() : Int {
+    return OldValue();
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected deprecated call to pass type check, got: %v", report.Errors)
+	}
+	assertTypeWarning(t, report, "function OldValue is deprecated: use NewValue")
+}
+
 func TestCheckProgramAcceptsMutableMapAndListIndexAssignments(t *testing.T) {
 	if !isKnownType("Map[String,Int]") {
 		t.Fatal("expected Map[String,Int] to be a known type")
@@ -364,4 +383,16 @@ func assertTypeError(t *testing.T, report Report, expected string) {
 	}
 
 	t.Fatalf("expected type error containing %q, got %#v", expected, report.Errors)
+}
+
+func assertTypeWarning(t *testing.T, report Report, expected string) {
+	t.Helper()
+
+	for _, warning := range report.Warnings {
+		if strings.Contains(warning.Message, expected) {
+			return
+		}
+	}
+
+	t.Fatalf("expected type warning containing %q, got %#v", expected, report.Warnings)
 }

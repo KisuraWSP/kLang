@@ -209,6 +209,7 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 		return fmt.Errorf("type check failed")
 	}
 	fmt.Printf("  type check: ok\n")
+	printTypeWarnings(typeReport)
 
 	parsedProgram := parser.ParseLoadedProgram(resolvedProgram)
 	if !parsedProgram.Passed() {
@@ -243,6 +244,12 @@ func printModuleErrors(report modulesystem.Report) {
 func printTypeErrors(report typechecker.Report) {
 	for _, err := range report.Errors {
 		fmt.Fprintf(os.Stderr, "  %s:%d: %s\n", err.File, err.Line, err.Message)
+	}
+}
+
+func printTypeWarnings(report typechecker.Report) {
+	for _, warning := range report.Warnings {
+		fmt.Printf("  warning: %s:%d: %s\n", warning.File, warning.Line, warning.Message)
 	}
 }
 

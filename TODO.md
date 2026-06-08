@@ -62,5 +62,4 @@ if x == {
 - data race condition prevention mechanics and atomic data handling
 - multi threaded interpretter runtime
 - coroutines
-- function deprecation marker tag
 - default values on functions and restricted generic types 

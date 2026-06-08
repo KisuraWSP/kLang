@@ -43,6 +43,24 @@ function Add(left : Int, right : Int) : Int {
 	}
 }
 
+func TestParseDeprecatedFunctionMarkerTag(t *testing.T) {
+	program, errors := Parse(`
+@deprecated("use Add")
+function OldAdd(left : Int, right : Int) : Int {
+    return left + right;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	if !fn.Deprecated || fn.DeprecationMessage != "use Add" {
+		t.Fatalf("expected deprecated function marker, got %#v", fn)
+	}
+}
+
 func TestParseGlobalGenericVariableDeclaration(t *testing.T) {
 	program, errors := Parse(`global mut Map[String, List[Int]] table = {};`)
 	assertNoParseErrors(t, errors)
@@ -288,7 +306,7 @@ func TestParseAssignmentExpressionTree(t *testing.T) {
 }
 
 func TestParseRejectsIllegalTokens(t *testing.T) {
-	_, errors := Parse(`local Int value = @;`)
+	_, errors := Parse(`local Int value = ?;`)
 	if len(errors) == 0 {
 		t.Fatal("expected parse errors for illegal token")
 	}

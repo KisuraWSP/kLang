@@ -17,8 +17,15 @@ type Error struct {
 	Message string
 }
 
+type Warning struct {
+	File    string
+	Line    int
+	Message string
+}
+
 type Report struct {
-	Errors []Error
+	Errors   []Error
+	Warnings []Warning
 }
 
 func (report Report) Passed() bool {
@@ -29,17 +36,20 @@ type TypeChecker struct {
 	functions map[string]functionSymbol
 	globals   map[string]variableSymbol
 	errors    []Error
+	warnings  []Warning
 	namespace string
 }
 
 type functionSymbol struct {
-	Name       string
-	Namespace  string
-	Params     []variableSymbol
-	ReturnType string
-	File       string
-	Line       int
-	Body       string
+	Name               string
+	Namespace          string
+	Params             []variableSymbol
+	ReturnType         string
+	Deprecated         bool
+	DeprecationMessage string
+	File               string
+	Line               int
+	Body               string
 }
 
 type variableSymbol struct {
@@ -84,7 +94,7 @@ func CheckProgram(program file.Program) Report {
 	}
 	checker.checkLexicalScopes(program)
 
-	return Report{Errors: checker.errors}
+	return Report{Errors: checker.errors, Warnings: checker.warnings}
 }
 
 func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string) {
@@ -303,15 +313,38 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 	}
 
 	fullName := namespace + name
+	deprecated, deprecationMessage := functionDeprecatedMarker(unit.Text, start)
 	return functionSymbol{
-		Name:       fullName,
-		Namespace:  namespace,
-		Params:     params,
-		ReturnType: returnType,
-		File:       unit.Path,
-		Line:       lineAt(unit.Text, start),
-		Body:       unit.Text[openBrace+1 : closeBrace],
+		Name:               fullName,
+		Namespace:          namespace,
+		Params:             params,
+		ReturnType:         returnType,
+		Deprecated:         deprecated,
+		DeprecationMessage: deprecationMessage,
+		File:               unit.Path,
+		Line:               lineAt(unit.Text, start),
+		Body:               unit.Text[openBrace+1 : closeBrace],
 	}, closeBrace + 1, nil
+}
+
+func functionDeprecatedMarker(input string, functionStart int) (bool, string) {
+	prefix := strings.TrimSpace(input[:functionStart])
+	if prefix == "" {
+		return false, ""
+	}
+
+	lineStart := strings.LastIndex(prefix, "\n")
+	marker := strings.TrimSpace(prefix[lineStart+1:])
+	if marker == "@deprecated" {
+		return true, ""
+	}
+	if strings.HasPrefix(marker, "@deprecated(") && strings.HasSuffix(marker, ")") {
+		message := strings.TrimSpace(marker[len("@deprecated(") : len(marker)-1])
+		if strings.HasPrefix(message, "\"") && strings.HasSuffix(message, "\"") && len(message) >= 2 {
+			return true, message[1 : len(message)-1]
+		}
+	}
+	return false, ""
 }
 
 func parseParams(input string) ([]variableSymbol, error) {
@@ -650,6 +683,13 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
 		return anyType
 	}
+	if fn.Deprecated {
+		message := fmt.Sprintf("function %s is deprecated", fn.Name)
+		if fn.DeprecationMessage != "" {
+			message += ": " + fn.DeprecationMessage
+		}
+		checker.addWarning(source, line, message)
+	}
 
 	if len(args) != len(fn.Params) {
 		checker.addError(source, line, fmt.Sprintf("function %s expects %d argument(s), got %d", name, len(fn.Params), len(args)))
@@ -679,6 +719,14 @@ func (checker *TypeChecker) lookupVariable(name string, locals map[string]variab
 
 func (checker *TypeChecker) addError(source string, line int, message string) {
 	checker.errors = append(checker.errors, Error{
+		File:    filepath.Clean(source),
+		Line:    line,
+		Message: message,
+	})
+}
+
+func (checker *TypeChecker) addWarning(source string, line int, message string) {
+	checker.warnings = append(checker.warnings, Warning{
 		File:    filepath.Clean(source),
 		Line:    line,
 		Message: message,

@@ -62,8 +62,10 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseImport()
 	case lexer.TokenNameSpace:
 		return parser.parseNamespace()
+	case lexer.TokenAt:
+		return parser.parseTag()
 	case lexer.TokenFunc:
-		return parser.parseFunction()
+		return parser.parseFunction(false, "")
 	case lexer.TokenExport:
 		return parser.parseExport()
 	case lexer.TokenGlobal:
@@ -110,7 +112,27 @@ func (parser *Parser) parseNamespace() Statement {
 	}
 }
 
-func (parser *Parser) parseFunction() Statement {
+func (parser *Parser) parseTag() Statement {
+	parser.consume(lexer.TokenAt, "expected '@'")
+	tag := parser.consume(lexer.TokenIdentifier, "expected marker tag name")
+	message := ""
+	if parser.match(lexer.TokenLeftBrace) {
+		value := parser.consume(lexer.TokenString, "expected marker tag message string")
+		message = value.Literal
+		parser.consume(lexer.TokenRightBrace, "expected ')' after marker tag message")
+	}
+	if tag.Literal != "deprecated" {
+		parser.addError(tag, fmt.Sprintf("unknown marker tag @%s", tag.Literal))
+		return nil
+	}
+	if !parser.check(lexer.TokenFunc) {
+		parser.addError(parser.current(), "@deprecated must be followed by a function declaration")
+		return nil
+	}
+	return parser.parseFunction(true, message)
+}
+
+func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string) Statement {
 	start := parser.consume(lexer.TokenFunc, "expected function")
 	name := parser.consume(lexer.TokenIdentifier, "expected function name")
 	parser.consume(lexer.TokenLeftBrace, "expected '(' after function name")
@@ -121,11 +143,13 @@ func (parser *Parser) parseFunction() Statement {
 	body := parser.parseBlock()
 
 	return FunctionStatement{
-		Pos:        positionFromToken(start),
-		Name:       name.Literal,
-		Params:     params,
-		ReturnType: returnType,
-		Body:       body,
+		Pos:                positionFromToken(start),
+		Name:               name.Literal,
+		Params:             params,
+		ReturnType:         returnType,
+		Deprecated:         deprecated,
+		DeprecationMessage: deprecationMessage,
+		Body:               body,
 	}
 }
 
@@ -266,7 +290,7 @@ func parseInlineStatements(tokens []lexer.Token) []Statement {
 func inlineStatementStart(tokens []lexer.Token) int {
 	for index, token := range tokens {
 		switch token.Type {
-		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport, lexer.TokenCall:
+		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport, lexer.TokenCall, lexer.TokenAt:
 			return index
 		}
 	}
