@@ -419,8 +419,12 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 	baseName := assignment.Target
 	targetType := ""
 
-	if bracket := strings.Index(baseName, "["); bracket != -1 {
-		baseName = strings.TrimSpace(baseName[:bracket])
+	if targetExpr, indexExpr, ok := splitTrailingIndexExpression(baseName); ok {
+		baseName = strings.TrimSpace(targetExpr)
+		if !isIdentifierPath(baseName) {
+			checker.addError(source, line, "indexed assignment target must start from a variable")
+			return
+		}
 		base, ok := checker.lookupVariable(baseName, locals)
 		if !ok {
 			checker.addError(source, line, fmt.Sprintf("cannot assign to unknown variable %q", baseName))
@@ -430,7 +434,8 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 			checker.addError(source, line, fmt.Sprintf("cannot mutate immutable variable %q", baseName))
 			return
 		}
-		targetType = indexedValueType(base.Type)
+		indexType := checker.inferExpression(indexExpr, locals, source, line)
+		targetType = checker.checkIndexedAssignmentTarget(base.Type, indexType, source, line)
 	} else {
 		variable, ok := checker.lookupVariable(baseName, locals)
 		if !ok {
@@ -520,18 +525,14 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		return targetType
 	}
 
-	if callName, args, ok := parseFunctionCall(expr); ok {
-		return checker.checkCall(callName, args, locals, source, line)
+	if targetExpr, indexExpr, ok := splitTrailingIndexExpression(expr); ok {
+		targetType := checker.inferExpression(targetExpr, locals, source, line)
+		indexType := checker.inferExpression(indexExpr, locals, source, line)
+		return checker.checkIndexExpression(targetType, indexType, source, line)
 	}
 
-	if bracket := findTopLevelChar(expr, '['); bracket != -1 && strings.HasSuffix(expr, "]") {
-		baseName := strings.TrimSpace(expr[:bracket])
-		variable, ok := checker.lookupVariable(baseName, locals)
-		if !ok {
-			checker.addError(source, line, fmt.Sprintf("unknown indexed variable %q", baseName))
-			return anyType
-		}
-		return indexedValueType(variable.Type)
+	if callName, args, ok := parseFunctionCall(expr); ok {
+		return checker.checkCall(callName, args, locals, source, line)
 	}
 
 	if variable, ok := checker.lookupVariable(expr, locals); ok {
@@ -543,6 +544,60 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 
 	checker.addError(source, line, fmt.Sprintf("unknown expression %q", expr))
 	return anyType
+}
+
+func (checker *TypeChecker) checkIndexExpression(targetType string, indexType string, source string, line int) string {
+	targetType = normalizeType(targetType)
+	indexType = normalizeType(indexType)
+	switch {
+	case targetType == anyType:
+		return anyType
+	case targetType == "String":
+		if !isIntegerIndexType(indexType) {
+			checker.addError(source, line, fmt.Sprintf("String index must be Int, got %s", indexType))
+		}
+		return "Char"
+	case strings.HasPrefix(targetType, "List[") && strings.HasSuffix(targetType, "]"):
+		if !isIntegerIndexType(indexType) {
+			checker.addError(source, line, fmt.Sprintf("List index must be Int, got %s", indexType))
+		}
+		return indexedValueType(targetType)
+	case strings.HasPrefix(targetType, "Map[") && strings.HasSuffix(targetType, "]"):
+		keyType, valueType, ok := indexedMapTypes(targetType)
+		if ok && !isAssignable(keyType, indexType) {
+			checker.addError(source, line, fmt.Sprintf("Map index expects %s, got %s", keyType, indexType))
+		}
+		return valueType
+	default:
+		checker.addError(source, line, fmt.Sprintf("%s is not indexable", targetType))
+		return anyType
+	}
+}
+
+func (checker *TypeChecker) checkIndexedAssignmentTarget(targetType string, indexType string, source string, line int) string {
+	targetType = normalizeType(targetType)
+	indexType = normalizeType(indexType)
+	switch {
+	case targetType == anyType:
+		return anyType
+	case targetType == "String":
+		checker.addError(source, line, "String indexes cannot be assigned")
+		return "Char"
+	case strings.HasPrefix(targetType, "List[") && strings.HasSuffix(targetType, "]"):
+		if !isIntegerIndexType(indexType) {
+			checker.addError(source, line, fmt.Sprintf("List index must be Int, got %s", indexType))
+		}
+		return indexedValueType(targetType)
+	case strings.HasPrefix(targetType, "Map[") && strings.HasSuffix(targetType, "]"):
+		keyType, valueType, ok := indexedMapTypes(targetType)
+		if ok && !isAssignable(keyType, indexType) {
+			checker.addError(source, line, fmt.Sprintf("Map index expects %s, got %s", keyType, indexType))
+		}
+		return valueType
+	default:
+		checker.addError(source, line, fmt.Sprintf("%s is not index-assignable", targetType))
+		return anyType
+	}
 }
 
 func (checker *TypeChecker) inferListLiteral(expr string, locals map[string]variableSymbol, source string, line int) string {
@@ -874,13 +929,32 @@ func indexedValueType(typeName string) string {
 	if strings.HasPrefix(typeName, "List[") && strings.HasSuffix(typeName, "]") {
 		return typeName[5 : len(typeName)-1]
 	}
+	if typeName == "String" {
+		return "Char"
+	}
 	if strings.HasPrefix(typeName, "Map[") && strings.HasSuffix(typeName, "]") {
-		parts := splitTopLevel(typeName[4:len(typeName)-1], ',')
-		if len(parts) == 2 {
-			return parts[1]
+		_, valueType, ok := indexedMapTypes(typeName)
+		if ok {
+			return valueType
 		}
 	}
 	return anyType
+}
+
+func indexedMapTypes(typeName string) (string, string, bool) {
+	if !strings.HasPrefix(typeName, "Map[") || !strings.HasSuffix(typeName, "]") {
+		return "", "", false
+	}
+	parts := splitTopLevel(typeName[4:len(typeName)-1], ',')
+	if len(parts) != 2 {
+		return "", "", false
+	}
+	return normalizeType(parts[0]), normalizeType(parts[1]), true
+}
+
+func isIntegerIndexType(typeName string) bool {
+	typeName = normalizeType(typeName)
+	return typeName == anyType || typeName == "Int" || typeName == "UInt"
 }
 
 func isAssignable(target string, source string) bool {
@@ -967,6 +1041,53 @@ func parseFunctionCall(expr string) (string, []string, bool) {
 		args = splitTopLevel(inner, ',')
 	}
 	return name, args, true
+}
+
+func splitTrailingIndexExpression(expr string) (string, string, bool) {
+	expr = strings.TrimSpace(expr)
+	if !strings.HasSuffix(expr, "]") {
+		return "", "", false
+	}
+
+	depth := 0
+	open := -1
+	close := -1
+	inString := false
+	inChar := false
+	for index := 0; index < len(expr); index++ {
+		current := expr[index]
+		if current == '"' && !inChar {
+			inString = !inString
+		}
+		if current == '\'' && !inString {
+			inChar = !inChar
+		}
+		if inString || inChar {
+			continue
+		}
+		switch current {
+		case '[':
+			if depth == 0 {
+				open = index
+			}
+			depth++
+		case ']':
+			depth--
+			if depth < 0 {
+				return "", "", false
+			}
+			if depth == 0 {
+				close = index
+			}
+		}
+	}
+	if depth != 0 || open <= 0 || close != len(expr)-1 {
+		return "", "", false
+	}
+
+	target := strings.TrimSpace(expr[:open])
+	index := strings.TrimSpace(expr[open+1 : close])
+	return target, index, target != "" && index != ""
 }
 
 func looksLikeCall(stmt string) bool {

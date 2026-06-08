@@ -363,7 +363,7 @@ func valueString(value Value) string {
 func valueLen(value Value) (int, error) {
 	switch value.Kind {
 	case ValueString:
-		return len(value.Data.(string)), nil
+		return len([]rune(value.Data.(string))), nil
 	case ValueList:
 		return len(value.Data.([]Value)), nil
 	case ValueMap:

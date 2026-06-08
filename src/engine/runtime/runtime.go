@@ -746,6 +746,16 @@ func (runtime *Runtime) evalIndex(expr parser.IndexExpression, env *Environment)
 		return NullValue(), err
 	}
 	switch target.Kind {
+	case ValueString:
+		position, err := asIndex(index)
+		if err != nil {
+			return NullValue(), err
+		}
+		runes := []rune(target.Data.(string))
+		if position < 0 || position >= len(runes) {
+			return NullValue(), Error{Message: fmt.Sprintf("string index %d is out of bounds", position)}
+		}
+		return CharValue(string(runes[position])), nil
 	case ValueList:
 		items := target.Data.([]Value)
 		position, err := asIndex(index)

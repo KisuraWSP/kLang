@@ -25,6 +25,14 @@ global mut Int sharedCounter = 0;
 -- cast any expression with "as Type"; this works in variables, returns, calls, and loop headers.
 local Float ratio = count as Float;
 local String label = ratio as String;
+
+-- indexing
+-- String and List indexes use Int positions. String indexing returns Char.
+local Char firstChar = "hello"[0];
+local Int firstItem = itemsList[0];
+
+-- Map indexes use the map key type.
+local Int total = scores["total"];
 ```
 
 2. Functions

@@ -159,6 +159,22 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesStringIndexing(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local String text = "hey";
+    if text[0] == 'h' and text[1] == 'e' and len(text) == 3 {
+        return 1;
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected string indexing program to return 1, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeRejectsImmutableMutation(t *testing.T) {
 	_, err := runSourceWithError(`
 function Main() : Int {
@@ -206,6 +222,25 @@ function Main() : Int {
 }
 `)
 	assertRuntimeErrorContains(t, err, `map key "missing" does not exist`)
+
+	_, err = runParsedSourceWithError(`
+function Main() : Int {
+    local String text = "hey";
+    return text[3] as Int;
+}
+`)
+	assertRuntimeErrorContains(t, err, "string index 3 is out of bounds")
+}
+
+func TestRuntimeRejectsStringIndexAssignment(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local mut String text = "hey";
+    text[0] = 'H';
+    return 0;
+}
+`)
+	assertRuntimeErrorContains(t, err, "String is not index-assignable")
 }
 
 func TestRuntimeRejectsBreakOutsideLoop(t *testing.T) {

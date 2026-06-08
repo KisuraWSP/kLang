@@ -109,6 +109,58 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsStringListAndMapIndexing(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local String text = "hey";
+    local Char first = text[0];
+    local List[Int] values = [10, 20];
+    local Int value = values[1];
+    local mut Map[String, Int] totals = {};
+    totals["two"] = 2;
+    local Int mapValue = totals["two"];
+    if first == 'h' {
+        return value + mapValue;
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected indexing type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsInvalidIndexing(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local String text = "hey";
+    local Char first = text["bad"];
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(program), "String index must be Int, got String")
+
+	program = programFromSource(`
+function Main() : Int {
+    local Int number = 1;
+    local Int value = number[0];
+    return value;
+}
+`)
+	assertTypeError(t, CheckProgram(program), "Int is not indexable")
+
+	program = programFromSource(`
+function Main() : Int {
+    local mut String text = "hey";
+    text[0] = 'H';
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(program), "String indexes cannot be assigned")
+}
+
 func TestCheckProgramAcceptsBlockShadowing(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {
