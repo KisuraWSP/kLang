@@ -43,6 +43,31 @@ function Add(left : Int, right : Int) : Int {
 	}
 }
 
+func TestParseDefaultParametersRestrictedGenericsAndConditionalExpression(t *testing.T) {
+	program, errors := Parse(`
+function Pick(value : T:Int|Float = 1) : T {
+    local Bool ok = if value > 0 then return False : True;
+    return value;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	if len(fn.Params) != 1 || fn.Params[0].Type != "T:Int|Float" || fn.Params[0].Default.Node == nil {
+		t.Fatalf("unexpected parameter: %#v", fn.Params)
+	}
+	decl, ok := fn.Body[0].(VariableStatement)
+	if !ok {
+		t.Fatalf("expected variable declaration, got %T", fn.Body[0])
+	}
+	if _, ok := decl.Expression.Node.(ConditionalExpression); !ok {
+		t.Fatalf("expected conditional expression, got %T", decl.Expression.Node)
+	}
+}
+
 func TestParseDeprecatedFunctionMarkerTag(t *testing.T) {
 	program, errors := Parse(`
 @deprecated("use Add")

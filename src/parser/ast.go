@@ -46,8 +46,9 @@ type FunctionStatement struct {
 }
 
 type Parameter struct {
-	Name string
-	Type string
+	Name    string
+	Type    string
+	Default Expression
 }
 
 type VariableStatement struct {
@@ -150,6 +151,12 @@ type NullCheckExpression struct {
 	Value ExpressionNode
 }
 
+type ConditionalExpression struct {
+	Condition   ExpressionNode
+	Consequence ExpressionNode
+	Alternative ExpressionNode
+}
+
 type ListExpression struct {
 	Items []ExpressionNode
 }
@@ -200,16 +207,17 @@ func (stmt ExpressionStatement) Position() Position { return stmt.Pos }
 func (stmt IfStatement) Position() Position         { return stmt.Pos }
 func (stmt LoopStatement) Position() Position       { return stmt.Pos }
 
-func (expr IdentifierExpression) expressionNode() {}
-func (expr LiteralExpression) expressionNode()    {}
-func (expr UnaryExpression) expressionNode()      {}
-func (expr BinaryExpression) expressionNode()     {}
-func (expr CallExpression) expressionNode()       {}
-func (expr IndexExpression) expressionNode()      {}
-func (expr SelectorExpression) expressionNode()   {}
-func (expr CastExpression) expressionNode()       {}
-func (expr NullCheckExpression) expressionNode()  {}
-func (expr ListExpression) expressionNode()       {}
+func (expr IdentifierExpression) expressionNode()  {}
+func (expr LiteralExpression) expressionNode()     {}
+func (expr UnaryExpression) expressionNode()       {}
+func (expr BinaryExpression) expressionNode()      {}
+func (expr CallExpression) expressionNode()        {}
+func (expr IndexExpression) expressionNode()       {}
+func (expr SelectorExpression) expressionNode()    {}
+func (expr CastExpression) expressionNode()        {}
+func (expr NullCheckExpression) expressionNode()   {}
+func (expr ConditionalExpression) expressionNode() {}
+func (expr ListExpression) expressionNode()        {}
 func (expr ListComprehensionExpression) expressionNode() {
 }
 func (expr MapExpression) expressionNode()   {}

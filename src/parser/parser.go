@@ -163,7 +163,11 @@ func (parser *Parser) parseParameters() []Parameter {
 		name := parser.consume(lexer.TokenIdentifier, "expected parameter name")
 		parser.consume(lexer.TokenInferReturn, "expected ':' after parameter name")
 		typeName := parser.parseType()
-		params = append(params, Parameter{Name: name.Literal, Type: typeName})
+		var defaultExpr Expression
+		if parser.match(lexer.TokenAssign) {
+			defaultExpr = parser.parseExpressionUntil(lexer.TokenComma, lexer.TokenRightBrace)
+		}
+		params = append(params, Parameter{Name: name.Literal, Type: typeName, Default: defaultExpr})
 
 		if !parser.match(lexer.TokenComma) {
 			break
@@ -197,8 +201,10 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 	mutable := parser.match(lexer.TokenMut)
 	typeName := parser.parseType()
 	name := parser.consume(lexer.TokenIdentifier, "expected variable name")
-	parser.consume(lexer.TokenAssign, "expected '=' in variable declaration")
-	expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
+	var expr Expression
+	if parser.match(lexer.TokenAssign) {
+		expr = parser.parseExpressionUntil(lexer.TokenSemicolon)
+	}
 	parser.consumeOptionalSemicolon()
 
 	return VariableStatement{
@@ -365,7 +371,8 @@ func (parser *Parser) parseType() string {
 	depth := 0
 	for !parser.atEnd() {
 		token := parser.current()
-		if depth == 0 && (token.Type == lexer.TokenIdentifier || token.Type == lexer.TokenBool) && len(parts) > 0 {
+		if depth == 0 && (token.Type == lexer.TokenIdentifier || token.Type == lexer.TokenBool) && len(parts) > 0 &&
+			parts[len(parts)-1] != ":" && parts[len(parts)-1] != "|" {
 			break
 		}
 		if depth == 0 && (token.Type == lexer.TokenComma || token.Type == lexer.TokenRightBrace ||
@@ -375,6 +382,10 @@ func (parser *Parser) parseType() string {
 
 		switch token.Type {
 		case lexer.TokenIdentifier:
+			parts = append(parts, token.Literal)
+		case lexer.TokenInferReturn:
+			parts = append(parts, token.Literal)
+		case lexer.TokenTypeUnion:
 			parts = append(parts, token.Literal)
 		case lexer.TokenLeftSquareBrace:
 			depth++
@@ -399,7 +410,9 @@ func (parser *Parser) parseType() string {
 			return strings.Join(parts, "")
 		}
 		parser.advance()
-		if depth == 0 && len(parts) > 0 && !parser.check(lexer.TokenLeftSquareBrace) {
+		if depth == 0 && len(parts) > 0 && !parser.check(lexer.TokenLeftSquareBrace) &&
+			!parser.check(lexer.TokenInferReturn) && !parser.check(lexer.TokenTypeUnion) &&
+			parts[len(parts)-1] != ":" && parts[len(parts)-1] != "|" {
 			break
 		}
 	}

@@ -170,6 +170,9 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 func (checker *TypeChecker) checkFunctionScope(fn parser.FunctionStatement, parent *lexicalScope, namespace string, source string) {
 	functionScope := newLexicalScope(parent)
 	for _, param := range fn.Params {
+		if param.Default.Node != nil {
+			checker.checkScopeExpression(param.Default.Node, functionScope, namespace, source, fn.Pos.Line)
+		}
 		if !functionScope.define(variableSymbol{Name: param.Name, Type: normalizeType(param.Type), File: source, Line: fn.Pos.Line}) {
 			checker.addError(source, fn.Pos.Line, fmt.Sprintf("parameter %q is already defined", param.Name))
 		}
@@ -280,6 +283,10 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 		checker.checkScopeExpression(current.Value, scope, namespace, source, line)
 	case parser.NullCheckExpression:
 		checker.checkScopeExpression(current.Value, scope, namespace, source, line)
+	case parser.ConditionalExpression:
+		checker.checkScopeExpression(current.Condition, scope, namespace, source, line)
+		checker.checkScopeExpression(current.Consequence, scope, namespace, source, line)
+		checker.checkScopeExpression(current.Alternative, scope, namespace, source, line)
 	case parser.ListExpression:
 		for _, item := range current.Items {
 			checker.checkScopeExpression(item, scope, namespace, source, line)

@@ -56,6 +56,7 @@ type variableSymbol struct {
 	Name    string
 	Type    string
 	Mutable bool
+	Default string
 	File    string
 	Line    int
 }
@@ -157,9 +158,11 @@ func (checker *TypeChecker) collectGlobals(unit sourceUnit) {
 			continue
 		}
 
-		exprType := checker.inferExpression(decl.Expression, map[string]variableSymbol{}, unit.Path, decl.Line)
-		if !isAssignable(decl.Type, exprType) {
-			checker.addError(unit.Path, decl.Line, fmt.Sprintf("cannot assign %s to global %s %s", exprType, decl.Type, decl.Name))
+		if decl.Expression != "" {
+			exprType := checker.inferExpression(decl.Expression, map[string]variableSymbol{}, unit.Path, decl.Line)
+			if !isAssignable(decl.Type, exprType) {
+				checker.addError(unit.Path, decl.Line, fmt.Sprintf("cannot assign %s to global %s %s", exprType, decl.Type, decl.Name))
+			}
 		}
 
 		checker.globals[decl.Name] = variableSymbol{
@@ -203,6 +206,15 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 	for loopName := range collectEvaluationAssignmentNames(fn.Body) {
 		locals[loopName] = variableSymbol{Name: loopName, Type: anyType, Mutable: true}
 	}
+	for _, param := range fn.Params {
+		if param.Default == "" {
+			continue
+		}
+		defaultType := checker.inferExpression(param.Default, locals, fn.File, fn.Line)
+		if !isAssignable(param.Type, defaultType) {
+			checker.addError(fn.File, fn.Line, fmt.Sprintf("parameter %s default expects %s, got %s", param.Name, param.Type, defaultType))
+		}
+	}
 
 	body := maskNestedFunctions(fn.Body)
 	for _, stmt := range splitStatements(body) {
@@ -213,9 +225,11 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 		}
 
 		if decl, ok := parseVariableDeclaration(current, "local"); ok {
-			exprType := checker.inferExpression(decl.Expression, locals, fn.File, line)
-			if !isAssignable(decl.Type, exprType) {
-				checker.addError(fn.File, line, fmt.Sprintf("cannot assign %s to local %s %s", exprType, decl.Type, decl.Name))
+			if decl.Expression != "" {
+				exprType := checker.inferExpression(decl.Expression, locals, fn.File, line)
+				if !isAssignable(decl.Type, exprType) {
+					checker.addError(fn.File, line, fmt.Sprintf("cannot assign %s to local %s %s", exprType, decl.Type, decl.Name))
+				}
 			}
 
 			locals[decl.Name] = variableSymbol{
@@ -355,19 +369,27 @@ func parseParams(input string) ([]variableSymbol, error) {
 	parts := splitTopLevel(input, ',')
 	params := make([]variableSymbol, 0, len(parts))
 	for _, part := range parts {
-		pieces := splitTopLevel(part, ':')
-		if len(pieces) != 2 {
+		defaultValue := ""
+		if assignIndex := findTopLevelOperator(part, []string{"="}); assignIndex != -1 {
+			defaultValue = strings.TrimSpace(part[assignIndex+1:])
+			part = strings.TrimSpace(part[:assignIndex])
+			if defaultValue == "" {
+				return nil, fmt.Errorf("function parameter %q has an empty default value", strings.TrimSpace(part))
+			}
+		}
+		colon := strings.Index(part, ":")
+		if colon == -1 {
 			return nil, fmt.Errorf("function parameter %q must be written as name : Type", strings.TrimSpace(part))
 		}
-		name := strings.TrimSpace(pieces[0])
-		typeName := normalizeType(pieces[1])
+		name := strings.TrimSpace(part[:colon])
+		typeName := normalizeType(part[colon+1:])
 		if name == "" || typeName == "" {
 			return nil, fmt.Errorf("function parameter %q must be written as name : Type", strings.TrimSpace(part))
 		}
 		if !isKnownType(typeName) {
 			return nil, fmt.Errorf("function parameter %s uses unknown type %s", name, typeName)
 		}
-		params = append(params, variableSymbol{Name: name, Type: typeName})
+		params = append(params, variableSymbol{Name: name, Type: typeName, Default: defaultValue})
 	}
 	return params, nil
 }
@@ -391,12 +413,12 @@ func parseVariableDeclaration(stmt string, scope string) (variableDeclaration, b
 	}
 
 	assignIndex := findTopLevelOperator(rest, []string{"="})
-	if assignIndex == -1 {
-		return variableDeclaration{}, false
+	left := strings.TrimSpace(rest)
+	expr := ""
+	if assignIndex != -1 {
+		left = strings.TrimSpace(rest[:assignIndex])
+		expr = strings.TrimSpace(rest[assignIndex+1:])
 	}
-
-	left := strings.TrimSpace(rest[:assignIndex])
-	expr := strings.TrimSpace(rest[assignIndex+1:])
 	typeName, name, ok := splitTypeAndName(left)
 	if !ok || !isKnownType(typeName) {
 		return variableDeclaration{}, false
@@ -508,6 +530,19 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	expr = strings.TrimSpace(strings.TrimPrefix(expr, "call "))
 	expr = trimOuterParens(expr)
 	if expr == "" {
+		return anyType
+	}
+	if condition, consequence, alternative, ok := splitConditionalExpression(expr); ok {
+		checker.inferExpression(condition, locals, source, line)
+		consequenceType := checker.inferExpression(consequence, locals, source, line)
+		alternativeType := checker.inferExpression(alternative, locals, source, line)
+		if isAssignable(consequenceType, alternativeType) {
+			return consequenceType
+		}
+		if isAssignable(alternativeType, consequenceType) {
+			return alternativeType
+		}
+		checker.addError(source, line, fmt.Sprintf("conditional branches have incompatible types %s and %s", consequenceType, alternativeType))
 		return anyType
 	}
 
@@ -823,8 +858,9 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		checker.addWarning(source, line, message)
 	}
 
-	if len(args) != len(fn.Params) {
-		checker.addError(source, line, fmt.Sprintf("function %s expects %d argument(s), got %d", name, len(fn.Params), len(args)))
+	required := requiredParamCount(fn.Params)
+	if len(args) < required || len(args) > len(fn.Params) {
+		checker.addError(source, line, fmt.Sprintf("function %s expects %d to %d argument(s), got %d", name, required, len(fn.Params), len(args)))
 		return fn.ReturnType
 	}
 
@@ -839,10 +875,25 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 	return checker.inferGenericCallReturn(fn, args, locals, source, line)
 }
 
+func requiredParamCount(params []variableSymbol) int {
+	count := len(params)
+	for count > 0 && params[count-1].Default != "" {
+		count--
+	}
+	return count
+}
+
 func (checker *TypeChecker) inferGenericCallReturn(fn functionSymbol, args []string, locals map[string]variableSymbol, source string, line int) string {
 	solver := newConstraintSolver()
-	for index, arg := range args {
-		argType := checker.inferExpression(arg, locals, source, line)
+	for index, param := range fn.Params {
+		if index >= len(args) && param.Default == "" {
+			continue
+		}
+		expr := param.Default
+		if index < len(args) {
+			expr = args[index]
+		}
+		argType := checker.inferExpression(expr, locals, source, line)
 		solver.unify(fn.Params[index].Type, argType)
 	}
 	return solver.apply(fn.ReturnType)
@@ -1100,6 +1151,14 @@ func normalizeType(input string) string {
 }
 
 func isKnownType(typeName string) bool {
+	if _, allowed, ok := restrictedGenericType(typeName); ok {
+		for _, option := range allowed {
+			if !isKnownType(option) {
+				return false
+			}
+		}
+		return true
+	}
 	if typeName == anyType || typeName == "Int" || typeName == "UInt" || typeName == "String" ||
 		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" {
 		return true
@@ -1182,6 +1241,14 @@ func isAssignable(target string, source string) bool {
 	if solver.unify(target, source) {
 		return true
 	}
+	if _, allowed, ok := restrictedGenericType(target); ok {
+		for _, option := range allowed {
+			if isAssignable(option, source) {
+				return true
+			}
+		}
+		return false
+	}
 	if target == anyType || source == anyType {
 		return true
 	}
@@ -1261,6 +1328,20 @@ func (solver *constraintSolver) bind(name string, typeName string) bool {
 	if typeName == "" {
 		return false
 	}
+	key := typeVariableKey(name)
+	if _, allowed, ok := restrictedGenericType(name); ok {
+		allowedMatch := false
+		for _, option := range allowed {
+			if isAssignable(option, typeName) {
+				allowedMatch = true
+				break
+			}
+		}
+		if !allowedMatch {
+			return false
+		}
+		name = key
+	}
 	if current, exists := solver.substitutions[name]; exists {
 		return solver.unify(current, typeName)
 	}
@@ -1284,7 +1365,37 @@ func (solver *constraintSolver) apply(typeName string) string {
 }
 
 func isTypeVariable(typeName string) bool {
-	return typeName == anyType
+	if typeName == anyType {
+		return true
+	}
+	_, _, ok := restrictedGenericType(typeName)
+	return ok
+}
+
+func typeVariableKey(typeName string) string {
+	name, _, ok := restrictedGenericType(typeName)
+	if ok {
+		return name
+	}
+	return typeName
+}
+
+func restrictedGenericType(typeName string) (string, []string, bool) {
+	typeName = normalizeType(typeName)
+	if !strings.HasPrefix(typeName, anyType+":") {
+		return "", nil, false
+	}
+	parts := strings.Split(typeName[len(anyType)+1:], "|")
+	if len(parts) == 0 {
+		return "", nil, false
+	}
+	for index, part := range parts {
+		parts[index] = normalizeType(part)
+		if parts[index] == "" {
+			return "", nil, false
+		}
+	}
+	return anyType, parts, true
 }
 
 func splitGenericType(typeName string) (string, []string, bool) {
@@ -1441,6 +1552,30 @@ func splitListComprehensionLiteral(inner string) (string, string, string, string
 		return "", "", "", "", false
 	}
 	return valueExpr, iterator, iterableExpr, conditionExpr, true
+}
+
+func splitConditionalExpression(expr string) (string, string, string, bool) {
+	expr = strings.TrimSpace(expr)
+	if !strings.HasPrefix(expr, "if ") {
+		return "", "", "", false
+	}
+	thenIndex := findTopLevelOperator(expr, []string{" then "})
+	if thenIndex <= len("if ") {
+		return "", "", "", false
+	}
+	afterThen := strings.TrimSpace(expr[thenIndex+len(" then "):])
+	colonIndex := findTopLevelOperator(afterThen, []string{":"})
+	if colonIndex <= 0 {
+		return "", "", "", false
+	}
+	condition := strings.TrimSpace(expr[len("if "):thenIndex])
+	consequence := trimExpressionReturn(strings.TrimSpace(afterThen[:colonIndex]))
+	alternative := trimExpressionReturn(strings.TrimSpace(afterThen[colonIndex+1:]))
+	return condition, consequence, alternative, condition != "" && consequence != "" && alternative != ""
+}
+
+func trimExpressionReturn(expr string) string {
+	return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(expr), "return "))
 }
 
 func isSimpleIdentifier(input string) bool {

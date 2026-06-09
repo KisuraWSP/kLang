@@ -154,6 +154,52 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesConditionalExpressionsDefaultsAndZeroValues(t *testing.T) {
+	result := runParsedSource(t, `
+function Init() : Int {
+    return 1;
+}
+
+function AddDefault(value : Int = 5, extra : Int = 2) : Int {
+    return value + extra;
+}
+
+function Main() : Int {
+    local Int zeroInt;
+    local String zeroString;
+    local Bool flag = if Init() > 0 then return False : True;
+    local List[Int] values;
+    local Option[Int] maybe;
+    if not flag and zeroString == "" and not maybe {
+        return zeroInt + AddDefault() + len(values);
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 7 {
+		t.Fatalf("expected defaults/zero/conditional program to return 7, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesRestrictedGenericParameters(t *testing.T) {
+	result := runParsedSource(t, `
+function IdentityNumber(value : T:Int|Float = 3) : T {
+    return value;
+}
+
+function Main() : Int {
+    local Int first = IdentityNumber();
+    local Float second = IdentityNumber(2.5);
+    return first + second as Int;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 5 {
+		t.Fatalf("expected restricted generic program to return 5, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesOptionAndResultBuiltins(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {

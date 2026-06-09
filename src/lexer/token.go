@@ -27,6 +27,7 @@ const (
 	TokenExponent       // **
 	TokenFloorDivision  // //
 	TokenPipe           // |>
+	TokenTypeUnion      // |
 
 	TokenAssign      // =
 	TokenPlusEqual   // +=
@@ -65,6 +66,7 @@ const (
 	TokenNot        // not
 	TokenFunc       // function
 	TokenIf         // if
+	TokenThen       // then
 	TokenElse       // else
 	TokenUnless     // unless
 	TokenFor        // for
@@ -100,6 +102,7 @@ var Keywords = map[string]TokenType{
 	"not":       TokenNot,
 	"function":  TokenFunc,
 	"if":        TokenIf,
+	"then":      TokenThen,
 	"else":      TokenElse,
 	"unless":    TokenUnless,
 	"for":       TokenFor,
@@ -130,6 +133,7 @@ var Operators = map[string]TokenType{
 	"**": TokenExponent,
 	"//": TokenFloorDivision,
 	"|>": TokenPipe,
+	"|":  TokenTypeUnion,
 	"=":  TokenAssign,
 	"+=": TokenPlusEqual,
 	"-=": TokenMinusEqual,

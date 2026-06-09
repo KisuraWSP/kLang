@@ -136,6 +136,65 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsConditionalExpressionsDefaultsAndZeroValues(t *testing.T) {
+	program := programFromSource(`
+function Init() : Int {
+    return 1;
+}
+
+function Flag(value : Int = 1) : Bool {
+    local Bool result = if Init() > 0 then return False : True;
+    return result;
+}
+
+function Main() : Int {
+    local Int zeroInt;
+    local String zeroString;
+    local Bool flag = Flag();
+    if flag or zeroString == "" {
+        return zeroInt + 1;
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected conditional/default/zero type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsRestrictedGenericTypes(t *testing.T) {
+	program := programFromSource(`
+function IdentityNumber(value : T:Int|Float = 1) : T {
+    return value;
+}
+
+function Main() : Int {
+    local Int value = IdentityNumber();
+    local Float other = IdentityNumber(1.5);
+    return value + other as Int;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected restricted generic type check to pass, got: %v", report.Errors)
+	}
+
+	reject := programFromSource(`
+function IdentityNumber(value : T:Int|Float) : T {
+    return value;
+}
+
+function Main() : Int {
+    local String value = IdentityNumber("bad");
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(reject), "argument 1 expects T:Int|Float, got String")
+}
+
 func TestCheckProgramWarnsOnDeprecatedFunctionCall(t *testing.T) {
 	program := programFromSource(`
 @deprecated("use NewValue")

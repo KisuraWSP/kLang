@@ -5,6 +5,12 @@
 -- local variable
 local Int x = 10;
 
+-- zero initialized variables
+-- If no initializer is given, the declared type receives its zero value.
+local Int zeroCount;
+local String emptyText;
+local List[Int] emptyItems;
+
 -- local mutable variable
 local mut String xz = "string";
 xz = "updated";
@@ -70,6 +76,10 @@ local Bool hasValue = MaybeValue()?;
 -- not binds tighter than and, and binds tighter than xor, and xor binds tighter than or.
 local Bool shouldRun = not failed and active xor retrying or fallback;
 
+-- conditional expression
+-- "return" after then is accepted as expression sugar.
+local Bool ready = if Init() > 0 then return False : True;
+
 -- pipe operator
 -- The left value is passed as the first argument to the function on the right.
 local Int piped = 2 |> Add(3) |> Double;
@@ -124,6 +134,16 @@ function Add(left : Int, right : Int) : Int {
 
 function Double(value : Int) : Int {
     return value * 2;
+}
+
+-- default parameters and restricted generic types
+-- T:Int|Float accepts only Int-compatible or Float-compatible values.
+function IdentityNumber(value : T:Int|Float = 1) : T {
+    return value;
+}
+
+function AddDefault(left : Int = 1, right : Int = 2) : Int {
+    return left + right;
 }
 
 -- deprecation marker tag

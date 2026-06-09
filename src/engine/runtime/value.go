@@ -66,6 +66,49 @@ func SIMDValue(lanes []Value) Value {
 	return Value{Kind: ValueSIMD, Data: SIMDData{Lanes: copied}}
 }
 
+func zeroValue(typeName string) Value {
+	typeName = strings.TrimSpace(typeName)
+	switch typeName {
+	case "Int", "UInt":
+		return IntValue(0)
+	case "Float":
+		return FloatValue(0)
+	case "String":
+		return StringValue("")
+	case "Bool":
+		return BoolValue(false)
+	case "Char":
+		return CharValue("")
+	case "Complex":
+		return ComplexValue(0, 0)
+	case "T":
+		return NullValue()
+	}
+	if strings.HasPrefix(typeName, "List[") {
+		return Value{Kind: ValueList, Data: []Value{}}
+	}
+	if strings.HasPrefix(typeName, "Map[") {
+		return Value{Kind: ValueMap, Data: map[string]Value{}}
+	}
+	if strings.HasPrefix(typeName, "Option[") {
+		return OptionNoneValue()
+	}
+	if strings.HasPrefix(typeName, "Result[") {
+		okType, _, ok := resultTypes(typeName)
+		if ok {
+			return ResultOkValue(zeroValue(okType))
+		}
+		return ResultOkValue(NullValue())
+	}
+	if strings.HasPrefix(typeName, "SIMD[") {
+		return SIMDValue(nil)
+	}
+	if _, allowed, ok := restrictedGenericRuntimeType(typeName); ok && len(allowed) > 0 {
+		return zeroValue(allowed[0])
+	}
+	return NullValue()
+}
+
 func cloneValue(value Value) Value {
 	switch value.Kind {
 	case ValueList:
@@ -630,6 +673,14 @@ func mapKey(value Value) (string, error) {
 
 func valueMatchesType(value Value, typeName string) bool {
 	typeName = strings.TrimSpace(typeName)
+	if _, allowed, ok := restrictedGenericRuntimeType(typeName); ok {
+		for _, option := range allowed {
+			if valueMatchesType(value, option) {
+				return true
+			}
+		}
+		return false
+	}
 	switch {
 	case typeName == "" || typeName == "T":
 		return true
@@ -682,6 +733,21 @@ func valueMatchesType(value Value, typeName string) bool {
 	default:
 		return true
 	}
+}
+
+func restrictedGenericRuntimeType(typeName string) (string, []string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	if !strings.HasPrefix(typeName, "T:") {
+		return "", nil, false
+	}
+	parts := strings.Split(typeName[len("T:"):], "|")
+	for index, part := range parts {
+		parts[index] = strings.TrimSpace(part)
+		if parts[index] == "" {
+			return "", nil, false
+		}
+	}
+	return "T", parts, true
 }
 
 func listElementType(typeName string) (string, bool) {

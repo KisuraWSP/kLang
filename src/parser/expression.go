@@ -28,6 +28,9 @@ func parseExpressionNode(tokens []lexer.Token) ExpressionNode {
 	if len(tokens) == 0 {
 		return nil
 	}
+	if conditional, ok := parseConditionalExpression(tokens); ok {
+		return conditional
+	}
 
 	parser := &expressionParser{tokens: tokens}
 	node := parser.parseExpression(precedenceLowest)
@@ -35,6 +38,39 @@ func parseExpressionNode(tokens []lexer.Token) ExpressionNode {
 		return RawExpression{Tokens: tokens}
 	}
 	return node
+}
+
+func parseConditionalExpression(tokens []lexer.Token) (ExpressionNode, bool) {
+	if len(tokens) < 6 || tokens[0].Type != lexer.TokenIf {
+		return nil, false
+	}
+	thenIndex := findTopLevelExpressionToken(tokens, lexer.TokenThen, 1)
+	if thenIndex <= 1 {
+		return nil, false
+	}
+	separatorIndex := findTopLevelExpressionToken(tokens, lexer.TokenInferReturn, thenIndex+1)
+	if separatorIndex <= thenIndex+1 || separatorIndex+1 >= len(tokens) {
+		return nil, false
+	}
+
+	consequenceTokens := trimBranchReturn(tokens[thenIndex+1 : separatorIndex])
+	alternativeTokens := trimBranchReturn(tokens[separatorIndex+1:])
+	if len(consequenceTokens) == 0 || len(alternativeTokens) == 0 {
+		return nil, false
+	}
+	return ConditionalExpression{
+		Condition:   parseExpressionNode(tokens[1:thenIndex]),
+		Consequence: parseExpressionNode(consequenceTokens),
+		Alternative: parseExpressionNode(alternativeTokens),
+	}, true
+}
+
+func trimBranchReturn(tokens []lexer.Token) []lexer.Token {
+	tokens = trimExpressionTokens(tokens)
+	if len(tokens) > 0 && tokens[0].Type == lexer.TokenReturn {
+		return trimExpressionTokens(tokens[1:])
+	}
+	return tokens
 }
 
 func ParseExpressionTokens(tokens []lexer.Token) ExpressionNode {

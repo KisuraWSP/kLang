@@ -10,11 +10,7 @@ function X[T restrict[UInt, Int, Float]](x : T) : Int {
     return x;
 }
 ```
-- default values on functions and restricted generic types, and zero initialized variables no matter the type  <do>
-- add support for boolean like expressions on variables like the below, start of ternary operator <do>
-```lua
-local Bool x = if Init() > 0 then return False : True; 
-```
+
 - support for chained namespaces (like the below) <do>
 ```lua
 namespace std {

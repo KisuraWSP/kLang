@@ -199,9 +199,13 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 	case parser.FunctionStatement:
 		return signal{kind: signalNone}, nil
 	case parser.VariableStatement:
-		value, err := runtime.evalExpression(current.Expression.Node, env)
-		if err != nil {
-			return signal{}, err
+		value := zeroValue(current.Type)
+		if current.Expression.Node != nil {
+			var err error
+			value, err = runtime.evalExpression(current.Expression.Node, env)
+			if err != nil {
+				return signal{}, err
+			}
 		}
 		if !valueMatchesType(value, current.Type) {
 			return signal{}, errorAt(current.Pos, fmt.Sprintf("cannot assign %s to %s variable %q", value.Kind, current.Type, current.Name))
@@ -629,6 +633,15 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			return NullValue(), err
 		}
 		return BoolValue(value.Kind != ValueNull), nil
+	case parser.ConditionalExpression:
+		condition, err := runtime.evalExpression(current.Condition, env)
+		if err != nil {
+			return NullValue(), err
+		}
+		if isTruthy(condition) {
+			return runtime.evalExpression(current.Consequence, env)
+		}
+		return runtime.evalExpression(current.Alternative, env)
 	case parser.IndexExpression:
 		return runtime.evalIndex(current, env)
 	case parser.ListExpression:
@@ -1018,8 +1031,9 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		return NullValue(), Error{Message: fmt.Sprintf("maximum call depth %d exceeded while calling %s", runtime.maxDepth, name)}
 	}
 	function := runtime.functions[resolvedName]
-	if len(args) != len(function.Params) {
-		return NullValue(), Error{Message: fmt.Sprintf("function %s expects %d argument(s), got %d", name, len(function.Params), len(args))}
+	required := requiredRuntimeParamCount(function.Params)
+	if len(args) < required || len(args) > len(function.Params) {
+		return NullValue(), Error{Message: fmt.Sprintf("function %s expects %d to %d argument(s), got %d", name, required, len(function.Params), len(args))}
 	}
 
 	env := NewEnvironment(runtime.global)
@@ -1028,7 +1042,16 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		runtime.callDepth--
 	}()
 	for index, param := range function.Params {
-		value := args[index]
+		var value Value
+		if index < len(args) {
+			value = args[index]
+		} else {
+			var err error
+			value, err = runtime.evalExpression(param.Default.Node, env)
+			if err != nil {
+				return NullValue(), err
+			}
+		}
 		if !valueMatchesType(value, param.Type) {
 			return NullValue(), Error{Message: fmt.Sprintf("function %s argument %q expects %s, got %s", name, param.Name, param.Type, value.Kind)}
 		}
@@ -1050,6 +1073,14 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		return NullValue(), Error{Message: fmt.Sprintf("function %s returns %s, got Null", name, function.ReturnType)}
 	}
 	return NullValue(), nil
+}
+
+func requiredRuntimeParamCount(params []parser.Parameter) int {
+	count := len(params)
+	for count > 0 && params[count-1].Default.Node != nil {
+		count--
+	}
+	return count
 }
 
 func (runtime *Runtime) resolveFunctionName(name string) (string, error) {
