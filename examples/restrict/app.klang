@@ -1,0 +1,10 @@
+namespace App {
+    function Start() : Int {
+        global mut List[List[T restrict[Int]]] myList= [[1,2,3,4,5], [6,7,8,9,10], [11,12,13,14,15], [16,17,18,19,20], [21,22,23,24,25]];
+        global mut Map[String, T restrict[Int]] myMap = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5};
+        --myList[0][0] = 100;
+        --print(myList);
+        print(myMap);
+        return 0;
+    }
+}
