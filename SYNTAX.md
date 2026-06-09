@@ -7,12 +7,27 @@ local Int x = 10;
 
 -- local mutable variable
 local mut String xz = "string";
+xz = "updated";
 
 -- global variable
 global Bool isTrue = False;
 
 -- global mutable variable
 global mut List[Int] itemsList = [10, 20, 30, 40];
+itemsList[0] = 99;
+
+-- lvalues and rvalues
+-- Only variables and indexed mutable variables can be assigned to.
+-- Computed expressions, literals, function calls, and string indexes are rvalues.
+local mut Int count = 1;
+count += 1;
+itemsList[1] = count;
+
+-- referential transparency
+-- Immutable bindings snapshot aggregate rvalues, so later mutations through another
+-- mutable binding do not change the immutable value.
+local List[Int] savedItems = itemsList;
+itemsList[0] = 100;
 
 -- exported variable
 -- export makes the variable accessible through the global scope even when declared inside a block or function.

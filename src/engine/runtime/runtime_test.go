@@ -287,6 +287,37 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeKeepsImmutableAggregateSnapshotsReferentiallyTransparent(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local mut List[Int] values = [1, 2];
+    local List[Int] snapshot = values;
+    values[0] = 9;
+
+    local mut Map[String, Int] scores = {"answer": 42};
+    local Map[String, Int] savedScores = scores;
+    scores["answer"] = 7;
+
+    return snapshot[0] + savedScores["answer"];
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 43 {
+		t.Fatalf("expected immutable snapshots to return 43, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsRValueAssignmentTarget(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local mut Int value = 1;
+    (value + 1) = 3;
+    return value;
+}
+`)
+	assertRuntimeErrorContains(t, err, "assignment target must be an lvalue")
+}
+
 func TestRuntimeRejectsDivisionByZero(t *testing.T) {
 	_, err := runParsedSourceWithError(`
 function Main() : Int {

@@ -199,7 +199,7 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		if current.Scope == "global" || current.Exported {
 			targetEnv = runtime.global
 		}
-		if err := targetEnv.Define(current.Name, current.Mutable, current.Type, value, runtime.memory.Allocate(value)); err != nil {
+		if err := runtime.defineValue(targetEnv, current.Name, current.Mutable, current.Type, value); err != nil {
 			return signal{}, errorAt(current.Pos, err.Error())
 		}
 		return signal{kind: signalNone}, nil
@@ -307,7 +307,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 		for index := 0; index < count; index++ {
 			loopEnv := NewEnvironment(env)
 			value := IntValue(index)
-			if err := loopEnv.Define(iterator, false, "Int", value, runtime.memory.Allocate(value)); err != nil {
+			if err := runtime.defineValue(loopEnv, iterator, false, "Int", value); err != nil {
 				return signal{}, errorAt(stmt.Pos, err.Error())
 			}
 			currentSignal, err := runtime.executeBlock(stmt.Body, loopEnv, true)
@@ -366,11 +366,21 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 
 func (runtime *Runtime) storeLoopHeaderBinding(name string, value Value, env *Environment) error {
 	if binding, ok := env.bindings[name]; ok {
-		binding.Value = value
-		runtime.memory.Store(binding.ObjectID, value)
+		runtime.storeBindingValue(binding, value)
 		return nil
 	}
-	return env.Define(name, true, runtimeTypeName(value), value, runtime.memory.Allocate(value))
+	return runtime.defineValue(env, name, true, runtimeTypeName(value), value)
+}
+
+func (runtime *Runtime) defineValue(env *Environment, name string, mutable bool, typeName string, value Value) error {
+	snapshot := cloneValue(value)
+	return env.Define(name, mutable, typeName, snapshot, runtime.memory.Allocate(snapshot))
+}
+
+func (runtime *Runtime) storeBindingValue(binding *Binding, value Value) {
+	snapshot := cloneValue(value)
+	binding.Value = snapshot
+	runtime.memory.Store(binding.ObjectID, snapshot)
 }
 
 func (runtime *Runtime) executeLoopHeaderAssignment(expr parser.Expression, env *Environment) error {
@@ -454,7 +464,7 @@ func (runtime *Runtime) executeAssignment(stmt parser.AssignmentStatement, env *
 
 	identifier, ok := stmt.Target.Node.(parser.IdentifierExpression)
 	if !ok {
-		return Error{Message: "assignment target must be a variable or indexed value"}
+		return Error{Message: "assignment target must be an lvalue"}
 	}
 
 	binding, ok := env.Get(identifier.Name)
@@ -475,8 +485,7 @@ func (runtime *Runtime) executeAssignment(stmt parser.AssignmentStatement, env *
 	if !valueMatchesType(next, binding.Type) {
 		return Error{Message: fmt.Sprintf("cannot assign %s to %s variable %q", next.Kind, binding.Type, identifier.Name)}
 	}
-	binding.Value = next
-	runtime.memory.Store(binding.ObjectID, next)
+	runtime.storeBindingValue(binding, next)
 	return nil
 }
 
@@ -504,7 +513,7 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 	switch binding.Value.Kind {
 	case ValueList:
 		elementType, hasElementType := listElementType(binding.Type)
-		items := binding.Value.Data.([]Value)
+		items := append([]Value(nil), binding.Value.Data.([]Value)...)
 		position, err := asIndex(index)
 		if err != nil {
 			return err
@@ -524,10 +533,13 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 			return Error{Message: fmt.Sprintf("cannot assign %s to list element type %s", next.Kind, elementType)}
 		}
 		items[position] = next
-		binding.Value = Value{Kind: ValueList, Data: items}
+		runtime.storeBindingValue(binding, Value{Kind: ValueList, Data: items})
 	case ValueMap:
 		keyType, valueType, hasMapTypes := mapTypes(binding.Type)
-		items := binding.Value.Data.(map[string]Value)
+		items := make(map[string]Value, len(binding.Value.Data.(map[string]Value)))
+		for existingKey, existingValue := range binding.Value.Data.(map[string]Value) {
+			items[existingKey] = cloneValue(existingValue)
+		}
 		if hasMapTypes && !valueMatchesType(index, keyType) {
 			return Error{Message: fmt.Sprintf("cannot use %s as map key type %s", index.Kind, keyType)}
 		}
@@ -544,11 +556,10 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 			return Error{Message: fmt.Sprintf("cannot assign %s to map value type %s", next.Kind, valueType)}
 		}
 		items[key] = next
-		binding.Value = Value{Kind: ValueMap, Data: items}
+		runtime.storeBindingValue(binding, Value{Kind: ValueMap, Data: items})
 	default:
 		return Error{Message: fmt.Sprintf("%s is not index-assignable", binding.Value.Kind)}
 	}
-	runtime.memory.Store(binding.ObjectID, binding.Value)
 	return nil
 }
 
@@ -660,7 +671,7 @@ func (runtime *Runtime) evalListComprehension(expr parser.ListComprehensionExpre
 	items := make([]Value, 0, len(values))
 	for _, value := range values {
 		itemEnv := NewEnvironment(env)
-		if err := itemEnv.Define(expr.Iterator, false, runtimeTypeName(value), value, runtime.memory.Allocate(value)); err != nil {
+		if err := runtime.defineValue(itemEnv, expr.Iterator, false, runtimeTypeName(value), value); err != nil {
 			return NullValue(), err
 		}
 
@@ -986,7 +997,7 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		if !valueMatchesType(value, param.Type) {
 			return NullValue(), Error{Message: fmt.Sprintf("function %s argument %q expects %s, got %s", name, param.Name, param.Type, value.Kind)}
 		}
-		if err := env.Define(param.Name, false, param.Type, value, runtime.memory.Allocate(value)); err != nil {
+		if err := runtime.defineValue(env, param.Name, false, param.Type, value); err != nil {
 			return NullValue(), err
 		}
 	}

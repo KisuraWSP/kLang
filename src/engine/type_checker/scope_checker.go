@@ -233,10 +233,14 @@ func (checker *TypeChecker) checkAssignmentTargetScope(target parser.ExpressionN
 			checker.addError(source, line, fmt.Sprintf("cannot assign to unknown variable %q", current.Name))
 		}
 	case parser.IndexExpression:
+		if _, ok := current.Target.(parser.IdentifierExpression); !ok {
+			checker.addError(source, line, "assignment target must be an lvalue")
+			return
+		}
 		checker.checkScopeExpression(current.Target, scope, namespace, source, line)
 		checker.checkScopeExpression(current.Index, scope, namespace, source, line)
 	default:
-		checker.checkScopeExpression(target, scope, namespace, source, line)
+		checker.addError(source, line, "assignment target must be an lvalue")
 	}
 }
 

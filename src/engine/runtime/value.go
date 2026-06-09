@@ -54,6 +54,35 @@ func ResultErrValue(value Value) Value {
 	return Value{Kind: ValueResult, Data: ResultData{Ok: false, Value: value}}
 }
 
+func cloneValue(value Value) Value {
+	switch value.Kind {
+	case ValueList:
+		items := value.Data.([]Value)
+		cloned := make([]Value, 0, len(items))
+		for _, item := range items {
+			cloned = append(cloned, cloneValue(item))
+		}
+		return Value{Kind: ValueList, Data: cloned}
+	case ValueMap:
+		items := value.Data.(map[string]Value)
+		cloned := make(map[string]Value, len(items))
+		for key, item := range items {
+			cloned[key] = cloneValue(item)
+		}
+		return Value{Kind: ValueMap, Data: cloned}
+	case ValueOption:
+		option := value.Data.(OptionData)
+		option.Value = cloneValue(option.Value)
+		return Value{Kind: ValueOption, Data: option}
+	case ValueResult:
+		result := value.Data.(ResultData)
+		result.Value = cloneValue(result.Value)
+		return Value{Kind: ValueResult, Data: result}
+	default:
+		return value
+	}
+}
+
 func runtimeTypeName(value Value) string {
 	switch value.Kind {
 	case ValueInt:

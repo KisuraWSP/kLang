@@ -454,8 +454,8 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 
 	if targetExpr, indexExpr, ok := splitTrailingIndexExpression(baseName); ok {
 		baseName = strings.TrimSpace(targetExpr)
-		if !isIdentifierPath(baseName) {
-			checker.addError(source, line, "indexed assignment target must start from a variable")
+		if !isSimpleIdentifier(baseName) {
+			checker.addError(source, line, "assignment target must be an lvalue")
 			return
 		}
 		base, ok := checker.lookupVariable(baseName, locals)
@@ -470,6 +470,10 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 		indexType := checker.inferExpression(indexExpr, locals, source, line)
 		targetType = checker.checkIndexedAssignmentTarget(base.Type, indexType, source, line)
 	} else {
+		if !isSimpleIdentifier(baseName) {
+			checker.addError(source, line, "assignment target must be an lvalue")
+			return
+		}
 		variable, ok := checker.lookupVariable(baseName, locals)
 		if !ok {
 			checker.addError(source, line, fmt.Sprintf("cannot assign to unknown variable %q", baseName))

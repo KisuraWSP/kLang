@@ -63,6 +63,18 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "cannot mutate immutable variable")
 }
 
+func TestCheckProgramRejectsRValueAssignmentTarget(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut Int value = 1;
+    (value + 1) = 3;
+    return value;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "assignment target must be an lvalue")
+}
+
 func TestCheckProgramRejectsFunctionArgumentMismatch(t *testing.T) {
 	program := programFromSource(`
 function Add(left : Int, right : Int) : Int {
