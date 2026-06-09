@@ -708,6 +708,26 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesFirstClassFunctionClosures(t *testing.T) {
+	result := runSource(t, `
+function NumberFactory(multiplier : Int) : Function[Int, Int] {
+    function InnerGenerator(value : Int) : Int {
+        return value * multiplier;
+    }
+    return InnerGenerator;
+}
+
+function Main() : Int {
+    local Function[Int, Int] timesTen = NumberFactory(10);
+    return timesTen(42) + NumberFactory(5)(10);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 470 {
+		t.Fatalf("expected first-class function program to return 470, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesLazyFunctionArgumentsOnDemand(t *testing.T) {
 	result := runSource(t, `
 function Boom() : Int {

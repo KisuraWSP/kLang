@@ -87,11 +87,13 @@ type Runtime struct {
 	memory    *Memory
 	global    *Environment
 	functions map[string]parser.FunctionStatement
+	closures  map[string]*Environment
 	aliases   map[string]string
 	output    []string
 	callDepth int
 	maxDepth  int
 	callStack []string
+	nextFunc  int
 }
 
 const defaultMaxCallDepth = 1024
@@ -101,6 +103,7 @@ func New() *Runtime {
 		memory:    NewMemory(),
 		global:    NewEnvironment(nil),
 		functions: map[string]parser.FunctionStatement{},
+		closures:  map[string]*Environment{},
 		aliases:   map[string]string{},
 		maxDepth:  defaultMaxCallDepth,
 	}
@@ -227,6 +230,13 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 	case parser.NamespaceStatement:
 		return signal{kind: signalNone}, nil
 	case parser.FunctionStatement:
+		name, err := runtime.defineLocalFunction(current, env)
+		if err != nil {
+			return signal{}, errorAt(current.Pos, err.Error())
+		}
+		if err := runtime.defineValue(env, current.Name, false, functionTypeName(current), FunctionValue(name)); err != nil {
+			return signal{}, errorAt(current.Pos, err.Error())
+		}
 		return signal{kind: signalNone}, nil
 	case parser.TraitStatement:
 		return signal{kind: signalNone}, nil
@@ -472,6 +482,26 @@ func (runtime *Runtime) storeBindingValue(binding *Binding, value Value) {
 	snapshot := cloneValue(value)
 	binding.Value = snapshot
 	runtime.memory.Store(binding.ObjectID, snapshot)
+}
+
+func (runtime *Runtime) defineLocalFunction(fn parser.FunctionStatement, env *Environment) (string, error) {
+	runtime.nextFunc++
+	name := fmt.Sprintf("<local:%s:%d>", fn.Name, runtime.nextFunc)
+	if _, exists := runtime.functions[name]; exists {
+		return "", Error{Message: fmt.Sprintf("function %q is already defined", name)}
+	}
+	runtime.functions[name] = fn
+	runtime.closures[name] = env
+	return name, nil
+}
+
+func functionTypeName(fn parser.FunctionStatement) string {
+	parts := make([]string, 0, len(fn.Params)+1)
+	for _, param := range fn.Params {
+		parts = append(parts, param.Type)
+	}
+	parts = append(parts, fn.ReturnType)
+	return "Function[" + strings.Join(parts, ",") + "]"
 }
 
 func (runtime *Runtime) forceBindingValue(binding *Binding) (Value, error) {
@@ -1212,7 +1242,11 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 			return NullValue(), Error{Message: fmt.Sprintf("function %s expects %d to %d argument(s), got %d", resolvedName, required, len(function.Params), len(args))}
 		}
 
-		env := NewEnvironment(runtime.global)
+		parent := runtime.global
+		if closureEnv, ok := runtime.closures[resolvedName]; ok {
+			parent = closureEnv
+		}
+		env := NewEnvironment(parent)
 		for index, param := range function.Params {
 			var value Value
 			if index < len(args) {

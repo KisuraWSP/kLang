@@ -777,20 +777,38 @@ function Main() : Int {
 
 func TestCheckProgramAcceptsNestedFunctionAsFirstClassValue(t *testing.T) {
 	program := programFromSource(`
-function NumberFactory(multiplier : Int) : T {
+function NumberFactory(multiplier : Int) : Function[Int, Int] {
     function InnerGenerator(val : Int) : Int {
         return val * multiplier;
     }
     return InnerGenerator;
 }
 
-global T timesTen = NumberFactory(10);
+global Function[Int, Int] timesTen = NumberFactory(10);
+global Int quickMath = NumberFactory(5)(10);
 `)
 
 	report := CheckProgram(program)
 	if !report.Passed() {
 		t.Fatalf("expected type check to pass, got: %v", report.Errors)
 	}
+}
+
+func TestCheckProgramRejectsFirstClassFunctionCallArgumentMismatch(t *testing.T) {
+	program := programFromSource(`
+function NumberFactory() : Function[Int, Int] {
+    function Identity(value : Int) : Int {
+        return value;
+    }
+    return Identity;
+}
+
+function Main() : Int {
+    return NumberFactory()("bad");
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "callback NumberFactory() argument 1 expects Int, got String")
 }
 
 func TestCheckProgramAcceptsNamespaceLocalFunctionCalls(t *testing.T) {

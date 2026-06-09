@@ -1,5 +1,4 @@
 # TODO
-- add first class functions
 - lambda functions
 - support for polymorphic functions via the below
 ```lua

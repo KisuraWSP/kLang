@@ -166,6 +166,18 @@ function Combine(left : Int, right : Int, callback : Function[Int, Int, Int]) : 
     return callback(left, right);
 }
 
+-- first-class functions
+-- Functions can be stored in variables, returned from functions, and called later.
+function NumberFactory(multiplier : Int) : Function[Int, Int] {
+    function InnerGenerator(value : Int) : Int {
+        return value * multiplier;
+    }
+    return InnerGenerator;
+}
+
+local Function[Int, Int] timesTen = NumberFactory(10);
+local Int generated = NumberFactory(5)(10);
+
 -- lazy evaluated functions
 -- lazy function arguments are evaluated only when the function body reads them.
 lazy function Choose(useFirst : Bool, first : Int, second : Int) : Int {

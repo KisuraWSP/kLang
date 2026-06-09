@@ -883,6 +883,22 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		return checker.checkIndexExpression(targetType, indexType, source, line)
 	}
 
+	if calleeExpr, args, ok := parseCallableExpressionCall(expr); ok {
+		calleeType := checker.inferExpression(calleeExpr, locals, source, line)
+		if calleeType == anyType {
+			for _, arg := range args {
+				checker.inferExpression(arg, locals, source, line)
+			}
+			return anyType
+		}
+		paramTypes, returnType, ok := functionValueType(calleeType)
+		if !ok {
+			checker.addError(source, line, fmt.Sprintf("%s is not callable", calleeType))
+			return anyType
+		}
+		return checker.checkCallbackCall(calleeExpr, paramTypes, returnType, args, locals, source, line)
+	}
+
 	if callName, args, ok := parseFunctionCall(expr); ok {
 		return checker.checkCall(callName, args, locals, source, line)
 	}
@@ -1936,6 +1952,55 @@ func parseFunctionCall(expr string) (string, []string, bool) {
 		args = splitTopLevel(inner, ',')
 	}
 	return name, args, true
+}
+
+func parseCallableExpressionCall(expr string) (string, []string, bool) {
+	expr = normalizeNamespaceAccess(strings.TrimSpace(expr))
+	if !strings.HasSuffix(expr, ")") {
+		return "", nil, false
+	}
+	open := trailingCallOpen(expr)
+	if open <= 0 {
+		return "", nil, false
+	}
+	callee := strings.TrimSpace(expr[:open])
+	if callee == "" || isIdentifierPath(callee) {
+		return "", nil, false
+	}
+	inner := strings.TrimSpace(expr[open+1 : len(expr)-1])
+	var args []string
+	if inner != "" {
+		args = splitTopLevel(inner, ',')
+	}
+	return callee, args, true
+}
+
+func trailingCallOpen(expr string) int {
+	depth := 0
+	inString := false
+	inChar := false
+	for index := len(expr) - 1; index >= 0; index-- {
+		current := expr[index]
+		if current == '"' && !inChar {
+			inString = !inString
+		}
+		if current == '\'' && !inString {
+			inChar = !inChar
+		}
+		if inString || inChar {
+			continue
+		}
+		switch current {
+		case ')':
+			depth++
+		case '(':
+			depth--
+			if depth == 0 {
+				return index
+			}
+		}
+	}
+	return -1
 }
 
 func normalizeNamespaceAccess(input string) string {
