@@ -344,7 +344,12 @@ func (checker *TypeChecker) selectorFunctionExists(expr parser.SelectorExpressio
 }
 
 func isBuiltinFunctionName(name string) bool {
-	return name == "print" || name == "len" || name == "range"
+	switch name {
+	case "print", "len", "range", "Some", "None", "Ok", "Err", "Result":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseRangeScopeHeader(expr parser.Expression) (string, parser.Expression, bool) {

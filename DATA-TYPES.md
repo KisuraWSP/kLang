@@ -7,4 +7,6 @@
 6. Char
 7. Map[$Key, $Value]
 8. List[...$Items]
-9. T // Builtin Generic Type Value containing Information of respective data type
+9. Option[$Item]
+10. Result[$Ok, $Err]
+11. T // Builtin Generic Type Value containing Information of respective data type

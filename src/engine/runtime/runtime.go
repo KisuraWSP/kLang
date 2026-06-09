@@ -22,12 +22,24 @@ const (
 	ValueChar     ValueKind = "Char"
 	ValueList     ValueKind = "List"
 	ValueMap      ValueKind = "Map"
+	ValueOption   ValueKind = "Option"
+	ValueResult   ValueKind = "Result"
 	ValueFunction ValueKind = "Function"
 )
 
 type Value struct {
 	Kind ValueKind
 	Data any
+}
+
+type OptionData struct {
+	Some  bool
+	Value Value
+}
+
+type ResultData struct {
+	Ok    bool
+	Value Value
 }
 
 type Result struct {
@@ -857,6 +869,31 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 			return NullValue(), Error{Message: "range expects one argument"}
 		}
 		return args[0], nil
+	case "Some":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "Some expects one argument"}
+		}
+		return OptionSomeValue(args[0]), nil
+	case "None":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: "None expects no arguments"}
+		}
+		return OptionNoneValue(), nil
+	case "Ok":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "Ok expects one argument"}
+		}
+		return ResultOkValue(args[0]), nil
+	case "Err":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "Err expects one argument"}
+		}
+		return ResultErrValue(args[0]), nil
+	case "Result":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "Result expects one argument"}
+		}
+		return ResultOkValue(args[0]), nil
 	}
 
 	resolvedName, err := runtime.resolveFunctionName(name)
@@ -925,7 +962,7 @@ func (runtime *Runtime) resolveFunctionName(name string) (string, error) {
 
 func isBuiltinFunction(name string) bool {
 	switch name {
-	case "print", "len", "range":
+	case "print", "len", "range", "Some", "None", "Ok", "Err", "Result":
 		return true
 	default:
 		return false

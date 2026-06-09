@@ -154,6 +154,45 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesOptionAndResultBuiltins(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Option[Int] some = Some(10);
+    local Option[Int] none = None();
+    local Result[Int, String] ok = Ok(5);
+    local Result[Int, String] err = Err("bad");
+    local Result[Int, String] wrapped = Result(7);
+    print(some);
+    print(none);
+    print(ok);
+    print(err);
+    print(wrapped);
+    if some and not none and ok and not err and wrapped {
+        return 1;
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected option/result program to return 1, got %#v", result.Value)
+	}
+	expectedOutput := []string{"Some(10)", "None", "Ok(5)", "Err(bad)", "Ok(7)"}
+	if strings.Join(result.Output, ",") != strings.Join(expectedOutput, ",") {
+		t.Fatalf("expected output %v, got %v", expectedOutput, result.Output)
+	}
+}
+
+func TestRuntimeRejectsOptionInnerTypeMismatch(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local Option[Int] value = Some("bad");
+    return 0;
+}
+`)
+	assertRuntimeErrorContains(t, err, `cannot assign Option to Option[Int] variable "value"`)
+}
+
 func TestRuntimeRejectsInvalidTypeCast(t *testing.T) {
 	_, err := runParsedSourceWithError(`
 function Main() : Int {

@@ -719,6 +719,35 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.addError(source, line, "range expects 1 argument")
 		}
 		return "Int"
+	case "Some":
+		if len(args) != 1 {
+			checker.addError(source, line, "Some expects 1 argument")
+			return "Option[T]"
+		}
+		return "Option[" + checker.inferExpression(args[0], locals, source, line) + "]"
+	case "None":
+		if len(args) != 0 {
+			checker.addError(source, line, "None expects 0 arguments")
+		}
+		return "Option[T]"
+	case "Ok":
+		if len(args) != 1 {
+			checker.addError(source, line, "Ok expects 1 argument")
+			return "Result[T,T]"
+		}
+		return "Result[" + checker.inferExpression(args[0], locals, source, line) + ",T]"
+	case "Err":
+		if len(args) != 1 {
+			checker.addError(source, line, "Err expects 1 argument")
+			return "Result[T,T]"
+		}
+		return "Result[T," + checker.inferExpression(args[0], locals, source, line) + "]"
+	case "Result":
+		if len(args) != 1 {
+			checker.addError(source, line, "Result expects 1 argument")
+			return "Result[T,T]"
+		}
+		return "Result[" + checker.inferExpression(args[0], locals, source, line) + ",T]"
 	}
 
 	if variable, ok := checker.lookupVariable(name, locals); ok && variable.Type == anyType {
@@ -1020,6 +1049,13 @@ func isKnownType(typeName string) bool {
 		parts := splitTopLevel(typeName[4:len(typeName)-1], ',')
 		return len(parts) == 2 && isKnownType(parts[0]) && isKnownType(parts[1])
 	}
+	if strings.HasPrefix(typeName, "Option[") && strings.HasSuffix(typeName, "]") {
+		return isKnownType(typeName[len("Option[") : len(typeName)-1])
+	}
+	if strings.HasPrefix(typeName, "Result[") && strings.HasSuffix(typeName, "]") {
+		parts := splitTopLevel(typeName[len("Result["):len(typeName)-1], ',')
+		return len(parts) == 2 && isKnownType(parts[0]) && isKnownType(parts[1])
+	}
 	return false
 }
 
@@ -1044,6 +1080,25 @@ func indexedMapTypes(typeName string) (string, string, bool) {
 		return "", "", false
 	}
 	parts := splitTopLevel(typeName[4:len(typeName)-1], ',')
+	if len(parts) != 2 {
+		return "", "", false
+	}
+	return normalizeType(parts[0]), normalizeType(parts[1]), true
+}
+
+func optionElementType(typeName string) (string, bool) {
+	if !strings.HasPrefix(typeName, "Option[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	elementType := normalizeType(typeName[len("Option[") : len(typeName)-1])
+	return elementType, elementType != ""
+}
+
+func resultValueTypes(typeName string) (string, string, bool) {
+	if !strings.HasPrefix(typeName, "Result[") || !strings.HasSuffix(typeName, "]") {
+		return "", "", false
+	}
+	parts := splitTopLevel(typeName[len("Result["):len(typeName)-1], ',')
 	if len(parts) != 2 {
 		return "", "", false
 	}
@@ -1076,6 +1131,18 @@ func isAssignable(target string, source string) bool {
 	if strings.HasPrefix(target, "Map[") && source == "Map[T,T]" {
 		return true
 	}
+	if strings.HasPrefix(target, "Option[") && strings.HasPrefix(source, "Option[") {
+		targetElement, targetOk := optionElementType(target)
+		sourceElement, sourceOk := optionElementType(source)
+		return targetOk && sourceOk && isAssignable(targetElement, sourceElement)
+	}
+	if strings.HasPrefix(target, "Result[") && strings.HasPrefix(source, "Result[") {
+		targetOkType, targetErrType, targetOk := resultValueTypes(target)
+		sourceOkType, sourceErrType, sourceOk := resultValueTypes(source)
+		return targetOk && sourceOk &&
+			isAssignable(targetOkType, sourceOkType) &&
+			isAssignable(targetErrType, sourceErrType)
+	}
 	return false
 }
 
@@ -1092,6 +1159,12 @@ func canCast(source string, target string) bool {
 		return isAssignable(target, source)
 	}
 	if strings.HasPrefix(target, "Map[") && strings.HasPrefix(source, "Map[") {
+		return isAssignable(target, source)
+	}
+	if strings.HasPrefix(target, "Option[") && strings.HasPrefix(source, "Option[") {
+		return isAssignable(target, source)
+	}
+	if strings.HasPrefix(target, "Result[") && strings.HasPrefix(source, "Result[") {
 		return isAssignable(target, source)
 	}
 	return false

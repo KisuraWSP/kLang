@@ -38,6 +38,22 @@ func FunctionValue(name string) Value {
 	return Value{Kind: ValueFunction, Data: name}
 }
 
+func OptionSomeValue(value Value) Value {
+	return Value{Kind: ValueOption, Data: OptionData{Some: true, Value: value}}
+}
+
+func OptionNoneValue() Value {
+	return Value{Kind: ValueOption, Data: OptionData{Some: false, Value: NullValue()}}
+}
+
+func ResultOkValue(value Value) Value {
+	return Value{Kind: ValueResult, Data: ResultData{Ok: true, Value: value}}
+}
+
+func ResultErrValue(value Value) Value {
+	return Value{Kind: ValueResult, Data: ResultData{Ok: false, Value: value}}
+}
+
 func runtimeTypeName(value Value) string {
 	switch value.Kind {
 	case ValueInt:
@@ -54,6 +70,10 @@ func runtimeTypeName(value Value) string {
 		return "List[T]"
 	case ValueMap:
 		return "Map[T,T]"
+	case ValueOption:
+		return "Option[T]"
+	case ValueResult:
+		return "Result[T,T]"
 	default:
 		return "T"
 	}
@@ -105,7 +125,8 @@ func castValue(value Value, typeName string) (Value, error) {
 	case "Char":
 		return castToChar(value)
 	default:
-		if strings.HasPrefix(typeName, "List[") || strings.HasPrefix(typeName, "Map[") {
+		if strings.HasPrefix(typeName, "List[") || strings.HasPrefix(typeName, "Map[") ||
+			strings.HasPrefix(typeName, "Option[") || strings.HasPrefix(typeName, "Result[") {
 			return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to %s", value.Kind, typeName)}
 		}
 		return NullValue(), Error{Message: fmt.Sprintf("unknown cast target type %q", typeName)}
@@ -365,6 +386,10 @@ func isTruthy(value Value) bool {
 		return value.Data.(string) != ""
 	case ValueNull:
 		return false
+	case ValueOption:
+		return value.Data.(OptionData).Some
+	case ValueResult:
+		return value.Data.(ResultData).Ok
 	default:
 		return true
 	}
@@ -385,6 +410,18 @@ func valueString(value Value) string {
 			return "True"
 		}
 		return "False"
+	case ValueOption:
+		option := value.Data.(OptionData)
+		if !option.Some {
+			return "None"
+		}
+		return "Some(" + valueString(option.Value) + ")"
+	case ValueResult:
+		result := value.Data.(ResultData)
+		if result.Ok {
+			return "Ok(" + valueString(result.Value) + ")"
+		}
+		return "Err(" + valueString(result.Value) + ")"
 	default:
 		return fmt.Sprintf("%v", value.Data)
 	}
@@ -433,6 +470,23 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Kind == ValueList
 	case strings.HasPrefix(typeName, "Map["):
 		return value.Kind == ValueMap
+	case strings.HasPrefix(typeName, "Option["):
+		elementType, ok := optionType(typeName)
+		if !ok || value.Kind != ValueOption {
+			return false
+		}
+		option := value.Data.(OptionData)
+		return !option.Some || valueMatchesType(option.Value, elementType)
+	case strings.HasPrefix(typeName, "Result["):
+		okType, errType, ok := resultTypes(typeName)
+		if !ok || value.Kind != ValueResult {
+			return false
+		}
+		result := value.Data.(ResultData)
+		if result.Ok {
+			return valueMatchesType(result.Value, okType)
+		}
+		return valueMatchesType(result.Value, errType)
 	default:
 		return true
 	}
@@ -460,6 +514,30 @@ func mapTypes(typeName string) (string, string, bool) {
 	keyType := strings.TrimSpace(parts[0])
 	valueType := strings.TrimSpace(parts[1])
 	return keyType, valueType, keyType != "" && valueType != ""
+}
+
+func optionType(typeName string) (string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	if !strings.HasPrefix(typeName, "Option[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	elementType := strings.TrimSpace(typeName[len("Option[") : len(typeName)-1])
+	return elementType, elementType != ""
+}
+
+func resultTypes(typeName string) (string, string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	if !strings.HasPrefix(typeName, "Result[") || !strings.HasSuffix(typeName, "]") {
+		return "", "", false
+	}
+	inner := typeName[len("Result[") : len(typeName)-1]
+	parts := splitTopLevelType(inner, ',')
+	if len(parts) != 2 {
+		return "", "", false
+	}
+	okType := strings.TrimSpace(parts[0])
+	errType := strings.TrimSpace(parts[1])
+	return okType, errType, okType != "" && errType != ""
 }
 
 func splitTopLevelType(input string, separator rune) []string {

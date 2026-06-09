@@ -1,5 +1,4 @@
 # TODO
-- add rusts' Option(), Some(), None, Err(), Result() <do>
 - add list comprehension from python <do>
 - lazy evaluated functions <do>
 - Complex Number Data Types to be built in the language <do>

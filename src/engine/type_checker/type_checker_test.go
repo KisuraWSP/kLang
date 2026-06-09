@@ -170,6 +170,52 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsOptionAndResultBuiltins(t *testing.T) {
+	if !isKnownType("Option[Int]") {
+		t.Fatal("expected Option[Int] to be a known type")
+	}
+	if !isKnownType("Result[Int,String]") {
+		t.Fatal("expected Result[Int,String] to be a known type")
+	}
+
+	program := programFromSource(`
+function Main() : Int {
+    local Option[Int] some = Some(10);
+    local Option[Int] none = None();
+    local Result[Int, String] ok = Ok(1);
+    local Result[Int, String] err = Err("bad");
+    local Result[Int, String] wrapped = Result(2);
+    if some and not none and ok and not err {
+        return 1;
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected option/result type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsOptionAndResultTypeMismatch(t *testing.T) {
+	optionProgram := programFromSource(`
+function Main() : Int {
+    local Option[Int] value = Some("bad");
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(optionProgram), "cannot assign Option[String] to local Option[Int] value")
+
+	resultProgram := programFromSource(`
+function Main() : Int {
+    local Result[Int, String] value = Err(404);
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(resultProgram), "cannot assign Result[T,Int] to local Result[Int,String] value")
+}
+
 func TestCheckProgramRejectsInvalidIndexing(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

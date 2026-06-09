@@ -77,6 +77,51 @@ func TestParseGlobalGenericVariableDeclaration(t *testing.T) {
 	}
 }
 
+func TestParseOptionAndResultVariableDeclarations(t *testing.T) {
+	program, errors := Parse(`
+function Main() : Int {
+    local Option[Int] maybe = Some(10);
+    local Result[Int, String] parsed = Err("bad");
+    return 0;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	if len(fn.Body) != 3 {
+		t.Fatalf("expected 3 body statements, got %d", len(fn.Body))
+	}
+
+	optionDecl, ok := fn.Body[0].(VariableStatement)
+	if !ok || optionDecl.Type != "Option[Int]" {
+		t.Fatalf("unexpected option declaration: %#v", fn.Body[0])
+	}
+	optionCall, ok := optionDecl.Expression.Node.(CallExpression)
+	if !ok {
+		t.Fatalf("expected option expression to be a call, got %T", optionDecl.Expression.Node)
+	}
+	optionCallee, ok := optionCall.Callee.(IdentifierExpression)
+	if !ok || optionCallee.Name != "Some" {
+		t.Fatalf("unexpected option callee: %#v", optionCall.Callee)
+	}
+
+	resultDecl, ok := fn.Body[1].(VariableStatement)
+	if !ok || resultDecl.Type != "Result[Int,String]" {
+		t.Fatalf("unexpected result declaration: %#v", fn.Body[1])
+	}
+	resultCall, ok := resultDecl.Expression.Node.(CallExpression)
+	if !ok {
+		t.Fatalf("expected result expression to be a call, got %T", resultDecl.Expression.Node)
+	}
+	resultCallee, ok := resultCall.Callee.(IdentifierExpression)
+	if !ok || resultCallee.Name != "Err" {
+		t.Fatalf("unexpected result callee: %#v", resultCall.Callee)
+	}
+}
+
 func TestParseExportedVariableDeclaration(t *testing.T) {
 	program, errors := Parse(`export local mut Int shared = 1;`)
 	assertNoParseErrors(t, errors)

@@ -51,6 +51,16 @@ local Bool shouldRun = not failed and active xor retrying or fallback;
 -- pipe operator
 -- The left value is passed as the first argument to the function on the right.
 local Int piped = 2 |> Add(3) |> Double;
+
+-- Option and Result types
+-- Some(value) creates Option[T]. None() creates an empty Option[T].
+local Option[Int] maybeCount = Some(10);
+local Option[Int] missingCount = None();
+
+-- Ok(value) and Err(value) create Result[T, E]. Result(value) is a convenience Ok result.
+local Result[Int, String] parsedCount = Ok(10);
+local Result[Int, String] failedParse = Err("invalid number");
+local Result[Int, String] wrappedCount = Result(20);
 ```
 
 2. Functions
@@ -113,6 +123,11 @@ if x > y {
 -- boolean operations in conditions
 if not failed and active xor retrying or fallback {
     print("running");
+}
+
+-- Some and Ok are truthy. None and Err are falsey.
+if maybeCount and parsedCount {
+    print("values are present");
 }
 
 -- unless .. else
