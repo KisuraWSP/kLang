@@ -42,6 +42,10 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 			}
 		case parser.NamespaceStatement:
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
+		case parser.TraitStatement:
+			continue
+		case parser.ImplStatement:
+			continue
 		case parser.FunctionStatement:
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		case parser.IfStatement:
@@ -136,6 +140,10 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		return
 	case parser.NamespaceStatement:
 		checker.checkScopeStatements(current.Body, scope, namespace+current.Name+".", source, inLoop, topLevel)
+	case parser.TraitStatement:
+		return
+	case parser.ImplStatement:
+		return
 	case parser.FunctionStatement:
 		checker.checkFunctionScope(current, scope, namespace, source)
 	case parser.VariableStatement:
@@ -389,7 +397,7 @@ func selectorPath(expr parser.ExpressionNode) (string, bool) {
 
 func isBuiltinFunctionName(name string) bool {
 	switch name {
-	case "print", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD":
+	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD":
 		return true
 	default:
 		return false

@@ -7,6 +7,7 @@ type Binding struct {
 	Type     string
 	Value    Value
 	ObjectID int
+	Moved    bool
 }
 
 type Environment struct {

@@ -1,8 +1,9 @@
-import "";
 
 namespace App {
     function Start() : Int {
         print("Starting stress test...");
+        local mut String x = input("Enter a number");
+        print(x);
         return 0;
     }
 }

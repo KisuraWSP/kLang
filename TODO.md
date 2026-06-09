@@ -30,10 +30,6 @@ function Test() {
 -- can be called like
 Test().Eval();
 ```
-- traits system from rust
-- move semantics
-- print function must be variadic,
-- add input() function from python
 - function aliases & extension functions inside aliases
 ```lua
 alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type

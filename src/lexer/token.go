@@ -79,6 +79,9 @@ const (
 	TokenImport     // import
 	TokenAlias      // alias
 	TokenLazy       // lazy
+	TokenTrait      // trait
+	TokenImpl       // impl
+	TokenMove       // move
 	TokenLambdaFunc // fun
 	TokenGlobal     // global
 	TokenMut        // mut
@@ -117,6 +120,9 @@ var Keywords = map[string]TokenType{
 	"import":    TokenImport,
 	"alias":     TokenAlias,
 	"lazy":      TokenLazy,
+	"trait":     TokenTrait,
+	"impl":      TokenImpl,
+	"move":      TokenMove,
 	"global":    TokenGlobal,
 	"fun":       TokenLambdaFunc,
 	"mut":       TokenMut,

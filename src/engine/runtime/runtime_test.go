@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -352,6 +353,63 @@ function Main() : Int {
 	if len(result.Output) != 1 || result.Output[0] != "42" {
 		t.Fatalf("expected print output 42, got %#v", result.Output)
 	}
+}
+
+func TestRuntimePrintIsVariadic(t *testing.T) {
+	result := runSource(t, `
+function Main() : Int {
+    print("count", 2, True);
+    return 0;
+}
+`)
+
+	if len(result.Output) != 1 || result.Output[0] != "count 2 True" {
+		t.Fatalf("expected variadic print output, got %#v", result.Output)
+	}
+}
+
+func TestRuntimeInputReadsLine(t *testing.T) {
+	previousStdin := os.Stdin
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stdin pipe: %v", err)
+	}
+	os.Stdin = reader
+	defer func() {
+		os.Stdin = previousStdin
+		reader.Close()
+	}()
+	if _, err := writer.WriteString("Klang\n"); err != nil {
+		t.Fatalf("failed to write input: %v", err)
+	}
+	writer.Close()
+
+	result := runSource(t, `
+function Main() : Int {
+    local String name = input("name: ");
+    print(name);
+    return len(name);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 5 {
+		t.Fatalf("expected input length 5, got %#v", result.Value)
+	}
+	if strings.Join(result.Output, "\n") != "name: \nKlang" {
+		t.Fatalf("unexpected input output: %#v", result.Output)
+	}
+}
+
+func TestRuntimeRejectsUseAfterMove(t *testing.T) {
+	_, err := runSourceWithError(`
+function Main() : Int {
+    local String first = "hello";
+    local String second = move first;
+    print(first);
+    return len(second);
+}
+`)
+	assertRuntimeErrorContains(t, err, `variable "first" was moved`)
 }
 
 func TestRuntimeExecutesStringIndexing(t *testing.T) {

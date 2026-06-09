@@ -41,6 +41,26 @@ type NamespaceStatement struct {
 	Body []Statement
 }
 
+type TraitStatement struct {
+	Pos     Position
+	Name    string
+	Methods []TraitMethod
+}
+
+type TraitMethod struct {
+	Pos        Position
+	Name       string
+	Params     []Parameter
+	ReturnType string
+}
+
+type ImplStatement struct {
+	Pos     Position
+	Trait   string
+	Type    string
+	Methods []FunctionStatement
+}
+
 type FunctionStatement struct {
 	Pos                Position
 	Name               string
@@ -201,6 +221,8 @@ type RawExpression struct {
 func (stmt ImportStatement) statementNode()     {}
 func (stmt AliasStatement) statementNode()      {}
 func (stmt NamespaceStatement) statementNode()  {}
+func (stmt TraitStatement) statementNode()      {}
+func (stmt ImplStatement) statementNode()       {}
 func (stmt FunctionStatement) statementNode()   {}
 func (stmt VariableStatement) statementNode()   {}
 func (stmt ReturnStatement) statementNode()     {}
@@ -213,6 +235,8 @@ func (stmt LoopStatement) statementNode()       {}
 func (stmt ImportStatement) Position() Position     { return stmt.Pos }
 func (stmt AliasStatement) Position() Position      { return stmt.Pos }
 func (stmt NamespaceStatement) Position() Position  { return stmt.Pos }
+func (stmt TraitStatement) Position() Position      { return stmt.Pos }
+func (stmt ImplStatement) Position() Position       { return stmt.Pos }
 func (stmt FunctionStatement) Position() Position   { return stmt.Pos }
 func (stmt VariableStatement) Position() Position   { return stmt.Pos }
 func (stmt ReturnStatement) Position() Position     { return stmt.Pos }

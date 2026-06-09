@@ -117,6 +117,33 @@ lazy function Choose(useFirst : Bool, first : Int, second : Int) : Int {
 	}
 }
 
+func TestParseTraitAndImpl(t *testing.T) {
+	program, errors := Parse(`
+trait Printable {
+    function Show(value : Int) : String;
+}
+
+impl Printable for Int {
+    function Show(value : Int) : String {
+        return value as String;
+    }
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	trait, ok := program.Statements[0].(TraitStatement)
+	if !ok || trait.Name != "Printable" || len(trait.Methods) != 1 {
+		t.Fatalf("unexpected trait statement: %#v", program.Statements[0])
+	}
+	if trait.Methods[0].Name != "Show" || trait.Methods[0].ReturnType != "String" {
+		t.Fatalf("unexpected trait method: %#v", trait.Methods[0])
+	}
+	impl, ok := program.Statements[1].(ImplStatement)
+	if !ok || impl.Trait != "Printable" || impl.Type != "Int" || len(impl.Methods) != 1 {
+		t.Fatalf("unexpected impl statement: %#v", program.Statements[1])
+	}
+}
+
 func TestParseDeprecatedFunctionMarkerTag(t *testing.T) {
 	program, errors := Parse(`
 @deprecated("use Add")

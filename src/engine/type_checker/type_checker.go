@@ -11,6 +11,7 @@ import (
 )
 
 const anyType = "T"
+const movedType = "<moved>"
 
 type Error struct {
 	File    string
@@ -37,6 +38,7 @@ type TypeChecker struct {
 	functions map[string]functionSymbol
 	globals   map[string]variableSymbol
 	aliases   map[string]string
+	traits    map[string]traitSymbol
 	errors    []Error
 	warnings  []Warning
 	namespace string
@@ -53,6 +55,20 @@ type functionSymbol struct {
 	Line               int
 	Body               string
 	TypeRestrictions   map[string]string
+}
+
+type traitSymbol struct {
+	Name    string
+	Methods map[string]traitMethodSymbol
+	File    string
+	Line    int
+}
+
+type traitMethodSymbol struct {
+	Name       string
+	Params     []variableSymbol
+	ReturnType string
+	Line       int
 }
 
 type variableSymbol struct {
@@ -74,6 +90,7 @@ func CheckProgram(program file.Program) Report {
 		functions: map[string]functionSymbol{},
 		globals:   map[string]variableSymbol{},
 		aliases:   map[string]string{},
+		traits:    map[string]traitSymbol{},
 	}
 
 	units := make([]sourceUnit, 0, len(program.Files))
@@ -87,6 +104,7 @@ func CheckProgram(program file.Program) Report {
 	for _, unit := range units {
 		checker.collectFunctions(unit, "")
 	}
+	checker.collectTraits(program)
 	checker.collectAliases(program)
 	for _, unit := range units {
 		checker.collectGlobals(unit)
@@ -108,6 +126,25 @@ func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string) 
 	for index < len(unit.Text) {
 		nextNamespace := findKeyword(unit.Text, "namespace", index)
 		nextFunction := findKeyword(unit.Text, "function", index)
+		nextTrait := findKeyword(unit.Text, "trait", index)
+		nextImpl := findKeyword(unit.Text, "impl", index)
+		nextBlocked := nearestKeyword(nextTrait, nextImpl)
+
+		if nextBlocked != -1 && (nextFunction == -1 || nextBlocked < nextFunction) &&
+			(nextNamespace == -1 || nextBlocked < nextNamespace) {
+			openBrace := findChar(unit.Text, '{', nextBlocked)
+			if openBrace == -1 {
+				index = nextBlocked + 1
+				continue
+			}
+			closeBrace := matchBrace(unit.Text, openBrace)
+			if closeBrace == -1 {
+				checker.addError(unit.Path, lineAt(unit.Text, openBrace), "trait or impl block is missing a closing brace")
+				return
+			}
+			index = closeBrace + 1
+			continue
+		}
 
 		if nextNamespace != -1 && (nextFunction == -1 || nextNamespace < nextFunction) {
 			name, openBrace := readNamedBlockHeader(unit.Text, nextNamespace+len("namespace"))
@@ -155,6 +192,105 @@ func (checker *TypeChecker) collectAliases(program file.Program) {
 	}
 	for _, source := range parsed.Sources {
 		checker.collectAliasStatements(source.Program.Statements, source.Path)
+	}
+}
+
+func (checker *TypeChecker) collectTraits(program file.Program) {
+	parsed := parser.ParseLoadedProgram(program)
+	if !parsed.Passed() {
+		return
+	}
+	for _, source := range parsed.Sources {
+		checker.collectTraitStatements(source.Program.Statements, source.Path)
+	}
+	for _, source := range parsed.Sources {
+		checker.checkImplStatements(source.Program.Statements, source.Path)
+	}
+}
+
+func (checker *TypeChecker) collectTraitStatements(statements []parser.Statement, source string) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.TraitStatement:
+			if _, exists := checker.traits[current.Name]; exists {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("trait %q is already defined", current.Name))
+				continue
+			}
+			methods := map[string]traitMethodSymbol{}
+			for _, method := range current.Methods {
+				if _, exists := methods[method.Name]; exists {
+					checker.addError(source, method.Pos.Line, fmt.Sprintf("trait %s method %q is already defined", current.Name, method.Name))
+					continue
+				}
+				params := make([]variableSymbol, 0, len(method.Params))
+				for _, param := range method.Params {
+					paramType := normalizeType(param.Type)
+					if !isKnownType(paramType) {
+						checker.addError(source, method.Pos.Line, fmt.Sprintf("trait method %s parameter %s uses unknown type %s", method.Name, param.Name, paramType))
+					}
+					params = append(params, variableSymbol{Name: param.Name, Type: paramType})
+				}
+				returnType := normalizeType(method.ReturnType)
+				if !isKnownType(returnType) {
+					checker.addError(source, method.Pos.Line, fmt.Sprintf("trait method %s uses unknown return type %s", method.Name, returnType))
+				}
+				methods[method.Name] = traitMethodSymbol{Name: method.Name, Params: params, ReturnType: returnType, Line: method.Pos.Line}
+			}
+			checker.traits[current.Name] = traitSymbol{Name: current.Name, Methods: methods, File: source, Line: current.Pos.Line}
+		case parser.NamespaceStatement:
+			checker.collectTraitStatements(current.Body, source)
+		}
+	}
+}
+
+func (checker *TypeChecker) checkImplStatements(statements []parser.Statement, source string) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.ImplStatement:
+			trait, ok := checker.traits[current.Trait]
+			if !ok {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("impl targets unknown trait %q", current.Trait))
+				continue
+			}
+			if !isKnownType(normalizeType(current.Type)) {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("impl %s uses unknown type %s", current.Trait, current.Type))
+				continue
+			}
+			implemented := map[string]parser.FunctionStatement{}
+			for _, method := range current.Methods {
+				implemented[method.Name] = method
+				expected, ok := trait.Methods[method.Name]
+				if !ok {
+					checker.addError(source, method.Pos.Line, fmt.Sprintf("impl %s for %s defines unknown method %q", current.Trait, current.Type, method.Name))
+					continue
+				}
+				checker.checkTraitMethodImpl(current, expected, method, source)
+			}
+			for name := range trait.Methods {
+				if _, ok := implemented[name]; !ok {
+					checker.addError(source, current.Pos.Line, fmt.Sprintf("impl %s for %s is missing method %q", current.Trait, current.Type, name))
+				}
+			}
+		case parser.NamespaceStatement:
+			checker.checkImplStatements(current.Body, source)
+		}
+	}
+}
+
+func (checker *TypeChecker) checkTraitMethodImpl(impl parser.ImplStatement, expected traitMethodSymbol, actual parser.FunctionStatement, source string) {
+	if len(expected.Params) != len(actual.Params) {
+		checker.addError(source, actual.Pos.Line, fmt.Sprintf("impl %s method %s expects %d parameter(s), got %d", impl.Trait, actual.Name, len(expected.Params), len(actual.Params)))
+		return
+	}
+	for index, expectedParam := range expected.Params {
+		actualType := normalizeType(actual.Params[index].Type)
+		if actualType != expectedParam.Type {
+			checker.addError(source, actual.Pos.Line, fmt.Sprintf("impl %s method %s parameter %d expects %s, got %s", impl.Trait, actual.Name, index+1, expectedParam.Type, actualType))
+		}
+	}
+	actualReturn := normalizeType(actual.ReturnType)
+	if actualReturn != expected.ReturnType {
+		checker.addError(source, actual.Pos.Line, fmt.Sprintf("impl %s method %s returns %s, expected %s", impl.Trait, actual.Name, actualReturn, expected.ReturnType))
 	}
 }
 
@@ -278,6 +414,12 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 				if !isAssignable(decl.Type, exprType) {
 					checker.addError(fn.File, line, fmt.Sprintf("cannot assign %s to local %s %s", exprType, decl.Type, decl.Name))
 				}
+				if movedName, ok := movedIdentifier(decl.Expression); ok {
+					if movedVariable, exists := locals[movedName]; exists {
+						movedVariable.Type = movedType
+						locals[movedName] = movedVariable
+					}
+				}
 			}
 
 			locals[decl.Name] = variableSymbol{
@@ -305,6 +447,12 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 
 		if assignment, ok := parseAssignment(current); ok {
 			checker.checkAssignment(assignment, locals, fn.File, line)
+			if movedName, ok := movedIdentifier(assignment.Expr); ok {
+				if movedVariable, exists := locals[movedName]; exists {
+					movedVariable.Type = movedType
+					locals[movedName] = movedVariable
+				}
+			}
 			continue
 		}
 
@@ -537,6 +685,18 @@ func parseAssignment(stmt string) (assignmentStatement, bool) {
 	return assignmentStatement{Target: target, Op: op, Expr: expr}, true
 }
 
+func movedIdentifier(expr string) (string, bool) {
+	expr = strings.TrimSpace(expr)
+	if !strings.HasPrefix(expr, "move ") {
+		return "", false
+	}
+	name := strings.TrimSpace(strings.TrimPrefix(expr, "move"))
+	if !isSimpleIdentifier(name) {
+		return "", false
+	}
+	return name, true
+}
+
 func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, locals map[string]variableSymbol, source string, line int) {
 	baseName := assignment.Target
 	targetType := ""
@@ -550,6 +710,10 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 		base, ok := checker.lookupVariable(baseName, locals)
 		if !ok {
 			checker.addError(source, line, fmt.Sprintf("cannot assign to unknown variable %q", baseName))
+			return
+		}
+		if base.Type == movedType {
+			checker.addError(source, line, fmt.Sprintf("variable %q was moved", baseName))
 			return
 		}
 		if !base.Mutable {
@@ -566,6 +730,10 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 		variable, ok := checker.lookupVariable(baseName, locals)
 		if !ok {
 			checker.addError(source, line, fmt.Sprintf("cannot assign to unknown variable %q", baseName))
+			return
+		}
+		if variable.Type == movedType {
+			checker.addError(source, line, fmt.Sprintf("variable %q was moved", baseName))
 			return
 		}
 		if !variable.Mutable {
@@ -599,6 +767,14 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	expr = trimOuterParens(expr)
 	if expr == "" {
 		return anyType
+	}
+	if strings.HasPrefix(expr, "move ") {
+		target := strings.TrimSpace(strings.TrimPrefix(expr, "move"))
+		if !isSimpleIdentifier(target) {
+			checker.addError(source, line, "move expects a variable")
+			return anyType
+		}
+		return checker.inferExpression(target, locals, source, line)
 	}
 	if condition, consequence, alternative, ok := splitConditionalExpression(expr); ok {
 		checker.inferExpression(condition, locals, source, line)
@@ -712,6 +888,10 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	}
 
 	if variable, ok := checker.lookupVariable(expr, locals); ok {
+		if variable.Type == movedType {
+			checker.addError(source, line, fmt.Sprintf("variable %q was moved", expr))
+			return anyType
+		}
 		return variable.Type
 	}
 	if fn, ok := checker.lookupFunction(expr); ok {
@@ -842,7 +1022,21 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 	name = checker.resolveAliasPath(normalizeNamespaceAccess(name))
 	switch name {
 	case "print":
+		for _, arg := range args {
+			checker.inferExpression(arg, locals, source, line)
+		}
 		return anyType
+	case "input":
+		if len(args) > 1 {
+			checker.addError(source, line, "input expects 0 to 1 argument(s)")
+		}
+		if len(args) == 1 {
+			argType := checker.inferExpression(args[0], locals, source, line)
+			if !isAssignable("String", argType) {
+				checker.addError(source, line, fmt.Sprintf("input prompt expects String, got %s", argType))
+			}
+		}
+		return "String"
 	case "len":
 		if len(args) != 1 {
 			checker.addError(source, line, "len expects 1 argument")
@@ -1080,9 +1274,17 @@ func maskBlocks(input string) string {
 	for index < len(input) {
 		nextNamespace := findKeyword(input, "namespace", index)
 		nextFunction := findKeyword(input, "function", index)
+		nextTrait := findKeyword(input, "trait", index)
+		nextImpl := findKeyword(input, "impl", index)
 		next := nextNamespace
 		if next == -1 || (nextFunction != -1 && nextFunction < next) {
 			next = nextFunction
+		}
+		if next == -1 || (nextTrait != -1 && nextTrait < next) {
+			next = nextTrait
+		}
+		if next == -1 || (nextImpl != -1 && nextImpl < next) {
+			next = nextImpl
 		}
 		if next == -1 {
 			break
@@ -2036,6 +2238,16 @@ func findKeyword(input string, keyword string, start int) int {
 		start = nextStart
 	}
 	return -1
+}
+
+func nearestKeyword(left int, right int) int {
+	if left == -1 {
+		return right
+	}
+	if right == -1 || left < right {
+		return left
+	}
+	return right
 }
 
 func readNamedBlockHeader(input string, start int) (string, int) {

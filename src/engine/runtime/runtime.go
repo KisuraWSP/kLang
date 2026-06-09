@@ -1,7 +1,9 @@
 package runtime
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strings"
 
 	"kLang/src/engine/file"
@@ -165,6 +167,10 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 			return errorAt(current.Pos, fmt.Sprintf("function %q is already defined", name))
 		}
 		runtime.functions[name] = current
+	case parser.TraitStatement:
+		return nil
+	case parser.ImplStatement:
+		return nil
 	case parser.AliasStatement:
 		if current.Target == "" {
 			return errorAt(current.Pos, fmt.Sprintf("alias %q is missing a namespace target", current.Name))
@@ -221,6 +227,10 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 	case parser.NamespaceStatement:
 		return signal{kind: signalNone}, nil
 	case parser.FunctionStatement:
+		return signal{kind: signalNone}, nil
+	case parser.TraitStatement:
+		return signal{kind: signalNone}, nil
+	case parser.ImplStatement:
 		return signal{kind: signalNone}, nil
 	case parser.VariableStatement:
 		value := zeroValue(current.Type)
@@ -681,6 +691,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 	case parser.IdentifierExpression:
 		binding, ok := env.Get(current.Name)
 		if ok {
+			if binding.Moved {
+				return NullValue(), Error{Message: fmt.Sprintf("variable %q was moved", current.Name)}
+			}
 			if err := runtime.memory.BorrowImmutable(binding.ObjectID); err != nil {
 				return NullValue(), err
 			}
@@ -844,6 +857,9 @@ func iterableValues(value Value) ([]Value, error) {
 }
 
 func (runtime *Runtime) evalUnary(expr parser.UnaryExpression, env *Environment) (Value, error) {
+	if expr.Operator == "move" {
+		return runtime.evalMove(expr.Right, env)
+	}
 	value, err := runtime.evalExpression(expr.Right, env)
 	if err != nil {
 		return NullValue(), err
@@ -868,6 +884,28 @@ func (runtime *Runtime) evalUnary(expr parser.UnaryExpression, env *Environment)
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported unary operator %q", expr.Operator)}
 	}
+}
+
+func (runtime *Runtime) evalMove(expr parser.ExpressionNode, env *Environment) (Value, error) {
+	identifier, ok := expr.(parser.IdentifierExpression)
+	if !ok {
+		return NullValue(), Error{Message: "move expects a variable"}
+	}
+	binding, ok := env.Get(identifier.Name)
+	if !ok {
+		return NullValue(), Error{Message: fmt.Sprintf("unknown variable %q", identifier.Name)}
+	}
+	if binding.Moved {
+		return NullValue(), Error{Message: fmt.Sprintf("variable %q was moved", identifier.Name)}
+	}
+	value, err := runtime.forceBindingValue(binding)
+	if err != nil {
+		return NullValue(), err
+	}
+	binding.Moved = true
+	binding.Value = NullValue()
+	runtime.memory.Store(binding.ObjectID, NullValue())
+	return value, nil
 }
 
 func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environment) (Value, error) {
@@ -1060,10 +1098,33 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 	name = runtime.resolveAliasPath(name)
 	switch name {
 	case "print":
-		if len(args) > 0 {
-			runtime.output = append(runtime.output, valueString(args[0]))
+		values := make([]string, 0, len(args))
+		for _, arg := range args {
+			value, err := runtime.forceValue(arg)
+			if err != nil {
+				return NullValue(), err
+			}
+			values = append(values, valueString(value))
 		}
+		runtime.output = append(runtime.output, strings.Join(values, " "))
 		return NullValue(), nil
+	case "input":
+		if len(args) > 1 {
+			return NullValue(), Error{Message: "input expects zero or one argument"}
+		}
+		if len(args) == 1 {
+			value, err := runtime.forceValue(args[0])
+			if err != nil {
+				return NullValue(), err
+			}
+			runtime.output = append(runtime.output, valueString(value))
+		}
+		reader := bufio.NewReader(os.Stdin)
+		text, err := reader.ReadString('\n')
+		if err != nil && len(text) == 0 {
+			return StringValue(""), nil
+		}
+		return StringValue(strings.TrimRight(text, "\r\n")), nil
 	case "len":
 		if len(args) != 1 {
 			return NullValue(), Error{Message: "len expects one argument"}
@@ -1246,7 +1307,7 @@ func (runtime *Runtime) resolveAliasPath(name string) string {
 
 func isBuiltinFunction(name string) bool {
 	switch name {
-	case "print", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD":
+	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD":
 		return true
 	default:
 		return false

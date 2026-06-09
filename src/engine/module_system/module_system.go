@@ -286,6 +286,10 @@ func collectImports(statements []parser.Statement) []parser.ImportStatement {
 			imports = append(imports, collectImports(current.Body)...)
 		case parser.FunctionStatement:
 			imports = append(imports, collectImports(current.Body)...)
+		case parser.ImplStatement:
+			for _, method := range current.Methods {
+				imports = append(imports, collectImports(method.Body)...)
+			}
 		case parser.IfStatement:
 			imports = append(imports, collectImports(current.Consequence)...)
 			imports = append(imports, collectImports(current.Alternative)...)

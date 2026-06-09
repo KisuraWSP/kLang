@@ -35,6 +35,11 @@ itemsList[1] = count;
 local List[Int] savedItems = itemsList;
 itemsList[0] = 100;
 
+-- move semantics
+-- move transfers a variable value and prevents later reads from the original variable.
+local String owned = "hello";
+local String transferred = move owned;
+
 -- exported variable
 -- export makes the variable accessible through the global scope even when declared inside a block or function.
 export local Int sharedValue = 10;
@@ -179,6 +184,10 @@ function CountDown(value : Int, total : Int) : Int {
     return CountDown(value - 1, total + 1);
 }
 
+-- variadic print and input
+print("count", 1, True);
+local String name = input("name: ");
+
 -- deprecation marker tag
 -- Calling a deprecated function is allowed, but the checker reports a warning.
 @deprecated
@@ -282,4 +291,18 @@ std.lib.LuaInit();
 
 alias std_lib = std.lib;
 std_lib::LuaInit();
+```
+
+6. Traits
+- Traits declare required method signatures. Impl blocks must define matching methods for a type.
+```lua
+trait Printable {
+    function Show(value : Int) : String;
+}
+
+impl Printable for Int {
+    function Show(value : Int) : String {
+        return value as String;
+    }
+}
 ```

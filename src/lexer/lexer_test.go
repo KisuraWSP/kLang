@@ -126,6 +126,41 @@ func TestLexerTokenizesLazyFunction(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesTraitsAndMove(t *testing.T) {
+	input := `trait Printable { function Show(value : Int) : String; } impl Printable for Int {} local String b = move a;`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenTrait, Literal: "trait"},
+		{Type: TokenIdentifier, Literal: "Printable"},
+		{Type: TokenScopeBegin, Literal: "{"},
+		{Type: TokenFunc, Literal: "function"},
+		{Type: TokenIdentifier, Literal: "Show"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenIdentifier, Literal: "value"},
+		{Type: TokenInferReturn, Literal: ":"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenInferReturn, Literal: ":"},
+		{Type: TokenIdentifier, Literal: "String"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenScopeEnd, Literal: "}"},
+		{Type: TokenImpl, Literal: "impl"},
+		{Type: TokenIdentifier, Literal: "Printable"},
+		{Type: TokenFor, Literal: "for"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenScopeBegin, Literal: "{"},
+		{Type: TokenScopeEnd, Literal: "}"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "String"},
+		{Type: TokenIdentifier, Literal: "b"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenMove, Literal: "move"},
+		{Type: TokenIdentifier, Literal: "a"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesNullSafetyOperator(t *testing.T) {
 	input := `local Bool exists = MaybeValue()?;`
 

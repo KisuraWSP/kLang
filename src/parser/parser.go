@@ -64,6 +64,10 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseAlias()
 	case lexer.TokenNameSpace:
 		return parser.parseNamespace()
+	case lexer.TokenTrait:
+		return parser.parseTrait()
+	case lexer.TokenImpl:
+		return parser.parseImpl()
 	case lexer.TokenAt:
 		return parser.parseTag()
 	case lexer.TokenFunc:
@@ -144,6 +148,72 @@ func (parser *Parser) parseNamespace() Statement {
 		Pos:  positionFromToken(start),
 		Name: name.Literal,
 		Body: body,
+	}
+}
+
+func (parser *Parser) parseTrait() Statement {
+	start := parser.consume(lexer.TokenTrait, "expected trait")
+	name := parser.consume(lexer.TokenIdentifier, "expected trait name")
+	parser.consume(lexer.TokenScopeBegin, "expected '{' to start trait block")
+	var methods []TraitMethod
+	for !parser.check(lexer.TokenScopeEnd) && !parser.atEnd() {
+		if parser.match(lexer.TokenSemicolon) {
+			continue
+		}
+		method := parser.parseTraitMethod()
+		if method.Name != "" {
+			methods = append(methods, method)
+		} else {
+			parser.synchronize()
+		}
+	}
+	parser.consume(lexer.TokenScopeEnd, "expected '}' to close trait block")
+	return TraitStatement{Pos: positionFromToken(start), Name: name.Literal, Methods: methods}
+}
+
+func (parser *Parser) parseTraitMethod() TraitMethod {
+	start := parser.consume(lexer.TokenFunc, "expected function in trait")
+	name := parser.consume(lexer.TokenIdentifier, "expected trait method name")
+	parser.consume(lexer.TokenLeftBrace, "expected '(' after trait method name")
+	params := parser.parseParameters()
+	parser.consume(lexer.TokenRightBrace, "expected ')' after trait method parameters")
+	returnType := "T"
+	if parser.match(lexer.TokenInferReturn) {
+		returnType = parser.parseType()
+	}
+	parser.consumeOptionalSemicolon()
+	return TraitMethod{
+		Pos:        positionFromToken(start),
+		Name:       name.Literal,
+		Params:     params,
+		ReturnType: returnType,
+	}
+}
+
+func (parser *Parser) parseImpl() Statement {
+	start := parser.consume(lexer.TokenImpl, "expected impl")
+	traitName := parser.consume(lexer.TokenIdentifier, "expected trait name after impl")
+	parser.consume(lexer.TokenFor, "expected for after impl trait name")
+	typeName := parser.parseType()
+	parser.consume(lexer.TokenScopeBegin, "expected '{' to start impl block")
+	var methods []FunctionStatement
+	for !parser.check(lexer.TokenScopeEnd) && !parser.atEnd() {
+		if parser.match(lexer.TokenSemicolon) {
+			continue
+		}
+		stmt := parser.parseFunction(false, "", false)
+		if fn, ok := stmt.(FunctionStatement); ok {
+			methods = append(methods, fn)
+		} else {
+			parser.synchronize()
+		}
+	}
+	parser.consume(lexer.TokenScopeEnd, "expected '}' to close impl block")
+	return ImplStatement{
+		Pos:     positionFromToken(start),
+		Trait:   traitName.Literal,
+		Type:    typeName,
+		Methods: methods,
 	}
 }
 
@@ -380,7 +450,8 @@ func parseInlineStatements(tokens []lexer.Token) []Statement {
 func inlineStatementStart(tokens []lexer.Token) int {
 	for index, token := range tokens {
 		switch token.Type {
-		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy:
+		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport,
+			lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenTrait, lexer.TokenImpl:
 			return index
 		}
 	}
@@ -658,7 +729,8 @@ func (parser *Parser) synchronize() {
 		switch parser.current().Type {
 		case lexer.TokenFunc, lexer.TokenGlobal, lexer.TokenLocal, lexer.TokenExport, lexer.TokenReturn,
 			lexer.TokenIf, lexer.TokenUnless, lexer.TokenFor, lexer.TokenWhile,
-			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenNameSpace:
+			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenAlias, lexer.TokenLazy,
+			lexer.TokenTrait, lexer.TokenImpl, lexer.TokenNameSpace:
 			return
 		}
 		parser.advance()

@@ -665,6 +665,59 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsTraitsAndImpls(t *testing.T) {
+	program := programFromSource(`
+trait Printable {
+    function Show(value : Int) : String;
+}
+
+impl Printable for Int {
+    function Show(value : Int) : String {
+        return value as String;
+    }
+}
+
+function Main() : Int {
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsIncompleteTraitImpl(t *testing.T) {
+	program := programFromSource(`
+trait Printable {
+    function Show(value : Int) : String;
+}
+
+impl Printable for Int {
+}
+
+function Main() : Int {
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `impl Printable for Int is missing method "Show"`)
+}
+
+func TestCheckProgramRejectsUseAfterMove(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local String first = "hello";
+    local String second = move first;
+    print(first);
+    return len(second);
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `variable "first" was moved`)
+}
+
 func TestCheckProgramRejectsCallbackSignatureMismatch(t *testing.T) {
 	program := programFromSource(`
 function ToString(value : Int) : String {
