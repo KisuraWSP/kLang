@@ -280,6 +280,14 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 		for _, item := range current.Items {
 			checker.checkScopeExpression(item, scope, namespace, source, line)
 		}
+	case parser.ListComprehensionExpression:
+		checker.checkScopeExpression(current.Iterable, scope, namespace, source, line)
+		comprehensionScope := newLexicalScope(scope)
+		comprehensionScope.define(variableSymbol{Name: current.Iterator, Type: anyType, File: source, Line: line})
+		if current.Condition != nil {
+			checker.checkScopeExpression(current.Condition, comprehensionScope, namespace, source, line)
+		}
+		checker.checkScopeExpression(current.Value, comprehensionScope, namespace, source, line)
 	case parser.MapExpression:
 		for _, entry := range current.Entries {
 			checker.checkScopeExpression(entry.Key, scope, namespace, source, line)

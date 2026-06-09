@@ -216,6 +216,44 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(resultProgram), "cannot assign Result[T,Int] to local Result[Int,String] value")
 }
 
+func TestCheckProgramAcceptsListComprehensions(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local List[Int] values = [1, 2, 3, 4];
+    local List[Int] doubled = [value * 2 for value in values];
+    local List[Int] evens = [value for value in values if value % 2 == 0];
+    local List[Char] letters = [letter for letter in "hey"];
+    local List[Int] indexes = [index for index in range(3)];
+    return doubled[1] + evens[0] + indexes[2];
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected list comprehension type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsListComprehensionTypeErrors(t *testing.T) {
+	typeMismatch := programFromSource(`
+function Main() : Int {
+    local List[Int] values = [1, 2];
+    local List[String] bad = [value for value in values];
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(typeMismatch), "cannot assign List[Int] to local List[String] bad")
+
+	notIterable := programFromSource(`
+function Main() : Int {
+    local Bool flag = True;
+    local List[Int] bad = [value for value in flag];
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(notIterable), "list comprehension cannot iterate over Bool")
+}
+
 func TestCheckProgramRejectsInvalidIndexing(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

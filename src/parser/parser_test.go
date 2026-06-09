@@ -122,6 +122,41 @@ function Main() : Int {
 	}
 }
 
+func TestParseListComprehensionExpression(t *testing.T) {
+	program, errors := Parse(`
+function Main() : Int {
+    local List[Int] doubled = [value * 2 for value in values if value > 1];
+    return 0;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	decl, ok := fn.Body[0].(VariableStatement)
+	if !ok {
+		t.Fatalf("expected variable declaration, got %T", fn.Body[0])
+	}
+	comprehension, ok := decl.Expression.Node.(ListComprehensionExpression)
+	if !ok {
+		t.Fatalf("expected list comprehension, got %T", decl.Expression.Node)
+	}
+	if comprehension.Iterator != "value" {
+		t.Fatalf("expected iterator value, got %q", comprehension.Iterator)
+	}
+	if _, ok := comprehension.Value.(BinaryExpression); !ok {
+		t.Fatalf("expected mapped value to be binary expression, got %T", comprehension.Value)
+	}
+	if identifier, ok := comprehension.Iterable.(IdentifierExpression); !ok || identifier.Name != "values" {
+		t.Fatalf("unexpected iterable expression: %#v", comprehension.Iterable)
+	}
+	if _, ok := comprehension.Condition.(BinaryExpression); !ok {
+		t.Fatalf("expected condition to be binary expression, got %T", comprehension.Condition)
+	}
+}
+
 func TestParseExportedVariableDeclaration(t *testing.T) {
 	program, errors := Parse(`export local mut Int shared = 1;`)
 	assertNoParseErrors(t, errors)

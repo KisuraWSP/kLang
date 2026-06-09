@@ -688,6 +688,9 @@ func (checker *TypeChecker) inferListLiteral(expr string, locals map[string]vari
 	if inner == "" {
 		return "List[T]"
 	}
+	if valueExpr, iterator, iterableExpr, conditionExpr, ok := splitListComprehensionLiteral(inner); ok {
+		return checker.inferListComprehension(valueExpr, iterator, iterableExpr, conditionExpr, locals, source, line)
+	}
 
 	items := splitTopLevel(inner, ',')
 	itemType := ""
@@ -702,6 +705,23 @@ func (checker *TypeChecker) inferListLiteral(expr string, locals map[string]vari
 		}
 	}
 	return "List[" + itemType + "]"
+}
+
+func (checker *TypeChecker) inferListComprehension(valueExpr string, iterator string, iterableExpr string, conditionExpr string, locals map[string]variableSymbol, source string, line int) string {
+	iterableType := checker.inferExpression(iterableExpr, locals, source, line)
+	itemType, ok := iterableItemType(iterableType)
+	if !ok {
+		checker.addError(source, line, fmt.Sprintf("list comprehension cannot iterate over %s", iterableType))
+		itemType = anyType
+	}
+
+	scopedLocals := copyLocals(locals)
+	scopedLocals[iterator] = variableSymbol{Name: iterator, Type: itemType, File: source, Line: line}
+	if conditionExpr != "" {
+		checker.inferExpression(conditionExpr, scopedLocals, source, line)
+	}
+	valueType := checker.inferExpression(valueExpr, scopedLocals, source, line)
+	return "List[" + valueType + "]"
 }
 
 func (checker *TypeChecker) checkCall(name string, args []string, locals map[string]variableSymbol, source string, line int) string {
@@ -1192,6 +1212,30 @@ func numericResult(left string, right string) string {
 	return "Int"
 }
 
+func iterableItemType(typeName string) (string, bool) {
+	typeName = normalizeType(typeName)
+	switch {
+	case typeName == anyType:
+		return anyType, true
+	case typeName == "String":
+		return "Char", true
+	case typeName == "Int" || typeName == "UInt":
+		return "Int", true
+	case strings.HasPrefix(typeName, "List[") && strings.HasSuffix(typeName, "]"):
+		return typeName[5 : len(typeName)-1], true
+	default:
+		return "", false
+	}
+}
+
+func copyLocals(locals map[string]variableSymbol) map[string]variableSymbol {
+	copied := make(map[string]variableSymbol, len(locals)+1)
+	for name, variable := range locals {
+		copied[name] = variable
+	}
+	return copied
+}
+
 func parseFunctionCall(expr string) (string, []string, bool) {
 	expr = strings.TrimSpace(strings.TrimPrefix(expr, "call "))
 	open := findTopLevelChar(expr, '(')
@@ -1212,6 +1256,63 @@ func parseFunctionCall(expr string) (string, []string, bool) {
 		args = splitTopLevel(inner, ',')
 	}
 	return name, args, true
+}
+
+func splitListComprehensionLiteral(inner string) (string, string, string, string, bool) {
+	forIndex := findTopLevelOperator(inner, []string{" for "})
+	if forIndex <= 0 {
+		return "", "", "", "", false
+	}
+	if findTopLevelOperator(inner[:forIndex], []string{","}) != -1 {
+		return "", "", "", "", false
+	}
+
+	valueExpr := strings.TrimSpace(inner[:forIndex])
+	afterFor := strings.TrimSpace(inner[forIndex+len(" for "):])
+	inIndex := findTopLevelOperator(afterFor, []string{" in "})
+	if inIndex <= 0 {
+		return "", "", "", "", false
+	}
+
+	iterator := strings.TrimSpace(afterFor[:inIndex])
+	if !isSimpleIdentifier(iterator) {
+		return "", "", "", "", false
+	}
+
+	afterIn := strings.TrimSpace(afterFor[inIndex+len(" in "):])
+	if afterIn == "" {
+		return "", "", "", "", false
+	}
+
+	ifIndex := findTopLevelOperator(afterIn, []string{" if "})
+	if ifIndex == -1 {
+		return valueExpr, iterator, afterIn, "", true
+	}
+
+	iterableExpr := strings.TrimSpace(afterIn[:ifIndex])
+	conditionExpr := strings.TrimSpace(afterIn[ifIndex+len(" if "):])
+	if iterableExpr == "" || conditionExpr == "" {
+		return "", "", "", "", false
+	}
+	return valueExpr, iterator, iterableExpr, conditionExpr, true
+}
+
+func isSimpleIdentifier(input string) bool {
+	if input == "" {
+		return false
+	}
+	for index, char := range input {
+		if index == 0 {
+			if !unicode.IsLetter(char) && char != '_' {
+				return false
+			}
+			continue
+		}
+		if !isIdentifierRune(char) {
+			return false
+		}
+	}
+	return true
 }
 
 func splitTrailingIndexExpression(expr string) (string, string, bool) {

@@ -193,6 +193,42 @@ function Main() : Int {
 	assertRuntimeErrorContains(t, err, `cannot assign Option to Option[Int] variable "value"`)
 }
 
+func TestRuntimeExecutesListComprehensions(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local List[Int] values = [1, 2, 3, 4];
+    local List[Int] doubled = [value * 2 for value in values];
+    local List[Int] evens = [value for value in values if value % 2 == 0];
+    local List[Char] letters = [letter for letter in "hey"];
+    local List[Int] indexes = [index for index in range(4)];
+    print(doubled[2]);
+    print(evens[1]);
+    print(letters[0]);
+    print(indexes[3]);
+    return doubled[2] + evens[1] + indexes[3];
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 13 {
+		t.Fatalf("expected list comprehension program to return 13, got %#v", result.Value)
+	}
+	expectedOutput := []string{"6", "4", "h", "3"}
+	if strings.Join(result.Output, ",") != strings.Join(expectedOutput, ",") {
+		t.Fatalf("expected output %v, got %v", expectedOutput, result.Output)
+	}
+}
+
+func TestRuntimeRejectsInvalidListComprehensionIterable(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local Bool flag = True;
+    local List[Int] values = [value for value in flag];
+    return 0;
+}
+`)
+	assertRuntimeErrorContains(t, err, "list comprehension cannot iterate over Bool")
+}
+
 func TestRuntimeRejectsInvalidTypeCast(t *testing.T) {
 	_, err := runParsedSourceWithError(`
 function Main() : Int {

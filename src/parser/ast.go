@@ -154,6 +154,13 @@ type ListExpression struct {
 	Items []ExpressionNode
 }
 
+type ListComprehensionExpression struct {
+	Value     ExpressionNode
+	Iterator  string
+	Iterable  ExpressionNode
+	Condition ExpressionNode
+}
+
 type MapExpression struct {
 	Entries []MapEntry
 }
@@ -203,9 +210,11 @@ func (expr SelectorExpression) expressionNode()   {}
 func (expr CastExpression) expressionNode()       {}
 func (expr NullCheckExpression) expressionNode()  {}
 func (expr ListExpression) expressionNode()       {}
-func (expr MapExpression) expressionNode()        {}
-func (expr GroupExpression) expressionNode()      {}
-func (expr RawExpression) expressionNode()        {}
+func (expr ListComprehensionExpression) expressionNode() {
+}
+func (expr MapExpression) expressionNode()   {}
+func (expr GroupExpression) expressionNode() {}
+func (expr RawExpression) expressionNode()   {}
 
 func (expr Expression) Literal() string {
 	parts := make([]string, 0, len(expr.Tokens))

@@ -34,6 +34,13 @@ local Int firstItem = itemsList[0];
 -- Map indexes use the map key type.
 local Int total = scores["total"];
 
+-- list comprehension
+-- Build a List by mapping each item from a List, String, or range count.
+local List[Int] doubled = [value * 2 for value in itemsList];
+local List[Int] evens = [value for value in itemsList if value % 2 == 0];
+local List[Char] letters = [letter for letter in "hello"];
+local List[Int] indexes = [index for index in range(5)];
+
 -- operator precedence
 -- From strongest to weakest: call/index/selector, cast, exponent, unary, multiply/divide/modulo, add/subtract, comparison, equality, and, or.
 local Int expression = 1 + 2 * 3;

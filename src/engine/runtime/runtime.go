@@ -619,6 +619,8 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			items = append(items, value)
 		}
 		return Value{Kind: ValueList, Data: items}, nil
+	case parser.ListComprehensionExpression:
+		return runtime.evalListComprehension(current, env)
 	case parser.MapExpression:
 		items := map[string]Value{}
 		for _, entry := range current.Entries {
@@ -641,6 +643,69 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported expression %q", parser.Expression{Tokens: current.Tokens}.Literal())}
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported expression %T", expr)}
+	}
+}
+
+func (runtime *Runtime) evalListComprehension(expr parser.ListComprehensionExpression, env *Environment) (Value, error) {
+	iterable, err := runtime.evalExpression(expr.Iterable, env)
+	if err != nil {
+		return NullValue(), err
+	}
+
+	values, err := iterableValues(iterable)
+	if err != nil {
+		return NullValue(), err
+	}
+
+	items := make([]Value, 0, len(values))
+	for _, value := range values {
+		itemEnv := NewEnvironment(env)
+		if err := itemEnv.Define(expr.Iterator, false, runtimeTypeName(value), value, runtime.memory.Allocate(value)); err != nil {
+			return NullValue(), err
+		}
+
+		if expr.Condition != nil {
+			condition, err := runtime.evalExpression(expr.Condition, itemEnv)
+			if err != nil {
+				return NullValue(), err
+			}
+			if !isTruthy(condition) {
+				continue
+			}
+		}
+
+		item, err := runtime.evalExpression(expr.Value, itemEnv)
+		if err != nil {
+			return NullValue(), err
+		}
+		items = append(items, item)
+	}
+	return Value{Kind: ValueList, Data: items}, nil
+}
+
+func iterableValues(value Value) ([]Value, error) {
+	switch value.Kind {
+	case ValueList:
+		return value.Data.([]Value), nil
+	case ValueString:
+		runes := []rune(value.Data.(string))
+		values := make([]Value, 0, len(runes))
+		for _, current := range runes {
+			values = append(values, CharValue(string(current)))
+		}
+		return values, nil
+	case ValueInt:
+		count := value.Data.(int)
+		if count < 0 {
+			return nil, Error{Message: "list comprehension count cannot be negative"}
+		}
+		values := make([]Value, 0, count)
+		for index := 0; index < count; index++ {
+			values = append(values, IntValue(index))
+		}
+		return values, nil
+	default:
+		return nil, Error{Message: fmt.Sprintf("list comprehension cannot iterate over %s", value.Kind)}
 	}
 }
 

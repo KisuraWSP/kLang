@@ -1,12 +1,9 @@
 # TODO
-- add list comprehension from python <do>
 - lazy evaluated functions <do>
 - Complex Number Data Types to be built in the language <do>
 - SIMD Data Types to be built in the langauge <do>
 - better type checking via Unification-Based Constraint Solving (Hindley-Milner / Algorithm W) and Dataflow-Based (Flow-Sensitive) Type Checking <do>
-- lvalues & rvalues in variables <do>
 - tail call optimization for recursive functions <do>
-- referential transparency <do>
 - Type restriction on generics via typed lists (like the below) <do>
     - Type restrictions must be strictly type checked no matter the type in T
 ```lua
@@ -108,6 +105,7 @@ if x == {
 - multi threaded interpretter runtime
 - coroutines
 - better error/exception messages like similar to elms error messages (like the message should like tell the user whats wrong in the program and actually point the line of code where the error occurred)
+- function aliases
 
 
 # TODO When All Previous todos are done (End Goal)

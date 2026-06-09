@@ -174,19 +174,156 @@ func (parser *expressionParser) parseNullCheck(value ExpressionNode) ExpressionN
 }
 
 func (parser *expressionParser) parseList() ExpressionNode {
-	var items []ExpressionNode
-	if !parser.check(lexer.TokenRightSquareBrace) {
-		for {
-			items = append(items, parser.parseExpression(precedenceLowest))
-			if !parser.match(lexer.TokenComma) {
-				break
+	body, ok := parser.consumeListBody()
+	if !ok {
+		return nil
+	}
+	if len(body) == 0 {
+		return ListExpression{}
+	}
+	if comprehension, ok := parseListComprehension(body); ok {
+		return comprehension
+	}
+
+	parts := splitTopLevelExpressionTokens(body, lexer.TokenComma)
+	items := make([]ExpressionNode, 0, len(parts))
+	for _, part := range parts {
+		if len(part) == 0 {
+			return nil
+		}
+		items = append(items, parseExpressionNode(part))
+	}
+	return ListExpression{Items: items}
+}
+
+func (parser *expressionParser) consumeListBody() ([]lexer.Token, bool) {
+	start := parser.pos
+	depthSquare := 0
+	depthParen := 0
+	depthScope := 0
+	for !parser.atEnd() {
+		token := parser.current()
+		if token.Type == lexer.TokenRightSquareBrace && depthSquare == 0 && depthParen == 0 && depthScope == 0 {
+			body := append([]lexer.Token(nil), parser.tokens[start:parser.pos]...)
+			parser.advance()
+			return body, true
+		}
+		switch token.Type {
+		case lexer.TokenLeftSquareBrace:
+			depthSquare++
+		case lexer.TokenRightSquareBrace:
+			depthSquare--
+		case lexer.TokenLeftBrace:
+			depthParen++
+		case lexer.TokenRightBrace:
+			depthParen--
+		case lexer.TokenScopeBegin:
+			depthScope++
+		case lexer.TokenScopeEnd:
+			depthScope--
+		}
+		if depthSquare < 0 || depthParen < 0 || depthScope < 0 {
+			return nil, false
+		}
+		parser.advance()
+	}
+	return nil, false
+}
+
+func parseListComprehension(tokens []lexer.Token) (ExpressionNode, bool) {
+	forIndex := findTopLevelExpressionToken(tokens, lexer.TokenFor, 0)
+	if forIndex <= 0 || forIndex+3 >= len(tokens) {
+		return nil, false
+	}
+	if tokens[forIndex+1].Type != lexer.TokenIdentifier || tokens[forIndex+2].Type != lexer.TokenIn {
+		return nil, false
+	}
+
+	if findTopLevelExpressionToken(tokens[:forIndex], lexer.TokenComma, 0) != -1 {
+		return nil, false
+	}
+
+	iterator := tokens[forIndex+1].Literal
+	iterableStart := forIndex + 3
+	ifIndex := findTopLevelExpressionToken(tokens, lexer.TokenIf, iterableStart)
+	iterableEnd := len(tokens)
+	var conditionTokens []lexer.Token
+	if ifIndex != -1 {
+		iterableEnd = ifIndex
+		conditionTokens = tokens[ifIndex+1:]
+		if len(conditionTokens) == 0 {
+			return nil, false
+		}
+	}
+	if iterableStart >= iterableEnd {
+		return nil, false
+	}
+
+	return ListComprehensionExpression{
+		Value:     parseExpressionNode(tokens[:forIndex]),
+		Iterator:  iterator,
+		Iterable:  parseExpressionNode(tokens[iterableStart:iterableEnd]),
+		Condition: parseExpressionNode(conditionTokens),
+	}, true
+}
+
+func splitTopLevelExpressionTokens(tokens []lexer.Token, separator lexer.TokenType) [][]lexer.Token {
+	var parts [][]lexer.Token
+	start := 0
+	depthSquare := 0
+	depthParen := 0
+	depthScope := 0
+	for index, token := range tokens {
+		switch token.Type {
+		case lexer.TokenLeftSquareBrace:
+			depthSquare++
+		case lexer.TokenRightSquareBrace:
+			depthSquare--
+		case lexer.TokenLeftBrace:
+			depthParen++
+		case lexer.TokenRightBrace:
+			depthParen--
+		case lexer.TokenScopeBegin:
+			depthScope++
+		case lexer.TokenScopeEnd:
+			depthScope--
+		default:
+			if token.Type == separator && depthSquare == 0 && depthParen == 0 && depthScope == 0 {
+				parts = append(parts, tokens[start:index])
+				start = index + 1
 			}
 		}
 	}
-	if !parser.match(lexer.TokenRightSquareBrace) {
-		return nil
+	parts = append(parts, tokens[start:])
+	return parts
+}
+
+func findTopLevelExpressionToken(tokens []lexer.Token, tokenType lexer.TokenType, start int) int {
+	depthSquare := 0
+	depthParen := 0
+	depthScope := 0
+	for index := start; index < len(tokens); index++ {
+		token := tokens[index]
+		switch token.Type {
+		case lexer.TokenLeftSquareBrace:
+			depthSquare++
+		case lexer.TokenRightSquareBrace:
+			depthSquare--
+		case lexer.TokenLeftBrace:
+			depthParen++
+		case lexer.TokenRightBrace:
+			depthParen--
+		case lexer.TokenScopeBegin:
+			depthScope++
+		case lexer.TokenScopeEnd:
+			depthScope--
+		default:
+			if token.Type == tokenType && depthSquare == 0 && depthParen == 0 && depthScope == 0 {
+				return index
+			}
+		}
 	}
-	return ListExpression{Items: items}
+	return -1
 }
 
 func (parser *expressionParser) parseTypeName() string {
