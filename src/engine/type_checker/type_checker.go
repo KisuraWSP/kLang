@@ -50,6 +50,7 @@ type functionSymbol struct {
 	File               string
 	Line               int
 	Body               string
+	TypeRestrictions   map[string]string
 }
 
 type variableSymbol struct {
@@ -306,6 +307,20 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 	if name == "" {
 		return functionSymbol{}, openBrace, fmt.Errorf("function declaration is missing a name")
 	}
+	typeRestrictions := map[string]string{}
+	if bracket := strings.Index(name, "["); bracket != -1 {
+		rawName := strings.TrimSpace(name[:bracket])
+		restrictionText := strings.TrimSpace(name[bracket:])
+		if rawName == "" || !strings.HasPrefix(restrictionText, "[") || !strings.HasSuffix(restrictionText, "]") {
+			return functionSymbol{}, openBrace, fmt.Errorf("function declaration has malformed generic restrictions")
+		}
+		parsedRestrictions, err := parseTypeRestrictions(restrictionText[1 : len(restrictionText)-1])
+		if err != nil {
+			return functionSymbol{}, openBrace, err
+		}
+		name = rawName
+		typeRestrictions = parsedRestrictions
+	}
 
 	paramsEnd := findMatchingIn(header, nameEnd, '(', ')')
 	if paramsEnd == -1 {
@@ -316,12 +331,16 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 	if err != nil {
 		return functionSymbol{}, openBrace, err
 	}
+	for index := range params {
+		params[index].Type = applyFunctionTypeRestrictions(params[index].Type, typeRestrictions)
+	}
 
 	afterParams := strings.TrimSpace(header[paramsEnd+1:])
 	if !strings.HasPrefix(afterParams, ":") {
 		return functionSymbol{}, openBrace, fmt.Errorf("function %s is missing a return type", name)
 	}
 	returnType := normalizeType(strings.TrimSpace(afterParams[1:]))
+	returnType = applyFunctionTypeRestrictions(returnType, typeRestrictions)
 	if !isKnownType(returnType) {
 		return functionSymbol{}, openBrace, fmt.Errorf("function %s uses unknown return type %s", name, returnType)
 	}
@@ -338,6 +357,7 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 		File:               unit.Path,
 		Line:               lineAt(unit.Text, start),
 		Body:               unit.Text[openBrace+1 : closeBrace],
+		TypeRestrictions:   typeRestrictions,
 	}, closeBrace + 1, nil
 }
 
@@ -1147,7 +1167,59 @@ func splitTypeAndName(input string) (string, string, bool) {
 }
 
 func normalizeType(input string) string {
-	return strings.ReplaceAll(strings.TrimSpace(input), " ", "")
+	input = strings.TrimSpace(input)
+	if canonical, ok := canonicalRestrictedType(input); ok {
+		return canonical
+	}
+	return strings.ReplaceAll(input, " ", "")
+}
+
+func canonicalRestrictedType(input string) (string, bool) {
+	input = strings.TrimSpace(input)
+	if !strings.Contains(input, " restrict[") {
+		return "", false
+	}
+	parts := strings.SplitN(input, " restrict[", 2)
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || !strings.HasSuffix(parts[1], "]") {
+		return "", false
+	}
+	name := strings.TrimSpace(parts[0])
+	inner := strings.TrimSpace(parts[1][:len(parts[1])-1])
+	if inner == "" {
+		return "", false
+	}
+	allowed := splitTopLevel(inner, ',')
+	for index, option := range allowed {
+		allowed[index] = normalizeType(option)
+	}
+	return name + ":" + strings.Join(allowed, "|"), true
+}
+
+func parseTypeRestrictions(input string) (map[string]string, error) {
+	restrictions := map[string]string{}
+	if strings.TrimSpace(input) == "" {
+		return restrictions, nil
+	}
+	for _, part := range splitTopLevel(input, ',') {
+		canonical, ok := canonicalRestrictedType(part)
+		if !ok {
+			return nil, fmt.Errorf("generic restriction %q must be written as T restrict[Type,...]", strings.TrimSpace(part))
+		}
+		name, _, ok := restrictedGenericType(canonical)
+		if !ok {
+			return nil, fmt.Errorf("invalid generic restriction %q", strings.TrimSpace(part))
+		}
+		restrictions[name] = canonical
+	}
+	return restrictions, nil
+}
+
+func applyFunctionTypeRestrictions(typeName string, restrictions map[string]string) string {
+	typeName = normalizeType(typeName)
+	if restricted, ok := restrictions[typeName]; ok {
+		return restricted
+	}
+	return typeName
 }
 
 func isKnownType(typeName string) bool {
@@ -1414,6 +1486,14 @@ func canCast(source string, target string) bool {
 	source = normalizeType(source)
 	target = normalizeType(target)
 	if source == anyType || target == anyType || source == target {
+		return true
+	}
+	if _, allowed, ok := restrictedGenericType(source); ok {
+		for _, option := range allowed {
+			if !canCast(option, target) {
+				return false
+			}
+		}
 		return true
 	}
 	if isScalarType(source) && isScalarType(target) {

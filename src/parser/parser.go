@@ -135,22 +135,59 @@ func (parser *Parser) parseTag() Statement {
 func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string) Statement {
 	start := parser.consume(lexer.TokenFunc, "expected function")
 	name := parser.consume(lexer.TokenIdentifier, "expected function name")
+	typeParams := parser.parseTypeParameters()
 	parser.consume(lexer.TokenLeftBrace, "expected '(' after function name")
 	params := parser.parseParameters()
 	parser.consume(lexer.TokenRightBrace, "expected ')' after function parameters")
 	parser.consume(lexer.TokenInferReturn, "expected ':' before function return type")
 	returnType := parser.parseType()
+	params = applyTypeParameterRestrictions(params, typeParams)
+	returnType = applyReturnTypeRestriction(returnType, typeParams)
 	body := parser.parseBlock()
 
 	return FunctionStatement{
 		Pos:                positionFromToken(start),
 		Name:               name.Literal,
+		TypeParams:         typeParams,
 		Params:             params,
 		ReturnType:         returnType,
 		Deprecated:         deprecated,
 		DeprecationMessage: deprecationMessage,
 		Body:               body,
 	}
+}
+
+func applyTypeParameterRestrictions(params []Parameter, typeParams []TypeParameter) []Parameter {
+	for index := range params {
+		params[index].Type = applyReturnTypeRestriction(params[index].Type, typeParams)
+	}
+	return params
+}
+
+func applyReturnTypeRestriction(typeName string, typeParams []TypeParameter) string {
+	for _, typeParam := range typeParams {
+		if typeName == typeParam.Name {
+			return typeParam.Type
+		}
+	}
+	return typeName
+}
+
+func (parser *Parser) parseTypeParameters() []TypeParameter {
+	var params []TypeParameter
+	if !parser.match(lexer.TokenLeftSquareBrace) {
+		return params
+	}
+	for !parser.check(lexer.TokenRightSquareBrace) && !parser.atEnd() {
+		name := parser.consume(lexer.TokenIdentifier, "expected generic type name")
+		typeName := parser.parseRestrictedType(name.Literal)
+		params = append(params, TypeParameter{Name: name.Literal, Type: typeName})
+		if !parser.match(lexer.TokenComma) {
+			break
+		}
+	}
+	parser.consume(lexer.TokenRightSquareBrace, "expected ']' after generic type parameters")
+	return params
 }
 
 func (parser *Parser) parseParameters() []Parameter {
@@ -367,6 +404,10 @@ func (parser *Parser) parseType() string {
 	}
 
 	start := parser.current()
+	if start.Type == lexer.TokenIdentifier && parser.peek().Type == lexer.TokenIdentifier && parser.peek().Literal == "restrict" {
+		parser.advance()
+		return parser.parseRestrictedType(start.Literal)
+	}
 	var parts []string
 	depth := 0
 	for !parser.atEnd() {
@@ -425,6 +466,26 @@ func (parser *Parser) parseType() string {
 		parser.addError(start, "expected ']' to close type")
 	}
 	return strings.Join(parts, "")
+}
+
+func (parser *Parser) parseRestrictedType(name string) string {
+	if !parser.check(lexer.TokenIdentifier) || parser.current().Literal != "restrict" {
+		return name
+	}
+	parser.advance()
+	parser.consume(lexer.TokenLeftSquareBrace, "expected '[' after restrict")
+	var allowed []string
+	for !parser.check(lexer.TokenRightSquareBrace) && !parser.atEnd() {
+		allowed = append(allowed, parser.parseType())
+		if !parser.match(lexer.TokenComma) {
+			break
+		}
+	}
+	parser.consume(lexer.TokenRightSquareBrace, "expected ']' after restrict type list")
+	if len(allowed) == 0 {
+		return name
+	}
+	return name + ":" + strings.Join(allowed, "|")
 }
 
 func (parser *Parser) parseExpressionUntil(stopTypes ...lexer.TokenType) Expression {
@@ -514,6 +575,13 @@ func (parser *Parser) current() lexer.Token {
 		return parser.tokens[len(parser.tokens)-1]
 	}
 	return parser.tokens[parser.pos]
+}
+
+func (parser *Parser) peek() lexer.Token {
+	if parser.pos+1 >= len(parser.tokens) {
+		return lexer.Token{Type: lexer.TokenEOFDescriptor}
+	}
+	return parser.tokens[parser.pos+1]
 }
 
 func (parser *Parser) previous() lexer.Token {

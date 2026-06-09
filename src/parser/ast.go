@@ -38,11 +38,17 @@ type NamespaceStatement struct {
 type FunctionStatement struct {
 	Pos                Position
 	Name               string
+	TypeParams         []TypeParameter
 	Params             []Parameter
 	ReturnType         string
 	Deprecated         bool
 	DeprecationMessage string
 	Body               []Statement
+}
+
+type TypeParameter struct {
+	Name string
+	Type string
 }
 
 type Parameter struct {

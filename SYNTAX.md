@@ -80,6 +80,10 @@ local Bool shouldRun = not failed and active xor retrying or fallback;
 -- "return" after then is accepted as expression sugar.
 local Bool ready = if Init() > 0 then return False : True;
 
+-- restricted generic variable
+-- T restrict[...] only accepts values assignable to one of the listed types.
+local mut T restrict[UInt, Int, Float] numeric = 69420;
+
 -- pipe operator
 -- The left value is passed as the first argument to the function on the right.
 local Int piped = 2 |> Add(3) |> Double;
@@ -137,8 +141,8 @@ function Double(value : Int) : Int {
 }
 
 -- default parameters and restricted generic types
--- T:Int|Float accepts only Int-compatible or Float-compatible values.
-function IdentityNumber(value : T:Int|Float = 1) : T {
+-- T restrict[UInt, Int, Float] accepts only values compatible with the listed types.
+function IdentityNumber[T restrict[UInt, Int, Float]](value : T = 1) : T {
     return value;
 }
 

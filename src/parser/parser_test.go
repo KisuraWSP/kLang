@@ -45,7 +45,7 @@ function Add(left : Int, right : Int) : Int {
 
 func TestParseDefaultParametersRestrictedGenericsAndConditionalExpression(t *testing.T) {
 	program, errors := Parse(`
-function Pick(value : T:Int|Float = 1) : T {
+function Pick[T restrict[UInt, Int, Float]](value : T = 1) : T {
     local Bool ok = if value > 0 then return False : True;
     return value;
 }
@@ -56,7 +56,10 @@ function Pick(value : T:Int|Float = 1) : T {
 	if !ok {
 		t.Fatalf("expected function statement, got %T", program.Statements[0])
 	}
-	if len(fn.Params) != 1 || fn.Params[0].Type != "T:Int|Float" || fn.Params[0].Default.Node == nil {
+	if len(fn.TypeParams) != 1 || fn.TypeParams[0].Type != "T:UInt|Int|Float" {
+		t.Fatalf("unexpected type params: %#v", fn.TypeParams)
+	}
+	if len(fn.Params) != 1 || fn.Params[0].Type != "T:UInt|Int|Float" || fn.Params[0].Default.Node == nil {
 		t.Fatalf("unexpected parameter: %#v", fn.Params)
 	}
 	decl, ok := fn.Body[0].(VariableStatement)

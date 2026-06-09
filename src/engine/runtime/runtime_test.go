@@ -184,7 +184,7 @@ function Main() : Int {
 
 func TestRuntimeExecutesRestrictedGenericParameters(t *testing.T) {
 	result := runParsedSource(t, `
-function IdentityNumber(value : T:Int|Float = 3) : T {
+function IdentityNumber[T restrict[UInt, Int, Float]](value : T = 3) : T {
     return value;
 }
 
@@ -197,6 +197,20 @@ function Main() : Int {
 
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 5 {
 		t.Fatalf("expected restricted generic program to return 5, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesRestrictedGenericVariable(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local mut T restrict[UInt, Int, Float] value = 69420;
+    value = 10;
+    return value;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 10 {
+		t.Fatalf("expected restricted generic variable to return 10, got %#v", result.Value)
 	}
 }
 

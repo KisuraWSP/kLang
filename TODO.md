@@ -1,16 +1,6 @@
 # TODO
 - lazy evaluated functions <do>
 - tail call optimization for recursive functions <do>
-- Type restriction on generics via typed lists (like the below) <do>
-    - Type restrictions must be strictly type checked no matter the type in T
-```lua
-local mut T restrict[UInt, Int, Float] = 69420;
-
-function X[T restrict[UInt, Int, Float]](x : T) : Int {
-    return x;
-}
-```
-
 - support for chained namespaces (like the below) <do>
 ```lua
 namespace std {
@@ -35,6 +25,14 @@ std_lib::LuaInit();
 
 
 # LATER
+- user defined memory regions for array types and slices <implement these array types and slices>
+- arrays and slices start at index 0 always
+```lua
+region MyRegion(T, sizeof(T) * 100, 10);
+local mut T[region] myArray;
+myArray[0] = "String";
+```
+- add memory allocators like {Box, Ref, RefMut, RefCell} from rust, HeapAllocator, RegionAllocator, BumpAllocator, ArenaAllocator
 - improve the standard library more by adding more functions
 - add error handling (error by values / exceptions)
 - add first class functions
@@ -98,7 +96,34 @@ if x == {
 - multi threaded interpretter runtime
 - coroutines
 - better error/exception messages like similar to elms error messages (like the message should like tell the user whats wrong in the program and actually point the line of code where the error occurred)
-- function aliases
+- function aliases & extension functions inside aliases
+```lua
+function ArrayList[T: any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
+    -- This tells the langauge to do the following code when it is trying to allocate memory for this type
+    [new] do
+        allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
+    end
+
+    -- This tells the langauge to do the following code when it is trying to deallocate memory for this type
+    [delete] do
+        allocator.free = free_all_allocator(.{}); 
+    end
+
+    -- This tells the langauge to do the following code to occur when this type is having side_efffects
+    [side_effects] do
+        allocator.free = free_all_allocator(.{}); 
+    end
+
+    -- This tells the langauge that we are extending the custom data type to contain such a method to be allowed the below code
+    -- x = ArrayList(bool, 100, 1000);
+    -- x.get_length();
+    #extend do
+        function get_length() -> int
+            return this.length;
+        end
+    end
+end
+```
 
 
 # TODO When All Previous todos are done (End Goal)

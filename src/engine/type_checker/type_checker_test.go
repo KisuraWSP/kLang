@@ -166,7 +166,7 @@ function Main() : Int {
 
 func TestCheckProgramAcceptsRestrictedGenericTypes(t *testing.T) {
 	program := programFromSource(`
-function IdentityNumber(value : T:Int|Float = 1) : T {
+function IdentityNumber[T restrict[UInt, Int, Float]](value : T = 1) : T {
     return value;
 }
 
@@ -183,7 +183,7 @@ function Main() : Int {
 	}
 
 	reject := programFromSource(`
-function IdentityNumber(value : T:Int|Float) : T {
+function IdentityNumber[T restrict[UInt, Int, Float]](value : T) : T {
     return value;
 }
 
@@ -192,7 +192,17 @@ function Main() : Int {
     return 0;
 }
 `)
-	assertTypeError(t, CheckProgram(reject), "argument 1 expects T:Int|Float, got String")
+	assertTypeError(t, CheckProgram(reject), "argument 1 expects T:UInt|Int|Float, got String")
+}
+
+func TestCheckProgramRejectsRestrictedGenericVariableMismatch(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut T restrict[UInt, Int, Float] value = "bad";
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(program), "cannot assign String to local T:UInt|Int|Float value")
 }
 
 func TestCheckProgramWarnsOnDeprecatedFunctionCall(t *testing.T) {
