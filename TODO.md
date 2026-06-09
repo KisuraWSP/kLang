@@ -98,7 +98,7 @@ if x == {
 - multi threaded interpretter runtime
 - coroutines
 - better error/exception messages like similar to elms error messages (like the message should like tell the user whats wrong in the program and actually point the line of code where the error occurred)
-
+- Program should be able to track stack and heap (so it is able to do memory allocations)
 
 
 # TODO When All Previous todos are done (End Goal)
