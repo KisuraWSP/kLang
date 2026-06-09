@@ -98,7 +98,7 @@ if x == {
 - better error/exception messages like similar to elms error messages (like the message should like tell the user whats wrong in the program and actually point the line of code where the error occurred)
 - function aliases & extension functions inside aliases
 ```lua
-function ArrayList[T: any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
+alias function ArrayList[T: any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
     -- This tells the langauge to do the following code when it is trying to allocate memory for this type
     [new] do
         allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
