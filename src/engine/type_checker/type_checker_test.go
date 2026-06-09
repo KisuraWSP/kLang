@@ -89,6 +89,53 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "argument 1 expects Int, got String")
 }
 
+func TestCheckProgramInfersGenericFunctionReturnWithUnification(t *testing.T) {
+	program := programFromSource(`
+function Identity(value : T) : T {
+    return value;
+}
+
+function Main() : Int {
+    local Int value = Identity(10);
+    local List[Int] values = Identity([1, 2, 3]);
+    return value + values[0];
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected generic unification type check to pass, got: %v", report.Errors)
+	}
+
+	reject := programFromSource(`
+function Identity(value : T) : T {
+    return value;
+}
+
+function Main() : Int {
+    local String value = Identity(10);
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(reject), "cannot assign Int to local String value")
+}
+
+func TestCheckProgramTracksFlowSensitiveTAssignments(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut T value = 1;
+    value = "ready";
+    local String text = value;
+    return len(text);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected flow-sensitive T assignment to pass, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramWarnsOnDeprecatedFunctionCall(t *testing.T) {
 	program := programFromSource(`
 @deprecated("use NewValue")
@@ -226,6 +273,39 @@ function Main() : Int {
 }
 `)
 	assertTypeError(t, CheckProgram(resultProgram), "cannot assign Result[T,Int] to local Result[Int,String] value")
+}
+
+func TestCheckProgramAcceptsComplexAndSIMDBuiltins(t *testing.T) {
+	if !isKnownType("Complex") {
+		t.Fatal("expected Complex to be known")
+	}
+	if !isKnownType("SIMD[Int]") {
+		t.Fatal("expected SIMD[Int] to be known")
+	}
+
+	program := programFromSource(`
+function Main() : Int {
+    local Complex z = Complex(1, 2) + Complex(3, 4);
+    local SIMD[Int] lanes = SIMD([1, 2, 3, 4]);
+    local SIMD[Int] moved = lanes + SIMD([4, 3, 2, 1]);
+    print(z);
+    print(moved);
+    return len(moved);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected complex/simd type check to pass, got: %v", report.Errors)
+	}
+
+	bad := programFromSource(`
+function Main() : Int {
+    local SIMD[Int] lanes = SIMD(["bad"]);
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(bad), "cannot assign SIMD[String] to local SIMD[Int] lanes")
 }
 
 func TestCheckProgramAcceptsListComprehensions(t *testing.T) {

@@ -494,6 +494,12 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 	if !isAssignable(targetType, exprType) {
 		checker.addError(source, line, fmt.Sprintf("cannot assign %s to %s", exprType, targetType))
 	}
+	if !strings.Contains(assignment.Target, "[") {
+		if variable, ok := locals[assignment.Target]; ok && variable.Type == anyType && exprType != anyType {
+			variable.Type = exprType
+			locals[assignment.Target] = variable
+		}
+	}
 }
 
 func (checker *TypeChecker) inferExpression(expr string, locals map[string]variableSymbol, source string, line int) string {
@@ -772,6 +778,29 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			return "Result[T,T]"
 		}
 		return "Result[" + checker.inferExpression(args[0], locals, source, line) + ",T]"
+	case "Complex":
+		if len(args) != 2 {
+			checker.addError(source, line, "Complex expects 2 arguments")
+			return "Complex"
+		}
+		for index, arg := range args {
+			argType := checker.inferExpression(arg, locals, source, line)
+			if !isNumeric(argType) {
+				checker.addError(source, line, fmt.Sprintf("Complex argument %d must be numeric, got %s", index+1, argType))
+			}
+		}
+		return "Complex"
+	case "SIMD":
+		if len(args) != 1 {
+			checker.addError(source, line, "SIMD expects 1 argument")
+			return "SIMD[T]"
+		}
+		argType := checker.inferExpression(args[0], locals, source, line)
+		if strings.HasPrefix(argType, "List[") && strings.HasSuffix(argType, "]") {
+			return "SIMD[" + argType[5:len(argType)-1] + "]"
+		}
+		checker.addError(source, line, fmt.Sprintf("SIMD expects List[T], got %s", argType))
+		return "SIMD[T]"
 	}
 
 	if variable, ok := checker.lookupVariable(name, locals); ok && variable.Type == anyType {
@@ -807,7 +836,16 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		}
 	}
 
-	return fn.ReturnType
+	return checker.inferGenericCallReturn(fn, args, locals, source, line)
+}
+
+func (checker *TypeChecker) inferGenericCallReturn(fn functionSymbol, args []string, locals map[string]variableSymbol, source string, line int) string {
+	solver := newConstraintSolver()
+	for index, arg := range args {
+		argType := checker.inferExpression(arg, locals, source, line)
+		solver.unify(fn.Params[index].Type, argType)
+	}
+	return solver.apply(fn.ReturnType)
 }
 
 func (checker *TypeChecker) lookupVariable(name string, locals map[string]variableSymbol) (variableSymbol, bool) {
@@ -1063,7 +1101,7 @@ func normalizeType(input string) string {
 
 func isKnownType(typeName string) bool {
 	if typeName == anyType || typeName == "Int" || typeName == "UInt" || typeName == "String" ||
-		typeName == "Float" || typeName == "Bool" || typeName == "Char" {
+		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" {
 		return true
 	}
 	if strings.HasPrefix(typeName, "List[") && strings.HasSuffix(typeName, "]") {
@@ -1079,6 +1117,9 @@ func isKnownType(typeName string) bool {
 	if strings.HasPrefix(typeName, "Result[") && strings.HasSuffix(typeName, "]") {
 		parts := splitTopLevel(typeName[len("Result["):len(typeName)-1], ',')
 		return len(parts) == 2 && isKnownType(parts[0]) && isKnownType(parts[1])
+	}
+	if strings.HasPrefix(typeName, "SIMD[") && strings.HasSuffix(typeName, "]") {
+		return isKnownType(typeName[len("SIMD[") : len(typeName)-1])
 	}
 	return false
 }
@@ -1137,6 +1178,10 @@ func isIntegerIndexType(typeName string) bool {
 func isAssignable(target string, source string) bool {
 	target = normalizeType(target)
 	source = normalizeType(source)
+	solver := newConstraintSolver()
+	if solver.unify(target, source) {
+		return true
+	}
 	if target == anyType || source == anyType {
 		return true
 	}
@@ -1167,7 +1212,91 @@ func isAssignable(target string, source string) bool {
 			isAssignable(targetOkType, sourceOkType) &&
 			isAssignable(targetErrType, sourceErrType)
 	}
+	if strings.HasPrefix(target, "SIMD[") && strings.HasPrefix(source, "SIMD[") {
+		return isAssignable(target[len("SIMD["):len(target)-1], source[len("SIMD["):len(source)-1])
+	}
 	return false
+}
+
+type constraintSolver struct {
+	substitutions map[string]string
+}
+
+func newConstraintSolver() *constraintSolver {
+	return &constraintSolver{substitutions: map[string]string{}}
+}
+
+func (solver *constraintSolver) unify(left string, right string) bool {
+	left = normalizeType(solver.apply(left))
+	right = normalizeType(solver.apply(right))
+	if left == right {
+		return true
+	}
+	if isTypeVariable(left) {
+		return solver.bind(left, right)
+	}
+	if isTypeVariable(right) {
+		return solver.bind(right, left)
+	}
+	if left == "Float" && (right == "Int" || right == "UInt") {
+		return true
+	}
+	if left == "UInt" && right == "Int" {
+		return true
+	}
+	leftName, leftArgs, leftOk := splitGenericType(left)
+	rightName, rightArgs, rightOk := splitGenericType(right)
+	if !leftOk || !rightOk || leftName != rightName || len(leftArgs) != len(rightArgs) {
+		return false
+	}
+	for index := range leftArgs {
+		if !solver.unify(leftArgs[index], rightArgs[index]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (solver *constraintSolver) bind(name string, typeName string) bool {
+	if typeName == "" {
+		return false
+	}
+	if current, exists := solver.substitutions[name]; exists {
+		return solver.unify(current, typeName)
+	}
+	solver.substitutions[name] = typeName
+	return true
+}
+
+func (solver *constraintSolver) apply(typeName string) string {
+	typeName = normalizeType(typeName)
+	if resolved, exists := solver.substitutions[typeName]; exists {
+		return solver.apply(resolved)
+	}
+	name, args, ok := splitGenericType(typeName)
+	if !ok {
+		return typeName
+	}
+	for index, arg := range args {
+		args[index] = solver.apply(arg)
+	}
+	return name + "[" + strings.Join(args, ",") + "]"
+}
+
+func isTypeVariable(typeName string) bool {
+	return typeName == anyType
+}
+
+func splitGenericType(typeName string) (string, []string, bool) {
+	typeName = normalizeType(typeName)
+	open := strings.Index(typeName, "[")
+	if open == -1 || !strings.HasSuffix(typeName, "]") {
+		return "", nil, false
+	}
+	name := typeName[:open]
+	inner := typeName[open+1 : len(typeName)-1]
+	args := splitTopLevel(inner, ',')
+	return name, args, name != "" && len(args) > 0
 }
 
 func canCast(source string, target string) bool {
@@ -1191,21 +1320,34 @@ func canCast(source string, target string) bool {
 	if strings.HasPrefix(target, "Result[") && strings.HasPrefix(source, "Result[") {
 		return isAssignable(target, source)
 	}
+	if strings.HasPrefix(target, "SIMD[") && strings.HasPrefix(source, "SIMD[") {
+		return isAssignable(target, source)
+	}
 	return false
 }
 
 func isScalarType(typeName string) bool {
 	return typeName == "Int" || typeName == "UInt" || typeName == "String" ||
-		typeName == "Float" || typeName == "Bool" || typeName == "Char"
+		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex"
 }
 
 func isNumeric(typeName string) bool {
-	return typeName == "Int" || typeName == "UInt" || typeName == "Float" || typeName == anyType
+	return typeName == "Int" || typeName == "UInt" || typeName == "Float" || typeName == "Complex" ||
+		typeName == anyType || strings.HasPrefix(typeName, "SIMD[")
 }
 
 func numericResult(left string, right string) string {
 	if left == anyType || right == anyType {
 		return anyType
+	}
+	if strings.HasPrefix(left, "SIMD[") {
+		return left
+	}
+	if strings.HasPrefix(right, "SIMD[") {
+		return right
+	}
+	if left == "Complex" || right == "Complex" {
+		return "Complex"
 	}
 	if left == "Float" || right == "Float" {
 		return "Float"

@@ -229,6 +229,42 @@ function Main() : Int {
 	assertRuntimeErrorContains(t, err, "list comprehension cannot iterate over Bool")
 }
 
+func TestRuntimeExecutesComplexAndSIMDValues(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Complex z = Complex(1, 2) + Complex(3, -1);
+    local Complex product = z * Complex(2, 0);
+    local SIMD[Int] lanes = SIMD([1, 2, 3, 4]);
+    local SIMD[Int] moved = lanes + SIMD([4, 3, 2, 1]);
+    local SIMD[Int] doubled = moved * 2;
+    print(z);
+    print(product);
+    print(doubled);
+    return len(doubled);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 4 {
+		t.Fatalf("expected complex/SIMD program to return 4, got %#v", result.Value)
+	}
+	expectedOutput := []string{"4+1i", "8+2i", "SIMD[10, 10, 10, 10]"}
+	if strings.Join(result.Output, ",") != strings.Join(expectedOutput, ",") {
+		t.Fatalf("expected output %v, got %v", expectedOutput, result.Output)
+	}
+}
+
+func TestRuntimeRejectsSIMDLaneMismatch(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local SIMD[Int] left = SIMD([1, 2]);
+    local SIMD[Int] right = SIMD([1]);
+    local SIMD[Int] bad = left + right;
+    return 0;
+}
+`)
+	assertRuntimeErrorContains(t, err, "SIMD lane counts must match")
+}
+
 func TestRuntimeRejectsInvalidTypeCast(t *testing.T) {
 	_, err := runParsedSourceWithError(`
 function Main() : Int {

@@ -54,6 +54,18 @@ func ResultErrValue(value Value) Value {
 	return Value{Kind: ValueResult, Data: ResultData{Ok: false, Value: value}}
 }
 
+func ComplexValue(real float64, imag float64) Value {
+	return Value{Kind: ValueComplex, Data: ComplexData{Real: real, Imag: imag}}
+}
+
+func SIMDValue(lanes []Value) Value {
+	copied := make([]Value, 0, len(lanes))
+	for _, lane := range lanes {
+		copied = append(copied, cloneValue(lane))
+	}
+	return Value{Kind: ValueSIMD, Data: SIMDData{Lanes: copied}}
+}
+
 func cloneValue(value Value) Value {
 	switch value.Kind {
 	case ValueList:
@@ -78,6 +90,8 @@ func cloneValue(value Value) Value {
 		result := value.Data.(ResultData)
 		result.Value = cloneValue(result.Value)
 		return Value{Kind: ValueResult, Data: result}
+	case ValueSIMD:
+		return SIMDValue(value.Data.(SIMDData).Lanes)
 	default:
 		return value
 	}
@@ -103,6 +117,10 @@ func runtimeTypeName(value Value) string {
 		return "Option[T]"
 	case ValueResult:
 		return "Result[T,T]"
+	case ValueComplex:
+		return "Complex"
+	case ValueSIMD:
+		return "SIMD[T]"
 	default:
 		return "T"
 	}
@@ -155,7 +173,8 @@ func castValue(value Value, typeName string) (Value, error) {
 		return castToChar(value)
 	default:
 		if strings.HasPrefix(typeName, "List[") || strings.HasPrefix(typeName, "Map[") ||
-			strings.HasPrefix(typeName, "Option[") || strings.HasPrefix(typeName, "Result[") {
+			strings.HasPrefix(typeName, "Option[") || strings.HasPrefix(typeName, "Result[") ||
+			strings.HasPrefix(typeName, "SIMD[") {
 			return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to %s", value.Kind, typeName)}
 		}
 		return NullValue(), Error{Message: fmt.Sprintf("unknown cast target type %q", typeName)}
@@ -260,12 +279,24 @@ func numericOrString(left Value, right Value, op func(float64, float64) float64)
 	if left.Kind == ValueString || right.Kind == ValueString {
 		return StringValue(valueString(left) + valueString(right)), nil
 	}
+	if left.Kind == ValueSIMD || right.Kind == ValueSIMD {
+		return simdBinary(left, right, op)
+	}
+	if left.Kind == ValueComplex || right.Kind == ValueComplex {
+		return complexBinary(left, right, op, "+")
+	}
 	return numericBinary(left, right, op)
 }
 
 func numericBinary(left Value, right Value, op func(float64, float64) float64) (Value, error) {
+	if left.Kind == ValueSIMD || right.Kind == ValueSIMD {
+		return simdBinary(left, right, op)
+	}
+	if left.Kind == ValueComplex || right.Kind == ValueComplex {
+		return complexBinary(left, right, op, "")
+	}
 	if !isNumeric(left) || !isNumeric(right) {
-		return NullValue(), Error{Message: fmt.Sprintf("numeric operation requires Int or Float, got %s and %s", left.Kind, right.Kind)}
+		return NullValue(), Error{Message: fmt.Sprintf("numeric operation requires Int, Float, Complex, or SIMD, got %s and %s", left.Kind, right.Kind)}
 	}
 	if left.Kind == ValueFloat || right.Kind == ValueFloat {
 		leftFloat, _ := asFloat(left)
@@ -278,6 +309,12 @@ func numericBinary(left Value, right Value, op func(float64, float64) float64) (
 }
 
 func divideValues(left Value, right Value) (Value, error) {
+	if left.Kind == ValueSIMD || right.Kind == ValueSIMD {
+		return simdBinary(left, right, func(a, b float64) float64 { return a / b })
+	}
+	if left.Kind == ValueComplex || right.Kind == ValueComplex {
+		return divideComplexValues(left, right)
+	}
 	if !isNumeric(left) || !isNumeric(right) {
 		return NullValue(), Error{Message: fmt.Sprintf("division requires Int or Float, got %s and %s", left.Kind, right.Kind)}
 	}
@@ -330,6 +367,101 @@ func moduloValues(left Value, right Value) (Value, error) {
 		return NullValue(), Error{Message: "modulo by zero"}
 	}
 	return IntValue(leftInt % rightInt), nil
+}
+
+func complexComponents(value Value) (float64, float64, error) {
+	switch value.Kind {
+	case ValueComplex:
+		data := value.Data.(ComplexData)
+		return data.Real, data.Imag, nil
+	case ValueInt, ValueFloat:
+		real, _ := asFloat(value)
+		return real, 0, nil
+	default:
+		return 0, 0, Error{Message: fmt.Sprintf("expected Complex-compatible value, got %s", value.Kind)}
+	}
+}
+
+func complexBinary(left Value, right Value, op func(float64, float64) float64, operator string) (Value, error) {
+	leftReal, leftImag, err := complexComponents(left)
+	if err != nil {
+		return NullValue(), err
+	}
+	rightReal, rightImag, err := complexComponents(right)
+	if err != nil {
+		return NullValue(), err
+	}
+	if operator == "*" {
+		return ComplexValue(leftReal*rightReal-leftImag*rightImag, leftReal*rightImag+leftImag*rightReal), nil
+	}
+	return ComplexValue(op(leftReal, rightReal), op(leftImag, rightImag)), nil
+}
+
+func divideComplexValues(left Value, right Value) (Value, error) {
+	leftReal, leftImag, err := complexComponents(left)
+	if err != nil {
+		return NullValue(), err
+	}
+	rightReal, rightImag, err := complexComponents(right)
+	if err != nil {
+		return NullValue(), err
+	}
+	denominator := rightReal*rightReal + rightImag*rightImag
+	if denominator == 0 {
+		return NullValue(), Error{Message: "division by zero"}
+	}
+	return ComplexValue((leftReal*rightReal+leftImag*rightImag)/denominator, (leftImag*rightReal-leftReal*rightImag)/denominator), nil
+}
+
+func simdBinary(left Value, right Value, op func(float64, float64) float64) (Value, error) {
+	leftLanes, rightLanes, err := simdLanePairs(left, right)
+	if err != nil {
+		return NullValue(), err
+	}
+	result := make([]Value, 0, len(leftLanes))
+	for index := range leftLanes {
+		if !isNumeric(leftLanes[index]) || !isNumeric(rightLanes[index]) {
+			return NullValue(), Error{Message: "SIMD operations require numeric lanes"}
+		}
+		if leftLanes[index].Kind == ValueFloat || rightLanes[index].Kind == ValueFloat {
+			leftFloat, _ := asFloat(leftLanes[index])
+			rightFloat, _ := asFloat(rightLanes[index])
+			result = append(result, FloatValue(op(leftFloat, rightFloat)))
+			continue
+		}
+		leftInt, _ := asInt(leftLanes[index])
+		rightInt, _ := asInt(rightLanes[index])
+		result = append(result, IntValue(int(op(float64(leftInt), float64(rightInt)))))
+	}
+	return SIMDValue(result), nil
+}
+
+func simdLanePairs(left Value, right Value) ([]Value, []Value, error) {
+	if left.Kind != ValueSIMD && right.Kind != ValueSIMD {
+		return nil, nil, Error{Message: "SIMD operation requires a SIMD value"}
+	}
+	if left.Kind == ValueSIMD && right.Kind == ValueSIMD {
+		leftLanes := left.Data.(SIMDData).Lanes
+		rightLanes := right.Data.(SIMDData).Lanes
+		if len(leftLanes) != len(rightLanes) {
+			return nil, nil, Error{Message: "SIMD lane counts must match"}
+		}
+		return leftLanes, rightLanes, nil
+	}
+	if left.Kind == ValueSIMD {
+		leftLanes := left.Data.(SIMDData).Lanes
+		rightLanes := make([]Value, 0, len(leftLanes))
+		for range leftLanes {
+			rightLanes = append(rightLanes, right)
+		}
+		return leftLanes, rightLanes, nil
+	}
+	rightLanes := right.Data.(SIMDData).Lanes
+	leftLanes := make([]Value, 0, len(rightLanes))
+	for range rightLanes {
+		leftLanes = append(leftLanes, left)
+	}
+	return leftLanes, rightLanes, nil
 }
 
 func compareNumeric(left Value, right Value, op func(float64, float64) bool) (Value, error) {
@@ -451,6 +583,22 @@ func valueString(value Value) string {
 			return "Ok(" + valueString(result.Value) + ")"
 		}
 		return "Err(" + valueString(result.Value) + ")"
+	case ValueComplex:
+		data := value.Data.(ComplexData)
+		sign := "+"
+		imag := data.Imag
+		if imag < 0 {
+			sign = "-"
+			imag = -imag
+		}
+		return fmt.Sprintf("%g%s%gi", data.Real, sign, imag)
+	case ValueSIMD:
+		lanes := value.Data.(SIMDData).Lanes
+		parts := make([]string, 0, len(lanes))
+		for _, lane := range lanes {
+			parts = append(parts, valueString(lane))
+		}
+		return "SIMD[" + strings.Join(parts, ", ") + "]"
 	default:
 		return fmt.Sprintf("%v", value.Data)
 	}
@@ -464,6 +612,8 @@ func valueLen(value Value) (int, error) {
 		return len(value.Data.([]Value)), nil
 	case ValueMap:
 		return len(value.Data.(map[string]Value)), nil
+	case ValueSIMD:
+		return len(value.Data.(SIMDData).Lanes), nil
 	default:
 		return 0, Error{Message: fmt.Sprintf("len does not support %s", value.Kind)}
 	}
@@ -495,10 +645,23 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Kind == ValueBool
 	case typeName == "Char":
 		return value.Kind == ValueChar
+	case typeName == "Complex":
+		return value.Kind == ValueComplex
 	case strings.HasPrefix(typeName, "List["):
 		return value.Kind == ValueList
 	case strings.HasPrefix(typeName, "Map["):
 		return value.Kind == ValueMap
+	case strings.HasPrefix(typeName, "SIMD["):
+		elementType, ok := simdType(typeName)
+		if !ok || value.Kind != ValueSIMD {
+			return false
+		}
+		for _, lane := range value.Data.(SIMDData).Lanes {
+			if !valueMatchesType(lane, elementType) {
+				return false
+			}
+		}
+		return true
 	case strings.HasPrefix(typeName, "Option["):
 		elementType, ok := optionType(typeName)
 		if !ok || value.Kind != ValueOption {
@@ -567,6 +730,15 @@ func resultTypes(typeName string) (string, string, bool) {
 	okType := strings.TrimSpace(parts[0])
 	errType := strings.TrimSpace(parts[1])
 	return okType, errType, okType != "" && errType != ""
+}
+
+func simdType(typeName string) (string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	if !strings.HasPrefix(typeName, "SIMD[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	elementType := strings.TrimSpace(typeName[len("SIMD[") : len(typeName)-1])
+	return elementType, elementType != ""
 }
 
 func splitTopLevelType(input string, separator rune) []string {

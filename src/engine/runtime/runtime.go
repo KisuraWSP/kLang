@@ -24,6 +24,8 @@ const (
 	ValueMap      ValueKind = "Map"
 	ValueOption   ValueKind = "Option"
 	ValueResult   ValueKind = "Result"
+	ValueComplex  ValueKind = "Complex"
+	ValueSIMD     ValueKind = "SIMD"
 	ValueFunction ValueKind = "Function"
 )
 
@@ -40,6 +42,15 @@ type OptionData struct {
 type ResultData struct {
 	Ok    bool
 	Value Value
+}
+
+type ComplexData struct {
+	Real float64
+	Imag float64
+}
+
+type SIMDData struct {
+	Lanes []Value
 }
 
 type Result struct {
@@ -796,6 +807,9 @@ func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environmen
 	case "-":
 		return numericBinary(left, right, func(a, b float64) float64 { return a - b })
 	case "*":
+		if left.Kind == ValueComplex || right.Kind == ValueComplex {
+			return complexBinary(left, right, func(a, b float64) float64 { return a * b }, "*")
+		}
 		return numericBinary(left, right, func(a, b float64) float64 { return a * b })
 	case "/":
 		return divideValues(left, right)
@@ -970,6 +984,27 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 			return NullValue(), Error{Message: "Result expects one argument"}
 		}
 		return ResultOkValue(args[0]), nil
+	case "Complex":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "Complex expects two arguments"}
+		}
+		real, err := asFloat(args[0])
+		if err != nil {
+			return NullValue(), Error{Message: "Complex real component must be numeric"}
+		}
+		imag, err := asFloat(args[1])
+		if err != nil {
+			return NullValue(), Error{Message: "Complex imaginary component must be numeric"}
+		}
+		return ComplexValue(real, imag), nil
+	case "SIMD":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "SIMD expects one list argument"}
+		}
+		if args[0].Kind != ValueList {
+			return NullValue(), Error{Message: "SIMD expects a List argument"}
+		}
+		return SIMDValue(args[0].Data.([]Value)), nil
 	}
 
 	resolvedName, err := runtime.resolveFunctionName(name)
@@ -1038,7 +1073,7 @@ func (runtime *Runtime) resolveFunctionName(name string) (string, error) {
 
 func isBuiltinFunction(name string) bool {
 	switch name {
-	case "print", "len", "range", "Some", "None", "Ok", "Err", "Result":
+	case "print", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD":
 		return true
 	default:
 		return false

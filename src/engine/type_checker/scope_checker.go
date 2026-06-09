@@ -357,7 +357,7 @@ func (checker *TypeChecker) selectorFunctionExists(expr parser.SelectorExpressio
 
 func isBuiltinFunctionName(name string) bool {
 	switch name {
-	case "print", "len", "range", "Some", "None", "Ok", "Err", "Result":
+	case "print", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD":
 		return true
 	default:
 		return false

@@ -1,8 +1,5 @@
 # TODO
 - lazy evaluated functions <do>
-- Complex Number Data Types to be built in the language <do>
-- SIMD Data Types to be built in the langauge <do>
-- better type checking via Unification-Based Constraint Solving (Hindley-Milner / Algorithm W) and Dataflow-Based (Flow-Sensitive) Type Checking <do>
 - tail call optimization for recursive functions <do>
 - Type restriction on generics via typed lists (like the below) <do>
     - Type restrictions must be strictly type checked no matter the type in T

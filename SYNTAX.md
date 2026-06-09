@@ -83,6 +83,15 @@ local Option[Int] missingCount = None();
 local Result[Int, String] parsedCount = Ok(10);
 local Result[Int, String] failedParse = Err("invalid number");
 local Result[Int, String] wrappedCount = Result(20);
+
+-- Complex and SIMD data
+-- Complex(real, imaginary) accepts Int or Float parts.
+local Complex z = Complex(2, 3);
+local Complex moved = z + Complex(1, -1);
+
+-- SIMD(list) creates a vector-like value with numeric lanes.
+local SIMD[Int] lanes = SIMD([1, 2, 3, 4]);
+local SIMD[Int] doubledLanes = lanes * 2;
 ```
 
 2. Functions

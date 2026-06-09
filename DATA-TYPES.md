@@ -9,4 +9,6 @@
 8. List[...$Items]
 9. Option[$Item]
 10. Result[$Ok, $Err]
-11. T // Builtin Generic Type Value containing Information of respective data type
+11. Complex
+12. SIMD[$Lane]
+13. T // Builtin Generic Type Value containing Information of respective data type
