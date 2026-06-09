@@ -714,8 +714,8 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	if variable, ok := checker.lookupVariable(expr, locals); ok {
 		return variable.Type
 	}
-	if _, ok := checker.functions[expr]; ok {
-		return anyType
+	if fn, ok := checker.lookupFunction(expr); ok {
+		return functionTypeForSymbol(fn)
 	}
 
 	checker.addError(source, line, fmt.Sprintf("unknown expression %q", expr))
@@ -907,14 +907,16 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		return "SIMD[T]"
 	}
 
-	if variable, ok := checker.lookupVariable(name, locals); ok && variable.Type == anyType {
-		return anyType
+	if variable, ok := checker.lookupVariable(name, locals); ok {
+		if functionTypeArgs, functionReturnType, ok := functionValueType(variable.Type); ok {
+			return checker.checkCallbackCall(name, functionTypeArgs, functionReturnType, args, locals, source, line)
+		}
+		if variable.Type == anyType {
+			return anyType
+		}
 	}
 
-	fn, ok := checker.functions[name]
-	if !ok && checker.namespace != "" && !strings.Contains(name, ".") {
-		fn, ok = checker.functions[checker.namespace+name]
-	}
+	fn, ok := checker.lookupFunction(name)
 	if !ok {
 		checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
 		return anyType
@@ -942,6 +944,20 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 	}
 
 	return checker.inferGenericCallReturn(fn, args, locals, source, line)
+}
+
+func (checker *TypeChecker) checkCallbackCall(name string, paramTypes []string, returnType string, args []string, locals map[string]variableSymbol, source string, line int) string {
+	if len(args) != len(paramTypes) {
+		checker.addError(source, line, fmt.Sprintf("callback %s expects %d argument(s), got %d", name, len(paramTypes), len(args)))
+		return returnType
+	}
+	for index, arg := range args {
+		argType := checker.inferExpression(arg, locals, source, line)
+		if !isAssignable(paramTypes[index], argType) {
+			checker.addError(source, line, fmt.Sprintf("callback %s argument %d expects %s, got %s", name, index+1, paramTypes[index], argType))
+		}
+	}
+	return returnType
 }
 
 func requiredParamCount(params []variableSymbol) int {
@@ -976,6 +992,28 @@ func (checker *TypeChecker) lookupVariable(name string, locals map[string]variab
 		return variable, true
 	}
 	return variableSymbol{}, false
+}
+
+func (checker *TypeChecker) lookupFunction(name string) (functionSymbol, bool) {
+	name = checker.resolveAliasPath(name)
+	if fn, ok := checker.functions[name]; ok {
+		return fn, true
+	}
+	if checker.namespace != "" && !strings.Contains(name, ".") {
+		if fn, ok := checker.functions[checker.namespace+name]; ok {
+			return fn, true
+		}
+	}
+	return functionSymbol{}, false
+}
+
+func functionTypeForSymbol(fn functionSymbol) string {
+	parts := make([]string, 0, len(fn.Params)+1)
+	for _, param := range fn.Params {
+		parts = append(parts, normalizeType(param.Type))
+	}
+	parts = append(parts, normalizeType(fn.ReturnType))
+	return "Function[" + strings.Join(parts, ",") + "]"
 }
 
 func (checker *TypeChecker) resolveAliasPath(name string) string {
@@ -1314,6 +1352,17 @@ func isKnownType(typeName string) bool {
 	if strings.HasPrefix(typeName, "SIMD[") && strings.HasSuffix(typeName, "]") {
 		return isKnownType(typeName[len("SIMD[") : len(typeName)-1])
 	}
+	if params, returnType, ok := functionValueType(typeName); ok {
+		if !isKnownType(returnType) {
+			return false
+		}
+		for _, param := range params {
+			if !isKnownType(param) {
+				return false
+			}
+		}
+		return true
+	}
 	return false
 }
 
@@ -1361,6 +1410,24 @@ func resultValueTypes(typeName string) (string, string, bool) {
 		return "", "", false
 	}
 	return normalizeType(parts[0]), normalizeType(parts[1]), true
+}
+
+func functionValueType(typeName string) ([]string, string, bool) {
+	typeName = normalizeType(typeName)
+	if !strings.HasPrefix(typeName, "Function[") || !strings.HasSuffix(typeName, "]") {
+		return nil, "", false
+	}
+	parts := splitTopLevel(typeName[len("Function["):len(typeName)-1], ',')
+	if len(parts) == 0 {
+		return nil, "", false
+	}
+	for index := range parts {
+		parts[index] = normalizeType(parts[index])
+		if parts[index] == "" {
+			return nil, "", false
+		}
+	}
+	return parts[:len(parts)-1], parts[len(parts)-1], true
 }
 
 func isIntegerIndexType(typeName string) bool {
@@ -1415,6 +1482,18 @@ func isAssignable(target string, source string) bool {
 	}
 	if strings.HasPrefix(target, "SIMD[") && strings.HasPrefix(source, "SIMD[") {
 		return isAssignable(target[len("SIMD["):len(target)-1], source[len("SIMD["):len(source)-1])
+	}
+	if targetParams, targetReturn, targetOk := functionValueType(target); targetOk {
+		sourceParams, sourceReturn, sourceOk := functionValueType(source)
+		if !sourceOk || len(targetParams) != len(sourceParams) {
+			return false
+		}
+		for index := range targetParams {
+			if !isAssignable(targetParams[index], sourceParams[index]) || !isAssignable(sourceParams[index], targetParams[index]) {
+				return false
+			}
+		}
+		return isAssignable(targetReturn, sourceReturn)
 	}
 	return false
 }

@@ -27,6 +27,7 @@ const (
 	ValueComplex  ValueKind = "Complex"
 	ValueSIMD     ValueKind = "SIMD"
 	ValueFunction ValueKind = "Function"
+	ValueThunk    ValueKind = "Thunk"
 )
 
 type Value struct {
@@ -51,6 +52,13 @@ type ComplexData struct {
 
 type SIMDData struct {
 	Lanes []Value
+}
+
+type ThunkData struct {
+	Expr      parser.ExpressionNode
+	Env       *Environment
+	Evaluated bool
+	Value     Value
 }
 
 type Result struct {
@@ -81,6 +89,7 @@ type Runtime struct {
 	output    []string
 	callDepth int
 	maxDepth  int
+	callStack []string
 }
 
 const defaultMaxCallDepth = 1024
@@ -180,11 +189,14 @@ const (
 	signalNone signalKind = iota
 	signalReturn
 	signalBreak
+	signalTailCall
 )
 
 type signal struct {
-	kind  signalKind
-	value Value
+	kind     signalKind
+	value    Value
+	tailName string
+	tailArgs []Value
 }
 
 func (runtime *Runtime) executeBlock(statements []parser.Statement, env *Environment, inLoop bool) (signal, error) {
@@ -231,6 +243,12 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		}
 		return signal{kind: signalNone}, nil
 	case parser.ReturnStatement:
+		if tailSignal, ok, err := runtime.tailCallSignal(current.Expression.Node, env); ok || err != nil {
+			if err != nil {
+				return signal{}, err
+			}
+			return tailSignal, nil
+		}
 		value, err := runtime.evalExpression(current.Expression.Node, env)
 		if err != nil {
 			return signal{}, err
@@ -282,6 +300,42 @@ func (runtime *Runtime) executeIf(stmt parser.IfStatement, env *Environment, inL
 	return signal{kind: signalNone}, nil
 }
 
+func (runtime *Runtime) tailCallSignal(expr parser.ExpressionNode, env *Environment) (signal, bool, error) {
+	call, ok := expr.(parser.CallExpression)
+	if !ok || len(call.Arguments) == 0 || len(runtime.callStack) == 0 {
+		return signal{}, false, nil
+	}
+	callee, err := runtime.evalExpression(call.Callee, env)
+	if err != nil {
+		return signal{}, false, err
+	}
+	if callee.Kind != ValueFunction {
+		return signal{}, false, nil
+	}
+	name, err := runtime.resolveFunctionName(callee.Data.(string))
+	if err != nil {
+		return signal{}, false, err
+	}
+	if name == "" || name != runtime.callStack[len(runtime.callStack)-1] {
+		return signal{}, false, nil
+	}
+	args := make([]Value, 0, len(call.Arguments))
+	if runtime.isLazyFunction(name) {
+		for _, arg := range call.Arguments {
+			args = append(args, ThunkValue(arg, env))
+		}
+	} else {
+		for _, arg := range call.Arguments {
+			value, err := runtime.evalExpression(arg, env)
+			if err != nil {
+				return signal{}, false, err
+			}
+			args = append(args, value)
+		}
+	}
+	return signal{kind: signalTailCall, tailName: name, tailArgs: args}, true, nil
+}
+
 func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment) (signal, error) {
 	if init, condition, post, ok := parseCStyleForHeader(stmt.Header); ok {
 		loopEnv := NewEnvironment(env)
@@ -307,7 +361,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 			if currentSignal.kind == signalBreak {
 				break
 			}
-			if currentSignal.kind == signalReturn {
+			if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall {
 				return currentSignal, nil
 			}
 			if len(post.Tokens) != 0 {
@@ -344,7 +398,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 			if currentSignal.kind == signalBreak {
 				return signal{kind: signalNone}, nil
 			}
-			if currentSignal.kind == signalReturn {
+			if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall {
 				return currentSignal, nil
 			}
 		}
@@ -384,7 +438,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 		if currentSignal.kind == signalBreak {
 			break
 		}
-		if currentSignal.kind == signalReturn {
+		if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall {
 			return currentSignal, nil
 		}
 	}
@@ -408,6 +462,36 @@ func (runtime *Runtime) storeBindingValue(binding *Binding, value Value) {
 	snapshot := cloneValue(value)
 	binding.Value = snapshot
 	runtime.memory.Store(binding.ObjectID, snapshot)
+}
+
+func (runtime *Runtime) forceBindingValue(binding *Binding) (Value, error) {
+	value, err := runtime.forceValue(binding.Value)
+	if err != nil {
+		return NullValue(), err
+	}
+	if binding.Value.Kind == ValueThunk {
+		if !valueMatchesType(value, binding.Type) {
+			return NullValue(), Error{Message: fmt.Sprintf("lazy value expects %s, got %s", binding.Type, value.Kind)}
+		}
+	}
+	return value, nil
+}
+
+func (runtime *Runtime) forceValue(value Value) (Value, error) {
+	if value.Kind != ValueThunk {
+		return value, nil
+	}
+	thunk := value.Data.(*ThunkData)
+	if thunk.Evaluated {
+		return thunk.Value, nil
+	}
+	result, err := runtime.evalExpression(thunk.Expr, thunk.Env)
+	if err != nil {
+		return NullValue(), err
+	}
+	thunk.Value = cloneValue(result)
+	thunk.Evaluated = true
+	return thunk.Value, nil
 }
 
 func (runtime *Runtime) executeLoopHeaderAssignment(expr parser.Expression, env *Environment) error {
@@ -601,7 +685,7 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 				return NullValue(), err
 			}
 			runtime.memory.ReleaseImmutable(binding.ObjectID)
-			return binding.Value, nil
+			return runtime.forceBindingValue(binding)
 		}
 		if isBuiltinFunction(current.Name) {
 			return FunctionValue(current.Name), nil
@@ -910,12 +994,18 @@ func (runtime *Runtime) evalCall(expr parser.CallExpression, env *Environment) (
 	}
 
 	args := make([]Value, 0, len(expr.Arguments))
-	for _, arg := range expr.Arguments {
-		value, err := runtime.evalExpression(arg, env)
-		if err != nil {
-			return NullValue(), err
+	if runtime.isLazyFunction(callee.Data.(string)) {
+		for _, arg := range expr.Arguments {
+			args = append(args, ThunkValue(arg, env))
 		}
-		args = append(args, value)
+	} else {
+		for _, arg := range expr.Arguments {
+			value, err := runtime.evalExpression(arg, env)
+			if err != nil {
+				return NullValue(), err
+			}
+			args = append(args, value)
+		}
 	}
 	return runtime.callFunction(callee.Data.(string), args)
 }
@@ -1046,49 +1136,63 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 	if runtime.callDepth >= runtime.maxDepth {
 		return NullValue(), Error{Message: fmt.Sprintf("maximum call depth %d exceeded while calling %s", runtime.maxDepth, name)}
 	}
-	function := runtime.functions[resolvedName]
-	required := requiredRuntimeParamCount(function.Params)
-	if len(args) < required || len(args) > len(function.Params) {
-		return NullValue(), Error{Message: fmt.Sprintf("function %s expects %d to %d argument(s), got %d", name, required, len(function.Params), len(args))}
-	}
 
-	env := NewEnvironment(runtime.global)
 	runtime.callDepth++
+	runtime.callStack = append(runtime.callStack, resolvedName)
 	defer func() {
 		runtime.callDepth--
+		runtime.callStack = runtime.callStack[:len(runtime.callStack)-1]
 	}()
-	for index, param := range function.Params {
-		var value Value
-		if index < len(args) {
-			value = args[index]
-		} else {
-			var err error
-			value, err = runtime.evalExpression(param.Default.Node, env)
-			if err != nil {
+
+	for {
+		function := runtime.functions[resolvedName]
+		required := requiredRuntimeParamCount(function.Params)
+		if len(args) < required || len(args) > len(function.Params) {
+			return NullValue(), Error{Message: fmt.Sprintf("function %s expects %d to %d argument(s), got %d", resolvedName, required, len(function.Params), len(args))}
+		}
+
+		env := NewEnvironment(runtime.global)
+		for index, param := range function.Params {
+			var value Value
+			if index < len(args) {
+				value = args[index]
+			} else {
+				var err error
+				if function.Lazy {
+					value = ThunkValue(param.Default.Node, env)
+				} else {
+					value, err = runtime.evalExpression(param.Default.Node, env)
+				}
+				if err != nil {
+					return NullValue(), err
+				}
+			}
+			if !valueMatchesType(value, param.Type) {
+				return NullValue(), Error{Message: fmt.Sprintf("function %s argument %q expects %s, got %s", resolvedName, param.Name, param.Type, value.Kind)}
+			}
+			if err := runtime.defineValue(env, param.Name, false, param.Type, value); err != nil {
 				return NullValue(), err
 			}
 		}
-		if !valueMatchesType(value, param.Type) {
-			return NullValue(), Error{Message: fmt.Sprintf("function %s argument %q expects %s, got %s", name, param.Name, param.Type, value.Kind)}
-		}
-		if err := runtime.defineValue(env, param.Name, false, param.Type, value); err != nil {
+		currentSignal, err := runtime.executeBlock(function.Body, env, false)
+		if err != nil {
 			return NullValue(), err
 		}
-	}
-	currentSignal, err := runtime.executeBlock(function.Body, env, false)
-	if err != nil {
-		return NullValue(), err
-	}
-	if currentSignal.kind == signalReturn {
-		if !valueMatchesType(currentSignal.value, function.ReturnType) {
-			return NullValue(), Error{Message: fmt.Sprintf("function %s returns %s, got %s", name, function.ReturnType, currentSignal.value.Kind)}
+		if currentSignal.kind == signalTailCall {
+			args = currentSignal.tailArgs
+			continue
 		}
-		return currentSignal.value, nil
+		if currentSignal.kind == signalReturn {
+			if !valueMatchesType(currentSignal.value, function.ReturnType) {
+				return NullValue(), Error{Message: fmt.Sprintf("function %s returns %s, got %s", resolvedName, function.ReturnType, currentSignal.value.Kind)}
+			}
+			return currentSignal.value, nil
+		}
+		if function.ReturnType != "" && function.ReturnType != "T" {
+			return NullValue(), Error{Message: fmt.Sprintf("function %s returns %s, got Null", resolvedName, function.ReturnType)}
+		}
+		return NullValue(), nil
 	}
-	if function.ReturnType != "" && function.ReturnType != "T" {
-		return NullValue(), Error{Message: fmt.Sprintf("function %s returns %s, got Null", name, function.ReturnType)}
-	}
-	return NullValue(), nil
 }
 
 func requiredRuntimeParamCount(params []parser.Parameter) int {
@@ -1117,6 +1221,14 @@ func (runtime *Runtime) resolveFunctionName(name string) (string, error) {
 		return matches[0], nil
 	}
 	return "", nil
+}
+
+func (runtime *Runtime) isLazyFunction(name string) bool {
+	resolvedName, err := runtime.resolveFunctionName(name)
+	if err != nil || resolvedName == "" {
+		return false
+	}
+	return runtime.functions[resolvedName].Lazy
 }
 
 func (runtime *Runtime) resolveAliasPath(name string) string {

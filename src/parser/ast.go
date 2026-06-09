@@ -47,6 +47,7 @@ type FunctionStatement struct {
 	TypeParams         []TypeParameter
 	Params             []Parameter
 	ReturnType         string
+	Lazy               bool
 	Deprecated         bool
 	DeprecationMessage string
 	Body               []Statement

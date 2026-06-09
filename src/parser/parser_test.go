@@ -71,6 +71,52 @@ function Pick[T restrict[UInt, Int, Float]](value : T = 1) : T {
 	}
 }
 
+func TestParseFunctionCallbackParameterType(t *testing.T) {
+	program, errors := Parse(`
+function Apply(value : Int, callback : Function[Int, Int]) : Int {
+    return callback(value);
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	if len(fn.Params) != 2 || fn.Params[1].Type != "Function[Int,Int]" {
+		t.Fatalf("unexpected callback parameter: %#v", fn.Params)
+	}
+	ret, ok := fn.Body[0].(ReturnStatement)
+	if !ok {
+		t.Fatalf("expected return statement, got %T", fn.Body[0])
+	}
+	if call, ok := ret.Expression.Node.(CallExpression); !ok {
+		t.Fatalf("expected callback call expression, got %#v", ret.Expression.Node)
+	} else if callee, ok := call.Callee.(IdentifierExpression); !ok || callee.Name != "callback" {
+		t.Fatalf("unexpected callback callee: %#v", call.Callee)
+	}
+}
+
+func TestParseLazyFunction(t *testing.T) {
+	program, errors := Parse(`
+lazy function Choose(useFirst : Bool, first : Int, second : Int) : Int {
+    if useFirst {
+        return first;
+    }
+    return second;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	if !fn.Lazy || fn.Name != "Choose" || fn.ReturnType != "Int" {
+		t.Fatalf("unexpected lazy function: %#v", fn)
+	}
+}
+
 func TestParseDeprecatedFunctionMarkerTag(t *testing.T) {
 	program, errors := Parse(`
 @deprecated("use Add")

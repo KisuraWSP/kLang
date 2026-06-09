@@ -621,6 +621,92 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesFunctionCallbacks(t *testing.T) {
+	result := runSource(t, `
+function Double(value : Int) : Int {
+    return value * 2;
+}
+
+function Add(left : Int, right : Int) : Int {
+    return left + right;
+}
+
+function Apply(value : Int, callback : Function[Int, Int]) : Int {
+    return callback(value);
+}
+
+function Combine(left : Int, right : Int, callback : Function[Int, Int, Int]) : Int {
+    return callback(left, right);
+}
+
+function Main() : Int {
+    local Function[Int, Int] callback = Double;
+    return Apply(5, callback) + Combine(2, 3, Add);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 15 {
+		t.Fatalf("expected callback program to return 15, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesLazyFunctionArgumentsOnDemand(t *testing.T) {
+	result := runSource(t, `
+function Boom() : Int {
+    return 1 / 0;
+}
+
+lazy function Choose(useFirst : Bool, first : Int, second : Int) : Int {
+    if useFirst {
+        return first;
+    }
+    return second;
+}
+
+function Main() : Int {
+    return Choose(True, 42, Boom());
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 42 {
+		t.Fatalf("expected lazy function to return 42, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeTailCallOptimizesSelfRecursion(t *testing.T) {
+	runtime := New()
+	runtime.maxDepth = 8
+
+	parsedProgram, errors := parser.Parse(`
+function CountDown(value : Int, total : Int) : Int {
+    if value == 0 {
+        return total;
+    }
+    return CountDown(value - 1, total + 1);
+}
+
+function Main() : Int {
+    return CountDown(128, 0);
+}
+`)
+	if len(errors) != 0 {
+		t.Fatalf("unexpected parse errors: %#v", errors)
+	}
+
+	result, err := runtime.Run(parser.ParsedProgram{
+		Name: "tailcall",
+		Sources: []parser.ParsedSource{
+			{Path: "tailcall.klang", Program: parsedProgram},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected tail-call optimized program to pass, got: %v", err)
+	}
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 128 {
+		t.Fatalf("expected tail-call program to return 128, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeComparesCharsAndStrings(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {

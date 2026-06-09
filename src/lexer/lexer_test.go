@@ -106,6 +106,26 @@ func TestLexerTokenizesFunctionMarkerTags(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesLazyFunction(t *testing.T) {
+	input := `lazy function Choose() : Int { return 1; }`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenLazy, Literal: "lazy"},
+		{Type: TokenFunc, Literal: "function"},
+		{Type: TokenIdentifier, Literal: "Choose"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenInferReturn, Literal: ":"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenScopeBegin, Literal: "{"},
+		{Type: TokenReturn, Literal: "return"},
+		{Type: TokenInt, Literal: "1"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenScopeEnd, Literal: "}"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesNullSafetyOperator(t *testing.T) {
 	input := `local Bool exists = MaybeValue()?;`
 

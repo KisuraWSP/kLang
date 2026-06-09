@@ -67,7 +67,9 @@ func (parser *Parser) parseStatement() Statement {
 	case lexer.TokenAt:
 		return parser.parseTag()
 	case lexer.TokenFunc:
-		return parser.parseFunction(false, "")
+		return parser.parseFunction(false, "", false)
+	case lexer.TokenLazy:
+		return parser.parseLazyFunction()
 	case lexer.TokenExport:
 		return parser.parseExport()
 	case lexer.TokenGlobal:
@@ -162,10 +164,19 @@ func (parser *Parser) parseTag() Statement {
 		parser.addError(parser.current(), "@deprecated must be followed by a function declaration")
 		return nil
 	}
-	return parser.parseFunction(true, message)
+	return parser.parseFunction(true, message, false)
 }
 
-func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string) Statement {
+func (parser *Parser) parseLazyFunction() Statement {
+	parser.consume(lexer.TokenLazy, "expected lazy")
+	if !parser.check(lexer.TokenFunc) {
+		parser.addError(parser.current(), "lazy must be followed by a function declaration")
+		return nil
+	}
+	return parser.parseFunction(false, "", true)
+}
+
+func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string, lazy bool) Statement {
 	start := parser.consume(lexer.TokenFunc, "expected function")
 	name := parser.consume(lexer.TokenIdentifier, "expected function name")
 	typeParams := parser.parseTypeParameters()
@@ -186,6 +197,7 @@ func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string) 
 		TypeParams:         typeParams,
 		Params:             params,
 		ReturnType:         returnType,
+		Lazy:               lazy,
 		Deprecated:         deprecated,
 		DeprecationMessage: deprecationMessage,
 		Body:               body,
@@ -368,7 +380,7 @@ func parseInlineStatements(tokens []lexer.Token) []Statement {
 func inlineStatementStart(tokens []lexer.Token) int {
 	for index, token := range tokens {
 		switch token.Type {
-		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias:
+		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy:
 			return index
 		}
 	}
@@ -646,7 +658,7 @@ func (parser *Parser) synchronize() {
 		switch parser.current().Type {
 		case lexer.TokenFunc, lexer.TokenGlobal, lexer.TokenLocal, lexer.TokenExport, lexer.TokenReturn,
 			lexer.TokenIf, lexer.TokenUnless, lexer.TokenFor, lexer.TokenWhile,
-			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenAlias, lexer.TokenNameSpace:
+			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenNameSpace:
 			return
 		}
 		parser.advance()

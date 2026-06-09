@@ -635,6 +635,68 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsFunctionCallbacks(t *testing.T) {
+	program := programFromSource(`
+function Double(value : Int) : Int {
+    return value * 2;
+}
+
+function Add(left : Int, right : Int) : Int {
+    return left + right;
+}
+
+function Apply(value : Int, callback : Function[Int, Int]) : Int {
+    return callback(value);
+}
+
+function Combine(left : Int, right : Int, callback : Function[Int, Int, Int]) : Int {
+    return callback(left, right);
+}
+
+function Main() : Int {
+    local Function[Int, Int] callback = Double;
+    return Apply(5, callback) + Combine(2, 3, Add);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsCallbackSignatureMismatch(t *testing.T) {
+	program := programFromSource(`
+function ToString(value : Int) : String {
+    return value as String;
+}
+
+function Apply(value : Int, callback : Function[Int, Int]) : Int {
+    return callback(value);
+}
+
+function Main() : Int {
+    return Apply(5, ToString);
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "function Apply argument 2 expects Function[Int,Int], got Function[Int,String]")
+}
+
+func TestCheckProgramRejectsCallbackArgumentMismatch(t *testing.T) {
+	program := programFromSource(`
+function Apply(value : String, callback : Function[Int, Int]) : Int {
+    return callback(value);
+}
+
+function Main() : Int {
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "callback callback argument 1 expects Int, got String")
+}
+
 func TestCheckProgramRejectsPipeArgumentMismatch(t *testing.T) {
 	program := programFromSource(`
 function Double(value : Int) : Int {

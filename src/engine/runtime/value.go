@@ -38,6 +38,10 @@ func FunctionValue(name string) Value {
 	return Value{Kind: ValueFunction, Data: name}
 }
 
+func ThunkValue(expr parser.ExpressionNode, env *Environment) Value {
+	return Value{Kind: ValueThunk, Data: &ThunkData{Expr: expr, Env: env}}
+}
+
 func OptionSomeValue(value Value) Value {
 	return Value{Kind: ValueOption, Data: OptionData{Some: true, Value: value}}
 }
@@ -82,6 +86,9 @@ func zeroValue(typeName string) Value {
 	case "Complex":
 		return ComplexValue(0, 0)
 	case "T":
+		return NullValue()
+	}
+	if strings.HasPrefix(typeName, "Function[") {
 		return NullValue()
 	}
 	if strings.HasPrefix(typeName, "List[") {
@@ -135,6 +142,8 @@ func cloneValue(value Value) Value {
 		return Value{Kind: ValueResult, Data: result}
 	case ValueSIMD:
 		return SIMDValue(value.Data.(SIMDData).Lanes)
+	case ValueThunk:
+		return value
 	default:
 		return value
 	}
@@ -164,6 +173,10 @@ func runtimeTypeName(value Value) string {
 		return "Complex"
 	case ValueSIMD:
 		return "SIMD[T]"
+	case ValueFunction:
+		return "Function[T]"
+	case ValueThunk:
+		return "T"
 	default:
 		return "T"
 	}
@@ -684,6 +697,8 @@ func valueMatchesType(value Value, typeName string) bool {
 	switch {
 	case typeName == "" || typeName == "T":
 		return true
+	case value.Kind == ValueThunk:
+		return true
 	case typeName == "Int":
 		return value.Kind == ValueInt
 	case typeName == "UInt":
@@ -713,6 +728,8 @@ func valueMatchesType(value Value, typeName string) bool {
 			}
 		}
 		return true
+	case strings.HasPrefix(typeName, "Function["):
+		return value.Kind == ValueFunction || value.Kind == ValueNull
 	case strings.HasPrefix(typeName, "Option["):
 		elementType, ok := optionType(typeName)
 		if !ok || value.Kind != ValueOption {

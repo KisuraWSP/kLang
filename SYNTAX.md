@@ -150,6 +150,35 @@ function AddDefault(left : Int = 1, right : Int = 2) : Int {
     return left + right;
 }
 
+-- callbacks
+-- Function[Return] is a no-argument callback. Function[Arg, Return] takes one argument.
+-- Function[Left, Right, Return] takes two arguments.
+function Apply(value : Int, callback : Function[Int, Int]) : Int {
+    return callback(value);
+}
+
+function Combine(left : Int, right : Int, callback : Function[Int, Int, Int]) : Int {
+    return callback(left, right);
+}
+
+-- lazy evaluated functions
+-- lazy function arguments are evaluated only when the function body reads them.
+lazy function Choose(useFirst : Bool, first : Int, second : Int) : Int {
+    if useFirst {
+        return first;
+    }
+    return second;
+}
+
+-- tail-call optimized recursion
+-- A recursive call returned directly from the same function reuses the current call frame.
+function CountDown(value : Int, total : Int) : Int {
+    if value == 0 {
+        return total;
+    }
+    return CountDown(value - 1, total + 1);
+}
+
 -- deprecation marker tag
 -- Calling a deprecated function is allowed, but the checker reports a warning.
 @deprecated
