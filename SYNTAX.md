@@ -236,3 +236,21 @@ do_while i := range(10) {
     if i == 2 break;
 }
 ```
+
+5. Namespaces
+- Namespaces can be nested. Nested functions are called through chained dot paths.
+- `alias` binds a shorter name to a namespace path, and `::` calls through that alias.
+```lua
+namespace std {
+    namespace lib {
+        function LuaInit() {
+            print("std.lib.LuaInit(); is called");
+        }
+    }
+}
+
+std.lib.LuaInit();
+
+alias std_lib = std.lib;
+std_lib::LuaInit();
+```

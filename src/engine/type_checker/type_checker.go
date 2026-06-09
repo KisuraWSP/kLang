@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"kLang/src/engine/file"
+	"kLang/src/parser"
 )
 
 const anyType = "T"
@@ -35,6 +36,7 @@ func (report Report) Passed() bool {
 type TypeChecker struct {
 	functions map[string]functionSymbol
 	globals   map[string]variableSymbol
+	aliases   map[string]string
 	errors    []Error
 	warnings  []Warning
 	namespace string
@@ -71,6 +73,7 @@ func CheckProgram(program file.Program) Report {
 	checker := &TypeChecker{
 		functions: map[string]functionSymbol{},
 		globals:   map[string]variableSymbol{},
+		aliases:   map[string]string{},
 	}
 
 	units := make([]sourceUnit, 0, len(program.Files))
@@ -84,6 +87,7 @@ func CheckProgram(program file.Program) Report {
 	for _, unit := range units {
 		checker.collectFunctions(unit, "")
 	}
+	checker.collectAliases(program)
 	for _, unit := range units {
 		checker.collectGlobals(unit)
 	}
@@ -144,6 +148,49 @@ func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string) 
 	}
 }
 
+func (checker *TypeChecker) collectAliases(program file.Program) {
+	parsed := parser.ParseLoadedProgram(program)
+	if !parsed.Passed() {
+		return
+	}
+	for _, source := range parsed.Sources {
+		checker.collectAliasStatements(source.Program.Statements, source.Path)
+	}
+}
+
+func (checker *TypeChecker) collectAliasStatements(statements []parser.Statement, source string) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.AliasStatement:
+			if current.Target == "" {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias %q is missing a namespace target", current.Name))
+				continue
+			}
+			if _, exists := checker.aliases[current.Name]; exists {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias %q is already defined", current.Name))
+				continue
+			}
+			if !checker.namespaceExists(current.Target) {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias %q targets unknown namespace %q", current.Name, current.Target))
+				continue
+			}
+			checker.aliases[current.Name] = current.Target
+		case parser.NamespaceStatement:
+			checker.collectAliasStatements(current.Body, source)
+		case parser.FunctionStatement:
+			checker.collectAliasStatements(current.Body, source)
+		case parser.IfStatement:
+			checker.collectAliasStatements(current.Consequence, source)
+			checker.collectAliasStatements(current.Alternative, source)
+			if current.ElseIf != nil {
+				checker.collectAliasStatements([]parser.Statement{*current.ElseIf}, source)
+			}
+		case parser.LoopStatement:
+			checker.collectAliasStatements(current.Body, source)
+		}
+	}
+}
+
 func (checker *TypeChecker) collectGlobals(unit sourceUnit) {
 	text := maskBlocks(unit.Text)
 	for _, stmt := range splitStatements(text) {
@@ -180,7 +227,7 @@ func (checker *TypeChecker) checkTopLevelCalls(unit sourceUnit) {
 	text := maskBlocks(unit.Text)
 	for _, stmt := range splitStatements(text) {
 		current := trimStatementPrefix(stmt.Text)
-		if strings.HasPrefix(current, "global ") || strings.HasPrefix(current, "import ") || current == "" {
+		if strings.HasPrefix(current, "global ") || strings.HasPrefix(current, "import ") || strings.HasPrefix(current, "alias ") || current == "" {
 			continue
 		}
 		if looksLikeCall(current) {
@@ -336,10 +383,10 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 	}
 
 	afterParams := strings.TrimSpace(header[paramsEnd+1:])
-	if !strings.HasPrefix(afterParams, ":") {
-		return functionSymbol{}, openBrace, fmt.Errorf("function %s is missing a return type", name)
+	returnType := anyType
+	if strings.HasPrefix(afterParams, ":") {
+		returnType = normalizeType(strings.TrimSpace(afterParams[1:]))
 	}
-	returnType := normalizeType(strings.TrimSpace(afterParams[1:]))
 	returnType = applyFunctionTypeRestrictions(returnType, typeRestrictions)
 	if !isKnownType(returnType) {
 		return functionSymbol{}, openBrace, fmt.Errorf("function %s uses unknown return type %s", name, returnType)
@@ -548,6 +595,7 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	expr = strings.TrimSpace(expr)
 	expr = strings.TrimSuffix(expr, ";")
 	expr = strings.TrimSpace(strings.TrimPrefix(expr, "call "))
+	expr = normalizeNamespaceAccess(expr)
 	expr = trimOuterParens(expr)
 	if expr == "" {
 		return anyType
@@ -791,6 +839,7 @@ func (checker *TypeChecker) inferListComprehension(valueExpr string, iterator st
 
 func (checker *TypeChecker) checkCall(name string, args []string, locals map[string]variableSymbol, source string, line int) string {
 	name = strings.TrimPrefix(strings.TrimSpace(name), "call ")
+	name = checker.resolveAliasPath(normalizeNamespaceAccess(name))
 	switch name {
 	case "print":
 		return anyType
@@ -927,6 +976,19 @@ func (checker *TypeChecker) lookupVariable(name string, locals map[string]variab
 		return variable, true
 	}
 	return variableSymbol{}, false
+}
+
+func (checker *TypeChecker) resolveAliasPath(name string) string {
+	name = normalizeNamespaceAccess(strings.TrimSpace(name))
+	for alias, target := range checker.aliases {
+		if name == alias {
+			return target
+		}
+		if strings.HasPrefix(name, alias+".") {
+			return target + strings.TrimPrefix(name, alias)
+		}
+	}
+	return name
 }
 
 func (checker *TypeChecker) addError(source string, line int, message string) {
@@ -1574,7 +1636,7 @@ func copyLocals(locals map[string]variableSymbol) map[string]variableSymbol {
 }
 
 func parseFunctionCall(expr string) (string, []string, bool) {
-	expr = strings.TrimSpace(strings.TrimPrefix(expr, "call "))
+	expr = normalizeNamespaceAccess(strings.TrimSpace(strings.TrimPrefix(expr, "call ")))
 	open := findTopLevelChar(expr, '(')
 	if open == -1 || !strings.HasSuffix(expr, ")") {
 		return "", nil, false
@@ -1593,6 +1655,10 @@ func parseFunctionCall(expr string) (string, []string, bool) {
 		args = splitTopLevel(inner, ',')
 	}
 	return name, args, true
+}
+
+func normalizeNamespaceAccess(input string) string {
+	return strings.ReplaceAll(input, "::", ".")
 }
 
 func splitListComprehensionLiteral(inner string) (string, string, string, string, bool) {

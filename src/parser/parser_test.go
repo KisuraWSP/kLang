@@ -234,6 +234,57 @@ call random.RandomRange(1, 2);
 	}
 }
 
+func TestParseChainedNamespaceAliasAndNamespaceAccess(t *testing.T) {
+	program, errors := Parse(`
+namespace std {
+    namespace lib {
+        function LuaInit() {
+            print("std.lib.LuaInit(); is called");
+        }
+    }
+}
+
+alias std_lib = std.lib;
+std_lib::LuaInit();
+`)
+	assertNoParseErrors(t, errors)
+
+	if len(program.Statements) != 3 {
+		t.Fatalf("expected 3 top-level statements, got %d", len(program.Statements))
+	}
+	namespace, ok := program.Statements[0].(NamespaceStatement)
+	if !ok || namespace.Name != "std" {
+		t.Fatalf("unexpected namespace statement: %#v", program.Statements[0])
+	}
+	nested, ok := namespace.Body[0].(NamespaceStatement)
+	if !ok || nested.Name != "lib" {
+		t.Fatalf("expected nested namespace lib, got %#v", namespace.Body[0])
+	}
+	fn, ok := nested.Body[0].(FunctionStatement)
+	if !ok || fn.Name != "LuaInit" || fn.ReturnType != "T" {
+		t.Fatalf("unexpected nested function: %#v", nested.Body[0])
+	}
+	alias, ok := program.Statements[1].(AliasStatement)
+	if !ok || alias.Name != "std_lib" || alias.Target != "std.lib" {
+		t.Fatalf("unexpected alias statement: %#v", program.Statements[1])
+	}
+	stmt, ok := program.Statements[2].(ExpressionStatement)
+	if !ok {
+		t.Fatalf("expected alias call expression, got %T", program.Statements[2])
+	}
+	call, ok := stmt.Expression.Node.(CallExpression)
+	if !ok {
+		t.Fatalf("expected call expression, got %#v", stmt.Expression.Node)
+	}
+	selector, ok := call.Callee.(SelectorExpression)
+	if !ok || selector.Field != "LuaInit" {
+		t.Fatalf("expected selector callee, got %#v", call.Callee)
+	}
+	if identifier, ok := selector.Target.(IdentifierExpression); !ok || identifier.Name != "std_lib" {
+		t.Fatalf("expected alias selector target, got %#v", selector.Target)
+	}
+}
+
 func TestParseConditionalsAndLoops(t *testing.T) {
 	program, errors := Parse(`
 function Main() : Int {

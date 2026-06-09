@@ -132,6 +132,8 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 	switch current := stmt.(type) {
 	case parser.ImportStatement:
 		return
+	case parser.AliasStatement:
+		return
 	case parser.NamespaceStatement:
 		checker.checkScopeStatements(current.Body, scope, namespace+current.Name+".", source, inLoop, topLevel)
 	case parser.FunctionStatement:
@@ -255,7 +257,8 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 		if _, ok := scope.lookup(current.Name); ok {
 			return
 		}
-		if isBuiltinFunctionName(current.Name) || checker.functionExists(current.Name, namespace) || checker.namespaceExists(current.Name) {
+		if isBuiltinFunctionName(current.Name) || checker.functionExists(current.Name, namespace) ||
+			checker.namespaceExists(current.Name) || checker.aliasExists(current.Name) {
 			return
 		}
 		checker.addError(source, line, fmt.Sprintf("unknown identifier %q", current.Name))
@@ -332,6 +335,7 @@ func (checker *TypeChecker) checkCallScope(callee parser.ExpressionNode, scope *
 }
 
 func (checker *TypeChecker) functionExists(name string, namespace string) bool {
+	name = checker.resolveAliasPath(name)
 	if _, ok := checker.functions[name]; ok {
 		return true
 	}
@@ -344,6 +348,7 @@ func (checker *TypeChecker) functionExists(name string, namespace string) bool {
 }
 
 func (checker *TypeChecker) namespaceExists(name string) bool {
+	name = checker.resolveAliasPath(name)
 	prefix := name + "."
 	for functionName := range checker.functions {
 		if strings.HasPrefix(functionName, prefix) {
@@ -353,13 +358,33 @@ func (checker *TypeChecker) namespaceExists(name string) bool {
 	return false
 }
 
+func (checker *TypeChecker) aliasExists(name string) bool {
+	_, ok := checker.aliases[name]
+	return ok
+}
+
 func (checker *TypeChecker) selectorFunctionExists(expr parser.SelectorExpression) bool {
-	target, ok := expr.Target.(parser.IdentifierExpression)
+	path, ok := selectorPath(expr)
 	if !ok {
 		return false
 	}
-	_, ok = checker.functions[target.Name+"."+expr.Field]
+	_, ok = checker.functions[checker.resolveAliasPath(path)]
 	return ok
+}
+
+func selectorPath(expr parser.ExpressionNode) (string, bool) {
+	switch current := expr.(type) {
+	case parser.IdentifierExpression:
+		return current.Name, true
+	case parser.SelectorExpression:
+		target, ok := selectorPath(current.Target)
+		if !ok {
+			return "", false
+		}
+		return target + "." + current.Field, true
+	default:
+		return "", false
+	}
 }
 
 func isBuiltinFunctionName(name string) bool {

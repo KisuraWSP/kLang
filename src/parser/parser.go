@@ -60,6 +60,8 @@ func (parser *Parser) parseStatement() Statement {
 		return nil
 	case lexer.TokenImport:
 		return parser.parseImport()
+	case lexer.TokenAlias:
+		return parser.parseAlias()
 	case lexer.TokenNameSpace:
 		return parser.parseNamespace()
 	case lexer.TokenAt:
@@ -101,6 +103,37 @@ func (parser *Parser) parseImport() Statement {
 	}
 }
 
+func (parser *Parser) parseAlias() Statement {
+	start := parser.consume(lexer.TokenAlias, "expected alias")
+	name := parser.consume(lexer.TokenIdentifier, "expected alias name")
+	parser.consume(lexer.TokenAssign, "expected '=' after alias name")
+
+	var parts []string
+	expectName := true
+	for !parser.check(lexer.TokenSemicolon) && !parser.atEnd() {
+		if expectName {
+			part := parser.consume(lexer.TokenIdentifier, "expected namespace name in alias target")
+			parts = append(parts, part.Literal)
+			expectName = false
+			continue
+		}
+		if !parser.match(lexer.TokenDot) {
+			break
+		}
+		expectName = true
+	}
+	if expectName && len(parts) > 0 {
+		parser.addError(parser.previous(), "expected namespace name after '.' in alias target")
+	}
+	parser.consumeOptionalSemicolon()
+
+	return AliasStatement{
+		Pos:    positionFromToken(start),
+		Name:   name.Literal,
+		Target: strings.Join(parts, "."),
+	}
+}
+
 func (parser *Parser) parseNamespace() Statement {
 	start := parser.consume(lexer.TokenNameSpace, "expected namespace")
 	name := parser.consume(lexer.TokenIdentifier, "expected namespace name")
@@ -139,8 +172,10 @@ func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string) 
 	parser.consume(lexer.TokenLeftBrace, "expected '(' after function name")
 	params := parser.parseParameters()
 	parser.consume(lexer.TokenRightBrace, "expected ')' after function parameters")
-	parser.consume(lexer.TokenInferReturn, "expected ':' before function return type")
-	returnType := parser.parseType()
+	returnType := "T"
+	if parser.match(lexer.TokenInferReturn) {
+		returnType = parser.parseType()
+	}
 	params = applyTypeParameterRestrictions(params, typeParams)
 	returnType = applyReturnTypeRestriction(returnType, typeParams)
 	body := parser.parseBlock()
@@ -333,7 +368,7 @@ func parseInlineStatements(tokens []lexer.Token) []Statement {
 func inlineStatementStart(tokens []lexer.Token) int {
 	for index, token := range tokens {
 		switch token.Type {
-		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport, lexer.TokenCall, lexer.TokenAt:
+		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias:
 			return index
 		}
 	}
@@ -611,7 +646,7 @@ func (parser *Parser) synchronize() {
 		switch parser.current().Type {
 		case lexer.TokenFunc, lexer.TokenGlobal, lexer.TokenLocal, lexer.TokenExport, lexer.TokenReturn,
 			lexer.TokenIf, lexer.TokenUnless, lexer.TokenFor, lexer.TokenWhile,
-			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenNameSpace:
+			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenAlias, lexer.TokenNameSpace:
 			return
 		}
 		parser.advance()

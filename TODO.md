@@ -1,26 +1,6 @@
 # TODO
 - lazy evaluated functions <do>
 - tail call optimization for recursive functions <do>
-- support for chained namespaces (like the below) <do>
-```lua
-namespace std {
-    namespace lib {
-        function LuaInit() {
-            print("std.lib.LuaInit(); is called");
-        }
-    }
-}
-
--- so now u will be able to call the function as
-std.lib.LuaInit();
-```
-- also support for namespace aliasing <do>
-```lua
--- this is to prevent weird issues in runtime execution regarding namespaces/functions/methods/callbacks or etc
-alias std_lib = std.lib;
-
-std_lib::LuaInit();
-```
 - add support for callbacks for functions <do>
 
 

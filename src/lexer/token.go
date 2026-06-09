@@ -49,6 +49,7 @@ const (
 	TokenLeftBrace        // (
 	TokenRightBrace       // )
 	TokenInferReturn      // :
+	TokenNamespaceAccess  // ::
 	TokenSemicolon        // ;
 	TokenComma            // ,
 	TokenDot              // .
@@ -76,6 +77,7 @@ const (
 	TokenAs         // as
 	TokenIn         // in
 	TokenImport     // import
+	TokenAlias      // alias
 	TokenLambdaFunc // fun
 	TokenGlobal     // global
 	TokenMut        // mut
@@ -112,6 +114,7 @@ var Keywords = map[string]TokenType{
 	"as":        TokenAs,
 	"in":        TokenIn,
 	"import":    TokenImport,
+	"alias":     TokenAlias,
 	"global":    TokenGlobal,
 	"fun":       TokenLambdaFunc,
 	"mut":       TokenMut,
@@ -147,6 +150,7 @@ var Operators = map[string]TokenType{
 	"<=": TokenLessThanOrEqualTo,
 	"->": TokenArrow,
 	":=": TokenEvaluationAssign,
+	"::": TokenNamespaceAccess,
 	":":  TokenInferReturn,
 }
 

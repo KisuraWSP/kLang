@@ -702,6 +702,43 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsChainedNamespacesAndAliases(t *testing.T) {
+	program := programFromSource(`
+namespace std {
+    namespace lib {
+        function LuaInit() : Int {
+            return 7;
+        }
+    }
+}
+
+alias std_lib = std.lib;
+
+function Main() : Int {
+    local Int direct = std.lib.LuaInit();
+    local Int viaAlias = std_lib::LuaInit();
+    return direct + viaAlias;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsUnknownNamespaceAliasTarget(t *testing.T) {
+	program := programFromSource(`
+alias missing_alias = missing.lib;
+
+function Main() : Int {
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `alias "missing_alias" targets unknown namespace "missing.lib"`)
+}
+
 func programFromSource(source string) file.Program {
 	lines := strings.Split(strings.TrimSpace(source), "\n")
 	return file.Program{

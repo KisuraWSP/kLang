@@ -90,7 +90,7 @@ func (parser *expressionParser) parseExpression(precedence int) ExpressionNode {
 			left = parser.parseCall(left)
 		case lexer.TokenLeftSquareBrace:
 			left = parser.parseIndex(left)
-		case lexer.TokenDot:
+		case lexer.TokenDot, lexer.TokenNamespaceAccess:
 			left = parser.parseSelector(left)
 		case lexer.TokenAs:
 			left = parser.parseCast(left)
@@ -446,7 +446,7 @@ func tokenPrecedence(tokenType lexer.TokenType) int {
 		return precedencePower
 	case lexer.TokenAs:
 		return precedenceCast
-	case lexer.TokenLeftBrace, lexer.TokenLeftSquareBrace, lexer.TokenDot, lexer.TokenQuestion:
+	case lexer.TokenLeftBrace, lexer.TokenLeftSquareBrace, lexer.TokenDot, lexer.TokenNamespaceAccess, lexer.TokenQuestion:
 		return precedenceCall
 	default:
 		return precedenceLowest

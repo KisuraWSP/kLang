@@ -689,6 +689,43 @@ function Main() : Int {
 	assertRuntimeErrorContains(t, err, `ambiguous function "Pick"`)
 }
 
+func TestRuntimeExecutesChainedNamespaceAndAliasCalls(t *testing.T) {
+	result, err := runSourceWithError(`
+namespace std {
+    namespace lib {
+        function LuaInit() {
+            print("std.lib.LuaInit(); is called");
+        }
+
+        function Number() : Int {
+            return 7;
+        }
+    }
+}
+
+alias std_lib = std.lib;
+
+function Main() : Int {
+    std.lib.LuaInit();
+    std_lib::LuaInit();
+    return std.lib.Number() + std_lib::Number();
+}
+`)
+	if err != nil {
+		t.Fatalf("expected runtime to pass, got: %v", err)
+	}
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 14 {
+		t.Fatalf("expected namespace program to return 14, got %#v", result.Value)
+	}
+	expectedOutput := []string{
+		"std.lib.LuaInit(); is called",
+		"std.lib.LuaInit(); is called",
+	}
+	if strings.Join(result.Output, "\n") != strings.Join(expectedOutput, "\n") {
+		t.Fatalf("unexpected output: %#v", result.Output)
+	}
+}
+
 func TestRuntimeRejectsRunawayRecursion(t *testing.T) {
 	runtime := New()
 	runtime.maxDepth = 8

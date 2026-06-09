@@ -215,7 +215,7 @@ func (lexer *Lexer) readCharLiteral() (string, bool) {
 
 func (lexer *Lexer) readOperator() (TokenType, string, bool) {
 	for _, literal := range []string{
-		"**", "//", "|>", "+=", "-=", "*=", "/=", "==", "!=", ">=", "<=", "->", ":=",
+		"**", "//", "|>", "+=", "-=", "*=", "/=", "==", "!=", ">=", "<=", "->", ":=", "::",
 		"+", "-", "*", "/", "%", "=", ">", "<", ":", "|",
 	} {
 		if lexer.startsWith(literal) {

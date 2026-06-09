@@ -77,6 +77,7 @@ type Runtime struct {
 	memory    *Memory
 	global    *Environment
 	functions map[string]parser.FunctionStatement
+	aliases   map[string]string
 	output    []string
 	callDepth int
 	maxDepth  int
@@ -89,6 +90,7 @@ func New() *Runtime {
 		memory:    NewMemory(),
 		global:    NewEnvironment(nil),
 		functions: map[string]parser.FunctionStatement{},
+		aliases:   map[string]string{},
 		maxDepth:  defaultMaxCallDepth,
 	}
 }
@@ -154,6 +156,14 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 			return errorAt(current.Pos, fmt.Sprintf("function %q is already defined", name))
 		}
 		runtime.functions[name] = current
+	case parser.AliasStatement:
+		if current.Target == "" {
+			return errorAt(current.Pos, fmt.Sprintf("alias %q is missing a namespace target", current.Name))
+		}
+		if _, exists := runtime.aliases[current.Name]; exists {
+			return errorAt(current.Pos, fmt.Sprintf("alias %q is already defined", current.Name))
+		}
+		runtime.aliases[current.Name] = current.Target
 	case parser.NamespaceStatement:
 		for _, nested := range current.Body {
 			if err := runtime.collectFunctions(nested, namespace+current.Name+"."); err != nil {
@@ -193,6 +203,8 @@ func (runtime *Runtime) executeBlock(statements []parser.Statement, env *Environ
 func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment, inLoop bool) (signal, error) {
 	switch current := stmt.(type) {
 	case parser.ImportStatement:
+		return signal{kind: signalNone}, nil
+	case parser.AliasStatement:
 		return signal{kind: signalNone}, nil
 	case parser.NamespaceStatement:
 		return signal{kind: signalNone}, nil
@@ -594,6 +606,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 		if isBuiltinFunction(current.Name) {
 			return FunctionValue(current.Name), nil
 		}
+		if target, ok := runtime.aliases[current.Name]; ok {
+			return FunctionValue(target), nil
+		}
 		name, err := runtime.resolveFunctionName(current.Name)
 		if err != nil {
 			return NullValue(), err
@@ -615,10 +630,10 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 	case parser.SelectorExpression:
 		value, err := runtime.evalExpression(current.Target, env)
 		if err == nil && value.Kind == ValueFunction {
-			return FunctionValue(value.Data.(string) + "." + current.Field), nil
+			return FunctionValue(runtime.resolveAliasPath(value.Data.(string)) + "." + current.Field), nil
 		}
 		if target, ok := current.Target.(parser.IdentifierExpression); ok {
-			return FunctionValue(target.Name + "." + current.Field), nil
+			return FunctionValue(runtime.resolveAliasPath(target.Name) + "." + current.Field), nil
 		}
 		return NullValue(), Error{Message: "unsupported selector target"}
 	case parser.CastExpression:
@@ -952,6 +967,7 @@ func (runtime *Runtime) evalIndex(expr parser.IndexExpression, env *Environment)
 }
 
 func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
+	name = runtime.resolveAliasPath(name)
 	switch name {
 	case "print":
 		if len(args) > 0 {
@@ -1084,6 +1100,7 @@ func requiredRuntimeParamCount(params []parser.Parameter) int {
 }
 
 func (runtime *Runtime) resolveFunctionName(name string) (string, error) {
+	name = runtime.resolveAliasPath(name)
 	if _, ok := runtime.functions[name]; ok {
 		return name, nil
 	}
@@ -1100,6 +1117,19 @@ func (runtime *Runtime) resolveFunctionName(name string) (string, error) {
 		return matches[0], nil
 	}
 	return "", nil
+}
+
+func (runtime *Runtime) resolveAliasPath(name string) string {
+	name = strings.ReplaceAll(strings.TrimSpace(name), "::", ".")
+	for alias, target := range runtime.aliases {
+		if name == alias {
+			return target
+		}
+		if strings.HasPrefix(name, alias+".") {
+			return target + strings.TrimPrefix(name, alias)
+		}
+	}
+	return name
 }
 
 func isBuiltinFunction(name string) bool {
