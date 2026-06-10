@@ -36,6 +36,7 @@ func (report Report) Passed() bool {
 
 type TypeChecker struct {
 	functions map[string]functionSymbol
+	groups    map[string][]string
 	globals   map[string]variableSymbol
 	aliases   map[string]string
 	traits    map[string]traitSymbol
@@ -88,6 +89,7 @@ type sourceUnit struct {
 func CheckProgram(program file.Program) Report {
 	checker := &TypeChecker{
 		functions: map[string]functionSymbol{},
+		groups:    map[string][]string{},
 		globals:   map[string]variableSymbol{},
 		aliases:   map[string]string{},
 		traits:    map[string]traitSymbol{},
@@ -106,6 +108,7 @@ func CheckProgram(program file.Program) Report {
 	}
 	checker.collectTraits(program)
 	checker.collectAliases(program)
+	checker.collectFunctionGroups(program)
 	for _, unit := range units {
 		checker.collectGlobals(unit)
 	}
@@ -119,6 +122,37 @@ func CheckProgram(program file.Program) Report {
 	checker.checkLexicalScopes(program)
 
 	return Report{Errors: checker.errors, Warnings: checker.warnings}
+}
+
+func (checker *TypeChecker) collectFunctionGroups(program file.Program) {
+	parsed := parser.ParseLoadedProgram(program)
+	if !parsed.Passed() {
+		return
+	}
+	for _, source := range parsed.Sources {
+		checker.collectFunctionGroupStatements(source.Program.Statements, "", source.Path)
+	}
+}
+
+func (checker *TypeChecker) collectFunctionGroupStatements(statements []parser.Statement, namespace string, source string) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.FunctionGroupStatement:
+			name := namespace + current.Name
+			if _, exists := checker.groups[name]; exists {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("function_group %q is already defined", name))
+				continue
+			}
+			for _, member := range current.Functions {
+				if _, ok := checker.lookupFunction(member); !ok {
+					checker.addError(source, current.Pos.Line, fmt.Sprintf("function_group %s references unknown function %q", name, member))
+				}
+			}
+			checker.groups[name] = append([]string(nil), current.Functions...)
+		case parser.NamespaceStatement:
+			checker.collectFunctionGroupStatements(current.Body, namespace+current.Name+".", source)
+		}
+	}
 }
 
 func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string) {
@@ -814,6 +848,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	if strings.HasPrefix(expr, "[") && strings.HasSuffix(expr, "]") {
 		return checker.inferListLiteral(expr, locals, source, line)
 	}
+	if strings.HasPrefix(expr, "fun") {
+		return checker.inferLambdaExpression(expr, locals, source, line)
+	}
 
 	if index := findTopLevelOperator(expr, []string{"|>"}); index != -1 {
 		return checker.checkPipe(expr[:index], expr[index+len("|>"):], locals, source, line)
@@ -923,6 +960,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	}
 	if fn, ok := checker.lookupFunction(expr); ok {
 		return functionTypeForSymbol(fn)
+	}
+	if checker.functionGroupExists(expr) {
+		return anyType
 	}
 
 	checker.addError(source, line, fmt.Sprintf("unknown expression %q", expr))
@@ -1136,6 +1176,12 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			return anyType
 		}
 	}
+	if checker.functionGroupExists(name) {
+		for _, arg := range args {
+			checker.inferExpression(arg, locals, source, line)
+		}
+		return anyType
+	}
 
 	fn, ok := checker.lookupFunction(name)
 	if !ok {
@@ -1165,6 +1211,41 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 	}
 
 	return checker.inferGenericCallReturn(fn, args, locals, source, line)
+}
+
+func (checker *TypeChecker) inferLambdaExpression(expr string, locals map[string]variableSymbol, source string, line int) string {
+	program, errors := parser.Parse("local T __lambda = " + expr + ";")
+	if len(errors) != 0 || len(program.Statements) == 0 {
+		checker.addError(source, line, "invalid lambda expression")
+		return anyType
+	}
+	decl, ok := program.Statements[0].(parser.VariableStatement)
+	if !ok {
+		return anyType
+	}
+	lambda, ok := decl.Expression.Node.(parser.LambdaExpression)
+	if !ok {
+		return anyType
+	}
+	lambdaScope := copyLocals(locals)
+	parts := make([]string, 0, len(lambda.Params)+1)
+	for _, param := range lambda.Params {
+		paramType := normalizeType(param.Type)
+		if !isKnownType(paramType) {
+			checker.addError(source, line, fmt.Sprintf("lambda parameter %s uses unknown type %s", param.Name, paramType))
+			paramType = anyType
+		}
+		lambdaScope[param.Name] = variableSymbol{Name: param.Name, Type: paramType}
+		parts = append(parts, paramType)
+	}
+	returnType := normalizeType(lambda.ReturnType)
+	if !isKnownType(returnType) {
+		checker.addError(source, line, fmt.Sprintf("lambda uses unknown return type %s", returnType))
+		returnType = anyType
+	}
+	parts = append(parts, returnType)
+	_ = lambdaScope
+	return "Function[" + strings.Join(parts, ",") + "]"
 }
 
 func (checker *TypeChecker) checkCallbackCall(name string, paramTypes []string, returnType string, args []string, locals map[string]variableSymbol, source string, line int) string {
@@ -1226,6 +1307,18 @@ func (checker *TypeChecker) lookupFunction(name string) (functionSymbol, bool) {
 		}
 	}
 	return functionSymbol{}, false
+}
+
+func (checker *TypeChecker) functionGroupExists(name string) bool {
+	name = checker.resolveAliasPath(normalizeNamespaceAccess(name))
+	if _, ok := checker.groups[name]; ok {
+		return true
+	}
+	if checker.namespace != "" && !strings.Contains(name, ".") {
+		_, ok := checker.groups[checker.namespace+name]
+		return ok
+	}
+	return false
 }
 
 func functionTypeForSymbol(fn functionSymbol) string {

@@ -87,6 +87,7 @@ type Runtime struct {
 	memory    *Memory
 	global    *Environment
 	functions map[string]parser.FunctionStatement
+	groups    map[string][]string
 	closures  map[string]*Environment
 	aliases   map[string]string
 	output    []string
@@ -104,6 +105,7 @@ func New() *Runtime {
 		memory:    NewMemory(),
 		global:    NewEnvironment(nil),
 		functions: map[string]parser.FunctionStatement{},
+		groups:    map[string][]string{},
 		closures:  map[string]*Environment{},
 		aliases:   map[string]string{},
 		maxDepth:  defaultMaxCallDepth,
@@ -171,6 +173,12 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 			return errorAt(current.Pos, fmt.Sprintf("function %q is already defined", name))
 		}
 		runtime.functions[name] = current
+	case parser.FunctionGroupStatement:
+		name := namespace + current.Name
+		if _, exists := runtime.groups[name]; exists {
+			return errorAt(current.Pos, fmt.Sprintf("function_group %q is already defined", name))
+		}
+		runtime.groups[name] = append([]string(nil), current.Functions...)
 	case parser.TraitStatement:
 		return nil
 	case parser.ImplStatement:
@@ -229,6 +237,8 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 	case parser.AliasStatement:
 		return signal{kind: signalNone}, nil
 	case parser.NamespaceStatement:
+		return signal{kind: signalNone}, nil
+	case parser.FunctionGroupStatement:
 		return signal{kind: signalNone}, nil
 	case parser.FunctionStatement:
 		name, err := runtime.defineLocalFunction(current, env)
@@ -741,6 +751,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 		if target, ok := runtime.aliases[current.Name]; ok {
 			return FunctionValue(target), nil
 		}
+		if _, ok := runtime.groups[current.Name]; ok {
+			return FunctionValue(current.Name), nil
+		}
 		name, err := runtime.resolveFunctionName(current.Name)
 		if err != nil {
 			return NullValue(), err
@@ -829,6 +842,17 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			items[mapKeyValue] = value
 		}
 		return Value{Kind: ValueMap, Data: items}, nil
+	case parser.LambdaExpression:
+		name, err := runtime.defineLocalFunction(parser.FunctionStatement{
+			Name:       "lambda",
+			Params:     current.Params,
+			ReturnType: current.ReturnType,
+			Body:       current.Body,
+		}, env)
+		if err != nil {
+			return NullValue(), err
+		}
+		return FunctionValue(name), nil
 	case parser.RawExpression:
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported expression %q", parser.Expression{Tokens: current.Tokens}.Literal())}
 	default:
@@ -1235,6 +1259,9 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		return NullValue(), err
 	}
 	if resolvedName == "" {
+		if _, ok := runtime.groups[name]; ok {
+			return runtime.callFunctionGroup(name, args)
+		}
 		return NullValue(), Error{Message: fmt.Sprintf("unknown function %q", name)}
 	}
 	if runtime.callDepth >= runtime.maxDepth {
@@ -1307,6 +1334,50 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		}
 		return NullValue(), nil
 	}
+}
+
+func (runtime *Runtime) callFunctionGroup(name string, args []Value) (Value, error) {
+	name = runtime.resolveAliasPath(name)
+	members, ok := runtime.groups[name]
+	if !ok {
+		return NullValue(), Error{Message: fmt.Sprintf("unknown function_group %q", name)}
+	}
+
+	var matches []string
+	for _, member := range members {
+		resolvedMember, err := runtime.resolveFunctionName(member)
+		if err != nil {
+			return NullValue(), err
+		}
+		if resolvedMember == "" {
+			return NullValue(), Error{Message: fmt.Sprintf("function_group %s references unknown function %q", name, member)}
+		}
+		fn := runtime.functions[resolvedMember]
+		required := requiredRuntimeParamCount(fn.Params)
+		if len(args) < required || len(args) > len(fn.Params) {
+			continue
+		}
+		if runtime.argumentsMatchParameters(args, fn.Params) {
+			matches = append(matches, resolvedMember)
+		}
+	}
+
+	if len(matches) == 0 {
+		return NullValue(), Error{Message: fmt.Sprintf("no function_group %s overload matches %d argument(s)", name, len(args))}
+	}
+	if len(matches) > 1 {
+		return NullValue(), Error{Message: fmt.Sprintf("ambiguous function_group %s call matches %s", name, strings.Join(matches, ", "))}
+	}
+	return runtime.callFunction(matches[0], args)
+}
+
+func (runtime *Runtime) argumentsMatchParameters(args []Value, params []parser.Parameter) bool {
+	for index, arg := range args {
+		if index >= len(params) || !valueMatchesType(arg, params[index].Type) {
+			return false
+		}
+	}
+	return true
 }
 
 func requiredRuntimeParamCount(params []parser.Parameter) int {

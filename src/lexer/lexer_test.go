@@ -146,6 +146,25 @@ func TestLexerTokenizesInnerFunction(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesLambdaAndFunctionGroup(t *testing.T) {
+	input := `function_group Poly { set_function_as_part_of[{ .name = "Poly" }, "A"]; } local Function[Int, Int] f = fun(x : Int) : Int { return x; };`
+
+	tokens := New(input).Tokenize()
+	foundGroup := false
+	foundLambda := false
+	for _, token := range tokens {
+		if token.Type == TokenFuncGroup && token.Literal == "function_group" {
+			foundGroup = true
+		}
+		if token.Type == TokenLambdaFunc && token.Literal == "fun" {
+			foundLambda = true
+		}
+	}
+	if !foundGroup || !foundLambda {
+		t.Fatalf("expected function_group and fun tokens, got %#v", tokens)
+	}
+}
+
 func TestLexerTokenizesTraitsAndMove(t *testing.T) {
 	input := `trait Printable { function Show(value : Int) : String; } impl Printable for Int {} local String b = move a;`
 

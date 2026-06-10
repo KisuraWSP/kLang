@@ -28,6 +28,12 @@ func parseExpressionNode(tokens []lexer.Token) ExpressionNode {
 	if len(tokens) == 0 {
 		return nil
 	}
+	if tokens[0].Type == lexer.TokenLambdaFunc {
+		if lambda, ok := parseLambdaExpressionTokens(tokens); ok {
+			return lambda
+		}
+		return RawExpression{Tokens: tokens}
+	}
 	if conditional, ok := parseConditionalExpression(tokens); ok {
 		return conditional
 	}
@@ -131,6 +137,8 @@ func (parser *expressionParser) parsePrefix() ExpressionNode {
 			Operator: token.Literal,
 			Right:    parser.parseExpression(precedencePrefix),
 		}
+	case lexer.TokenLambdaFunc:
+		return parser.parseLambda(token)
 	case lexer.TokenLeftBrace:
 		inner := parser.parseExpression(precedenceLowest)
 		if !parser.match(lexer.TokenRightBrace) {
@@ -144,6 +152,87 @@ func (parser *expressionParser) parsePrefix() ExpressionNode {
 	default:
 		return nil
 	}
+}
+
+func (parser *expressionParser) parseLambda(start lexer.Token) ExpressionNode {
+	startIndex := parser.pos - 1
+	bodyStart := findLambdaBodyStart(parser.tokens, parser.pos)
+	if bodyStart == -1 {
+		return nil
+	}
+	bodyEnd := findMatchingExpressionToken(parser.tokens, bodyStart, lexer.TokenScopeBegin, lexer.TokenScopeEnd)
+	if bodyEnd == -1 {
+		return nil
+	}
+	node, ok := parseLambdaExpressionTokens(parser.tokens[startIndex : bodyEnd+1])
+	if !ok {
+		return nil
+	}
+	parser.pos = bodyEnd + 1
+	_ = start
+	return node
+}
+
+func parseLambdaExpressionTokens(tokens []lexer.Token) (ExpressionNode, bool) {
+	lambdaTokens := append([]lexer.Token(nil), tokens...)
+	lambdaTokens = append(lambdaTokens, lexer.Token{Type: lexer.TokenEOFDescriptor})
+	lambdaParser := New(lambdaTokens)
+	lambdaParser.consume(lexer.TokenLambdaFunc, "expected fun")
+	lambdaParser.consume(lexer.TokenLeftBrace, "expected '(' after fun")
+	params := lambdaParser.parseParameters()
+	lambdaParser.consume(lexer.TokenRightBrace, "expected ')' after lambda parameters")
+	returnType := "T"
+	if lambdaParser.match(lexer.TokenInferReturn) {
+		returnType = lambdaParser.parseType()
+	}
+	body := lambdaParser.parseBlock()
+	if len(lambdaParser.Errors()) != 0 || !lambdaParser.atEnd() {
+		return nil, false
+	}
+	return LambdaExpression{Params: params, ReturnType: returnType, Body: body}, true
+}
+
+func findLambdaBodyStart(tokens []lexer.Token, start int) int {
+	depthParen := 0
+	depthBracket := 0
+	for index := start; index < len(tokens); index++ {
+		token := tokens[index]
+		switch token.Type {
+		case lexer.TokenLeftBrace:
+			depthParen++
+		case lexer.TokenRightBrace:
+			if depthParen > 0 {
+				depthParen--
+			}
+		case lexer.TokenLeftSquareBrace:
+			depthBracket++
+		case lexer.TokenRightSquareBrace:
+			if depthBracket > 0 {
+				depthBracket--
+			}
+		case lexer.TokenScopeBegin:
+			if depthParen == 0 && depthBracket == 0 {
+				return index
+			}
+		}
+	}
+	return -1
+}
+
+func findMatchingExpressionToken(tokens []lexer.Token, open int, left lexer.TokenType, right lexer.TokenType) int {
+	depth := 0
+	for index := open; index < len(tokens); index++ {
+		switch tokens[index].Type {
+		case left:
+			depth++
+		case right:
+			depth--
+			if depth == 0 {
+				return index
+			}
+		}
+	}
+	return -1
 }
 
 func (parser *expressionParser) parseBinary(left ExpressionNode) ExpressionNode {

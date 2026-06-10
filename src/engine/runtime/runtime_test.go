@@ -996,6 +996,57 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesLambdaFunction(t *testing.T) {
+	result := runSource(t, `
+function Apply(value : Int, callback : Function[Int, Int]) : Int {
+    return callback(value);
+}
+
+function Main() : Int {
+    local Int offset = 1;
+    return Apply(41, fun(value : Int) : Int {
+        return value + offset;
+    });
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 42 {
+		t.Fatalf("expected lambda program to return 42, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeDispatchesFunctionGroup(t *testing.T) {
+	result := runSource(t, `
+function function1_name(x : Int) : Int {
+    print(x);
+    return x;
+}
+
+function function2_name(x : Int, y : String) : String {
+    print(x, y);
+    return y;
+}
+
+function_group Poly {
+    set_function_as_part_of[{ .name = "Poly" }, "function1_name", "function2_name"];
+}
+
+function Main() : Int {
+    local String y = "1";
+    local mut T x = if Poly(1) == Poly(1, y) then return y : "no";
+    return len(x);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected polymorphic program to return 1, got %#v", result.Value)
+	}
+	expectedOutput := []string{"1", "1 1"}
+	if strings.Join(result.Output, ",") != strings.Join(expectedOutput, ",") {
+		t.Fatalf("expected output %v, got %v", expectedOutput, result.Output)
+	}
+}
+
 func runSource(t *testing.T, source string) Result {
 	t.Helper()
 

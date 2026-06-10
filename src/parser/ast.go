@@ -61,6 +61,12 @@ type ImplStatement struct {
 	Methods []FunctionStatement
 }
 
+type FunctionGroupStatement struct {
+	Pos       Position
+	Name      string
+	Functions []string
+}
+
 type FunctionStatement struct {
 	Pos                Position
 	Name               string
@@ -215,15 +221,23 @@ type GroupExpression struct {
 	Inner ExpressionNode
 }
 
+type LambdaExpression struct {
+	Params     []Parameter
+	ReturnType string
+	Body       []Statement
+}
+
 type RawExpression struct {
 	Tokens []lexer.Token
 }
 
-func (stmt ImportStatement) statementNode()     {}
-func (stmt AliasStatement) statementNode()      {}
-func (stmt NamespaceStatement) statementNode()  {}
-func (stmt TraitStatement) statementNode()      {}
-func (stmt ImplStatement) statementNode()       {}
+func (stmt ImportStatement) statementNode()    {}
+func (stmt AliasStatement) statementNode()     {}
+func (stmt NamespaceStatement) statementNode() {}
+func (stmt TraitStatement) statementNode()     {}
+func (stmt ImplStatement) statementNode()      {}
+func (stmt FunctionGroupStatement) statementNode() {
+}
 func (stmt FunctionStatement) statementNode()   {}
 func (stmt VariableStatement) statementNode()   {}
 func (stmt ReturnStatement) statementNode()     {}
@@ -233,11 +247,14 @@ func (stmt ExpressionStatement) statementNode() {}
 func (stmt IfStatement) statementNode()         {}
 func (stmt LoopStatement) statementNode()       {}
 
-func (stmt ImportStatement) Position() Position     { return stmt.Pos }
-func (stmt AliasStatement) Position() Position      { return stmt.Pos }
-func (stmt NamespaceStatement) Position() Position  { return stmt.Pos }
-func (stmt TraitStatement) Position() Position      { return stmt.Pos }
-func (stmt ImplStatement) Position() Position       { return stmt.Pos }
+func (stmt ImportStatement) Position() Position    { return stmt.Pos }
+func (stmt AliasStatement) Position() Position     { return stmt.Pos }
+func (stmt NamespaceStatement) Position() Position { return stmt.Pos }
+func (stmt TraitStatement) Position() Position     { return stmt.Pos }
+func (stmt ImplStatement) Position() Position      { return stmt.Pos }
+func (stmt FunctionGroupStatement) Position() Position {
+	return stmt.Pos
+}
 func (stmt FunctionStatement) Position() Position   { return stmt.Pos }
 func (stmt VariableStatement) Position() Position   { return stmt.Pos }
 func (stmt ReturnStatement) Position() Position     { return stmt.Pos }
@@ -262,7 +279,9 @@ func (expr ListComprehensionExpression) expressionNode() {
 }
 func (expr MapExpression) expressionNode()   {}
 func (expr GroupExpression) expressionNode() {}
-func (expr RawExpression) expressionNode()   {}
+func (expr LambdaExpression) expressionNode() {
+}
+func (expr RawExpression) expressionNode() {}
 
 func (expr Expression) Literal() string {
 	parts := make([]string, 0, len(expr.Tokens))

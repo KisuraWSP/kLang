@@ -830,6 +830,53 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "callback NumberFactory() argument 1 expects Int, got String")
 }
 
+func TestCheckProgramAcceptsLambdaFunctionValues(t *testing.T) {
+	program := programFromSource(`
+function Apply(value : Int, callback : Function[Int, Int]) : Int {
+    return callback(value);
+}
+
+function Main() : Int {
+    local Int offset = 1;
+    return Apply(41, fun(value : Int) : Int {
+        return value + offset;
+    });
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsFunctionGroups(t *testing.T) {
+	program := programFromSource(`
+function function1_name(x : Int) : Int {
+    return x;
+}
+
+function function2_name(x : Int, y : String) : String {
+    return y;
+}
+
+function_group Poly {
+    set_function_as_part_of[{ .name = "Poly" }, "function1_name", "function2_name"];
+}
+
+function Main() : Int {
+    local String y = "1";
+    local mut T x = if Poly(1) == Poly(1, y) then return y : "no";
+    return len(x);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramAcceptsNamespaceLocalFunctionCalls(t *testing.T) {
 	program := programFromSource(`
 namespace random {

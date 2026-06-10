@@ -1,23 +1,4 @@
 # TODO
-- lambda functions
-- support for polymorphic functions via the below
-```lua
-function function1_name(x : Int) {
-    print(x);
-}
-
-function function2_name(x : Int, y : String) {
-    print(x, y);
-}
-
-function_group Poly {
-    -- a global vTable that stores lists containing definitions of polymorphic function
-    set_function_as_part_of[{ .name = "Poly" }, "function1_name", "function2_name"];
-}
-
--- allow support for boolean operations on variables like this
-local mut T x = if Poly(x) == Poly(x, y) then return y;
-```
 - function aliases & extension functions inside aliases
 ```lua
 alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type

@@ -623,6 +623,48 @@ func TestParseExpressionTreeForCallsSelectorsAndIndexes(t *testing.T) {
 	}
 }
 
+func TestParseLambdaExpression(t *testing.T) {
+	program, errors := Parse(`
+local Function[Int, Int] increment = fun(value : Int) : Int {
+    return value + 1;
+};
+`)
+	assertNoParseErrors(t, errors)
+
+	decl, ok := program.Statements[0].(VariableStatement)
+	if !ok {
+		t.Fatalf("expected variable statement, got %#v", program.Statements[0])
+	}
+	lambda, ok := decl.Expression.Node.(LambdaExpression)
+	if !ok {
+		t.Fatalf("expected lambda expression, got %#v", decl.Expression.Node)
+	}
+	if len(lambda.Params) != 1 || lambda.Params[0].Name != "value" || lambda.ReturnType != "Int" {
+		t.Fatalf("unexpected lambda signature: %#v", lambda)
+	}
+	if len(lambda.Body) != 1 {
+		t.Fatalf("expected lambda body with one statement, got %d", len(lambda.Body))
+	}
+}
+
+func TestParseFunctionGroup(t *testing.T) {
+	program, errors := Parse(`
+function_group Poly {
+    set_function_as_part_of[{ .name = "Poly" }, "function1_name", "function2_name"];
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	group, ok := program.Statements[0].(FunctionGroupStatement)
+	if !ok {
+		t.Fatalf("expected function group statement, got %#v", program.Statements[0])
+	}
+	if group.Name != "Poly" || len(group.Functions) != 2 ||
+		group.Functions[0] != "function1_name" || group.Functions[1] != "function2_name" {
+		t.Fatalf("unexpected function group: %#v", group)
+	}
+}
+
 func TestParseExpressionTreeForListAndMapLiterals(t *testing.T) {
 	listProgram, listErrors := Parse(`local List[Int] values = [1, 2, 3];`)
 	assertNoParseErrors(t, listErrors)

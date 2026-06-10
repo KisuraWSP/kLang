@@ -68,6 +68,8 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseTrait()
 	case lexer.TokenImpl:
 		return parser.parseImpl()
+	case lexer.TokenFuncGroup:
+		return parser.parseFunctionGroup()
 	case lexer.TokenAt:
 		return parser.parseTag()
 	case lexer.TokenFunc:
@@ -217,6 +219,68 @@ func (parser *Parser) parseImpl() Statement {
 		Type:    typeName,
 		Methods: methods,
 	}
+}
+
+func (parser *Parser) parseFunctionGroup() Statement {
+	start := parser.consume(lexer.TokenFuncGroup, "expected function_group")
+	name := parser.consume(lexer.TokenIdentifier, "expected function group name")
+	parser.consume(lexer.TokenScopeBegin, "expected '{' to start function_group block")
+	var functions []string
+	for !parser.check(lexer.TokenScopeEnd) && !parser.atEnd() {
+		if parser.match(lexer.TokenSemicolon) {
+			continue
+		}
+		entry := parser.consume(lexer.TokenIdentifier, "expected function_group entry")
+		if entry.Literal != "set_function_as_part_of" {
+			parser.addError(entry, fmt.Sprintf("unknown function_group entry %q", entry.Literal))
+			parser.synchronize()
+			continue
+		}
+		parser.consume(lexer.TokenLeftSquareBrace, "expected '[' after set_function_as_part_of")
+		functions = append(functions, parser.parseFunctionGroupMembers()...)
+		parser.consumeOptionalSemicolon()
+	}
+	parser.consume(lexer.TokenScopeEnd, "expected '}' to close function_group block")
+	return FunctionGroupStatement{
+		Pos:       positionFromToken(start),
+		Name:      name.Literal,
+		Functions: functions,
+	}
+}
+
+func (parser *Parser) parseFunctionGroupMembers() []string {
+	var functions []string
+	squareDepth := 1
+	scopeDepth := 0
+	afterMetadata := false
+	for !parser.atEnd() && squareDepth > 0 {
+		token := parser.advance()
+		switch token.Type {
+		case lexer.TokenLeftSquareBrace:
+			squareDepth++
+		case lexer.TokenRightSquareBrace:
+			squareDepth--
+		case lexer.TokenScopeBegin:
+			scopeDepth++
+		case lexer.TokenScopeEnd:
+			if scopeDepth > 0 {
+				scopeDepth--
+			}
+		case lexer.TokenComma:
+			if squareDepth == 1 && scopeDepth == 0 {
+				afterMetadata = true
+			}
+		case lexer.TokenString, lexer.TokenIdentifier:
+			if afterMetadata && squareDepth == 1 && scopeDepth == 0 {
+				functions = append(functions, token.Literal)
+				afterMetadata = false
+			}
+		}
+	}
+	if squareDepth != 0 {
+		parser.addError(parser.previous(), "expected ']' after function_group members")
+	}
+	return functions
 }
 
 func (parser *Parser) parseTag() Statement {
@@ -739,7 +803,7 @@ func (parser *Parser) synchronize() {
 			return
 		}
 		switch parser.current().Type {
-		case lexer.TokenFunc, lexer.TokenInner, lexer.TokenGlobal, lexer.TokenLocal, lexer.TokenExport, lexer.TokenReturn,
+		case lexer.TokenFunc, lexer.TokenFuncGroup, lexer.TokenInner, lexer.TokenGlobal, lexer.TokenLocal, lexer.TokenExport, lexer.TokenReturn,
 			lexer.TokenIf, lexer.TokenUnless, lexer.TokenFor, lexer.TokenWhile,
 			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenAlias, lexer.TokenLazy,
 			lexer.TokenTrait, lexer.TokenImpl, lexer.TokenNameSpace:

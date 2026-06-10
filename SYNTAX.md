@@ -178,6 +178,16 @@ function NumberFactory(multiplier : Int) : Function[Int, Int] {
 local Function[Int, Int] timesTen = NumberFactory(10);
 local Int generated = NumberFactory(5)(10);
 
+-- lambda functions
+-- fun creates an anonymous first-class function that captures the current scope.
+local Function[Int, Int] increment = fun(value : Int) : Int {
+    return value + 1;
+};
+
+local Int appliedLambda = Apply(41, fun(value : Int) : Int {
+    return value + 1;
+});
+
 -- inner functions
 -- inner functions are captured from the outer function call and can be selected from its result.
 function Test() {
@@ -187,6 +197,25 @@ function Test() {
 }
 
 Test().Eval();
+
+-- polymorphic function groups
+-- function_group creates a global vTable-style call target that dispatches by argument count and runtime types.
+function function1_name(x : Int) : Int {
+    print(x);
+    return x;
+}
+
+function function2_name(x : Int, y : String) : String {
+    print(x, y);
+    return y;
+}
+
+function_group Poly {
+    set_function_as_part_of[{ .name = "Poly" }, "function1_name", "function2_name"];
+}
+
+local String y = "1";
+local mut T x = if Poly(1) == Poly(1, y) then return y : "no";
 
 -- lazy evaluated functions
 -- lazy function arguments are evaluated only when the function body reads them.

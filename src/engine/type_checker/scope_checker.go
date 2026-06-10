@@ -46,6 +46,8 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 			continue
 		case parser.ImplStatement:
 			continue
+		case parser.FunctionGroupStatement:
+			continue
 		case parser.FunctionStatement:
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		case parser.IfStatement:
@@ -143,6 +145,8 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 	case parser.TraitStatement:
 		return
 	case parser.ImplStatement:
+		return
+	case parser.FunctionGroupStatement:
 		return
 	case parser.FunctionStatement:
 		checker.checkFunctionScope(current, scope, namespace, source)
@@ -266,6 +270,7 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 			return
 		}
 		if isBuiltinFunctionName(current.Name) || checker.functionExists(current.Name, namespace) ||
+			checker.functionGroupExistsInNamespace(current.Name, namespace) ||
 			checker.namespaceExists(current.Name) || checker.aliasExists(current.Name) {
 			return
 		}
@@ -317,6 +322,17 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 		}
 	case parser.GroupExpression:
 		checker.checkScopeExpression(current.Inner, scope, namespace, source, line)
+	case parser.LambdaExpression:
+		lambdaScope := newLexicalScope(scope)
+		for _, param := range current.Params {
+			if param.Default.Node != nil {
+				checker.checkScopeExpression(param.Default.Node, lambdaScope, namespace, source, line)
+			}
+			if !lambdaScope.define(variableSymbol{Name: param.Name, Type: normalizeType(param.Type), File: source, Line: line}) {
+				checker.addError(source, line, fmt.Sprintf("parameter %q is already defined", param.Name))
+			}
+		}
+		checker.checkScopeStatements(current.Body, lambdaScope, namespace, source, false, false)
 	case parser.RawExpression:
 		return
 	}
@@ -328,7 +344,8 @@ func (checker *TypeChecker) checkCallScope(callee parser.ExpressionNode, scope *
 		if _, ok := scope.lookup(current.Name); ok {
 			return
 		}
-		if isBuiltinFunctionName(current.Name) || checker.functionExists(current.Name, namespace) {
+		if isBuiltinFunctionName(current.Name) || checker.functionExists(current.Name, namespace) ||
+			checker.functionGroupExistsInNamespace(current.Name, namespace) {
 			return
 		}
 		checker.addError(source, line, fmt.Sprintf("unknown function %q", current.Name))
@@ -340,6 +357,19 @@ func (checker *TypeChecker) checkCallScope(callee parser.ExpressionNode, scope *
 	default:
 		checker.checkScopeExpression(callee, scope, namespace, source, line)
 	}
+}
+
+func (checker *TypeChecker) functionGroupExistsInNamespace(name string, namespace string) bool {
+	name = checker.resolveAliasPath(name)
+	if _, ok := checker.groups[name]; ok {
+		return true
+	}
+	if namespace != "" {
+		if _, ok := checker.groups[namespace+name]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (checker *TypeChecker) functionExists(name string, namespace string) bool {
