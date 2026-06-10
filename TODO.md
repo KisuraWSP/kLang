@@ -1,6 +1,4 @@
 # TODO
-- improve the standard library more by adding more functions
-- make the runtime be able to work on users native os
 - async await
 - iterators
 - foreign function interface
@@ -25,9 +23,14 @@ if x == {
 }
 ```
 - data race condition prevention mechanics and atomic data handling
-- multi threaded interpretter runtime
 - coroutines
 - traits and other features must be able to used in function aliases
+
+
+# LATER <once todo is done>
+- make the runtime be able to work on users native os <done after first>
+- multi threaded interpretter runtime <done first >
+
 
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project within 10 seconds
