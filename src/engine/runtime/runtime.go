@@ -94,6 +94,7 @@ type Runtime struct {
 	maxDepth  int
 	callStack []string
 	nextFunc  int
+	innerSets []map[string]Value
 }
 
 const defaultMaxCallDepth = 1024
@@ -234,7 +235,11 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		if err != nil {
 			return signal{}, errorAt(current.Pos, err.Error())
 		}
-		if err := runtime.defineValue(env, current.Name, false, functionTypeName(current), FunctionValue(name)); err != nil {
+		value := FunctionValue(name)
+		if current.Inner && len(runtime.innerSets) > 0 {
+			runtime.innerSets[len(runtime.innerSets)-1][current.Name] = value
+		}
+		if err := runtime.defineValue(env, current.Name, false, functionTypeName(current), value); err != nil {
 			return signal{}, errorAt(current.Pos, err.Error())
 		}
 		return signal{kind: signalNone}, nil
@@ -759,6 +764,14 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 		if err == nil && value.Kind == ValueFunction {
 			return FunctionValue(runtime.resolveAliasPath(value.Data.(string)) + "." + current.Field), nil
 		}
+		if err == nil && value.Kind == ValueMap {
+			fields := value.Data.(map[string]Value)
+			field, ok := fields[current.Field]
+			if !ok {
+				return NullValue(), Error{Message: fmt.Sprintf("unknown field %q", current.Field)}
+			}
+			return field, nil
+		}
 		if target, ok := current.Target.(parser.IdentifierExpression); ok {
 			return FunctionValue(runtime.resolveAliasPath(target.Name) + "." + current.Field), nil
 		}
@@ -1269,7 +1282,10 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 				return NullValue(), err
 			}
 		}
+		runtime.innerSets = append(runtime.innerSets, map[string]Value{})
 		currentSignal, err := runtime.executeBlock(function.Body, env, false)
+		innerFields := runtime.innerSets[len(runtime.innerSets)-1]
+		runtime.innerSets = runtime.innerSets[:len(runtime.innerSets)-1]
 		if err != nil {
 			return NullValue(), err
 		}
@@ -1285,6 +1301,9 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		}
 		if function.ReturnType != "" && function.ReturnType != "T" {
 			return NullValue(), Error{Message: fmt.Sprintf("function %s returns %s, got Null", resolvedName, function.ReturnType)}
+		}
+		if len(innerFields) != 0 {
+			return Value{Kind: ValueMap, Data: innerFields}, nil
 		}
 		return NullValue(), nil
 	}

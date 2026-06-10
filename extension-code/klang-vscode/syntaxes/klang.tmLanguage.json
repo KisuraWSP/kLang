@@ -132,7 +132,7 @@
       "patterns": [
         {
           "name": "keyword.control.klang",
-          "match": "\\b(if|else|unless|for|while|do|do_while|return|break|and|or|not|import|namespace|call)\\b"
+          "match": "\\b(if|else|unless|for|while|do|do_while|return|break|and|or|not|import|namespace|call|inner)\\b"
         },
         {
           "name": "storage.modifier.klang",

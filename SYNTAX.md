@@ -178,6 +178,16 @@ function NumberFactory(multiplier : Int) : Function[Int, Int] {
 local Function[Int, Int] timesTen = NumberFactory(10);
 local Int generated = NumberFactory(5)(10);
 
+-- inner functions
+-- inner functions are captured from the outer function call and can be selected from its result.
+function Test() {
+    inner function Eval() {
+        print("This is called");
+    }
+}
+
+Test().Eval();
+
 -- lazy evaluated functions
 -- lazy function arguments are evaluated only when the function body reads them.
 lazy function Choose(useFirst : Bool, first : Int, second : Int) : Int {

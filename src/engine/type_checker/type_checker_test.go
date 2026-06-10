@@ -794,6 +794,25 @@ global Int quickMath = NumberFactory(5)(10);
 	}
 }
 
+func TestCheckProgramAcceptsInnerFunctionSelectors(t *testing.T) {
+	program := programFromSource(`
+function Counter(base : Int) {
+    inner function Eval() : Int {
+        return base + 1;
+    }
+}
+
+function Main() : Int {
+    return Counter(41).Eval();
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramRejectsFirstClassFunctionCallArgumentMismatch(t *testing.T) {
 	program := programFromSource(`
 function NumberFactory() : Function[Int, Int] {

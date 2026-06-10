@@ -883,6 +883,17 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		return checker.checkIndexExpression(targetType, indexType, source, line)
 	}
 
+	if targetExpr, fieldName, ok := splitTrailingSelectorExpression(expr); ok {
+		targetType := checker.inferExpression(targetExpr, locals, source, line)
+		if targetType == anyType || strings.HasPrefix(normalizeType(targetType), "Map[") {
+			return anyType
+		}
+		if !checker.functionExists(expr, checker.namespace) && !checker.namespaceExists(expr) {
+			checker.addError(source, line, fmt.Sprintf("%s has no field %q", targetType, fieldName))
+		}
+		return anyType
+	}
+
 	if calleeExpr, args, ok := parseCallableExpressionCall(expr); ok {
 		calleeType := checker.inferExpression(calleeExpr, locals, source, line)
 		if calleeType == anyType {
@@ -2133,6 +2144,50 @@ func splitTrailingIndexExpression(expr string) (string, string, bool) {
 	target := strings.TrimSpace(expr[:open])
 	index := strings.TrimSpace(expr[open+1 : close])
 	return target, index, target != "" && index != ""
+}
+
+func splitTrailingSelectorExpression(expr string) (string, string, bool) {
+	expr = strings.TrimSpace(expr)
+	if expr == "" {
+		return "", "", false
+	}
+
+	depthParen := 0
+	depthBracket := 0
+	inString := false
+	inChar := false
+	for index := len(expr) - 1; index >= 0; index-- {
+		current := expr[index]
+		if current == '"' && !inChar {
+			inString = !inString
+		}
+		if current == '\'' && !inString {
+			inChar = !inChar
+		}
+		if inString || inChar {
+			continue
+		}
+		switch current {
+		case ')':
+			depthParen++
+		case '(':
+			depthParen--
+		case ']':
+			depthBracket++
+		case '[':
+			depthBracket--
+		case '.':
+			if depthParen == 0 && depthBracket == 0 {
+				target := strings.TrimSpace(expr[:index])
+				field := strings.TrimSpace(expr[index+1:])
+				if target == "" || !isIdentifier(field) || isIdentifierPath(expr) {
+					return "", "", false
+				}
+				return target, field, true
+			}
+		}
+	}
+	return "", "", false
 }
 
 func splitPostfixNullCheckExpression(expr string) (string, bool) {

@@ -117,6 +117,51 @@ lazy function Choose(useFirst : Bool, first : Int, second : Int) : Int {
 	}
 }
 
+func TestParseInnerFunctionAndCallSelector(t *testing.T) {
+	program, errors := Parse(`
+function Test() {
+    inner function Eval() {
+        print("This is called");
+    }
+}
+
+function Main() : Int {
+    Test().Eval();
+    return 0;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	outer, ok := program.Statements[0].(FunctionStatement)
+	if !ok || outer.Name != "Test" {
+		t.Fatalf("expected Test function, got %#v", program.Statements[0])
+	}
+	inner, ok := outer.Body[0].(FunctionStatement)
+	if !ok || !inner.Inner || inner.Name != "Eval" {
+		t.Fatalf("expected inner Eval function, got %#v", outer.Body[0])
+	}
+
+	mainFn, ok := program.Statements[1].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected Main function, got %#v", program.Statements[1])
+	}
+	exprStmt, ok := mainFn.Body[0].(ExpressionStatement)
+	if !ok {
+		t.Fatalf("expected expression statement, got %#v", mainFn.Body[0])
+	}
+	call, ok := exprStmt.Expression.Node.(CallExpression)
+	if !ok {
+		t.Fatalf("expected call expression, got %#v", exprStmt.Expression.Node)
+	}
+	selector, ok := call.Callee.(SelectorExpression)
+	if !ok || selector.Field != "Eval" {
+		t.Fatalf("expected selector callee Eval, got %#v", call.Callee)
+	}
+	if _, ok := selector.Target.(CallExpression); !ok {
+		t.Fatalf("expected selector target to be Test() call, got %#v", selector.Target)
+	}
+}
+
 func TestParseTraitAndImpl(t *testing.T) {
 	program, errors := Parse(`
 trait Printable {

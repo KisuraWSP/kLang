@@ -215,6 +215,46 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesInnerFunctionSelector(t *testing.T) {
+	result := runSource(t, `
+function Test() {
+    inner function Eval() {
+        print("This is called");
+    }
+}
+
+function Main() : Int {
+    Test().Eval();
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 0 {
+		t.Fatalf("expected Main to return 0, got %#v", result.Value)
+	}
+	if strings.Join(result.Output, ",") != "This is called" {
+		t.Fatalf("expected inner function output, got %v", result.Output)
+	}
+}
+
+func TestRuntimeInnerFunctionCapturesOuterScope(t *testing.T) {
+	result := runSource(t, `
+function Counter(base : Int) {
+    inner function Eval() : Int {
+        return base + 1;
+    }
+}
+
+function Main() : Int {
+    return Counter(41).Eval();
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 42 {
+		t.Fatalf("expected captured inner function to return 42, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesOptionAndResultBuiltins(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {

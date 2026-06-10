@@ -68,6 +68,7 @@ type FunctionStatement struct {
 	Params             []Parameter
 	ReturnType         string
 	Lazy               bool
+	Inner              bool
 	Deprecated         bool
 	DeprecationMessage string
 	Body               []Statement

@@ -126,6 +126,26 @@ func TestLexerTokenizesLazyFunction(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesInnerFunction(t *testing.T) {
+	input := `inner function Eval() { print("This is called"); }`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenInner, Literal: "inner"},
+		{Type: TokenFunc, Literal: "function"},
+		{Type: TokenIdentifier, Literal: "Eval"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenScopeBegin, Literal: "{"},
+		{Type: TokenIdentifier, Literal: "print"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenString, Literal: "This is called"},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenScopeEnd, Literal: "}"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesTraitsAndMove(t *testing.T) {
 	input := `trait Printable { function Show(value : Int) : String; } impl Printable for Int {} local String b = move a;`
 

@@ -18,17 +18,6 @@ function_group Poly {
 -- allow support for boolean operations on variables like this
 local mut T x = if Poly(x) == Poly(x, y) then return y;
 ```
-- inner functions (like the below)
-```lua
-function Test() {
-    inner function Eval() {
-        print("This is called");
-    }
-}
-
--- can be called like
-Test().Eval();
-```
 - function aliases & extension functions inside aliases
 ```lua
 alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
