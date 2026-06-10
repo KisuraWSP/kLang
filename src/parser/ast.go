@@ -35,6 +35,29 @@ type AliasStatement struct {
 	Target string
 }
 
+type RegionStatement struct {
+	Pos      Position
+	Name     string
+	TypeName string
+	Size     Expression
+	Count    Expression
+}
+
+type AliasFunctionStatement struct {
+	Pos        Position
+	Name       string
+	TypeParams []TypeParameter
+	Params     []Parameter
+	ReturnType string
+	Hooks      []AliasHook
+	Methods    []FunctionStatement
+}
+
+type AliasHook struct {
+	Name string
+	Body []lexer.Token
+}
+
 type NamespaceStatement struct {
 	Pos  Position
 	Name string
@@ -247,8 +270,11 @@ type RawExpression struct {
 	Tokens []lexer.Token
 }
 
-func (stmt ImportStatement) statementNode()    {}
-func (stmt AliasStatement) statementNode()     {}
+func (stmt ImportStatement) statementNode() {}
+func (stmt AliasStatement) statementNode()  {}
+func (stmt RegionStatement) statementNode() {}
+func (stmt AliasFunctionStatement) statementNode() {
+}
 func (stmt NamespaceStatement) statementNode() {}
 func (stmt TraitStatement) statementNode()     {}
 func (stmt ImplStatement) statementNode()      {}
@@ -265,8 +291,12 @@ func (stmt IfStatement) statementNode()         {}
 func (stmt LoopStatement) statementNode()       {}
 func (stmt TryCatchStatement) statementNode()   {}
 
-func (stmt ImportStatement) Position() Position    { return stmt.Pos }
-func (stmt AliasStatement) Position() Position     { return stmt.Pos }
+func (stmt ImportStatement) Position() Position { return stmt.Pos }
+func (stmt AliasStatement) Position() Position  { return stmt.Pos }
+func (stmt RegionStatement) Position() Position { return stmt.Pos }
+func (stmt AliasFunctionStatement) Position() Position {
+	return stmt.Pos
+}
 func (stmt NamespaceStatement) Position() Position { return stmt.Pos }
 func (stmt TraitStatement) Position() Position     { return stmt.Pos }
 func (stmt ImplStatement) Position() Position      { return stmt.Pos }

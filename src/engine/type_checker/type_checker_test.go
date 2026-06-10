@@ -961,6 +961,57 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), `alias "missing_alias" targets unknown namespace "missing.lib"`)
 }
 
+func TestCheckProgramAcceptsAliasFunctionExtensionMethodsAndRegions(t *testing.T) {
+	program := programFromSource(`
+region MyRegion(T, sizeof(T) * 100, 10);
+
+alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
+    [new] do
+        allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
+    end
+
+    #extend do
+        function get_length() -> int
+            return this.length;
+        end
+    end
+end
+
+function Main() : Int {
+    local T list = ArrayList("value", 3, 10);
+    local mut T[MyRegion] myArray;
+    myArray[0] = "String";
+    return list.get_length() + len(myArray);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected alias function and region program to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsAllocatorConstructors(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local T boxed = Box("value");
+    local T ref = Ref(1);
+    local T refMut = RefMut(2);
+    local T cell = RefCell(3);
+    local T heap = HeapAllocator();
+    local T regionAlloc = RegionAllocator("MainRegion");
+    local T bump = BumpAllocator();
+    local T arena = ArenaAllocator();
+    return len(boxed.kind) + len(ref.kind) + len(refMut.kind) + len(cell.kind) + len(heap.kind) + len(regionAlloc.kind) + len(bump.kind) + len(arena.kind);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected allocator program to type check, got %#v", report.Errors)
+	}
+}
+
 func programFromSource(source string) file.Program {
 	lines := strings.Split(strings.TrimSpace(source), "\n")
 	return file.Program{

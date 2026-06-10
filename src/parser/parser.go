@@ -61,7 +61,12 @@ func (parser *Parser) parseStatement() Statement {
 	case lexer.TokenImport:
 		return parser.parseImport()
 	case lexer.TokenAlias:
+		if parser.peek().Type == lexer.TokenFunc {
+			return parser.parseAliasFunction()
+		}
 		return parser.parseAlias()
+	case lexer.TokenRegion:
+		return parser.parseRegion()
 	case lexer.TokenNameSpace:
 		return parser.parseNamespace()
 	case lexer.TokenTrait:
@@ -146,6 +151,260 @@ func (parser *Parser) parseAlias() Statement {
 		Name:   name.Literal,
 		Target: strings.Join(parts, "."),
 	}
+}
+
+func (parser *Parser) parseRegion() Statement {
+	start := parser.consume(lexer.TokenRegion, "expected region")
+	name := parser.consume(lexer.TokenIdentifier, "expected region name")
+	parser.consume(lexer.TokenLeftBrace, "expected '(' after region name")
+	typeName := parser.parseType()
+	parser.consume(lexer.TokenComma, "expected ',' after region type")
+	size := parser.parseExpressionUntil(lexer.TokenComma)
+	parser.consume(lexer.TokenComma, "expected ',' after region size")
+	count := parser.parseExpressionUntil(lexer.TokenRightBrace)
+	parser.consume(lexer.TokenRightBrace, "expected ')' after region count")
+	parser.consumeOptionalSemicolon()
+	return RegionStatement{
+		Pos:      positionFromToken(start),
+		Name:     name.Literal,
+		TypeName: typeName,
+		Size:     size,
+		Count:    count,
+	}
+}
+
+func (parser *Parser) parseAliasFunction() Statement {
+	start := parser.consume(lexer.TokenAlias, "expected alias")
+	parser.consume(lexer.TokenFunc, "expected function after alias")
+	name := parser.consume(lexer.TokenIdentifier, "expected alias function name")
+	typeParams := parser.parseAliasTypeParameters()
+	parser.consume(lexer.TokenLeftBrace, "expected '(' after alias function name")
+	params := parser.parseAliasParameters()
+	parser.consume(lexer.TokenRightBrace, "expected ')' after alias function parameters")
+	returnType := "T"
+	if parser.match(lexer.TokenArrow) || parser.match(lexer.TokenInferReturn) {
+		returnType = parser.parseTypeOnCurrentLine()
+	}
+
+	stmt := AliasFunctionStatement{
+		Pos:        positionFromToken(start),
+		Name:       name.Literal,
+		TypeParams: typeParams,
+		Params:     params,
+		ReturnType: normalizeAliasReturnType(returnType),
+	}
+
+	for !parser.check(lexer.TokenEnd) && !parser.atEnd() {
+		if parser.match(lexer.TokenSemicolon) {
+			continue
+		}
+		if parser.match(lexer.TokenLeftSquareBrace) {
+			hookName := parser.consume(lexer.TokenIdentifier, "expected alias hook name")
+			parser.consume(lexer.TokenRightSquareBrace, "expected ']' after alias hook")
+			parser.consume(lexer.TokenDo, "expected do after alias hook")
+			stmt.Hooks = append(stmt.Hooks, AliasHook{Name: hookName.Literal, Body: parser.collectUntilMatchingEnd()})
+			continue
+		}
+		if parser.match(lexer.TokenHash) {
+			directive := parser.consume(lexer.TokenIdentifier, "expected alias directive")
+			if directive.Literal == "extend" {
+				parser.consume(lexer.TokenDo, "expected do after #extend")
+				stmt.Methods = append(stmt.Methods, parser.parseAliasExtensionMethods()...)
+				continue
+			}
+			parser.consume(lexer.TokenDo, "expected do after alias directive")
+			stmt.Hooks = append(stmt.Hooks, AliasHook{Name: directive.Literal, Body: parser.collectUntilMatchingEnd()})
+			continue
+		}
+		parser.advance()
+	}
+	parser.consume(lexer.TokenEnd, "expected end after alias function")
+	return stmt
+}
+
+func (parser *Parser) parseAliasParameters() []Parameter {
+	var params []Parameter
+	if parser.check(lexer.TokenRightBrace) || parser.atEnd() {
+		return params
+	}
+	for {
+		name := parser.consume(lexer.TokenIdentifier, "expected alias parameter name")
+		typeName := "T"
+		if parser.match(lexer.TokenInferReturn) {
+			typeName = normalizeAliasReturnType(parser.parseType())
+		}
+		var defaultExpr Expression
+		if parser.match(lexer.TokenAssign) {
+			defaultExpr = parser.parseExpressionUntil(lexer.TokenComma, lexer.TokenRightBrace)
+		}
+		params = append(params, Parameter{Name: name.Literal, Type: typeName, Default: defaultExpr})
+		if !parser.match(lexer.TokenComma) {
+			break
+		}
+	}
+	return params
+}
+
+func (parser *Parser) parseAliasTypeParameters() []TypeParameter {
+	if !parser.match(lexer.TokenLeftSquareBrace) {
+		return nil
+	}
+	var params []TypeParameter
+	for !parser.check(lexer.TokenRightSquareBrace) && !parser.atEnd() {
+		name := parser.consume(lexer.TokenIdentifier, "expected alias generic name")
+		typeName := "T"
+		if parser.match(lexer.TokenInferReturn) {
+			typeName = parser.parseType()
+		}
+		params = append(params, TypeParameter{Name: name.Literal, Type: normalizeAliasReturnType(typeName)})
+		if !parser.match(lexer.TokenComma) {
+			break
+		}
+	}
+	parser.consume(lexer.TokenRightSquareBrace, "expected ']' after alias generic list")
+	return params
+}
+
+func (parser *Parser) parseAliasExtensionMethods() []FunctionStatement {
+	var methods []FunctionStatement
+	for !parser.check(lexer.TokenEnd) && !parser.atEnd() {
+		if parser.match(lexer.TokenSemicolon) {
+			continue
+		}
+		if !parser.check(lexer.TokenFunc) {
+			parser.advance()
+			continue
+		}
+		methods = append(methods, parser.parseAliasExtensionMethod())
+	}
+	parser.consume(lexer.TokenEnd, "expected end after #extend")
+	return methods
+}
+
+func (parser *Parser) parseAliasExtensionMethod() FunctionStatement {
+	start := parser.consume(lexer.TokenFunc, "expected function")
+	name := parser.consume(lexer.TokenIdentifier, "expected extension method name")
+	parser.consume(lexer.TokenLeftBrace, "expected '(' after extension method name")
+	params := parser.parseParameters()
+	parser.consume(lexer.TokenRightBrace, "expected ')' after extension method parameters")
+	returnType := "T"
+	if parser.match(lexer.TokenArrow) || parser.match(lexer.TokenInferReturn) {
+		returnType = parser.parseTypeOnCurrentLine()
+	}
+	bodyTokens := parser.collectUntilMatchingEnd()
+	body := aliasMethodBodyFromTokens(bodyTokens)
+	return FunctionStatement{
+		Pos:        positionFromToken(start),
+		Name:       name.Literal,
+		Params:     params,
+		ReturnType: normalizeAliasReturnType(returnType),
+		Body:       body,
+	}
+}
+
+func (parser *Parser) collectUntilMatchingEnd() []lexer.Token {
+	var body []lexer.Token
+	depth := 1
+	for !parser.atEnd() && depth > 0 {
+		token := parser.advance()
+		switch token.Type {
+		case lexer.TokenDo:
+			depth++
+		case lexer.TokenEnd:
+			depth--
+			if depth == 0 {
+				return body
+			}
+		}
+		body = append(body, token)
+	}
+	return body
+}
+
+func aliasMethodBodyFromTokens(tokens []lexer.Token) []Statement {
+	for index, token := range tokens {
+		if token.Type != lexer.TokenReturn {
+			continue
+		}
+		end := index + 1
+		for end < len(tokens) && tokens[end].Type != lexer.TokenSemicolon {
+			end++
+		}
+		expr := expressionFromTokens(tokens[index+1 : end])
+		return []Statement{ReturnStatement{Pos: positionFromToken(token), Expression: expr}}
+	}
+	return nil
+}
+
+func normalizeAliasReturnType(typeName string) string {
+	switch typeName {
+	case "type", "Any":
+		return "T"
+	case "int":
+		return "Int"
+	case "bool":
+		return "Bool"
+	case "string":
+		return "String"
+	default:
+		return typeName
+	}
+}
+
+func (parser *Parser) parseTypeOnCurrentLine() string {
+	if parser.atEnd() {
+		parser.addError(parser.previous(), "expected type")
+		return ""
+	}
+	line := parser.current().Line
+	var parts []string
+	depth := 0
+	for !parser.atEnd() && parser.current().Line == line {
+		token := parser.current()
+		if depth == 0 && len(parts) > 0 && (token.Type == lexer.TokenDo || token.Type == lexer.TokenScopeBegin || token.Type == lexer.TokenSemicolon) {
+			break
+		}
+		switch token.Type {
+		case lexer.TokenIdentifier, lexer.TokenRegion:
+			parts = append(parts, token.Literal)
+		case lexer.TokenInferReturn, lexer.TokenTypeUnion:
+			parts = append(parts, token.Literal)
+		case lexer.TokenLeftSquareBrace:
+			depth++
+			parts = append(parts, token.Literal)
+		case lexer.TokenRightSquareBrace:
+			if depth == 0 {
+				parser.addError(token, "unexpected ']' in type")
+				return strings.Join(parts, "")
+			}
+			depth--
+			parts = append(parts, token.Literal)
+		case lexer.TokenComma:
+			if depth == 0 {
+				return strings.Join(parts, "")
+			}
+			parts = append(parts, token.Literal)
+		default:
+			if len(parts) == 0 {
+				parser.addError(token, "expected type")
+			}
+			return strings.Join(parts, "")
+		}
+		parser.advance()
+		if depth == 0 && len(parts) > 0 && !parser.check(lexer.TokenLeftSquareBrace) &&
+			!parser.check(lexer.TokenInferReturn) && !parser.check(lexer.TokenTypeUnion) &&
+			parts[len(parts)-1] != ":" && parts[len(parts)-1] != "|" {
+			break
+		}
+	}
+	if len(parts) == 0 {
+		parser.addError(parser.previous(), "expected type")
+		return ""
+	}
+	if depth != 0 {
+		parser.addError(parser.previous(), "expected ']' to close type")
+	}
+	return strings.Join(parts, "")
 }
 
 func (parser *Parser) parseNamespace() Statement {
@@ -634,7 +893,7 @@ func (parser *Parser) parseType() string {
 	depth := 0
 	for !parser.atEnd() {
 		token := parser.current()
-		if depth == 0 && (token.Type == lexer.TokenIdentifier || token.Type == lexer.TokenBool) && len(parts) > 0 &&
+		if depth == 0 && (token.Type == lexer.TokenIdentifier || token.Type == lexer.TokenBool || token.Type == lexer.TokenRegion) && len(parts) > 0 &&
 			parts[len(parts)-1] != ":" && parts[len(parts)-1] != "|" {
 			break
 		}
@@ -644,7 +903,7 @@ func (parser *Parser) parseType() string {
 		}
 
 		switch token.Type {
-		case lexer.TokenIdentifier:
+		case lexer.TokenIdentifier, lexer.TokenRegion:
 			parts = append(parts, token.Literal)
 		case lexer.TokenInferReturn:
 			parts = append(parts, token.Literal)

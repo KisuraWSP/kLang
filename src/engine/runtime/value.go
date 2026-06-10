@@ -110,6 +110,9 @@ func zeroValue(typeName string) Value {
 	if strings.HasPrefix(typeName, "SIMD[") {
 		return SIMDValue(nil)
 	}
+	if isRuntimeArrayType(typeName) {
+		return Value{Kind: ValueList, Data: []Value{}}
+	}
 	if _, allowed, ok := restrictedGenericRuntimeType(typeName); ok && len(allowed) > 0 {
 		return zeroValue(allowed[0])
 	}
@@ -142,6 +145,13 @@ func cloneValue(value Value) Value {
 		return Value{Kind: ValueResult, Data: result}
 	case ValueSIMD:
 		return SIMDValue(value.Data.(SIMDData).Lanes)
+	case ValueObject:
+		object := value.Data.(ObjectData)
+		fields := make(map[string]Value, len(object.Fields))
+		for key, item := range object.Fields {
+			fields[key] = cloneValue(item)
+		}
+		return Value{Kind: ValueObject, Data: ObjectData{Type: object.Type, Fields: fields}}
 	case ValueThunk:
 		return value
 	default:
@@ -174,6 +184,10 @@ func runtimeTypeName(value Value) string {
 	case ValueSIMD:
 		return "SIMD[T]"
 	case ValueFunction:
+		return "Function[T]"
+	case ValueObject:
+		return value.Data.(ObjectData).Type
+	case ValueBoundMethod:
 		return "Function[T]"
 	case ValueThunk:
 		return "T"
@@ -655,6 +669,19 @@ func valueString(value Value) string {
 			parts = append(parts, valueString(lane))
 		}
 		return "SIMD[" + strings.Join(parts, ", ") + "]"
+	case ValueObject:
+		object := value.Data.(ObjectData)
+		parts := make([]string, 0, len(object.Fields))
+		for key, field := range object.Fields {
+			if strings.HasPrefix(key, "__") {
+				continue
+			}
+			parts = append(parts, key+": "+valueString(field))
+		}
+		return object.Type + "{" + strings.Join(parts, ", ") + "}"
+	case ValueBoundMethod:
+		method := value.Data.(BoundMethodData)
+		return method.Type + "." + method.Name
 	default:
 		return fmt.Sprintf("%v", value.Data)
 	}
@@ -664,7 +691,7 @@ func valueSize(value Value) int {
 	switch value.Kind {
 	case ValueNull:
 		return 0
-	case ValueInt, ValueFloat, ValueBool, ValueChar, ValueFunction:
+	case ValueInt, ValueFloat, ValueBool, ValueChar, ValueFunction, ValueBoundMethod:
 		return 8
 	case ValueString:
 		return len(value.Data.(string))
@@ -694,6 +721,13 @@ func valueSize(value Value) int {
 		return size
 	case ValueThunk:
 		return 16
+	case ValueObject:
+		object := value.Data.(ObjectData)
+		size := 32 + len(object.Type)
+		for key, field := range object.Fields {
+			size += len(key) + valueSize(field)
+		}
+		return size
 	default:
 		return 8
 	}
@@ -767,6 +801,8 @@ func valueMatchesType(value Value, typeName string) bool {
 			}
 		}
 		return true
+	case isRuntimeArrayType(typeName):
+		return value.Kind == ValueList
 	case strings.HasPrefix(typeName, "Function["):
 		return value.Kind == ValueFunction || value.Kind == ValueNull
 	case strings.HasPrefix(typeName, "Option["):
@@ -787,8 +823,18 @@ func valueMatchesType(value Value, typeName string) bool {
 		}
 		return valueMatchesType(result.Value, errType)
 	default:
+		if value.Kind == ValueObject {
+			return value.Data.(ObjectData).Type == typeName
+		}
 		return true
 	}
+}
+
+func isRuntimeArrayType(typeName string) bool {
+	return strings.Contains(typeName, "[") && strings.HasSuffix(typeName, "]") &&
+		!strings.HasPrefix(typeName, "List[") && !strings.HasPrefix(typeName, "Map[") &&
+		!strings.HasPrefix(typeName, "Option[") && !strings.HasPrefix(typeName, "Result[") &&
+		!strings.HasPrefix(typeName, "SIMD[") && !strings.HasPrefix(typeName, "Function[")
 }
 
 func restrictedGenericRuntimeType(typeName string) (string, []string, bool) {
@@ -813,6 +859,15 @@ func listElementType(typeName string) (string, bool) {
 	}
 	elementType := strings.TrimSpace(typeName[len("List[") : len(typeName)-1])
 	return elementType, elementType != "" && elementType != "...$Items"
+}
+
+func arrayElementRuntimeType(typeName string) (string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	index := strings.Index(typeName, "[")
+	if index <= 0 || !strings.HasSuffix(typeName, "]") || !isRuntimeArrayType(typeName) {
+		return "", false
+	}
+	return strings.TrimSpace(typeName[:index]), true
 }
 
 func mapTypes(typeName string) (string, string, bool) {

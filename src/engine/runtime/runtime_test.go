@@ -1123,6 +1123,57 @@ function Main() : Int {
 	assertRuntimeErrorContains(t, err, "uncaught exception: boom")
 }
 
+func TestRuntimeExecutesAliasFunctionExtensionMethod(t *testing.T) {
+	result := runParsedSource(t, `
+alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
+    #extend do
+        function get_length() -> int
+            return this.length;
+        end
+    end
+end
+
+function Main() : Int {
+    local T list = ArrayList("value", 3, 10);
+    return list.get_length();
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 3 {
+		t.Fatalf("expected extension method to return 3, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesRegionArraySyntax(t *testing.T) {
+	result := runParsedSource(t, `
+region MyRegion(T, sizeof(T) * 100, 10);
+
+function Main() : Int {
+    local mut T[MyRegion] myArray;
+    myArray[0] = "String";
+    return len(myArray);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected region array length 1, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesAllocatorConstructors(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local T boxed = Box("value");
+    local T arena = ArenaAllocator();
+    return len(boxed.kind) + len(arena.kind);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 17 {
+		t.Fatalf("expected allocator kind lengths to total 17, got %#v", result.Value)
+	}
+}
+
 func runSource(t *testing.T, source string) Result {
 	t.Helper()
 

@@ -56,6 +56,7 @@ const (
 	TokenDot              // .
 	TokenAt               // @
 	TokenQuestion         // ?
+	TokenHash             // #
 
 	// Special Scope Operators
 	TokenScopeBegin // {
@@ -74,6 +75,8 @@ const (
 	TokenTry        // try
 	TokenCatch      // catch
 	TokenThrow      // throw
+	TokenEnd        // end
+	TokenRegion     // region
 	TokenUnless     // unless
 	TokenFor        // for
 	TokenWhile      // while
@@ -120,6 +123,8 @@ var Keywords = map[string]TokenType{
 	"try":            TokenTry,
 	"catch":          TokenCatch,
 	"throw":          TokenThrow,
+	"end":            TokenEnd,
+	"region":         TokenRegion,
 	"unless":         TokenUnless,
 	"for":            TokenFor,
 	"while":          TokenWhile,
@@ -186,4 +191,5 @@ var Punctuations = map[string]TokenType{
 	".": TokenDot,
 	"@": TokenAt,
 	"?": TokenQuestion,
+	"#": TokenHash,
 }

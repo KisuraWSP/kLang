@@ -53,12 +53,19 @@ local Float ratio = count as Float;
 local String label = ratio as String;
 
 -- indexing
--- String and List indexes use Int positions. String indexing returns Char.
+-- String, List, and region-backed array indexes use Int positions and start at 0.
+-- String indexing returns Char.
 local Char firstChar = "hello"[0];
 local Int firstItem = itemsList[0];
 
 -- Map indexes use the map key type.
 local Int total = scores["total"];
+
+-- user-defined memory regions for arrays and slices
+-- T[RegionName] stores a zero-initialized region-backed array/slice value.
+region MyRegion(T, sizeof(T) * 100, 10);
+local mut T[MyRegion] myArray;
+myArray[0] = "String";
 
 -- list comprehension
 -- Build a List by mapping each item from a List, String, or range count.
@@ -242,6 +249,41 @@ function CountDown(value : Int, total : Int) : Int {
 -- variadic print and input
 print("count", 1, True);
 local String name = input("name: ");
+
+-- alias functions and extension methods
+-- alias function creates a constructor-like type value. #extend adds receiver methods.
+alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
+    [new] do
+        allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
+    end
+
+    [delete] do
+        allocator.free = free_all_allocator(.{});
+    end
+
+    [side_effects] do
+        allocator.free = free_all_allocator(.{});
+    end
+
+    #extend do
+        function get_length() -> int
+            return this.length;
+        end
+    end
+end
+
+local T arrayList = ArrayList("value", 1, 100);
+local Int arrayListLength = arrayList.get_length();
+
+-- allocator and pointer-like wrappers
+local T boxed = Box("value");
+local T ref = Ref(boxed);
+local T refMut = RefMut(boxed);
+local T cell = RefCell(boxed);
+local T heap = HeapAllocator();
+local T regionAllocator = RegionAllocator("MyRegion");
+local T bump = BumpAllocator();
+local T arena = ArenaAllocator();
 
 -- deprecation marker tag
 -- Calling a deprecated function is allowed, but the checker reports a warning.

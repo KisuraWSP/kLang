@@ -42,6 +42,10 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 			}
 		case parser.NamespaceStatement:
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
+		case parser.RegionStatement:
+			continue
+		case parser.AliasFunctionStatement:
+			continue
 		case parser.TraitStatement:
 			continue
 		case parser.ImplStatement:
@@ -143,6 +147,10 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		return
 	case parser.AliasStatement:
 		return
+	case parser.RegionStatement:
+		return
+	case parser.AliasFunctionStatement:
+		checker.checkAliasFunctionScope(current, scope, namespace, source)
 	case parser.NamespaceStatement:
 		checker.checkScopeStatements(current.Body, scope, namespace+current.Name+".", source, inLoop, topLevel)
 	case parser.TraitStatement:
@@ -202,6 +210,19 @@ func (checker *TypeChecker) checkFunctionScope(fn parser.FunctionStatement, pare
 		}
 	}
 	checker.checkScopeStatements(fn.Body, functionScope, namespace, source, false, false)
+}
+
+func (checker *TypeChecker) checkAliasFunctionScope(alias parser.AliasFunctionStatement, parent *lexicalScope, namespace string, source string) {
+	for _, method := range alias.Methods {
+		methodScope := newLexicalScope(parent)
+		methodScope.define(variableSymbol{Name: "this", Type: alias.Name, File: source, Line: method.Pos.Line})
+		for _, param := range method.Params {
+			if !methodScope.define(variableSymbol{Name: param.Name, Type: normalizeType(param.Type), File: source, Line: method.Pos.Line}) {
+				checker.addError(source, method.Pos.Line, fmt.Sprintf("parameter %q is already defined", param.Name))
+			}
+		}
+		checker.checkScopeStatements(method.Body, methodScope, namespace, source, false, false)
+	}
 }
 
 func (checker *TypeChecker) checkLoopScope(stmt parser.LoopStatement, parent *lexicalScope, namespace string, source string) {
@@ -276,10 +297,14 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 	case nil:
 		return
 	case parser.IdentifierExpression:
+		if current.Name == "this" {
+			return
+		}
 		if _, ok := scope.lookup(current.Name); ok {
 			return
 		}
 		if isBuiltinFunctionName(current.Name) || checker.functionExists(current.Name, namespace) ||
+			checker.aliasFunctionExistsInNamespace(current.Name, namespace) ||
 			checker.functionGroupExistsInNamespace(current.Name, namespace) ||
 			checker.namespaceExists(current.Name) || checker.aliasExists(current.Name) {
 			return
@@ -357,6 +382,7 @@ func (checker *TypeChecker) checkCallScope(callee parser.ExpressionNode, scope *
 			return
 		}
 		if isBuiltinFunctionName(current.Name) || checker.functionExists(current.Name, namespace) ||
+			checker.aliasFunctionExistsInNamespace(current.Name, namespace) ||
 			checker.functionGroupExistsInNamespace(current.Name, namespace) {
 			return
 		}
@@ -378,6 +404,19 @@ func (checker *TypeChecker) functionGroupExistsInNamespace(name string, namespac
 	}
 	if namespace != "" {
 		if _, ok := checker.groups[namespace+name]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (checker *TypeChecker) aliasFunctionExistsInNamespace(name string, namespace string) bool {
+	name = checker.resolveAliasPath(name)
+	if _, ok := checker.aliasFunctions[name]; ok {
+		return true
+	}
+	if namespace != "" {
+		if _, ok := checker.aliasFunctions[namespace+name]; ok {
 			return true
 		}
 	}
@@ -439,7 +478,8 @@ func selectorPath(expr parser.ExpressionNode) (string, bool) {
 
 func isBuiltinFunctionName(name string) bool {
 	switch name {
-	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD":
+	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
+		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true
 	default:
 		return false

@@ -16,20 +16,22 @@ import (
 type ValueKind string
 
 const (
-	ValueNull     ValueKind = "Null"
-	ValueInt      ValueKind = "Int"
-	ValueFloat    ValueKind = "Float"
-	ValueString   ValueKind = "String"
-	ValueBool     ValueKind = "Bool"
-	ValueChar     ValueKind = "Char"
-	ValueList     ValueKind = "List"
-	ValueMap      ValueKind = "Map"
-	ValueOption   ValueKind = "Option"
-	ValueResult   ValueKind = "Result"
-	ValueComplex  ValueKind = "Complex"
-	ValueSIMD     ValueKind = "SIMD"
-	ValueFunction ValueKind = "Function"
-	ValueThunk    ValueKind = "Thunk"
+	ValueNull        ValueKind = "Null"
+	ValueInt         ValueKind = "Int"
+	ValueFloat       ValueKind = "Float"
+	ValueString      ValueKind = "String"
+	ValueBool        ValueKind = "Bool"
+	ValueChar        ValueKind = "Char"
+	ValueList        ValueKind = "List"
+	ValueMap         ValueKind = "Map"
+	ValueOption      ValueKind = "Option"
+	ValueResult      ValueKind = "Result"
+	ValueComplex     ValueKind = "Complex"
+	ValueSIMD        ValueKind = "SIMD"
+	ValueFunction    ValueKind = "Function"
+	ValueObject      ValueKind = "Object"
+	ValueBoundMethod ValueKind = "BoundMethod"
+	ValueThunk       ValueKind = "Thunk"
 )
 
 type Value struct {
@@ -61,6 +63,24 @@ type ThunkData struct {
 	Env       *Environment
 	Evaluated bool
 	Value     Value
+}
+
+type ObjectData struct {
+	Type   string
+	Fields map[string]Value
+}
+
+type BoundMethodData struct {
+	Type     string
+	Name     string
+	Receiver Value
+}
+
+type RegionData struct {
+	Name     string
+	TypeName string
+	Size     Value
+	Count    Value
 }
 
 type Result struct {
@@ -106,31 +126,35 @@ func thrownValue(err error) (Value, bool) {
 }
 
 type Runtime struct {
-	memory    *Memory
-	global    *Environment
-	functions map[string]parser.FunctionStatement
-	groups    map[string][]string
-	closures  map[string]*Environment
-	aliases   map[string]string
-	output    []string
-	callDepth int
-	maxDepth  int
-	callStack []string
-	nextFunc  int
-	innerSets []map[string]Value
+	memory         *Memory
+	global         *Environment
+	functions      map[string]parser.FunctionStatement
+	aliasFunctions map[string]parser.AliasFunctionStatement
+	regions        map[string]RegionData
+	groups         map[string][]string
+	closures       map[string]*Environment
+	aliases        map[string]string
+	output         []string
+	callDepth      int
+	maxDepth       int
+	callStack      []string
+	nextFunc       int
+	innerSets      []map[string]Value
 }
 
 const defaultMaxCallDepth = 1024
 
 func New() *Runtime {
 	return &Runtime{
-		memory:    NewMemory(),
-		global:    NewEnvironment(nil),
-		functions: map[string]parser.FunctionStatement{},
-		groups:    map[string][]string{},
-		closures:  map[string]*Environment{},
-		aliases:   map[string]string{},
-		maxDepth:  defaultMaxCallDepth,
+		memory:         NewMemory(),
+		global:         NewEnvironment(nil),
+		functions:      map[string]parser.FunctionStatement{},
+		aliasFunctions: map[string]parser.AliasFunctionStatement{},
+		regions:        map[string]RegionData{},
+		groups:         map[string][]string{},
+		closures:       map[string]*Environment{},
+		aliases:        map[string]string{},
+		maxDepth:       defaultMaxCallDepth,
 	}
 }
 
@@ -192,6 +216,13 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 
 func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string) error {
 	switch current := stmt.(type) {
+	case parser.RegionStatement:
+		runtime.regions[current.Name] = RegionData{Name: current.Name, TypeName: current.TypeName}
+	case parser.AliasFunctionStatement:
+		if _, exists := runtime.aliasFunctions[current.Name]; exists {
+			return errorAt(current.Pos, fmt.Sprintf("alias function %q is already defined", current.Name))
+		}
+		runtime.aliasFunctions[current.Name] = current
 	case parser.FunctionStatement:
 		name := namespace + current.Name
 		if _, exists := runtime.functions[name]; exists {
@@ -263,6 +294,19 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 	case parser.AliasStatement:
 		return signal{kind: signalNone}, nil
 	case parser.NamespaceStatement:
+		return signal{kind: signalNone}, nil
+	case parser.RegionStatement:
+		size, err := runtime.evalExpression(current.Size.Node, env)
+		if err != nil {
+			size = NullValue()
+		}
+		count, err := runtime.evalExpression(current.Count.Node, env)
+		if err != nil {
+			count = NullValue()
+		}
+		runtime.regions[current.Name] = RegionData{Name: current.Name, TypeName: current.TypeName, Size: size, Count: count}
+		return signal{kind: signalNone}, nil
+	case parser.AliasFunctionStatement:
 		return signal{kind: signalNone}, nil
 	case parser.FunctionGroupStatement:
 		return signal{kind: signalNone}, nil
@@ -746,6 +790,9 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 	switch binding.Value.Kind {
 	case ValueList:
 		elementType, hasElementType := listElementType(binding.Type)
+		if !hasElementType {
+			elementType, hasElementType = arrayElementRuntimeType(binding.Type)
+		}
 		items := append([]Value(nil), binding.Value.Data.([]Value)...)
 		position, err := asIndex(index)
 		if err != nil {
@@ -818,6 +865,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 		if target, ok := runtime.aliases[current.Name]; ok {
 			return FunctionValue(target), nil
 		}
+		if _, ok := runtime.aliasFunctions[current.Name]; ok {
+			return FunctionValue(current.Name), nil
+		}
 		if _, ok := runtime.groups[current.Name]; ok {
 			return FunctionValue(current.Name), nil
 		}
@@ -851,6 +901,16 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 				return NullValue(), Error{Message: fmt.Sprintf("unknown field %q", current.Field)}
 			}
 			return field, nil
+		}
+		if err == nil && value.Kind == ValueObject {
+			object := value.Data.(ObjectData)
+			if field, ok := object.Fields[current.Field]; ok {
+				return field, nil
+			}
+			if runtime.aliasMethodExists(object.Type, current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: object.Type, Name: current.Field, Receiver: value}}, nil
+			}
+			return NullValue(), Error{Message: fmt.Sprintf("unknown field or method %q", current.Field)}
 		}
 		if target, ok := current.Target.(parser.IdentifierExpression); ok {
 			return FunctionValue(runtime.resolveAliasPath(target.Name) + "." + current.Field), nil
@@ -1175,6 +1235,9 @@ func (runtime *Runtime) evalCall(expr parser.CallExpression, env *Environment) (
 		return NullValue(), err
 	}
 	if callee.Kind != ValueFunction {
+		if callee.Kind == ValueBoundMethod {
+			return runtime.callBoundMethod(callee.Data.(BoundMethodData), expr.Arguments, env)
+		}
 		return NullValue(), Error{Message: "callee is not a function"}
 	}
 
@@ -1332,6 +1395,21 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 			return NullValue(), Error{Message: "SIMD expects a List argument"}
 		}
 		return SIMDValue(args[0].Data.([]Value)), nil
+	case "Box", "Ref", "RefMut", "RefCell":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: fmt.Sprintf("%s expects one value", name)}
+		}
+		return allocatorObject(name, map[string]Value{"value": args[0]}), nil
+	case "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
+		fields := map[string]Value{}
+		if len(args) > 0 {
+			fields["region"] = args[0]
+		}
+		return allocatorObject(name, fields), nil
+	}
+
+	if _, ok := runtime.aliasFunctions[name]; ok {
+		return runtime.callAliasFunction(name, args)
 	}
 
 	resolvedName, err := runtime.resolveFunctionName(name)
@@ -1417,6 +1495,105 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		}
 		return NullValue(), nil
 	}
+}
+
+func allocatorObject(kind string, fields map[string]Value) Value {
+	copied := map[string]Value{"kind": StringValue(kind)}
+	for key, value := range fields {
+		copied[key] = value
+	}
+	return Value{Kind: ValueObject, Data: ObjectData{Type: kind, Fields: copied}}
+}
+
+func (runtime *Runtime) callAliasFunction(name string, args []Value) (Value, error) {
+	alias, ok := runtime.aliasFunctions[name]
+	if !ok {
+		return NullValue(), Error{Message: fmt.Sprintf("unknown alias function %q", name)}
+	}
+	fields := map[string]Value{}
+	required := requiredRuntimeParamCount(alias.Params)
+	if len(args) < required || len(args) > len(alias.Params) {
+		return NullValue(), Error{Message: fmt.Sprintf("alias function %s expects %d to %d argument(s), got %d", name, required, len(alias.Params), len(args))}
+	}
+	for index, param := range alias.Params {
+		var value Value
+		if index < len(args) {
+			value = args[index]
+		} else if isDefaultAllocator(param.Default) {
+			value = allocatorObject("HeapAllocator", nil)
+		} else if param.Default.Node != nil {
+			evaluated, err := runtime.evalExpression(param.Default.Node, runtime.global)
+			if err != nil {
+				return NullValue(), err
+			}
+			value = evaluated
+		} else {
+			value = zeroValue(param.Type)
+		}
+		fields[param.Name] = value
+	}
+	fields["__type"] = StringValue(name)
+	fields["__hooks"] = IntValue(len(alias.Hooks))
+	return Value{Kind: ValueObject, Data: ObjectData{Type: name, Fields: fields}}, nil
+}
+
+func isDefaultAllocator(expr parser.Expression) bool {
+	if len(expr.Tokens) != 2 {
+		return false
+	}
+	return expr.Tokens[0].Type == lexer.TokenDot && expr.Tokens[1].Literal == "DEFAULT"
+}
+
+func (runtime *Runtime) aliasMethodExists(typeName string, methodName string) bool {
+	alias, ok := runtime.aliasFunctions[typeName]
+	if !ok {
+		return false
+	}
+	for _, method := range alias.Methods {
+		if method.Name == methodName {
+			return true
+		}
+	}
+	return false
+}
+
+func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parser.ExpressionNode, env *Environment) (Value, error) {
+	alias := runtime.aliasFunctions[method.Type]
+	for _, fn := range alias.Methods {
+		if fn.Name != method.Name {
+			continue
+		}
+		args := make([]Value, 0, len(argNodes))
+		for _, arg := range argNodes {
+			value, err := runtime.evalExpression(arg, env)
+			if err != nil {
+				return NullValue(), err
+			}
+			args = append(args, value)
+		}
+		methodEnv := NewEnvironment(env)
+		if err := runtime.defineValue(methodEnv, "this", false, method.Type, method.Receiver); err != nil {
+			return NullValue(), err
+		}
+		for index, param := range fn.Params {
+			value := zeroValue(param.Type)
+			if index < len(args) {
+				value = args[index]
+			}
+			if err := runtime.defineValue(methodEnv, param.Name, false, param.Type, value); err != nil {
+				return NullValue(), err
+			}
+		}
+		signal, err := runtime.executeBlock(fn.Body, methodEnv, false)
+		if err != nil {
+			return NullValue(), err
+		}
+		if signal.kind == signalReturn {
+			return signal.value, nil
+		}
+		return NullValue(), nil
+	}
+	return NullValue(), Error{Message: fmt.Sprintf("unknown method %s.%s", method.Type, method.Name)}
 }
 
 func (runtime *Runtime) callFunctionGroup(name string, args []Value) (Value, error) {
@@ -1514,7 +1691,8 @@ func (runtime *Runtime) resolveAliasPath(name string) string {
 
 func isBuiltinFunction(name string) bool {
 	switch name {
-	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD":
+	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
+		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true
 	default:
 		return false

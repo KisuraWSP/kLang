@@ -35,14 +35,16 @@ func (report Report) Passed() bool {
 }
 
 type TypeChecker struct {
-	functions map[string]functionSymbol
-	groups    map[string][]string
-	globals   map[string]variableSymbol
-	aliases   map[string]string
-	traits    map[string]traitSymbol
-	errors    []Error
-	warnings  []Warning
-	namespace string
+	functions      map[string]functionSymbol
+	aliasFunctions map[string]parser.AliasFunctionStatement
+	regions        map[string]parser.RegionStatement
+	groups         map[string][]string
+	globals        map[string]variableSymbol
+	aliases        map[string]string
+	traits         map[string]traitSymbol
+	errors         []Error
+	warnings       []Warning
+	namespace      string
 }
 
 type functionSymbol struct {
@@ -73,12 +75,13 @@ type traitMethodSymbol struct {
 }
 
 type variableSymbol struct {
-	Name    string
-	Type    string
-	Mutable bool
-	Default string
-	File    string
-	Line    int
+	Name         string
+	Type         string
+	InferredType string
+	Mutable      bool
+	Default      string
+	File         string
+	Line         int
 }
 
 type sourceUnit struct {
@@ -88,11 +91,13 @@ type sourceUnit struct {
 
 func CheckProgram(program file.Program) Report {
 	checker := &TypeChecker{
-		functions: map[string]functionSymbol{},
-		groups:    map[string][]string{},
-		globals:   map[string]variableSymbol{},
-		aliases:   map[string]string{},
-		traits:    map[string]traitSymbol{},
+		functions:      map[string]functionSymbol{},
+		aliasFunctions: map[string]parser.AliasFunctionStatement{},
+		regions:        map[string]parser.RegionStatement{},
+		groups:         map[string][]string{},
+		globals:        map[string]variableSymbol{},
+		aliases:        map[string]string{},
+		traits:         map[string]traitSymbol{},
 	}
 
 	units := make([]sourceUnit, 0, len(program.Files))
@@ -108,6 +113,7 @@ func CheckProgram(program file.Program) Report {
 	}
 	checker.collectTraits(program)
 	checker.collectAliases(program)
+	checker.collectAliasFunctionsAndRegions(program)
 	checker.collectFunctionGroups(program)
 	for _, unit := range units {
 		checker.collectGlobals(unit)
@@ -131,6 +137,37 @@ func (checker *TypeChecker) collectFunctionGroups(program file.Program) {
 	}
 	for _, source := range parsed.Sources {
 		checker.collectFunctionGroupStatements(source.Program.Statements, "", source.Path)
+	}
+}
+
+func (checker *TypeChecker) collectAliasFunctionsAndRegions(program file.Program) {
+	parsed := parser.ParseLoadedProgram(program)
+	if !parsed.Passed() {
+		return
+	}
+	for _, source := range parsed.Sources {
+		checker.collectAliasFunctionStatements(source.Program.Statements, source.Path)
+	}
+}
+
+func (checker *TypeChecker) collectAliasFunctionStatements(statements []parser.Statement, source string) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.RegionStatement:
+			if _, exists := checker.regions[current.Name]; exists {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("region %q is already defined", current.Name))
+				continue
+			}
+			checker.regions[current.Name] = current
+		case parser.AliasFunctionStatement:
+			if _, exists := checker.aliasFunctions[current.Name]; exists {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias function %q is already defined", current.Name))
+				continue
+			}
+			checker.aliasFunctions[current.Name] = current
+		case parser.NamespaceStatement:
+			checker.collectAliasFunctionStatements(current.Body, source)
+		}
 	}
 }
 
@@ -201,6 +238,15 @@ func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string) 
 
 		if nextFunction == -1 {
 			return
+		}
+		if aliasStart, ok := aliasFunctionStartBefore(unit.Text, nextFunction); ok {
+			end := findAliasFunctionEnd(unit.Text, aliasStart)
+			if end == -1 {
+				index = nextFunction + len("function")
+			} else {
+				index = end
+			}
+			continue
 		}
 
 		fn, end, err := parseFunction(unit, nextFunction, namespace)
@@ -446,10 +492,14 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 		}
 
 		if decl, ok := parseVariableDeclaration(current, "local"); ok {
+			inferredType := ""
 			if decl.Expression != "" {
 				exprType := checker.inferExpression(decl.Expression, locals, fn.File, line)
 				if !isAssignable(decl.Type, exprType) {
 					checker.addError(fn.File, line, fmt.Sprintf("cannot assign %s to local %s %s", exprType, decl.Type, decl.Name))
+				}
+				if decl.Type == anyType && exprType != anyType {
+					inferredType = exprType
 				}
 				if movedName, ok := movedIdentifier(decl.Expression); ok {
 					if movedVariable, exists := locals[movedName]; exists {
@@ -460,11 +510,12 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 			}
 
 			locals[decl.Name] = variableSymbol{
-				Name:    decl.Name,
-				Type:    decl.Type,
-				Mutable: decl.Mutable,
-				File:    fn.File,
-				Line:    line,
+				Name:         decl.Name,
+				Type:         decl.Type,
+				InferredType: inferredType,
+				Mutable:      decl.Mutable,
+				File:         fn.File,
+				Line:         line,
 			}
 			continue
 		}
@@ -670,7 +721,7 @@ func parseVariableDeclaration(stmt string, scope string) (variableDeclaration, b
 		rest = strings.TrimSpace(strings.TrimPrefix(rest, "mut"))
 	}
 
-	assignIndex := findTopLevelOperator(rest, []string{"="})
+	assignIndex := findTopLevelAssignment(rest)
 	left := strings.TrimSpace(rest)
 	expr := ""
 	if assignIndex != -1 {
@@ -726,6 +777,21 @@ func parseAssignment(stmt string) (assignmentStatement, bool) {
 	}
 
 	return assignmentStatement{Target: target, Op: op, Expr: expr}, true
+}
+
+func findTopLevelAssignment(input string) int {
+	index := findTopLevelOperator(input, []string{"="})
+	for index != -1 {
+		if strings.HasPrefix(input[index:], "==") ||
+			(index+1 < len(input) && input[index+1] == '=') ||
+			(index > 0 && strings.ContainsAny(input[index-1:index], "=!<>:+-*/")) {
+			next := findTopLevelOperator(input[:index], []string{"="})
+			index = next
+			continue
+		}
+		return index
+	}
+	return -1
 }
 
 func movedIdentifier(expr string) (string, bool) {
@@ -940,6 +1006,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 
 	if targetExpr, fieldName, ok := splitTrailingSelectorExpression(expr); ok {
 		targetType := checker.inferExpression(targetExpr, locals, source, line)
+		if methodType, ok := checker.aliasMethodType(targetType, fieldName); ok {
+			return methodType
+		}
 		if targetType == anyType || strings.HasPrefix(normalizeType(targetType), "Map[") {
 			return anyType
 		}
@@ -987,6 +1056,26 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	return anyType
 }
 
+func (checker *TypeChecker) aliasMethodType(typeName string, methodName string) (string, bool) {
+	typeName = normalizeType(typeName)
+	alias, ok := checker.aliasFunctions[typeName]
+	if !ok {
+		return "", false
+	}
+	for _, method := range alias.Methods {
+		if method.Name != methodName {
+			continue
+		}
+		parts := make([]string, 0, len(method.Params)+1)
+		for _, param := range method.Params {
+			parts = append(parts, normalizeType(param.Type))
+		}
+		parts = append(parts, normalizeType(method.ReturnType))
+		return "Function[" + strings.Join(parts, ",") + "]", true
+	}
+	return "", false
+}
+
 func (checker *TypeChecker) checkPipe(left string, right string, locals map[string]variableSymbol, source string, line int) string {
 	left = strings.TrimSpace(left)
 	right = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(right), "call "))
@@ -1023,6 +1112,12 @@ func (checker *TypeChecker) checkIndexExpression(targetType string, indexType st
 			checker.addError(source, line, fmt.Sprintf("List index must be Int, got %s", indexType))
 		}
 		return indexedValueType(targetType)
+	case isArrayTypeName(targetType):
+		if !isIntegerIndexType(indexType) {
+			checker.addError(source, line, fmt.Sprintf("Array index must be Int, got %s", indexType))
+		}
+		elementType, _ := arrayElementType(targetType)
+		return elementType
 	case strings.HasPrefix(targetType, "Map[") && strings.HasSuffix(targetType, "]"):
 		keyType, valueType, ok := indexedMapTypes(targetType)
 		if ok && !isAssignable(keyType, indexType) {
@@ -1049,6 +1144,12 @@ func (checker *TypeChecker) checkIndexedAssignmentTarget(targetType string, inde
 			checker.addError(source, line, fmt.Sprintf("List index must be Int, got %s", indexType))
 		}
 		return indexedValueType(targetType)
+	case isArrayTypeName(targetType):
+		if !isIntegerIndexType(indexType) {
+			checker.addError(source, line, fmt.Sprintf("Array index must be Int, got %s", indexType))
+		}
+		elementType, _ := arrayElementType(targetType)
+		return elementType
 	case strings.HasPrefix(targetType, "Map[") && strings.HasSuffix(targetType, "]"):
 		keyType, valueType, ok := indexedMapTypes(targetType)
 		if ok && !isAssignable(keyType, indexType) {
@@ -1184,6 +1285,35 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		}
 		checker.addError(source, line, fmt.Sprintf("SIMD expects List[T], got %s", argType))
 		return "SIMD[T]"
+	case "Box", "Ref", "RefMut", "RefCell":
+		if len(args) != 1 {
+			checker.addError(source, line, fmt.Sprintf("%s expects 1 argument", name))
+		}
+		if len(args) == 1 {
+			checker.inferExpression(args[0], locals, source, line)
+		}
+		return name
+	case "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
+		for _, arg := range args {
+			checker.inferExpression(arg, locals, source, line)
+		}
+		return name
+	}
+
+	if alias, ok := checker.aliasFunctions[name]; ok {
+		required := requiredAliasParamCount(alias.Params)
+		if len(args) < required || len(args) > len(alias.Params) {
+			checker.addError(source, line, fmt.Sprintf("alias function %s expects %d to %d argument(s), got %d", name, required, len(alias.Params), len(args)))
+			return alias.Name
+		}
+		for index, arg := range args {
+			argType := checker.inferExpression(arg, locals, source, line)
+			param := alias.Params[index]
+			if !isAssignable(param.Type, argType) {
+				checker.addError(source, line, fmt.Sprintf("alias function %s argument %d expects %s, got %s", name, index+1, param.Type, argType))
+			}
+		}
+		return alias.Name
 	}
 
 	if variable, ok := checker.lookupVariable(name, locals); ok {
@@ -1203,6 +1333,21 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 
 	fn, ok := checker.lookupFunction(name)
 	if !ok {
+		if targetExpr, methodName, selectorOK := splitIdentifierSelectorCallName(name); selectorOK {
+			targetSymbol, targetOK := checker.lookupVariable(targetExpr, locals)
+			if !targetOK {
+				checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
+				return anyType
+			}
+			targetType := targetSymbol.Type
+			if targetSymbol.InferredType != "" {
+				targetType = targetSymbol.InferredType
+			}
+			if methodType, methodOK := checker.aliasMethodType(targetType, methodName); methodOK {
+				paramTypes, returnType, _ := functionValueType(methodType)
+				return checker.checkCallbackCall(name, paramTypes, returnType, args, locals, source, line)
+			}
+		}
 		checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
 		return anyType
 	}
@@ -1283,6 +1428,14 @@ func (checker *TypeChecker) checkCallbackCall(name string, paramTypes []string, 
 func requiredParamCount(params []variableSymbol) int {
 	count := len(params)
 	for count > 0 && params[count-1].Default != "" {
+		count--
+	}
+	return count
+}
+
+func requiredAliasParamCount(params []parser.Parameter) int {
+	count := len(params)
+	for count > 0 && params[count-1].Default.Node != nil {
 		count--
 	}
 	return count
@@ -1499,6 +1652,41 @@ func collectNestedFunctionNames(input string) map[string]bool {
 	return names
 }
 
+func aliasFunctionStartBefore(input string, functionIndex int) (int, bool) {
+	prefix := strings.TrimRightFunc(input[:functionIndex], unicode.IsSpace)
+	start := len(prefix) - len("alias")
+	if start < 0 || prefix[start:] != "alias" {
+		return 0, false
+	}
+	if start > 0 && isIdentifierRune(rune(prefix[start-1])) {
+		return 0, false
+	}
+	return start, true
+}
+
+func findAliasFunctionEnd(input string, start int) int {
+	index := start
+	depth := 0
+	for index < len(input) {
+		nextDo := findKeyword(input, "do", index)
+		nextEnd := findKeyword(input, "end", index)
+		if nextEnd == -1 {
+			return -1
+		}
+		if nextDo != -1 && nextDo < nextEnd {
+			depth++
+			index = nextDo + len("do")
+			continue
+		}
+		if depth == 0 {
+			return nextEnd + len("end")
+		}
+		depth--
+		index = nextEnd + len("end")
+	}
+	return -1
+}
+
 func collectCatchNames(input string) map[string]bool {
 	names := map[string]bool{}
 	index := 0
@@ -1633,6 +1821,18 @@ func splitTypeAndName(input string) (string, string, bool) {
 
 func normalizeType(input string) string {
 	input = strings.TrimSpace(input)
+	switch input {
+	case "int":
+		return "Int"
+	case "bool":
+		return "Bool"
+	case "string":
+		return "String"
+	case "float":
+		return "Float"
+	case "Any":
+		return anyType
+	}
 	if canonical, ok := canonicalRestrictedType(input); ok {
 		return canonical
 	}
@@ -1700,6 +1900,16 @@ func isKnownType(typeName string) bool {
 		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" {
 		return true
 	}
+	if isCustomTypeName(typeName) {
+		return true
+	}
+	if isArrayTypeName(typeName) {
+		element, _ := arrayElementType(typeName)
+		return isKnownType(element)
+	}
+	if isAllocatorType(typeName) {
+		return true
+	}
 	if strings.HasPrefix(typeName, "List[") && strings.HasSuffix(typeName, "]") {
 		return isKnownType(typeName[5 : len(typeName)-1])
 	}
@@ -1729,6 +1939,40 @@ func isKnownType(typeName string) bool {
 		return true
 	}
 	return false
+}
+
+func isCustomTypeName(typeName string) bool {
+	if typeName == "" || strings.ContainsAny(typeName, "[],:|") {
+		return false
+	}
+	first := rune(typeName[0])
+	return unicode.IsUpper(first)
+}
+
+func isAllocatorType(typeName string) bool {
+	switch typeName {
+	case "Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
+		return true
+	default:
+		return false
+	}
+}
+
+func isArrayTypeName(typeName string) bool {
+	typeName = normalizeType(typeName)
+	return strings.Contains(typeName, "[") && strings.HasSuffix(typeName, "]") &&
+		!strings.HasPrefix(typeName, "List[") && !strings.HasPrefix(typeName, "Map[") &&
+		!strings.HasPrefix(typeName, "Option[") && !strings.HasPrefix(typeName, "Result[") &&
+		!strings.HasPrefix(typeName, "SIMD[") && !strings.HasPrefix(typeName, "Function[")
+}
+
+func arrayElementType(typeName string) (string, bool) {
+	typeName = normalizeType(typeName)
+	index := strings.Index(typeName, "[")
+	if index <= 0 || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	return normalizeType(typeName[:index]), true
 }
 
 func indexedValueType(typeName string) string {
@@ -1829,6 +2073,14 @@ func isAssignable(target string, source string) bool {
 	}
 	if strings.HasPrefix(target, "List[") && strings.HasPrefix(source, "List[") {
 		return isAssignable(target[5:len(target)-1], source[5:len(source)-1])
+	}
+	if isArrayTypeName(target) && isArrayTypeName(source) {
+		targetElement, targetOk := arrayElementType(target)
+		sourceElement, sourceOk := arrayElementType(source)
+		return targetOk && sourceOk && isAssignable(targetElement, sourceElement)
+	}
+	if isArrayTypeName(target) && source == "List[T]" {
+		return true
 	}
 	if strings.HasPrefix(target, "Map[") && source == "Map[T,T]" {
 		return true
@@ -2198,12 +2450,12 @@ func splitConditionalExpression(expr string) (string, string, string, bool) {
 	if !strings.HasPrefix(expr, "if ") {
 		return "", "", "", false
 	}
-	thenIndex := findTopLevelOperator(expr, []string{" then "})
+	thenIndex := strings.Index(expr, " then ")
 	if thenIndex <= len("if ") {
 		return "", "", "", false
 	}
 	afterThen := strings.TrimSpace(expr[thenIndex+len(" then "):])
-	colonIndex := findTopLevelOperator(afterThen, []string{":"})
+	colonIndex := strings.LastIndex(afterThen, ":")
 	if colonIndex <= 0 {
 		return "", "", "", false
 	}
@@ -2324,6 +2576,20 @@ func splitTrailingSelectorExpression(expr string) (string, string, bool) {
 		}
 	}
 	return "", "", false
+}
+
+func splitIdentifierSelectorCallName(name string) (string, string, bool) {
+	name = strings.TrimSpace(name)
+	if !isIdentifierPath(name) {
+		return "", "", false
+	}
+	index := strings.LastIndex(name, ".")
+	if index <= 0 || index == len(name)-1 {
+		return "", "", false
+	}
+	target := strings.TrimSpace(name[:index])
+	field := strings.TrimSpace(name[index+1:])
+	return target, field, isIdentifier(target) && isIdentifier(field)
 }
 
 func splitPostfixNullCheckExpression(expr string) (string, bool) {

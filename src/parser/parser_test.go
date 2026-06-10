@@ -665,6 +665,39 @@ function_group Poly {
 	}
 }
 
+func TestParseAliasFunctionWithExtensionMethodAndRegion(t *testing.T) {
+	program, errors := Parse(`
+region MyRegion(T, sizeof(T) * 100, 10);
+
+alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
+    [new] do
+        allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
+    end
+
+    #extend do
+        function get_length() -> int
+            return this.length;
+        end
+    end
+end
+`)
+	assertNoParseErrors(t, errors)
+
+	if _, ok := program.Statements[0].(RegionStatement); !ok {
+		t.Fatalf("expected region statement, got %#v", program.Statements[0])
+	}
+	alias, ok := program.Statements[1].(AliasFunctionStatement)
+	if !ok {
+		t.Fatalf("expected alias function statement, got %#v", program.Statements[1])
+	}
+	if alias.Name != "ArrayList" || len(alias.Params) != 4 || len(alias.Hooks) != 1 || len(alias.Methods) != 1 {
+		t.Fatalf("unexpected alias function: %#v", alias)
+	}
+	if alias.Methods[0].Name != "get_length" || alias.Methods[0].ReturnType != "Int" {
+		t.Fatalf("unexpected extension method: %#v", alias.Methods[0])
+	}
+}
+
 func TestParseExpressionTreeForListAndMapLiterals(t *testing.T) {
 	listProgram, listErrors := Parse(`local List[Int] values = [1, 2, 3];`)
 	assertNoParseErrors(t, listErrors)
