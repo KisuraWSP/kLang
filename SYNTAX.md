@@ -103,6 +103,10 @@ local Result[Int, String] parsedCount = Ok(10);
 local Result[Int, String] failedParse = Err("invalid number");
 local Result[Int, String] wrappedCount = Result(20);
 
+-- Error propagation
+-- The postfix ! operator unwraps Ok(value), or throws Err(value) to the nearest catch.
+local Int parsedValue = parsedCount!;
+
 -- Complex and SIMD data
 -- Complex(real, imaginary) accepts Int or Float parts.
 local Complex z = Complex(2, 3);
@@ -252,7 +256,30 @@ function ParseNumber(value : String) : Int {
 }
 ```
 
-3. Condition Handling
+3. Error Handling
+- Errors can be handled as values with `Result[T, E]`, or as exceptions with `throw` and `try/catch`.
+- `Result!` propagates `Err(value)` through the exception path and unwraps `Ok(value)`.
+```lua
+function Fallible() : Result[Int, String] {
+    return Err("not ready");
+}
+
+function Main() : Int {
+    try {
+        local Int value = Fallible()!;
+        return value;
+    } catch err {
+        print("handled", err);
+        return 0;
+    }
+}
+
+function FailFast() {
+    throw "boom";
+}
+```
+
+4. Condition Handling
 - Used to do basic boolean based condition operations
 ```lua
 -- if .. else if .. else statement
@@ -283,7 +310,7 @@ unless x > y {
 }
 ```
 
-4. Loops
+5. Loops
 - These are basic repetition constructs used by programming languages
 ```lua
 -- basic for loop (like in C)
@@ -326,7 +353,7 @@ do_while i := range(10) {
 }
 ```
 
-5. Namespaces
+6. Namespaces
 - Namespaces can be nested. Nested functions are called through chained dot paths.
 - `alias` binds a shorter name to a namespace path, and `::` calls through that alias.
 ```lua
@@ -344,7 +371,7 @@ alias std_lib = std.lib;
 std_lib::LuaInit();
 ```
 
-6. Traits
+7. Traits
 - Traits declare required method signatures. Impl blocks must define matching methods for a type.
 ```lua
 trait Printable {

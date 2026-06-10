@@ -2,15 +2,37 @@ package runtime
 
 import "fmt"
 
+type MemoryRegion string
+
+const (
+	MemoryStack MemoryRegion = "stack"
+	MemoryHeap  MemoryRegion = "heap"
+)
+
 type Memory struct {
-	nextID  int
-	objects map[int]*Object
+	nextID       int
+	objects      map[int]*Object
+	stackObjects int
+	heapObjects  int
+	stackBytes   int
+	heapBytes    int
 }
 
 type Object struct {
 	Value            Value
+	Region           MemoryRegion
+	Bytes            int
 	ImmutableBorrows int
 	MutableBorrow    bool
+}
+
+type MemoryStats struct {
+	StackObjects int
+	HeapObjects  int
+	StackBytes   int
+	HeapBytes    int
+	TotalObjects int
+	TotalBytes   int
 }
 
 func NewMemory() *Memory {
@@ -20,17 +42,50 @@ func NewMemory() *Memory {
 	}
 }
 
-func (memory *Memory) Allocate(value Value) int {
+func (memory *Memory) Allocate(value Value, region MemoryRegion) int {
+	if region == "" {
+		region = MemoryStack
+	}
 	id := memory.nextID
 	memory.nextID++
-	memory.objects[id] = &Object{Value: value}
+	size := valueSize(value)
+	memory.objects[id] = &Object{Value: value, Region: region, Bytes: size}
+	memory.addAccounting(region, size)
 	return id
 }
 
 func (memory *Memory) Store(id int, value Value) {
 	if object, ok := memory.objects[id]; ok {
+		memory.addAccounting(object.Region, -object.Bytes)
 		object.Value = value
+		object.Bytes = valueSize(value)
+		memory.addAccounting(object.Region, object.Bytes)
 	}
+}
+
+func (memory *Memory) Stats() MemoryStats {
+	return MemoryStats{
+		StackObjects: memory.stackObjects,
+		HeapObjects:  memory.heapObjects,
+		StackBytes:   memory.stackBytes,
+		HeapBytes:    memory.heapBytes,
+		TotalObjects: memory.stackObjects + memory.heapObjects,
+		TotalBytes:   memory.stackBytes + memory.heapBytes,
+	}
+}
+
+func (memory *Memory) addAccounting(region MemoryRegion, bytes int) {
+	if region == MemoryHeap {
+		if bytes > 0 {
+			memory.heapObjects++
+		}
+		memory.heapBytes += bytes
+		return
+	}
+	if bytes > 0 {
+		memory.stackObjects++
+	}
+	memory.stackBytes += bytes
 }
 
 func (memory *Memory) BorrowImmutable(id int) error {

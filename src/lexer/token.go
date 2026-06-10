@@ -37,6 +37,7 @@ const (
 
 	TokenStrictEquality       // ==
 	TokenNotEqual             // !=
+	TokenBang                 // !
 	TokenGreaterThan          // >
 	TokenLessThan             // <
 	TokenGreaterThanOrEqualTo // >=
@@ -70,6 +71,9 @@ const (
 	TokenIf         // if
 	TokenThen       // then
 	TokenElse       // else
+	TokenTry        // try
+	TokenCatch      // catch
+	TokenThrow      // throw
 	TokenUnless     // unless
 	TokenFor        // for
 	TokenWhile      // while
@@ -113,6 +117,9 @@ var Keywords = map[string]TokenType{
 	"if":             TokenIf,
 	"then":           TokenThen,
 	"else":           TokenElse,
+	"try":            TokenTry,
+	"catch":          TokenCatch,
+	"throw":          TokenThrow,
 	"unless":         TokenUnless,
 	"for":            TokenFor,
 	"while":          TokenWhile,
@@ -156,6 +163,7 @@ var Operators = map[string]TokenType{
 	"/=": TokenDivideEqual,
 	"==": TokenStrictEquality,
 	"!=": TokenNotEqual,
+	"!":  TokenBang,
 	">":  TokenGreaterThan,
 	"<":  TokenLessThan,
 	">=": TokenGreaterThanOrEqualTo,

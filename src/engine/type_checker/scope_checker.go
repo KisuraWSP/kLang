@@ -48,6 +48,9 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 			continue
 		case parser.FunctionGroupStatement:
 			continue
+		case parser.TryCatchStatement:
+			checker.collectASTGlobalsFromStatements(current.TryBody, source, false)
+			checker.collectASTGlobalsFromStatements(current.CatchBody, source, false)
 		case parser.FunctionStatement:
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		case parser.IfStatement:
@@ -160,6 +163,8 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		}
 	case parser.ReturnStatement:
 		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
+	case parser.ThrowStatement:
+		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
 	case parser.BreakStatement:
 		if !inLoop {
 			checker.addError(source, current.Pos.Line, "break is only allowed inside a loop")
@@ -178,6 +183,11 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		checker.checkScopeStatements(current.Alternative, newLexicalScope(scope), namespace, source, inLoop, false)
 	case parser.LoopStatement:
 		checker.checkLoopScope(current, scope, namespace, source)
+	case parser.TryCatchStatement:
+		checker.checkScopeStatements(current.TryBody, newLexicalScope(scope), namespace, source, inLoop, false)
+		catchScope := newLexicalScope(scope)
+		catchScope.define(variableSymbol{Name: current.ErrorName, Type: anyType, File: source, Line: current.Pos.Line})
+		checker.checkScopeStatements(current.CatchBody, catchScope, namespace, source, inLoop, false)
 	}
 }
 
@@ -298,6 +308,8 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 	case parser.CastExpression:
 		checker.checkScopeExpression(current.Value, scope, namespace, source, line)
 	case parser.NullCheckExpression:
+		checker.checkScopeExpression(current.Value, scope, namespace, source, line)
+	case parser.PropagateExpression:
 		checker.checkScopeExpression(current.Value, scope, namespace, source, line)
 	case parser.ConditionalExpression:
 		checker.checkScopeExpression(current.Condition, scope, namespace, source, line)

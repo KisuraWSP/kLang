@@ -106,6 +106,11 @@ type ReturnStatement struct {
 	Expression Expression
 }
 
+type ThrowStatement struct {
+	Pos        Position
+	Expression Expression
+}
+
 type BreakStatement struct {
 	Pos Position
 }
@@ -136,6 +141,13 @@ type LoopStatement struct {
 	Kind   string
 	Header Expression
 	Body   []Statement
+}
+
+type TryCatchStatement struct {
+	Pos       Position
+	TryBody   []Statement
+	ErrorName string
+	CatchBody []Statement
 }
 
 type Expression struct {
@@ -191,6 +203,10 @@ type NullCheckExpression struct {
 	Value ExpressionNode
 }
 
+type PropagateExpression struct {
+	Value ExpressionNode
+}
+
 type ConditionalExpression struct {
 	Condition   ExpressionNode
 	Consequence ExpressionNode
@@ -241,11 +257,13 @@ func (stmt FunctionGroupStatement) statementNode() {
 func (stmt FunctionStatement) statementNode()   {}
 func (stmt VariableStatement) statementNode()   {}
 func (stmt ReturnStatement) statementNode()     {}
+func (stmt ThrowStatement) statementNode()      {}
 func (stmt BreakStatement) statementNode()      {}
 func (stmt AssignmentStatement) statementNode() {}
 func (stmt ExpressionStatement) statementNode() {}
 func (stmt IfStatement) statementNode()         {}
 func (stmt LoopStatement) statementNode()       {}
+func (stmt TryCatchStatement) statementNode()   {}
 
 func (stmt ImportStatement) Position() Position    { return stmt.Pos }
 func (stmt AliasStatement) Position() Position     { return stmt.Pos }
@@ -258,11 +276,13 @@ func (stmt FunctionGroupStatement) Position() Position {
 func (stmt FunctionStatement) Position() Position   { return stmt.Pos }
 func (stmt VariableStatement) Position() Position   { return stmt.Pos }
 func (stmt ReturnStatement) Position() Position     { return stmt.Pos }
+func (stmt ThrowStatement) Position() Position      { return stmt.Pos }
 func (stmt BreakStatement) Position() Position      { return stmt.Pos }
 func (stmt AssignmentStatement) Position() Position { return stmt.Pos }
 func (stmt ExpressionStatement) Position() Position { return stmt.Pos }
 func (stmt IfStatement) Position() Position         { return stmt.Pos }
 func (stmt LoopStatement) Position() Position       { return stmt.Pos }
+func (stmt TryCatchStatement) Position() Position   { return stmt.Pos }
 
 func (expr IdentifierExpression) expressionNode()  {}
 func (expr LiteralExpression) expressionNode()     {}
@@ -273,6 +293,7 @@ func (expr IndexExpression) expressionNode()       {}
 func (expr SelectorExpression) expressionNode()    {}
 func (expr CastExpression) expressionNode()        {}
 func (expr NullCheckExpression) expressionNode()   {}
+func (expr PropagateExpression) expressionNode()   {}
 func (expr ConditionalExpression) expressionNode() {}
 func (expr ListExpression) expressionNode()        {}
 func (expr ListComprehensionExpression) expressionNode() {

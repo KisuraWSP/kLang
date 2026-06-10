@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"kLang/src/engine/file"
@@ -189,7 +191,7 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 
 	resolvedProgram, moduleReport := resolver.ResolveProgram(program)
 	if !moduleReport.Passed() {
-		printModuleErrors(moduleReport)
+		printModuleErrors(resolvedProgram, moduleReport)
 		return fmt.Errorf("module resolution failed")
 	}
 	if options.Verbose {
@@ -205,7 +207,7 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 
 	typeReport := typechecker.CheckProgram(resolvedProgram)
 	if !typeReport.Passed() {
-		printTypeErrors(typeReport)
+		printTypeErrors(resolvedProgram, typeReport)
 		return fmt.Errorf("type check failed")
 	}
 	fmt.Printf("  type check: ok\n")
@@ -213,8 +215,17 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 
 	parsedProgram := parser.ParseLoadedProgram(resolvedProgram)
 	if !parsedProgram.Passed() {
-		for _, err := range parsedProgram.Errors() {
-			fmt.Fprintf(os.Stderr, "  parse error: %v\n", err)
+		for _, source := range parsedProgram.Sources {
+			for _, err := range source.Errors {
+				printDiagnostic(os.Stderr, diagnostic{
+					Kind:    "PARSE ERROR",
+					File:    source.Path,
+					Line:    err.Line,
+					Column:  err.Column,
+					Message: err.Message,
+					Help:    "The parser could not understand this part of the program. Check the syntax around the marked code.",
+				}, sourceLines(resolvedProgram, source.Path))
+			}
 		}
 		return fmt.Errorf("parse failed")
 	}
@@ -226,24 +237,44 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 
 	result, err := runtime.New().Run(parsedProgram)
 	if err != nil {
+		printRuntimeError(resolvedProgram, err)
 		return fmt.Errorf("runtime failed: %w", err)
 	}
 	for _, line := range result.Output {
 		fmt.Println(line)
 	}
 	fmt.Printf("  runtime: returned %s\n", describeValue(result.Value))
+	if options.Verbose {
+		fmt.Printf("  memory: stack=%d object(s)/%d byte(s), heap=%d object(s)/%d byte(s)\n",
+			result.Memory.StackObjects, result.Memory.StackBytes,
+			result.Memory.HeapObjects, result.Memory.HeapBytes)
+	}
 	return nil
 }
 
-func printModuleErrors(report modulesystem.Report) {
+func printModuleErrors(program file.Program, report modulesystem.Report) {
 	for _, err := range report.Errors {
-		fmt.Fprintf(os.Stderr, "  %s:%d:%d: %s\n", err.File, err.Line, err.Column, err.Message)
+		printDiagnostic(os.Stderr, diagnostic{
+			Kind:    "MODULE ERROR",
+			File:    err.File,
+			Line:    err.Line,
+			Column:  err.Column,
+			Message: err.Message,
+			Help:    "The module resolver could not load an import used by this file.",
+		}, sourceLines(program, err.File))
 	}
 }
 
-func printTypeErrors(report typechecker.Report) {
+func printTypeErrors(program file.Program, report typechecker.Report) {
 	for _, err := range report.Errors {
-		fmt.Fprintf(os.Stderr, "  %s:%d: %s\n", err.File, err.Line, err.Message)
+		printDiagnostic(os.Stderr, diagnostic{
+			Kind:    "TYPE ERROR",
+			File:    err.File,
+			Line:    err.Line,
+			Column:  1,
+			Message: humanTypeMessage(err.Message),
+			Help:    "I found a conflict between what this code produces and what the surrounding program expects.",
+		}, sourceLines(program, err.File))
 	}
 }
 
@@ -251,6 +282,92 @@ func printTypeWarnings(report typechecker.Report) {
 	for _, warning := range report.Warnings {
 		fmt.Printf("  warning: %s:%d: %s\n", warning.File, warning.Line, warning.Message)
 	}
+}
+
+type diagnostic struct {
+	Kind    string
+	File    string
+	Line    int
+	Column  int
+	Message string
+	Help    string
+}
+
+func printDiagnostic(out *os.File, diag diagnostic, lines []string) {
+	location := diag.File
+	if diag.Line > 0 {
+		location = fmt.Sprintf("%s:%d:%d", diag.File, diag.Line, maxInt(diag.Column, 1))
+	}
+	fmt.Fprintf(out, "\n-- %s %s\n\n", diag.Kind, strings.Repeat("-", maxInt(1, 72-len(diag.Kind))))
+	fmt.Fprintf(out, "%s\n\n", location)
+	fmt.Fprintf(out, "%s\n\n", diag.Message)
+	if diag.Line > 0 && diag.Line <= len(lines) {
+		code := lines[diag.Line-1]
+		width := len(strconv.Itoa(diag.Line))
+		fmt.Fprintf(out, "%*d | %s\n", width, diag.Line, code)
+		caretColumn := maxInt(diag.Column, 1)
+		fmt.Fprintf(out, "%*s | %s^\n\n", width, "", strings.Repeat(" ", maxInt(0, caretColumn-1)))
+	}
+	if diag.Help != "" {
+		fmt.Fprintf(out, "Hint: %s\n\n", diag.Help)
+	}
+}
+
+func printRuntimeError(program file.Program, err error) {
+	line, column, message := runtimeErrorParts(err)
+	printDiagnostic(os.Stderr, diagnostic{
+		Kind:    "RUNTIME ERROR",
+		File:    program.EntryPoint,
+		Line:    line,
+		Column:  column,
+		Message: message,
+		Help:    "The program reached this code while running and could not continue safely.",
+	}, sourceLines(program, program.EntryPoint))
+}
+
+func runtimeErrorParts(err error) (int, int, string) {
+	message := err.Error()
+	pattern := regexp.MustCompile(`line ([0-9]+):([0-9]+): (.*)`)
+	matches := pattern.FindStringSubmatch(message)
+	if len(matches) != 4 {
+		return 0, 0, message
+	}
+	line, _ := strconv.Atoi(matches[1])
+	column, _ := strconv.Atoi(matches[2])
+	return line, column, matches[3]
+}
+
+func humanTypeMessage(message string) string {
+	switch {
+	case strings.Contains(message, "cannot assign"):
+		return message + "\n\nThis value does not have the type declared for the variable."
+	case strings.Contains(message, "argument") && strings.Contains(message, "expects"):
+		return message + "\n\nThis function call is passing a value with an unexpected type."
+	case strings.Contains(message, "unknown identifier"):
+		return message + "\n\nThis name has not been declared in the current scope."
+	default:
+		return message
+	}
+}
+
+func sourceLines(program file.Program, path string) []string {
+	clean := filepath.Clean(path)
+	for _, source := range program.Files {
+		if filepath.Clean(source.Path) == clean {
+			return source.Lines
+		}
+	}
+	if lines, err := file.ReadLines(path); err == nil {
+		return lines
+	}
+	return nil
+}
+
+func maxInt(left int, right int) int {
+	if left > right {
+		return left
+	}
+	return right
 }
 
 func describeValue(value runtime.Value) string {

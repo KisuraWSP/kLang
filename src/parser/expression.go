@@ -102,6 +102,8 @@ func (parser *expressionParser) parseExpression(precedence int) ExpressionNode {
 			left = parser.parseCast(left)
 		case lexer.TokenQuestion:
 			left = parser.parseNullCheck(left)
+		case lexer.TokenBang:
+			left = parser.parsePropagate(left)
 		default:
 			left = parser.parseBinary(left)
 		}
@@ -296,6 +298,11 @@ func (parser *expressionParser) parseCast(value ExpressionNode) ExpressionNode {
 func (parser *expressionParser) parseNullCheck(value ExpressionNode) ExpressionNode {
 	parser.advance()
 	return NullCheckExpression{Value: value}
+}
+
+func (parser *expressionParser) parsePropagate(value ExpressionNode) ExpressionNode {
+	parser.advance()
+	return PropagateExpression{Value: value}
 }
 
 func (parser *expressionParser) parseList() ExpressionNode {
@@ -535,7 +542,7 @@ func tokenPrecedence(tokenType lexer.TokenType) int {
 		return precedencePower
 	case lexer.TokenAs:
 		return precedenceCast
-	case lexer.TokenLeftBrace, lexer.TokenLeftSquareBrace, lexer.TokenDot, lexer.TokenNamespaceAccess, lexer.TokenQuestion:
+	case lexer.TokenLeftBrace, lexer.TokenLeftSquareBrace, lexer.TokenDot, lexer.TokenNamespaceAccess, lexer.TokenQuestion, lexer.TokenBang:
 		return precedenceCall
 	default:
 		return precedenceLowest

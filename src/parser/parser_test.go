@@ -700,6 +700,36 @@ func TestParseAssignmentExpressionTree(t *testing.T) {
 	}
 }
 
+func TestParseTryCatchThrowAndResultPropagation(t *testing.T) {
+	program, errors := Parse(`
+function Main() : Int {
+    try {
+        local Int value = Err("bad")!;
+        return value;
+    } catch err {
+        throw err;
+    }
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn := program.Statements[0].(FunctionStatement)
+	tryStmt, ok := fn.Body[0].(TryCatchStatement)
+	if !ok {
+		t.Fatalf("expected try/catch statement, got %#v", fn.Body[0])
+	}
+	if tryStmt.ErrorName != "err" || len(tryStmt.TryBody) != 2 || len(tryStmt.CatchBody) != 1 {
+		t.Fatalf("unexpected try/catch shape: %#v", tryStmt)
+	}
+	decl := tryStmt.TryBody[0].(VariableStatement)
+	if _, ok := decl.Expression.Node.(PropagateExpression); !ok {
+		t.Fatalf("expected propagation expression, got %#v", decl.Expression.Node)
+	}
+	if _, ok := tryStmt.CatchBody[0].(ThrowStatement); !ok {
+		t.Fatalf("expected throw statement, got %#v", tryStmt.CatchBody[0])
+	}
+}
+
 func TestParseRejectsIllegalTokens(t *testing.T) {
 	_, errors := Parse(`local Int value = ~;`)
 	if len(errors) == 0 {

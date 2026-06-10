@@ -39,7 +39,6 @@ myArray[0] = "String";
 ```
 - add memory allocators like {Box, Ref, RefMut, RefCell} from rust, HeapAllocator, RegionAllocator, BumpAllocator, ArenaAllocator
 - improve the standard library more by adding more functions
-- add error handling (error by values / exceptions)
 - make the runtime be able to work on users native os
 - async await
 - iterators
@@ -67,8 +66,6 @@ if x == {
 - data race condition prevention mechanics and atomic data handling
 - multi threaded interpretter runtime
 - coroutines
-- better error/exception messages like similar to elms error messages (like the message should like tell the user whats wrong in the program and actually point the line of code where the error occurred)
-- Program should be able to track stack and heap (so it is able to do memory allocations)
 - traits and other features must be able to used in function aliases
 
 # TODO When All Previous todos are done (End Goal)

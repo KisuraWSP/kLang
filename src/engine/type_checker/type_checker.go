@@ -421,6 +421,9 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 	for nestedName := range collectNestedFunctionNames(fn.Body) {
 		locals[nestedName] = variableSymbol{Name: nestedName, Type: anyType}
 	}
+	for catchName := range collectCatchNames(fn.Body) {
+		locals[catchName] = variableSymbol{Name: catchName, Type: anyType}
+	}
 	for loopName := range collectEvaluationAssignmentNames(fn.Body) {
 		locals[loopName] = variableSymbol{Name: loopName, Type: anyType, Mutable: true}
 	}
@@ -476,6 +479,12 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 			if !isAssignable(fn.ReturnType, exprType) {
 				checker.addError(fn.File, line, fmt.Sprintf("function %s returns %s but return expression is %s", fn.Name, fn.ReturnType, exprType))
 			}
+			continue
+		}
+
+		if strings.HasPrefix(current, "throw ") {
+			expr := strings.TrimSpace(strings.TrimPrefix(current, "throw "))
+			checker.inferExpression(expr, locals, fn.File, line)
 			continue
 		}
 
@@ -912,6 +921,15 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	if inner, ok := splitPostfixNullCheckExpression(expr); ok {
 		checker.inferExpression(inner, locals, source, line)
 		return "Bool"
+	}
+	if inner, ok := splitPostfixPropagateExpression(expr); ok {
+		resultType := checker.inferExpression(inner, locals, source, line)
+		okType, _, ok := resultValueTypes(resultType)
+		if !ok {
+			checker.addError(source, line, fmt.Sprintf("! expects Result, got %s", resultType))
+			return anyType
+		}
+		return okType
 	}
 
 	if targetExpr, indexExpr, ok := splitTrailingIndexExpression(expr); ok {
@@ -1477,6 +1495,31 @@ func collectNestedFunctionNames(input string) map[string]bool {
 			continue
 		}
 		index = close + 1
+	}
+	return names
+}
+
+func collectCatchNames(input string) map[string]bool {
+	names := map[string]bool{}
+	index := 0
+	for index < len(input) {
+		nextCatch := findKeyword(input, "catch", index)
+		if nextCatch == -1 {
+			break
+		}
+		start := nextCatch + len("catch")
+		for start < len(input) && unicode.IsSpace(rune(input[start])) {
+			start++
+		}
+		end := start
+		for end < len(input) && isIdentifierRune(rune(input[end])) {
+			end++
+		}
+		name := strings.TrimSpace(input[start:end])
+		if isIdentifier(name) {
+			names[name] = true
+		}
+		index = end
 	}
 	return names
 }
@@ -2286,6 +2329,18 @@ func splitTrailingSelectorExpression(expr string) (string, string, bool) {
 func splitPostfixNullCheckExpression(expr string) (string, bool) {
 	expr = strings.TrimSpace(expr)
 	if !strings.HasSuffix(expr, "?") {
+		return "", false
+	}
+	inner := strings.TrimSpace(expr[:len(expr)-1])
+	if inner == "" || isInsideOpenStringOrChar(inner) {
+		return "", false
+	}
+	return inner, true
+}
+
+func splitPostfixPropagateExpression(expr string) (string, bool) {
+	expr = strings.TrimSpace(expr)
+	if !strings.HasSuffix(expr, "!") || strings.HasSuffix(expr, "!=") {
 		return "", false
 	}
 	inner := strings.TrimSpace(expr[:len(expr)-1])

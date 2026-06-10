@@ -877,6 +877,29 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsTryCatchThrowAndResultPropagation(t *testing.T) {
+	program := programFromSource(`
+function Fallible() : Result[Int, String] {
+    return Ok(41);
+}
+
+function Main() : Int {
+    try {
+        local Int value = Fallible()!;
+        return value + 1;
+    } catch err {
+        print(err);
+        return 0;
+    }
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramAcceptsNamespaceLocalFunctionCalls(t *testing.T) {
 	program := programFromSource(`
 namespace random {

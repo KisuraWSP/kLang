@@ -66,21 +66,43 @@ type ThunkData struct {
 type Result struct {
 	Value  Value
 	Output []string
+	Memory MemoryStats
 }
 
 type Error struct {
 	Message string
+	Line    int
+	Column  int
 }
 
 func (err Error) Error() string {
+	if err.Line > 0 {
+		return fmt.Sprintf("line %d:%d: %s", err.Line, err.Column, err.Message)
+	}
 	return err.Message
 }
 
 func errorAt(pos parser.Position, message string) error {
 	if pos.Line > 0 {
-		return Error{Message: fmt.Sprintf("line %d:%d: %s", pos.Line, pos.Column, message)}
+		return Error{Line: pos.Line, Column: pos.Column, Message: message}
 	}
 	return Error{Message: message}
+}
+
+type thrownError struct {
+	Value Value
+}
+
+func (err thrownError) Error() string {
+	return "thrown " + valueString(err.Value)
+}
+
+func thrownValue(err error) (Value, bool) {
+	thrown, ok := err.(thrownError)
+	if !ok {
+		return NullValue(), false
+	}
+	return thrown.Value, true
 }
 
 type Runtime struct {
@@ -146,6 +168,9 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 			return Result{}, err
 		}
 		if signal.kind != signalNone {
+			if signal.kind == signalThrow {
+				return Result{}, Error{Message: "uncaught exception: " + valueString(signal.value)}
+			}
 			return Result{}, Error{Message: "top-level return or break is not allowed"}
 		}
 	}
@@ -155,14 +180,14 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 		return Result{}, err
 	}
 	if mainName == "" {
-		return Result{Value: NullValue(), Output: runtime.output}, nil
+		return Result{Value: NullValue(), Output: runtime.output, Memory: runtime.memory.Stats()}, nil
 	}
 
 	value, err := runtime.callFunction(mainName, nil)
 	if err != nil {
 		return Result{}, err
 	}
-	return Result{Value: value, Output: runtime.output}, nil
+	return Result{Value: value, Output: runtime.output, Memory: runtime.memory.Stats()}, nil
 }
 
 func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string) error {
@@ -208,6 +233,7 @@ const (
 	signalReturn
 	signalBreak
 	signalTailCall
+	signalThrow
 )
 
 type signal struct {
@@ -263,6 +289,9 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 			var err error
 			value, err = runtime.evalExpression(current.Expression.Node, env)
 			if err != nil {
+				if thrown, ok := thrownValue(err); ok {
+					return signal{kind: signalThrow, value: thrown}, nil
+				}
 				return signal{}, err
 			}
 		}
@@ -270,10 +299,12 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 			return signal{}, errorAt(current.Pos, fmt.Sprintf("cannot assign %s to %s variable %q", value.Kind, current.Type, current.Name))
 		}
 		targetEnv := env
+		region := MemoryStack
 		if current.Scope == "global" || current.Exported {
 			targetEnv = runtime.global
+			region = MemoryHeap
 		}
-		if err := runtime.defineValue(targetEnv, current.Name, current.Mutable, current.Type, value); err != nil {
+		if err := runtime.defineValueInRegion(targetEnv, current.Name, current.Mutable, current.Type, value, region); err != nil {
 			return signal{}, errorAt(current.Pos, err.Error())
 		}
 		return signal{kind: signalNone}, nil
@@ -286,9 +317,18 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		}
 		value, err := runtime.evalExpression(current.Expression.Node, env)
 		if err != nil {
+			if thrown, ok := thrownValue(err); ok {
+				return signal{kind: signalThrow, value: thrown}, nil
+			}
 			return signal{}, err
 		}
 		return signal{kind: signalReturn, value: value}, nil
+	case parser.ThrowStatement:
+		value, err := runtime.evalExpression(current.Expression.Node, env)
+		if err != nil {
+			return signal{}, err
+		}
+		return signal{kind: signalThrow, value: value}, nil
 	case parser.BreakStatement:
 		if !inLoop {
 			return signal{}, errorAt(current.Pos, "break is only allowed inside a loop")
@@ -296,9 +336,15 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		return signal{kind: signalBreak}, nil
 	case parser.ExpressionStatement:
 		_, err := runtime.evalExpression(current.Expression.Node, env)
+		if thrown, ok := thrownValue(err); ok {
+			return signal{kind: signalThrow, value: thrown}, nil
+		}
 		return signal{kind: signalNone}, err
 	case parser.AssignmentStatement:
 		if err := runtime.executeAssignment(current, env); err != nil {
+			if thrown, ok := thrownValue(err); ok {
+				return signal{kind: signalThrow, value: thrown}, nil
+			}
 			return signal{}, errorAt(current.Pos, err.Error())
 		}
 		return signal{kind: signalNone}, nil
@@ -306,9 +352,26 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		return runtime.executeIf(current, env, inLoop)
 	case parser.LoopStatement:
 		return runtime.executeLoop(current, env)
+	case parser.TryCatchStatement:
+		return runtime.executeTryCatch(current, env, inLoop)
 	default:
 		return signal{}, Error{Message: fmt.Sprintf("unsupported statement %T", stmt)}
 	}
+}
+
+func (runtime *Runtime) executeTryCatch(stmt parser.TryCatchStatement, env *Environment, inLoop bool) (signal, error) {
+	currentSignal, err := runtime.executeBlock(stmt.TryBody, NewEnvironment(env), inLoop)
+	if err != nil {
+		return signal{}, err
+	}
+	if currentSignal.kind != signalThrow {
+		return currentSignal, nil
+	}
+	catchEnv := NewEnvironment(env)
+	if err := runtime.defineValueInRegion(catchEnv, stmt.ErrorName, false, "T", currentSignal.value, MemoryStack); err != nil {
+		return signal{}, errorAt(stmt.Pos, err.Error())
+	}
+	return runtime.executeBlock(stmt.CatchBody, catchEnv, inLoop)
 }
 
 func (runtime *Runtime) executeIf(stmt parser.IfStatement, env *Environment, inLoop bool) (signal, error) {
@@ -396,7 +459,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 			if currentSignal.kind == signalBreak {
 				break
 			}
-			if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall {
+			if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall || currentSignal.kind == signalThrow {
 				return currentSignal, nil
 			}
 			if len(post.Tokens) != 0 {
@@ -433,7 +496,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 			if currentSignal.kind == signalBreak {
 				return signal{kind: signalNone}, nil
 			}
-			if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall {
+			if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall || currentSignal.kind == signalThrow {
 				return currentSignal, nil
 			}
 		}
@@ -473,7 +536,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 		if currentSignal.kind == signalBreak {
 			break
 		}
-		if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall {
+		if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall || currentSignal.kind == signalThrow {
 			return currentSignal, nil
 		}
 	}
@@ -489,8 +552,12 @@ func (runtime *Runtime) storeLoopHeaderBinding(name string, value Value, env *En
 }
 
 func (runtime *Runtime) defineValue(env *Environment, name string, mutable bool, typeName string, value Value) error {
+	return runtime.defineValueInRegion(env, name, mutable, typeName, value, MemoryStack)
+}
+
+func (runtime *Runtime) defineValueInRegion(env *Environment, name string, mutable bool, typeName string, value Value, region MemoryRegion) error {
 	snapshot := cloneValue(value)
-	return env.Define(name, mutable, typeName, snapshot, runtime.memory.Allocate(snapshot))
+	return env.Define(name, mutable, typeName, snapshot, runtime.memory.Allocate(snapshot, region))
 }
 
 func (runtime *Runtime) storeBindingValue(binding *Binding, value Value) {
@@ -801,6 +868,19 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			return NullValue(), err
 		}
 		return BoolValue(value.Kind != ValueNull), nil
+	case parser.PropagateExpression:
+		value, err := runtime.evalExpression(current.Value, env)
+		if err != nil {
+			return NullValue(), err
+		}
+		if value.Kind != ValueResult {
+			return NullValue(), Error{Message: fmt.Sprintf("! expects Result, got %s", value.Kind)}
+		}
+		result := value.Data.(ResultData)
+		if result.Ok {
+			return result.Value, nil
+		}
+		return NullValue(), thrownError{Value: result.Value}
 	case parser.ConditionalExpression:
 		condition, err := runtime.evalExpression(current.Condition, env)
 		if err != nil {
@@ -1319,6 +1399,9 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 		if currentSignal.kind == signalTailCall {
 			args = currentSignal.tailArgs
 			continue
+		}
+		if currentSignal.kind == signalThrow {
+			return NullValue(), Error{Message: "uncaught exception: " + valueString(currentSignal.value)}
 		}
 		if currentSignal.kind == signalReturn {
 			if !valueMatchesType(currentSignal.value, function.ReturnType) {

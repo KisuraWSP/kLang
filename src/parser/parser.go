@@ -86,8 +86,12 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseVariable("local", false)
 	case lexer.TokenReturn:
 		return parser.parseReturn()
+	case lexer.TokenThrow:
+		return parser.parseThrow()
 	case lexer.TokenBreak:
 		return parser.parseBreak()
+	case lexer.TokenTry:
+		return parser.parseTryCatch()
 	case lexer.TokenIf:
 		return parser.parseCondition("if")
 	case lexer.TokenUnless:
@@ -458,10 +462,34 @@ func (parser *Parser) parseReturn() Statement {
 	}
 }
 
+func (parser *Parser) parseThrow() Statement {
+	start := parser.consume(lexer.TokenThrow, "expected throw")
+	expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
+	parser.consumeOptionalSemicolon()
+	return ThrowStatement{
+		Pos:        positionFromToken(start),
+		Expression: expr,
+	}
+}
+
 func (parser *Parser) parseBreak() Statement {
 	start := parser.consume(lexer.TokenBreak, "expected break")
 	parser.consumeOptionalSemicolon()
 	return BreakStatement{Pos: positionFromToken(start)}
+}
+
+func (parser *Parser) parseTryCatch() Statement {
+	start := parser.consume(lexer.TokenTry, "expected try")
+	tryBody := parser.parseBlock()
+	parser.consume(lexer.TokenCatch, "expected catch after try block")
+	errorName := parser.consume(lexer.TokenIdentifier, "expected catch error name")
+	catchBody := parser.parseBlock()
+	return TryCatchStatement{
+		Pos:       positionFromToken(start),
+		TryBody:   tryBody,
+		ErrorName: errorName.Literal,
+		CatchBody: catchBody,
+	}
 }
 
 func (parser *Parser) parseCondition(kind string) Statement {
@@ -527,7 +555,7 @@ func inlineStatementStart(tokens []lexer.Token) int {
 	for index, token := range tokens {
 		switch token.Type {
 		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport,
-			lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
+			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
 			return index
 		}
 	}
@@ -804,6 +832,7 @@ func (parser *Parser) synchronize() {
 		}
 		switch parser.current().Type {
 		case lexer.TokenFunc, lexer.TokenFuncGroup, lexer.TokenInner, lexer.TokenGlobal, lexer.TokenLocal, lexer.TokenExport, lexer.TokenReturn,
+			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCatch,
 			lexer.TokenIf, lexer.TokenUnless, lexer.TokenFor, lexer.TokenWhile,
 			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenAlias, lexer.TokenLazy,
 			lexer.TokenTrait, lexer.TokenImpl, lexer.TokenNameSpace:

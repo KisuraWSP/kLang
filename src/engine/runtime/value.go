@@ -660,6 +660,45 @@ func valueString(value Value) string {
 	}
 }
 
+func valueSize(value Value) int {
+	switch value.Kind {
+	case ValueNull:
+		return 0
+	case ValueInt, ValueFloat, ValueBool, ValueChar, ValueFunction:
+		return 8
+	case ValueString:
+		return len(value.Data.(string))
+	case ValueList:
+		size := 24
+		for _, item := range value.Data.([]Value) {
+			size += valueSize(item)
+		}
+		return size
+	case ValueMap:
+		size := 48
+		for key, item := range value.Data.(map[string]Value) {
+			size += len(key) + valueSize(item)
+		}
+		return size
+	case ValueOption:
+		return 8 + valueSize(value.Data.(OptionData).Value)
+	case ValueResult:
+		return 8 + valueSize(value.Data.(ResultData).Value)
+	case ValueComplex:
+		return 16
+	case ValueSIMD:
+		size := 16
+		for _, lane := range value.Data.(SIMDData).Lanes {
+			size += valueSize(lane)
+		}
+		return size
+	case ValueThunk:
+		return 16
+	default:
+		return 8
+	}
+}
+
 func valueLen(value Value) (int, error) {
 	switch value.Kind {
 	case ValueString:

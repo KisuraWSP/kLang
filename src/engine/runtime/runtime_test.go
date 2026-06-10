@@ -958,7 +958,7 @@ function Main() : Int {
 
 func TestRuntimeBorrowCheckerRejectsConflictingMutableBorrow(t *testing.T) {
 	memory := NewMemory()
-	objectID := memory.Allocate(IntValue(10))
+	objectID := memory.Allocate(IntValue(10), MemoryStack)
 
 	if err := memory.BorrowImmutable(objectID); err != nil {
 		t.Fatalf("unexpected immutable borrow error: %v", err)
@@ -969,6 +969,27 @@ func TestRuntimeBorrowCheckerRejectsConflictingMutableBorrow(t *testing.T) {
 	memory.ReleaseImmutable(objectID)
 	if err := memory.BorrowMutable(objectID); err != nil {
 		t.Fatalf("expected mutable borrow after release to pass, got %v", err)
+	}
+}
+
+func TestRuntimeTracksStackAndHeapMemory(t *testing.T) {
+	result := runParsedSource(t, `
+global Int shared = 10;
+
+function Main() : Int {
+    local Int localValue = shared + 1;
+    return localValue;
+}
+`)
+
+	if result.Memory.HeapObjects == 0 {
+		t.Fatalf("expected heap allocations for global values, got %#v", result.Memory)
+	}
+	if result.Memory.StackObjects == 0 {
+		t.Fatalf("expected stack allocations for local values, got %#v", result.Memory)
+	}
+	if result.Memory.TotalObjects != result.Memory.StackObjects+result.Memory.HeapObjects {
+		t.Fatalf("unexpected memory totals: %#v", result.Memory)
 	}
 }
 
@@ -1045,6 +1066,61 @@ function Main() : Int {
 	if strings.Join(result.Output, ",") != strings.Join(expectedOutput, ",") {
 		t.Fatalf("expected output %v, got %v", expectedOutput, result.Output)
 	}
+}
+
+func TestRuntimeCatchesThrownValues(t *testing.T) {
+	result := runSource(t, `
+function Main() : Int {
+    try {
+        throw "bad";
+    } catch err {
+        print(err);
+        return 7;
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 7 {
+		t.Fatalf("expected caught throw to return 7, got %#v", result.Value)
+	}
+	if strings.Join(result.Output, ",") != "bad" {
+		t.Fatalf("expected caught error output, got %v", result.Output)
+	}
+}
+
+func TestRuntimePropagatesResultErrorsWithBang(t *testing.T) {
+	result := runSource(t, `
+function Fallible() : Result[Int, String] {
+    return Err("nope");
+}
+
+function Main() : Int {
+    try {
+        local Int value = Fallible()!;
+        return value;
+    } catch err {
+        print(err);
+        return 42;
+    }
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 42 {
+		t.Fatalf("expected propagated error to return 42, got %#v", result.Value)
+	}
+	if strings.Join(result.Output, ",") != "nope" {
+		t.Fatalf("expected propagated error output, got %v", result.Output)
+	}
+}
+
+func TestRuntimeReportsUncaughtException(t *testing.T) {
+	_, err := runSourceWithError(`
+function Main() : Int {
+    throw "boom";
+}
+`)
+	assertRuntimeErrorContains(t, err, "uncaught exception: boom")
 }
 
 func runSource(t *testing.T, source string) Result {
