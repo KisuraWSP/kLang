@@ -1,0 +1,14 @@
+namespace Player {
+    function BuildNameScore(name : String) : Int {
+        local T boxedName = Box(name);
+        local Int length = len(name);
+        local mut Int score = 0;
+
+        for i := range(length) {
+            score += i + 1;
+        }
+
+        print("player", boxedName, length, score);
+        return score + length;
+    }
+}

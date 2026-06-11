@@ -1,0 +1,14 @@
+namespace Arena {
+    function BuildIndexes(size : Int) : List[Int] {
+        return [index for index in range(size)];
+    }
+
+    function StartEnergy(size : Int, nameScore : Int) : Int {
+        local T boxedSize = Box(size);
+        local T restrict[Int] cells = size * size;
+        local Int energy = cells + nameScore;
+
+        print("arena", boxedSize, cells, energy);
+        return energy;
+    }
+}

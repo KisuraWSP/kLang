@@ -1,0 +1,23 @@
+namespace GameRules {
+    function OnlyInt[T restrict[Int]](value : T) : T {
+        return value;
+    }
+
+    function NormalizeSize(value : Int) : Int {
+        local T restrict[Int] restricted = OnlyInt(value);
+
+        if restricted < 1 {
+            return 1;
+        }
+        if restricted > 12 {
+            return 12;
+        }
+
+        return restricted;
+    }
+
+    function CellPower(row : Int, col : Int, seed : Int) : Int {
+        local Int mixed = (row + 1) * (col + 1) + seed;
+        return mixed % 7 + 1;
+    }
+}

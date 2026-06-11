@@ -1,0 +1,12 @@
+namespace App {
+    function Start() : Int {
+        local String playerName = input("pilot name: ");
+        local String sizeText = input("arena size: ");
+        local Int arenaSize = GameRules.NormalizeSize(sizeText as Int);
+        local Int nameScore = Player.BuildNameScore(playerName);
+        local Int finalScore = Simulation.Run(playerName, arenaSize, nameScore);
+
+        print("command line arena", playerName, arenaSize, finalScore);
+        return finalScore;
+    }
+}

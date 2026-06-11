@@ -1,0 +1,36 @@
+namespace Simulation {
+    function FinalScore(total : Int, size : Int) : Int {
+        local T boxedTotal = Box(total);
+        local T restrict[Int] cells = size * size;
+        local T restrict[Int] finalScore = total + cells;
+
+        print("score", boxedTotal, cells, finalScore);
+        return finalScore;
+    }
+
+    function DuelRound(row : Int, col : Int, nameScore : Int) : Int {
+        local Int terrain = GameRules.CellPower(row, col, nameScore);
+
+        if (row + col) % 2 == 0 {
+            return terrain + nameScore % 5;
+        }
+
+        return terrain;
+    }
+
+    function Run(playerName : String, size : Int, nameScore : Int) : Int {
+        local List[Int] rows = Arena.BuildIndexes(size);
+        local List[Int] cols = Arena.BuildIndexes(size);
+        local mut Int total = Arena.StartEnergy(size, nameScore);
+
+        for row := range(size) {
+            for col := range(size) {
+                total += DuelRound(rows[row], cols[col], nameScore);
+            }
+        }
+
+        local Int finalScore = FinalScore(total, size);
+        print("simulation", playerName, size, finalScore);
+        return finalScore;
+    }
+}

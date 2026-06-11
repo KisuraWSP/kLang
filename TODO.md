@@ -28,7 +28,7 @@ if x == {
     - and also provide a way for the programmer to be able to access such an array
 - caching system for improvement of langauge speed
 - restrict on lambda functions
-
+- immutable arguments/parameters on functions (to make a parameter/argument mutable use the "mut" keyword)
 
 # LATER <once todo is done>
 - make the runtime be able to work on users native os <done after first>
