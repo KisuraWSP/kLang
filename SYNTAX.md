@@ -329,6 +329,43 @@ local T arrayList = ArrayList("value", 1, 100);
 local Int arrayListLength = arrayList.get_length();
 local Int extendedLength = arrayList.with_extra(5);
 
+-- generic Array alias with allocator support
+-- allocator is typed as T so HeapAllocator, RegionAllocator, BumpAllocator, ArenaAllocator,
+-- Box, Ref, RefMut, RefCell, or any future allocator-like value can be passed in.
+alias function Array[T: Any](data: T, length: int, capacity: int, allocator: T = .DEFAULT) -> type
+    [new] do
+        allocator.region = get_default_procces_allocator(#region(capacity, T), #sizeof(T));
+    end
+
+    [delete] do
+        allocator.free = free_all_allocator(.{});
+    end
+
+    [side_effects] do
+        allocator.free = free_all_allocator(.{});
+    end
+
+    #extend do
+        function get_length() -> int
+            return this.length;
+        end
+
+        function get_capacity() -> int
+            return this.capacity;
+        end
+
+        function remaining() -> int
+            return this.capacity - this.length;
+        end
+    end
+end
+
+local T heapArray = Array(10, 1, 32, HeapAllocator());
+local T regionArray = Array("text", 1, 64, RegionAllocator("TextRegion"));
+local T bumpArray = Array(True, 1, 128, BumpAllocator());
+local T defaultArray = Array(0, 0, 16);
+local Int arrayRemaining = heapArray.remaining();
+
 -- allocator and pointer-like wrappers
 -- These values are tracked as heap allocations by the runtime memory model.
 local T boxed = Box("value");

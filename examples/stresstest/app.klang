@@ -1,9 +1,5 @@
 
 namespace App {
-    function Array[T restrict[Box[Int], Ref[String]]](data: T, size: Int) : T {
-        return data;
-    }
-
     function Printf(formatString : String, value : List[T]) : Int {
         -- % is the universal placeholder. It consumes the next value from value.
         -- %% prints a literal percent sign.
@@ -42,6 +38,35 @@ namespace App {
 
 
     function Start() : Int {
+
+        alias function Array[T: Any](data: T, length: int, capacity: int, allocator: T = .DEFAULT) -> type 
+            [new] do
+                allocator.region = get_default_procces_allocator(#region(capacity, T), #sizeof(T));
+            end
+
+            [delete] do
+                allocator.free = free_all_allocator(.{});
+            end
+
+            [side_effects] do
+                allocator.free = free_all_allocator(.{});
+            end
+
+            #extend do
+                function get_length() -> int
+                    return this.length;
+                end
+
+                function get_capacity() -> int
+                    return this.capacity;
+                end
+
+                function remaining() -> int
+                    return this.capacity - this.length;
+                end
+            end
+        end
+        
         -- print("Starting stress test...");
         -- local mut String x = input("Enter a number");
         -- local mut Box[Int] arr = Box(0);
@@ -53,6 +78,17 @@ namespace App {
         -- }
         -- print(x);
         Printf("Hello, %! You have % new messages. %%", ["Alice", 5]);
+        local T heapArray = Array(10, 1, 32, HeapAllocator());
+        local T regionArray = Array("text", 1, 64, RegionAllocator("TextRegion"));
+        local T bumpArray = Array(True, 1, 128, BumpAllocator());
+        local T defaultArray = Array(0, 0, 16);
+        local Int arrayRemaining = heapArray.remaining();
+
+        print("Heap Array - Length:", heapArray.get_length(), "Capacity:", heapArray.get_capacity(), "Remaining:", arrayRemaining);
+        print("Region Array - Length:", regionArray.get_length(), "Capacity:", regionArray.get_capacity(), "Remaining:", regionArray.remaining());
+        print("Bump Array - Length:", bumpArray.get_length(), "Capacity:", bumpArray.get_capacity(), "Remaining:", bumpArray.remaining());
+        print("Default Array - Length:", defaultArray.get_length(), "Capacity:", defaultArray.get_capacity(), "Remaining:", defaultArray.remaining());
+        print("Stress test completed.");
         return 0;
     }
 }
