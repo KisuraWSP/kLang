@@ -421,6 +421,7 @@ func (checker *TypeChecker) collectGlobals(unit sourceUnit) {
 			checker.addError(unit.Path, decl.Line, fmt.Sprintf("global variable %q is already defined", decl.Name))
 			continue
 		}
+		checker.checkDeclaredType(decl.Type, unit.Path, decl.Line)
 
 		if decl.Expression != "" {
 			exprType := checker.inferExpression(decl.Expression, map[string]variableSymbol{}, unit.Path, decl.Line)
@@ -493,6 +494,7 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 
 		if decl, ok := parseVariableDeclaration(current, "local"); ok {
 			inferredType := ""
+			checker.checkDeclaredType(decl.Type, fn.File, line)
 			if decl.Expression != "" {
 				exprType := checker.inferExpression(decl.Expression, locals, fn.File, line)
 				if !isAssignable(decl.Type, exprType) {
@@ -1074,6 +1076,25 @@ func (checker *TypeChecker) aliasMethodType(typeName string, methodName string) 
 		return "Function[" + strings.Join(parts, ",") + "]", true
 	}
 	return "", false
+}
+
+func (checker *TypeChecker) checkDeclaredType(typeName string, source string, line int) {
+	typeName = normalizeType(typeName)
+	if !isKnownType(typeName) {
+		checker.addError(source, line, fmt.Sprintf("unknown type %s", typeName))
+		return
+	}
+	if !isArrayTypeName(typeName) {
+		return
+	}
+	regionName := arrayRegionName(typeName)
+	if regionName == "" {
+		checker.addError(source, line, fmt.Sprintf("array type %s is missing a region", typeName))
+		return
+	}
+	if _, ok := checker.regions[regionName]; !ok {
+		checker.addError(source, line, fmt.Sprintf("array type %s uses unknown region %q", typeName, regionName))
+	}
 }
 
 func (checker *TypeChecker) checkPipe(left string, right string, locals map[string]variableSymbol, source string, line int) string {
@@ -1973,6 +1994,15 @@ func arrayElementType(typeName string) (string, bool) {
 		return "", false
 	}
 	return normalizeType(typeName[:index]), true
+}
+
+func arrayRegionName(typeName string) string {
+	typeName = normalizeType(typeName)
+	index := strings.Index(typeName, "[")
+	if index <= 0 || !strings.HasSuffix(typeName, "]") || !isArrayTypeName(typeName) {
+		return ""
+	}
+	return strings.TrimSpace(typeName[index+1 : len(typeName)-1])
 }
 
 func indexedValueType(typeName string) string {

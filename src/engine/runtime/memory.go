@@ -56,10 +56,10 @@ func (memory *Memory) Allocate(value Value, region MemoryRegion) int {
 
 func (memory *Memory) Store(id int, value Value) {
 	if object, ok := memory.objects[id]; ok {
-		memory.addAccounting(object.Region, -object.Bytes)
+		oldBytes := object.Bytes
 		object.Value = value
 		object.Bytes = valueSize(value)
-		memory.addAccounting(object.Region, object.Bytes)
+		memory.addBytes(object.Region, object.Bytes-oldBytes)
 	}
 }
 
@@ -84,6 +84,14 @@ func (memory *Memory) addAccounting(region MemoryRegion, bytes int) {
 	}
 	if bytes > 0 {
 		memory.stackObjects++
+	}
+	memory.stackBytes += bytes
+}
+
+func (memory *Memory) addBytes(region MemoryRegion, bytes int) {
+	if region == MemoryHeap {
+		memory.heapBytes += bytes
+		return
 	}
 	memory.stackBytes += bytes
 }

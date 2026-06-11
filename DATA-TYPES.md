@@ -13,7 +13,7 @@
 12. SIMD[$Lane]
 13. Function[...$Args, $Return]
 14. T // Builtin Generic Type Value containing Information of respective data type
-15. T[$Region] // Region-backed array/slice storage with zero-based indexing
+15. T[$Region] // Region-backed array/slice storage with zero-based indexing and region capacity checks
 16. Box[$Item]
 17. Ref[$Item]
 18. RefMut[$Item]

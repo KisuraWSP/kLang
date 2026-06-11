@@ -870,6 +870,15 @@ func arrayElementRuntimeType(typeName string) (string, bool) {
 	return strings.TrimSpace(typeName[:index]), true
 }
 
+func regionNameFromRuntimeArrayType(typeName string) string {
+	typeName = strings.TrimSpace(typeName)
+	index := strings.Index(typeName, "[")
+	if index <= 0 || !strings.HasSuffix(typeName, "]") || !isRuntimeArrayType(typeName) {
+		return ""
+	}
+	return strings.TrimSpace(typeName[index+1 : len(typeName)-1])
+}
+
 func mapTypes(typeName string) (string, string, bool) {
 	typeName = strings.TrimSpace(typeName)
 	if !strings.HasPrefix(typeName, "Map[") || !strings.HasSuffix(typeName, "]") {

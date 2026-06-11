@@ -991,6 +991,59 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramRejectsUnknownRegionArrayType(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut T[MissingRegion] myArray;
+    myArray[0] = "String";
+    return len(myArray);
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `array type T[MissingRegion] uses unknown region "MissingRegion"`)
+}
+
+func TestCheckProgramChecksAliasExtensionMethodArguments(t *testing.T) {
+	program := programFromSource(`
+alias function Counter(value: int) -> type
+    #extend do
+        function add(amount : Int) -> int
+            return this.value + amount;
+        end
+    end
+end
+
+function Main() : Int {
+    local T counter = Counter(2);
+    return counter.add(3);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected extension method argument program to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsAliasExtensionMethodArgumentMismatch(t *testing.T) {
+	program := programFromSource(`
+alias function Counter(value: int) -> type
+    #extend do
+        function add(amount : Int) -> int
+            return this.value + amount;
+        end
+    end
+end
+
+function Main() : Int {
+    local T counter = Counter(2);
+    return counter.add("bad");
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "callback counter.add argument 1 expects Int, got String")
+}
+
 func TestCheckProgramAcceptsAllocatorConstructors(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

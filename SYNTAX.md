@@ -63,6 +63,7 @@ local Int total = scores["total"];
 
 -- user-defined memory regions for arrays and slices
 -- T[RegionName] stores a zero-initialized region-backed array/slice value.
+-- The final region argument is the maximum element count.
 region MyRegion(T, sizeof(T) * 100, 10);
 local mut T[MyRegion] myArray;
 myArray[0] = "String";
@@ -269,13 +270,19 @@ alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator 
         function get_length() -> int
             return this.length;
         end
+
+        function with_extra(extra : Int) -> int
+            return this.length + extra;
+        end
     end
 end
 
 local T arrayList = ArrayList("value", 1, 100);
 local Int arrayListLength = arrayList.get_length();
+local Int extendedLength = arrayList.with_extra(5);
 
 -- allocator and pointer-like wrappers
+-- These values are tracked as heap allocations by the runtime memory model.
 local T boxed = Box("value");
 local T ref = Ref(boxed);
 local T refMut = RefMut(boxed);

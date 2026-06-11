@@ -347,6 +347,8 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		if current.Scope == "global" || current.Exported {
 			targetEnv = runtime.global
 			region = MemoryHeap
+		} else if preferred := preferredMemoryRegion(value); preferred != "" {
+			region = preferred
 		}
 		if err := runtime.defineValueInRegion(targetEnv, current.Name, current.Mutable, current.Type, value, region); err != nil {
 			return signal{}, errorAt(current.Pos, err.Error())
@@ -800,6 +802,9 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 		}
 		if position < 0 {
 			return Error{Message: fmt.Sprintf("list index %d is out of bounds", position)}
+		}
+		if capacity, ok := runtime.regionArrayCapacity(binding.Type); ok && position >= capacity {
+			return Error{Message: fmt.Sprintf("array index %d exceeds region %s capacity %d", position, regionNameFromRuntimeArrayType(binding.Type), capacity)}
 		}
 		for len(items) <= position {
 			items = append(items, NullValue())
@@ -1505,6 +1510,19 @@ func allocatorObject(kind string, fields map[string]Value) Value {
 	return Value{Kind: ValueObject, Data: ObjectData{Type: kind, Fields: copied}}
 }
 
+func preferredMemoryRegion(value Value) MemoryRegion {
+	if value.Kind != ValueObject {
+		return ""
+	}
+	object := value.Data.(ObjectData)
+	switch object.Type {
+	case "Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
+		return MemoryHeap
+	default:
+		return MemoryHeap
+	}
+}
+
 func (runtime *Runtime) callAliasFunction(name string, args []Value) (Value, error) {
 	alias, ok := runtime.aliasFunctions[name]
 	if !ok {
@@ -1563,6 +1581,10 @@ func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parse
 		if fn.Name != method.Name {
 			continue
 		}
+		required := requiredRuntimeParamCount(fn.Params)
+		if len(argNodes) < required || len(argNodes) > len(fn.Params) {
+			return NullValue(), Error{Message: fmt.Sprintf("method %s.%s expects %d to %d argument(s), got %d", method.Type, method.Name, required, len(fn.Params), len(argNodes))}
+		}
 		args := make([]Value, 0, len(argNodes))
 		for _, arg := range argNodes {
 			value, err := runtime.evalExpression(arg, env)
@@ -1579,6 +1601,15 @@ func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parse
 			value := zeroValue(param.Type)
 			if index < len(args) {
 				value = args[index]
+			} else if param.Default.Node != nil {
+				evaluated, err := runtime.evalExpression(param.Default.Node, methodEnv)
+				if err != nil {
+					return NullValue(), err
+				}
+				value = evaluated
+			}
+			if !valueMatchesType(value, param.Type) {
+				return NullValue(), Error{Message: fmt.Sprintf("method %s.%s argument %d expects %s, got %s", method.Type, method.Name, index+1, param.Type, runtimeTypeName(value))}
 			}
 			if err := runtime.defineValue(methodEnv, param.Name, false, param.Type, value); err != nil {
 				return NullValue(), err
@@ -1594,6 +1625,18 @@ func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parse
 		return NullValue(), nil
 	}
 	return NullValue(), Error{Message: fmt.Sprintf("unknown method %s.%s", method.Type, method.Name)}
+}
+
+func (runtime *Runtime) regionArrayCapacity(typeName string) (int, bool) {
+	regionName := regionNameFromRuntimeArrayType(typeName)
+	if regionName == "" {
+		return 0, false
+	}
+	region, ok := runtime.regions[regionName]
+	if !ok || region.Count.Kind != ValueInt {
+		return 0, false
+	}
+	return region.Count.Data.(int), true
 }
 
 func (runtime *Runtime) callFunctionGroup(name string, args []Value) (Value, error) {

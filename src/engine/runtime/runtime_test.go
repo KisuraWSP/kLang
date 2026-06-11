@@ -1144,6 +1144,46 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesAliasExtensionMethodArguments(t *testing.T) {
+	result := runParsedSource(t, `
+alias function Counter(value: int) -> type
+    #extend do
+        function add(amount : Int) -> int
+            return this.value + amount;
+        end
+    end
+end
+
+function Main() : Int {
+    local T counter = Counter(2);
+    return counter.add(3);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 5 {
+		t.Fatalf("expected extension method argument call to return 5, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsAliasExtensionMethodArgumentMismatch(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+alias function Counter(value: int) -> type
+    #extend do
+        function add(amount : Int) -> int
+            return this.value + amount;
+        end
+    end
+end
+
+function Main() : Int {
+    local T counter = Counter(2);
+    return counter.add("bad");
+}
+`)
+
+	assertRuntimeErrorContains(t, err, "method Counter.add argument 1 expects Int")
+}
+
 func TestRuntimeExecutesRegionArraySyntax(t *testing.T) {
 	result := runParsedSource(t, `
 region MyRegion(T, sizeof(T) * 100, 10);
@@ -1160,6 +1200,20 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeRejectsRegionArrayCapacityOverflow(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+region Tiny(T, 1, 1);
+
+function Main() : Int {
+    local mut T[Tiny] myArray;
+    myArray[1] = "too far";
+    return len(myArray);
+}
+`)
+
+	assertRuntimeErrorContains(t, err, "array index 1 exceeds region Tiny capacity 1")
+}
+
 func TestRuntimeExecutesAllocatorConstructors(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {
@@ -1171,6 +1225,26 @@ function Main() : Int {
 
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 17 {
 		t.Fatalf("expected allocator kind lengths to total 17, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeAllocatesAliasAndAllocatorObjectsOnHeap(t *testing.T) {
+	result := runParsedSource(t, `
+alias function Boxed(value: int) -> type
+end
+
+function Main() : Int {
+    local T boxed = Box(1);
+    local T custom = Boxed(2);
+    return boxed.value + custom.value;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 3 {
+		t.Fatalf("expected object values to return 3, got %#v", result.Value)
+	}
+	if result.Memory.HeapObjects < 2 {
+		t.Fatalf("expected allocator/custom objects on heap, got %#v", result.Memory)
 	}
 }
 

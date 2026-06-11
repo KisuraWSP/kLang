@@ -12,4 +12,6 @@ Rules
 - Variables have scopes (either via the global or local keyword)
 - Variables are immutable by default unless specified mutable via (mut keyword)
 - Extension methods declared inside an alias function use `this` as their receiver.
-- Region-backed array types use the `ElementType[RegionName]` form.
+- Region-backed array types use the `ElementType[RegionName]` form and must reference an existing `region`.
+- Region-backed arrays grow through indexed assignment, but an index must be inside the region count.
+- Alias-created objects and allocator wrapper objects are heap allocations for runtime memory tracking.
