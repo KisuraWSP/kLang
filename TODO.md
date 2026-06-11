@@ -1,6 +1,8 @@
 # TODO
 - foreign function interface
 - Improved CLI for better user experience and creation of ".klang" projects
+    - Add time it takes to run and execute the project once the project is finished executing
+    - Add The OS And System information each time the user does running of a project or program
 - pattern matching switch statement (like the below)
     - should support boolean operations
     - should support strings
