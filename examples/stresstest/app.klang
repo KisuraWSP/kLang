@@ -1,8 +1,20 @@
 
 namespace App {
+    function Array[T restrict[Box[Int], Ref[String]]](data: T, size: Int) : T {
+        return data;
+    }
+
+
     function Start() : Int {
         print("Starting stress test...");
         local mut String x = input("Enter a number");
+        local mut Box[Int] arr = Box(0);
+        for i:= 0; i < 100; i+=1 {
+            arr[i] = Box(i);
+            print("Added " + i);
+            print("Current array size: " + arr.size());
+            print(arr[i].value());
+        }
         print(x);
         return 0;
     }
