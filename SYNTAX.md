@@ -133,21 +133,40 @@ local SIMD[Int] doubledLanes = lanes * 2;
 2. Functions
 - Basically we want user to be able to write powerful functions like this no matter the functions signature
 ```typescript
-function Print(formatString : String, value : List[T]) : Int {
-    while info:= len(formatString) > 0 {
-        local List[String] splitStringIntoBytes = make([], getBytesFromString(formatString));
-        if splitStringIntoBytes[info] == getEncodedStringInformation(formatString, "%s") {
-            return 1;
-        } else if splitStringIntoBytes[info] == getEncodedStringInformation(formatString, "%d"){
-            return 2;
-        } else if splitStringIntoBytes[info] == getEncodedStringInformation(formatString, "%f") {
-            return 3;
-        } splitStringIntoBytes[info] == getEncodedStringInformation(formatString, "%b") {
-            return 4;
+function Printf(formatString : String, value : List[T]) : Int {
+    -- % is the universal placeholder. It consumes the next value from value.
+    -- %% prints a literal percent sign.
+    local mut Table report = {"format": formatString, "items": len(value), "placeholders": 0, "literals": 0, "valid": True};
+    local Iterator[Char] chars = iter(formatString);
+    local mut Option[Char] current = next(chars);
+    local mut Int valueIndex = 0;
+
+    while current.some {
+        if current.value == "%" {
+            local Option[Char] escaped = next(chars);
+            if escaped.some and escaped.value == "%" {
+                print("%");
+            } else if valueIndex < len(value) {
+                print(value[valueIndex]);
+                valueIndex += 1;
+                report["placeholders"] = report.placeholders + 1;
+            } else {
+                report["valid"] = False;
+            }
+        } else {
+            print(current.value);
+            report["literals"] = report.literals + 1;
         }
+
+        current = next(chars);
     }
-    
-    return 0;
+
+    if valueIndex != len(value) {
+        report["valid"] = False;
+    }
+
+    print("format", report.format, "placeholders", report.placeholders, "literals", report.literals, "valid", report.valid);
+    return report.placeholders;
 }
 
 function ToNumber(value : String) : Int {

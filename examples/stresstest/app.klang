@@ -4,18 +4,55 @@ namespace App {
         return data;
     }
 
+    function Printf(formatString : String, value : List[T]) : Int {
+        -- % is the universal placeholder. It consumes the next value from value.
+        -- %% prints a literal percent sign.
+        local mut Table report = {"format": formatString, "items": len(value), "placeholders": 0, "literals": 0, "valid": True};
+        local Iterator[Char] chars = iter(formatString);
+        local mut Option[Char] current = next(chars);
+        local mut Int valueIndex = 0;
+
+        while current.some {
+            if current.value == "%" {
+                local Option[Char] escaped = next(chars);
+                if escaped.some and escaped.value == "%" {
+                    print("%");
+                } else if valueIndex < len(value) {
+                    print(value[valueIndex]);
+                    valueIndex += 1;
+                    report["placeholders"] = report.placeholders + 1;
+                } else {
+                    report["valid"] = False;
+                }
+            } else {
+                print(current.value);
+                report["literals"] = report.literals + 1;
+            }
+
+            current = next(chars);
+        }
+
+        if valueIndex != len(value) {
+            report["valid"] = False;
+        }
+
+        print("format", report.format, "placeholders", report.placeholders, "literals", report.literals, "valid", report.valid);
+        return report.placeholders;
+    }
+
 
     function Start() : Int {
-        print("Starting stress test...");
-        local mut String x = input("Enter a number");
-        local mut Box[Int] arr = Box(0);
-        for i:= 0; i < 100; i+=1 {
-            arr[i] = Box(i);
-            print("Added " + i);
-            print("Current array size: " + arr.size());
-            print(arr[i].value());
-        }
-        print(x);
+        -- print("Starting stress test...");
+        -- local mut String x = input("Enter a number");
+        -- local mut Box[Int] arr = Box(0);
+        -- for i:= 0; i < 100; i+=1 {
+        --     arr[i] = Box(i);
+        --     print("Added " + i);
+        --     print("Current array size: " + arr.size());
+        --     print(arr[i].value());
+        -- }
+        -- print(x);
+        Printf("Hello, %! You have % new messages. %%", ["Alice", 5]);
         return 0;
     }
 }
