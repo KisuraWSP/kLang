@@ -1,6 +1,20 @@
 namespace App {
+    function Add(left : Int, right : Int) : Int {
+        return left + right;
+    }
+
+    function Apply(value : Int, callback : Function[Int, Int]) : Int {
+        return callback(value);
+    }
+
     function Start() : Int {
-        print("Welcome to functions");
-        return 0;
+        local Function[Int, Int] triple = fun(value : Int) : Int {
+            return value * 3;
+        };
+
+        local Int direct = Add(10, 5);
+        local Int applied = Apply(7, triple);
+        print("functions", direct, applied);
+        return direct + applied;
     }
 }

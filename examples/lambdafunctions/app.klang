@@ -1,6 +1,19 @@
 namespace App {
+    function Run(value : Int, callback : Function[Int, Int]) : Int {
+        return callback(value);
+    }
+
     function Start() : Int {
-        print("Welcome to lambdafunctions");
-        return 0;
+        local Function[Int, Int] increment = fun(value : Int) : Int {
+            return value + 1;
+        };
+        local Function[Int, Int] square = fun(value : Int) : Int {
+            return value * value;
+        };
+
+        local Int first = Run(4, increment);
+        local Int second = Run(first, square);
+        print("lambda", first, second);
+        return second;
     }
 }

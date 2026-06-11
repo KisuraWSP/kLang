@@ -1,6 +1,10 @@
 namespace App {
     function Start() : Int {
-        print("Welcome to simd");
-        return 0;
+        local SIMD[Int] left = SIMD([1, 2, 3, 4]);
+        local SIMD[Int] right = SIMD([10, 20, 30, 40]);
+        local SIMD[Int] total = left + right;
+        local SIMD[Int] doubled = total * 2;
+        print("simd", total, doubled);
+        return len(doubled);
     }
 }

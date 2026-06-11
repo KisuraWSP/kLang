@@ -1,6 +1,17 @@
 namespace App {
+    function BuildScore() : Int {
+        return 21 * 2;
+    }
+
     function Start() : Int {
-        print("Welcome to coroutines");
+        local Coroutine[Int] job = coroutine(BuildScore);
+        local Option[Int] first = resume(job);
+        local Option[Int] second = resume(job);
+
+        if first.some and not second.some {
+            print("coroutine", first.value);
+            return first.value;
+        }
         return 0;
     }
 }

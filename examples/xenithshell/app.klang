@@ -1,6 +1,21 @@
 namespace App {
+    function Execute(command : String) : Int {
+        local Table commands = {"help": 1, "version": 2, "exit": 0};
+        if command == "help" {
+            print("commands: help version exit");
+            return commands.help;
+        } else if command == "version" {
+            print("xenith shell 1");
+            return commands.version;
+        }
+        return commands.exit;
+    }
+
     function Start() : Int {
-        print("Welcome to xenithshell");
-        return 0;
+        local List[String] script = ["help", "version", "exit"];
+        local List[Int] codes = [Execute(command) for command in script];
+        local Int total = codes[0] + codes[1] + codes[2];
+        print("xenith shell status", total);
+        return total;
     }
 }

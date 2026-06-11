@@ -1,6 +1,27 @@
 namespace App {
+    function Label(value : Int) : String {
+        if value % 15 == 0 {
+            return "FizzBuzz";
+        } else if value % 3 == 0 {
+            return "Fizz";
+        } else if value % 5 == 0 {
+            return "Buzz";
+        }
+        return value as String;
+    }
+
     function Start() : Int {
-        print("Welcome to fizzbuzz");
-        return 0;
+        local List[Int] numbers = [index + 1 for index in range(15)];
+        local List[String] labels = [Label(value) for value in numbers];
+        local Iterator[String] iterator = iter(labels);
+        local mut Option[String] current = next(iterator);
+        local mut Int count = 0;
+
+        while current.some {
+            print(current.value);
+            count += 1;
+            current = next(iterator);
+        }
+        return count;
     }
 }

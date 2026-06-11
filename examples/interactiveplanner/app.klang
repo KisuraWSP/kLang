@@ -1,0 +1,62 @@
+namespace App {
+    function ParseTaskCount(raw : String, fallback : Int) : Int {
+        if len(raw) == 0 {
+            return fallback;
+        }
+        return raw as Int;
+    }
+
+    async function LoadDefaultTaskCount() : Int {
+        return 5;
+    }
+
+    function BuildFallbackScore() : Int {
+        return 1;
+    }
+
+    function ApplyScore(value : Int, callback : Function[Int, Int]) : Int {
+        return callback(value);
+    }
+
+    function ScoreTask(value : Int) : Int {
+        return value * 2 + 1;
+    }
+
+    function Start() : Int {
+        local String rawCount = input("task count: ");
+        local Awaitable[Int] defaultTaskCount = LoadDefaultTaskCount();
+        local Int fallbackCount = await defaultTaskCount;
+        local Int taskCount = ParseTaskCount(rawCount, fallbackCount);
+
+        local Function[Int, Int] boostScore = fun(value : Int) : Int {
+            return value + 10;
+        };
+        local Int boostedSeed = ApplyScore(1, boostScore);
+
+        local List[Int] tasks = [index + 1 for index in range(taskCount)];
+        local List[Int] scoredTasks = [ScoreTask(task) for task in tasks if task % 2 == 1 or task == taskCount];
+
+        local Iterator[Int] iterator = iter(scoredTasks);
+        local mut Option[Int] current = next(iterator);
+        local mut Int total = 0;
+
+        while current.some {
+            total += current.value;
+            current = next(iterator);
+        }
+
+        local Coroutine[Int] fallback = coroutine(BuildFallbackScore);
+        local Option[Int] fallbackScore = resume(fallback);
+        if total == 0 and fallbackScore.some {
+            total += fallbackScore.value;
+        }
+
+        local Table summary = {"raw": rawCount, "count": taskCount, "scored": len(scoredTasks), "total": total, "seed": boostedSeed};
+        local T allocator = HeapAllocator();
+        local Complex signal = Complex(total, len(scoredTasks));
+        local SIMD[Int] lanes = SIMD([total, len(scoredTasks), taskCount, fallbackScore.value]);
+
+        print("planner", rawCount, taskCount, len(scoredTasks), total, boostedSeed, signal, lanes, allocator);
+        return total;
+    }
+}

@@ -1,6 +1,17 @@
 namespace App {
     function Start() : Int {
-        print("Welcome to variables");
-        return 0;
+        local Int immutableCount = 2;
+        local mut Int counter = immutableCount;
+        counter += 3;
+
+        local mut List[Int] scores = [counter, counter + 1, counter + 2];
+        scores[0] = scores[0] + 10;
+
+        local Map[String, Int] lookup = {"first": scores[0], "second": scores[1]};
+        local mut Table state = {"name": "variables", "active": True};
+        state["total"] = lookup["first"] + lookup["second"];
+
+        print(state.name, state.active, state.total);
+        return state.total;
     }
 }

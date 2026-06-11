@@ -1,94 +1,33 @@
 
 namespace App {
-    function Printf(formatString : String, value : List[T]) : Int {
-        -- % is the universal placeholder. It consumes the next value from value.
-        -- %% prints a literal percent sign.
-        local mut Table report = {"format": formatString, "items": len(value), "placeholders": 0, "literals": 0, "valid": True};
-        local Iterator[Char] chars = iter(formatString);
-        local mut Option[Char] current = next(chars);
-        local mut Int valueIndex = 0;
-
-        while current.some {
-            if current.value == "%" {
-                local Option[Char] escaped = next(chars);
-                if escaped.some and escaped.value == "%" {
-                    print("%");
-                } else if valueIndex < len(value) {
-                    print(value[valueIndex]);
-                    valueIndex += 1;
-                    report["placeholders"] = report.placeholders + 1;
-                } else {
-                    report["valid"] = False;
-                }
-            } else {
-                print(current.value);
-                report["literals"] = report.literals + 1;
-            }
-
-            current = next(chars);
-        }
-
-        if valueIndex != len(value) {
-            report["valid"] = False;
-        }
-
-        print("format", report.format, "placeholders", report.placeholders, "literals", report.literals, "valid", report.valid);
-        return report.placeholders;
+    async function LoadBatchSize() : Int {
+        return 10;
     }
 
+    function Score(value : Int) : Int {
+        return value * value + 1;
+    }
 
     function Start() : Int {
+        local Awaitable[Int] pendingBatch = LoadBatchSize();
+        local Int batch = await pendingBatch;
+        local List[Int] values = [index for index in range(batch)];
+        local List[Int] scored = [Score(value) for value in values if value % 2 == 0];
 
-        alias function Array[T: Any](data: T, length: int, capacity: int, allocator: T = .DEFAULT) -> type 
-            [new] do
-                allocator.region = get_default_procces_allocator(#region(capacity, T), #sizeof(T));
-            end
+        local Iterator[Int] iterator = iter(scored);
+        local mut Option[Int] current = next(iterator);
+        local mut Int total = 0;
+        local mut Table stats = {"count": len(scored), "max": 0, "allocator": HeapAllocator()};
 
-            [delete] do
-                allocator.free = free_all_allocator(.{});
-            end
+        while current.some {
+            total += current.value;
+            if current.value > stats.max {
+                stats["max"] = current.value;
+            }
+            current = next(iterator);
+        }
 
-            [side_effects] do
-                allocator.free = free_all_allocator(.{});
-            end
-
-            #extend do
-                function get_length() -> int
-                    return this.length;
-                end
-
-                function get_capacity() -> int
-                    return this.capacity;
-                end
-
-                function remaining() -> int
-                    return this.capacity - this.length;
-                end
-            end
-        end
-        
-        -- print("Starting stress test...");
-        -- local mut String x = input("Enter a number");
-        -- local mut Box[Int] arr = Box(0);
-        -- for i:= 0; i < 100; i+=1 {
-        --     arr[i] = Box(i);
-        --     print("Added " + i);
-        --     print("Current array size: " + arr.size());
-        --     print(arr[i].value());
-        -- }
-        -- print(x);
-        Printf("Hello, %! You have % new messages. %%", ["Alice", 5]);
-        local T heapArray = Array(10, 1, 32, HeapAllocator());
-        local T regionArray = Array("text", 1, 64, RegionAllocator("TextRegion"));
-        local T bumpArray = Array(True, 1, 128, BumpAllocator());
-        local T defaultArray = Array(0, 0, 16);
-        local Int arrayRemaining = heapArray.remaining();
-
-        print("Heap Array - Length:", heapArray.get_length(), "Capacity:", heapArray.get_capacity(), "Remaining:", arrayRemaining);
-        print("Region Array - Length:", regionArray.get_length(), "Capacity:", regionArray.get_capacity(), "Remaining:", regionArray.remaining());
-        print("Bump Array - Length:", bumpArray.get_length(), "Capacity:", bumpArray.get_capacity(), "Remaining:", bumpArray.remaining());
-        print("Default Array - Length:", defaultArray.get_length(), "Capacity:", defaultArray.get_capacity(), "Remaining:", defaultArray.remaining());
-        print("Stress test completed.");
-        return 0;
+        print("stress", stats.count, stats.max, total, stats.allocator);
+        return total;
     }
 }

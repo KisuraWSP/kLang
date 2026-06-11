@@ -1,6 +1,20 @@
 namespace App {
+    function AliveNext(alive : Bool, neighbors : Int) : Bool {
+        if alive and (neighbors == 2 or neighbors == 3) {
+            return True;
+        }
+        if not alive and neighbors == 3 {
+            return True;
+        }
+        return False;
+    }
+
     function Start() : Int {
-        print("Welcome to gameoflife");
-        return 0;
+        local List[Int] neighbors = [1, 2, 3, 2, 4];
+        local List[Bool] cells = [False, True, True, True, False];
+        local List[Bool] next = [AliveNext(cells[index], neighbors[index]) for index in range(len(cells))];
+        local List[Int] aliveIndexes = [index for index in range(len(next)) if next[index]];
+        print("game of life alive cells", len(aliveIndexes));
+        return len(aliveIndexes);
     }
 }

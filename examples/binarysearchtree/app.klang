@@ -1,6 +1,16 @@
 namespace App {
     function Start() : Int {
-        print("Welcome to binarysearchtree");
-        return 0;
+        local Table root = {"value": 8, "left": 3, "right": 10};
+        local Table left = {"value": root.left, "left": 1, "right": 6};
+        local Table right = {"value": root.right, "left": 9, "right": 14};
+
+        local Bool containsSix = left.right == 6;
+        local mut Int total = root.value + left.value + right.value;
+        if containsSix {
+            total += left.right;
+        }
+
+        print("bst", root.value, left.value, right.value, "contains 6", containsSix);
+        return total;
     }
 }

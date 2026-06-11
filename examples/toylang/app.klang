@@ -1,6 +1,25 @@
 namespace App {
+    function IsOperator(ch : Char) : Bool {
+        return ch == "+" or ch == "-" or ch == "*" or ch == "/";
+    }
+
     function Start() : Int {
-        print("Welcome to toylang");
-        return 0;
+        local String source = "1+2*3";
+        local Iterator[Char] chars = iter(source);
+        local mut Option[Char] current = next(chars);
+        local mut Int operators = 0;
+        local mut Int digits = 0;
+
+        while current.some {
+            if IsOperator(current.value) {
+                operators += 1;
+            } else {
+                digits += 1;
+            }
+            current = next(chars);
+        }
+
+        print("toy language tokens", digits, operators);
+        return digits + operators;
     }
 }

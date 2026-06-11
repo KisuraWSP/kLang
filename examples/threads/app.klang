@@ -1,6 +1,17 @@
 namespace App {
+    async function LoadUserCount() : Int {
+        return 40;
+    }
+
+    async function LoadMessageCount() : Int {
+        return 2;
+    }
+
     function Start() : Int {
-        print("Welcome to threads");
-        return 0;
+        local Awaitable[Int] users = LoadUserCount();
+        local Awaitable[Int] messages = LoadMessageCount();
+        local Int total = (await users) + (await messages);
+        print("async tasks", total);
+        return total;
     }
 }
