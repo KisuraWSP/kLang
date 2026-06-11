@@ -1,8 +1,5 @@
 # TODO
-- async await
-- iterators
 - foreign function interface
-- Table Data type to be builtin data type to the language which is used by lua (this is the only dynamically typed data type)
 - Improved CLI for better user experience and creation of ".klang" projects
 - pattern matching switch statement (like the below)
     - should support boolean operations
@@ -23,7 +20,6 @@ if x == {
 }
 ```
 - data race condition prevention mechanics and atomic data handling
-- coroutines
 - traits and other features must be able to used in function aliases
 
 

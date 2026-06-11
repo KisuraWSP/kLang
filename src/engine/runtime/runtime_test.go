@@ -1228,6 +1228,43 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesTableAsyncIteratorAndCoroutineBuiltins(t *testing.T) {
+	result := runParsedSource(t, `
+async function LoadValue() : Int {
+    return 40;
+}
+
+function BuildValue() : Int {
+    return 2;
+}
+
+function Main() : Int {
+    local mut Table data = {"name": "klang", 1: 5};
+    data["extra"] = 7;
+    local Iterator[T] iterator = iter([1, 2, 3]);
+    local Option[T] first = next(iterator);
+    local Option[T] second = next(iterator);
+    local Coroutine[Int] co = coroutine(BuildValue);
+    local Option[Int] resumed = resume(co);
+    return await LoadValue() + data.extra + len(data.name) + first.value + second.value + resumed.value;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 57 {
+		t.Fatalf("expected table/async/iterator/coroutine program to return 57, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsAwaitOnNonAwaitable(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    return await 1;
+}
+`)
+
+	assertRuntimeErrorContains(t, err, "await expects Awaitable")
+}
+
 func TestRuntimeAllocatesAliasAndAllocatorObjectsOnHeap(t *testing.T) {
 	result := runParsedSource(t, `
 alias function Boxed(value: int) -> type

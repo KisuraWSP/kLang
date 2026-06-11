@@ -134,7 +134,7 @@ func (parser *expressionParser) parsePrefix() ExpressionNode {
 		return LiteralExpression{Kind: "Char", Value: token.Literal}
 	case lexer.TokenBool:
 		return LiteralExpression{Kind: "Bool", Value: token.Literal}
-	case lexer.TokenMinus, lexer.TokenNot, lexer.TokenCall, lexer.TokenMove:
+	case lexer.TokenMinus, lexer.TokenNot, lexer.TokenCall, lexer.TokenMove, lexer.TokenAwait:
 		return UnaryExpression{
 			Operator: token.Literal,
 			Right:    parser.parseExpression(precedencePrefix),

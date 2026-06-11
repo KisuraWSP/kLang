@@ -78,9 +78,11 @@ func (parser *Parser) parseStatement() Statement {
 	case lexer.TokenAt:
 		return parser.parseTag()
 	case lexer.TokenFunc:
-		return parser.parseFunction(false, "", false, false)
+		return parser.parseFunction(false, "", false, false, false)
 	case lexer.TokenLazy:
 		return parser.parseLazyFunction()
+	case lexer.TokenAsync:
+		return parser.parseAsyncFunction()
 	case lexer.TokenInner:
 		return parser.parseInnerFunction()
 	case lexer.TokenExport:
@@ -468,7 +470,7 @@ func (parser *Parser) parseImpl() Statement {
 		if parser.match(lexer.TokenSemicolon) {
 			continue
 		}
-		stmt := parser.parseFunction(false, "", false, false)
+		stmt := parser.parseFunction(false, "", false, false, false)
 		if fn, ok := stmt.(FunctionStatement); ok {
 			methods = append(methods, fn)
 		} else {
@@ -563,7 +565,7 @@ func (parser *Parser) parseTag() Statement {
 		parser.addError(parser.current(), "@deprecated must be followed by a function declaration")
 		return nil
 	}
-	return parser.parseFunction(true, message, false, false)
+	return parser.parseFunction(true, message, false, false, false)
 }
 
 func (parser *Parser) parseLazyFunction() Statement {
@@ -572,7 +574,16 @@ func (parser *Parser) parseLazyFunction() Statement {
 		parser.addError(parser.current(), "lazy must be followed by a function declaration")
 		return nil
 	}
-	return parser.parseFunction(false, "", true, false)
+	return parser.parseFunction(false, "", true, false, false)
+}
+
+func (parser *Parser) parseAsyncFunction() Statement {
+	parser.consume(lexer.TokenAsync, "expected async")
+	if !parser.check(lexer.TokenFunc) {
+		parser.addError(parser.current(), "async must be followed by a function declaration")
+		return nil
+	}
+	return parser.parseFunction(false, "", false, true, false)
 }
 
 func (parser *Parser) parseInnerFunction() Statement {
@@ -581,10 +592,10 @@ func (parser *Parser) parseInnerFunction() Statement {
 		parser.addError(parser.current(), "inner must be followed by a function declaration")
 		return nil
 	}
-	return parser.parseFunction(false, "", false, true)
+	return parser.parseFunction(false, "", false, false, true)
 }
 
-func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string, lazy bool, inner bool) Statement {
+func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string, lazy bool, async bool, inner bool) Statement {
 	start := parser.consume(lexer.TokenFunc, "expected function")
 	name := parser.consume(lexer.TokenIdentifier, "expected function name")
 	typeParams := parser.parseTypeParameters()
@@ -606,6 +617,7 @@ func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string, 
 		Params:             params,
 		ReturnType:         returnType,
 		Lazy:               lazy,
+		Async:              async,
 		Inner:              inner,
 		Deprecated:         deprecated,
 		DeprecationMessage: deprecationMessage,
@@ -814,7 +826,7 @@ func inlineStatementStart(tokens []lexer.Token) int {
 	for index, token := range tokens {
 		switch token.Type {
 		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport,
-			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
+			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenAsync, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
 			return index
 		}
 	}

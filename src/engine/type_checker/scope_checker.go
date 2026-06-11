@@ -479,6 +479,7 @@ func selectorPath(expr parser.ExpressionNode) (string, bool) {
 func isBuiltinFunctionName(name string) bool {
 	switch name {
 	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
+		"Table", "iter", "next", "coroutine", "resume",
 		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true
 	default:

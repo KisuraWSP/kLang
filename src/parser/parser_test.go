@@ -117,6 +117,34 @@ lazy function Choose(useFirst : Bool, first : Int, second : Int) : Int {
 	}
 }
 
+func TestParseAsyncFunctionAndAwait(t *testing.T) {
+	program, errors := Parse(`
+async function LoadValue() : Int {
+    return 41;
+}
+
+function Main() : Int {
+    return await LoadValue() + 1;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	asyncFn, ok := program.Statements[0].(FunctionStatement)
+	if !ok || !asyncFn.Async || asyncFn.Name != "LoadValue" {
+		t.Fatalf("expected async function statement, got %#v", program.Statements[0])
+	}
+	mainFn := program.Statements[1].(FunctionStatement)
+	ret := mainFn.Body[0].(ReturnStatement)
+	binary, ok := ret.Expression.Node.(BinaryExpression)
+	if !ok || binary.Operator != "+" {
+		t.Fatalf("expected await expression inside binary return, got %#v", ret.Expression.Node)
+	}
+	awaitExpr, ok := binary.Left.(UnaryExpression)
+	if !ok || awaitExpr.Operator != "await" {
+		t.Fatalf("expected await unary expression, got %#v", binary.Left)
+	}
+}
+
 func TestParseInnerFunctionAndCallSelector(t *testing.T) {
 	program, errors := Parse(`
 function Test() {

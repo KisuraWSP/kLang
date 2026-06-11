@@ -28,6 +28,10 @@ const (
 	ValueResult      ValueKind = "Result"
 	ValueComplex     ValueKind = "Complex"
 	ValueSIMD        ValueKind = "SIMD"
+	ValueTable       ValueKind = "Table"
+	ValueAwaitable   ValueKind = "Awaitable"
+	ValueIterator    ValueKind = "Iterator"
+	ValueCoroutine   ValueKind = "Coroutine"
 	ValueFunction    ValueKind = "Function"
 	ValueObject      ValueKind = "Object"
 	ValueBoundMethod ValueKind = "BoundMethod"
@@ -56,6 +60,24 @@ type ComplexData struct {
 
 type SIMDData struct {
 	Lanes []Value
+}
+
+type AwaitableData struct {
+	Function string
+	Args     []Value
+	Done     bool
+	Value    Value
+}
+
+type IteratorData struct {
+	Items []Value
+	Index int
+}
+
+type CoroutineData struct {
+	Function string
+	Done     bool
+	Value    Value
 }
 
 type ThunkData struct {
@@ -338,6 +360,9 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 				}
 				return signal{}, err
 			}
+		}
+		if current.Type == "Table" && value.Kind == ValueMap {
+			value = TableValue(value.Data.(map[string]Value))
 		}
 		if !valueMatchesType(value, current.Type) {
 			return signal{}, errorAt(current.Pos, fmt.Sprintf("cannot assign %s to %s variable %q", value.Kind, current.Type, current.Name))
@@ -819,13 +844,13 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 		}
 		items[position] = next
 		runtime.storeBindingValue(binding, Value{Kind: ValueList, Data: items})
-	case ValueMap:
+	case ValueMap, ValueTable:
 		keyType, valueType, hasMapTypes := mapTypes(binding.Type)
 		items := make(map[string]Value, len(binding.Value.Data.(map[string]Value)))
 		for existingKey, existingValue := range binding.Value.Data.(map[string]Value) {
 			items[existingKey] = cloneValue(existingValue)
 		}
-		if hasMapTypes && !valueMatchesType(index, keyType) {
+		if binding.Value.Kind == ValueMap && hasMapTypes && !valueMatchesType(index, keyType) {
 			return Error{Message: fmt.Sprintf("cannot use %s as map key type %s", index.Kind, keyType)}
 		}
 		key, err := mapKey(index)
@@ -837,11 +862,11 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 		if err != nil {
 			return err
 		}
-		if hasMapTypes && !valueMatchesType(next, valueType) {
+		if binding.Value.Kind == ValueMap && hasMapTypes && !valueMatchesType(next, valueType) {
 			return Error{Message: fmt.Sprintf("cannot assign %s to map value type %s", next.Kind, valueType)}
 		}
 		items[key] = next
-		runtime.storeBindingValue(binding, Value{Kind: ValueMap, Data: items})
+		runtime.storeBindingValue(binding, Value{Kind: binding.Value.Kind, Data: items})
 	default:
 		return Error{Message: fmt.Sprintf("%s is not index-assignable", binding.Value.Kind)}
 	}
@@ -899,13 +924,33 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 		if err == nil && value.Kind == ValueFunction {
 			return FunctionValue(runtime.resolveAliasPath(value.Data.(string)) + "." + current.Field), nil
 		}
-		if err == nil && value.Kind == ValueMap {
+		if err == nil && (value.Kind == ValueMap || value.Kind == ValueTable) {
 			fields := value.Data.(map[string]Value)
 			field, ok := fields[current.Field]
 			if !ok {
 				return NullValue(), Error{Message: fmt.Sprintf("unknown field %q", current.Field)}
 			}
 			return field, nil
+		}
+		if err == nil && value.Kind == ValueOption {
+			option := value.Data.(OptionData)
+			switch current.Field {
+			case "value":
+				return option.Value, nil
+			case "some":
+				return BoolValue(option.Some), nil
+			}
+			return NullValue(), Error{Message: fmt.Sprintf("unknown Option field %q", current.Field)}
+		}
+		if err == nil && value.Kind == ValueResult {
+			result := value.Data.(ResultData)
+			switch current.Field {
+			case "value":
+				return result.Value, nil
+			case "ok":
+				return BoolValue(result.Ok), nil
+			}
+			return NullValue(), Error{Message: fmt.Sprintf("unknown Result field %q", current.Field)}
 		}
 		if err == nil && value.Kind == ValueObject {
 			object := value.Data.(ObjectData)
@@ -1046,6 +1091,9 @@ func iterableValues(value Value) ([]Value, error) {
 	switch value.Kind {
 	case ValueList:
 		return value.Data.([]Value), nil
+	case ValueIterator:
+		iterator := value.Data.(*IteratorData)
+		return iterator.Items, nil
 	case ValueString:
 		runes := []rune(value.Data.(string))
 		values := make([]Value, 0, len(runes))
@@ -1061,6 +1109,13 @@ func iterableValues(value Value) ([]Value, error) {
 		values := make([]Value, 0, count)
 		for index := 0; index < count; index++ {
 			values = append(values, IntValue(index))
+		}
+		return values, nil
+	case ValueTable:
+		fields := value.Data.(map[string]Value)
+		values := make([]Value, 0, len(fields))
+		for _, item := range fields {
+			values = append(values, item)
 		}
 		return values, nil
 	default:
@@ -1093,9 +1148,28 @@ func (runtime *Runtime) evalUnary(expr parser.UnaryExpression, env *Environment)
 			return runtime.evalCall(call, env)
 		}
 		return value, nil
+	case "await":
+		return runtime.awaitValue(value)
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported unary operator %q", expr.Operator)}
 	}
+}
+
+func (runtime *Runtime) awaitValue(value Value) (Value, error) {
+	if value.Kind != ValueAwaitable {
+		return NullValue(), Error{Message: fmt.Sprintf("await expects Awaitable, got %s", value.Kind)}
+	}
+	data := value.Data.(*AwaitableData)
+	if data.Done {
+		return data.Value, nil
+	}
+	result, err := runtime.callFunctionMode(data.Function, data.Args, false)
+	if err != nil {
+		return NullValue(), err
+	}
+	data.Done = true
+	data.Value = result
+	return result, nil
 }
 
 func (runtime *Runtime) evalMove(expr parser.ExpressionNode, env *Environment) (Value, error) {
@@ -1293,7 +1367,7 @@ func (runtime *Runtime) evalIndex(expr parser.IndexExpression, env *Environment)
 			return NullValue(), Error{Message: fmt.Sprintf("list index %d is out of bounds", position)}
 		}
 		return items[position], nil
-	case ValueMap:
+	case ValueMap, ValueTable:
 		items := target.Data.(map[string]Value)
 		key, err := mapKey(index)
 		if err != nil {
@@ -1310,6 +1384,10 @@ func (runtime *Runtime) evalIndex(expr parser.IndexExpression, env *Environment)
 }
 
 func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
+	return runtime.callFunctionMode(name, args, true)
+}
+
+func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bool) (Value, error) {
 	name = runtime.resolveAliasPath(name)
 	switch name {
 	case "print":
@@ -1400,6 +1478,69 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 			return NullValue(), Error{Message: "SIMD expects a List argument"}
 		}
 		return SIMDValue(args[0].Data.([]Value)), nil
+	case "Table":
+		if len(args) > 1 {
+			return NullValue(), Error{Message: "Table expects zero or one argument"}
+		}
+		if len(args) == 0 {
+			return TableValue(map[string]Value{}), nil
+		}
+		if args[0].Kind == ValueTable {
+			return args[0], nil
+		}
+		if args[0].Kind != ValueMap {
+			return NullValue(), Error{Message: "Table expects a map literal or Table value"}
+		}
+		return TableValue(args[0].Data.(map[string]Value)), nil
+	case "iter":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "iter expects one iterable value"}
+		}
+		values, err := iterableValues(args[0])
+		if err != nil {
+			return NullValue(), err
+		}
+		return IteratorValue(values), nil
+	case "next":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "next expects one Iterator"}
+		}
+		if args[0].Kind != ValueIterator {
+			return NullValue(), Error{Message: fmt.Sprintf("next expects Iterator, got %s", args[0].Kind)}
+		}
+		iterator := args[0].Data.(*IteratorData)
+		if iterator.Index >= len(iterator.Items) {
+			return OptionNoneValue(), nil
+		}
+		value := iterator.Items[iterator.Index]
+		iterator.Index++
+		return OptionSomeValue(value), nil
+	case "coroutine":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "coroutine expects one function"}
+		}
+		if args[0].Kind != ValueFunction {
+			return NullValue(), Error{Message: fmt.Sprintf("coroutine expects Function, got %s", args[0].Kind)}
+		}
+		return CoroutineValue(args[0].Data.(string)), nil
+	case "resume":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "resume expects one Coroutine"}
+		}
+		if args[0].Kind != ValueCoroutine {
+			return NullValue(), Error{Message: fmt.Sprintf("resume expects Coroutine, got %s", args[0].Kind)}
+		}
+		coroutine := args[0].Data.(*CoroutineData)
+		if coroutine.Done {
+			return OptionNoneValue(), nil
+		}
+		value, err := runtime.callFunctionMode(coroutine.Function, nil, false)
+		if err != nil {
+			return NullValue(), err
+		}
+		coroutine.Done = true
+		coroutine.Value = value
+		return OptionSomeValue(value), nil
 	case "Box", "Ref", "RefMut", "RefCell":
 		if len(args) != 1 {
 			return NullValue(), Error{Message: fmt.Sprintf("%s expects one value", name)}
@@ -1426,6 +1567,9 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 			return runtime.callFunctionGroup(name, args)
 		}
 		return NullValue(), Error{Message: fmt.Sprintf("unknown function %q", name)}
+	}
+	if wrapAsync && runtime.functions[resolvedName].Async {
+		return AwaitableValue(resolvedName, args), nil
 	}
 	if runtime.callDepth >= runtime.maxDepth {
 		return NullValue(), Error{Message: fmt.Sprintf("maximum call depth %d exceeded while calling %s", runtime.maxDepth, name)}
@@ -1735,6 +1879,7 @@ func (runtime *Runtime) resolveAliasPath(name string) string {
 func isBuiltinFunction(name string) bool {
 	switch name {
 	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
+		"Table", "iter", "next", "coroutine", "resume",
 		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true
 	default:

@@ -22,3 +22,7 @@
 21. RegionAllocator
 22. BumpAllocator
 23. ArenaAllocator
+24. Table // Lua-style dynamic table; this is the only dynamically typed container
+25. Awaitable[$Item]
+26. Iterator[$Item]
+27. Coroutine[$Item]

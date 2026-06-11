@@ -1065,6 +1065,55 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsTableAsyncIteratorAndCoroutineBuiltins(t *testing.T) {
+	program := programFromSource(`
+async function LoadValue() : Int {
+    return 40;
+}
+
+function BuildValue() : Int {
+    return 2;
+}
+
+function Main() : Int {
+    local mut Table data = {"name": "klang", 1: 5};
+    data["extra"] = 7;
+    local Awaitable[Int] pending = LoadValue();
+    local Iterator[Int] iterator = iter([1, 2, 3]);
+    local Option[Int] first = next(iterator);
+    local Coroutine[Int] co = coroutine(BuildValue);
+    local Option[Int] resumed = resume(co);
+    return (await pending) + first.value + resumed.value + len(data.name);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected table/async/iterator/coroutine program to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsAwaitOnNonAwaitable(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    return await 1;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "await expects Awaitable, got Int")
+}
+
+func TestCheckProgramRejectsNextOnNonIterator(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Option[Int] value = next(1);
+    return value.value;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "next expects Iterator, got Int")
+}
+
 func programFromSource(source string) file.Program {
 	lines := strings.Split(strings.TrimSpace(source), "\n")
 	return file.Program{

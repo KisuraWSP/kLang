@@ -141,7 +141,7 @@
       "patterns": [
         {
           "name": "keyword.control.klang",
-          "match": "\\b(if|else|unless|for|while|do|do_while|end|return|break|try|catch|throw|and|or|not|import|namespace|region|alias|call|inner|function_group)\\b"
+          "match": "\\b(if|else|unless|for|while|do|do_while|end|return|break|try|catch|throw|and|or|not|await|import|namespace|region|alias|call|inner|function_group)\\b"
         },
         {
           "name": "keyword.control.hook.klang",
@@ -153,7 +153,7 @@
         },
         {
           "name": "storage.modifier.klang",
-          "match": "\\b(global|local|mut)\\b"
+          "match": "\\b(global|local|mut|async)\\b"
         },
         {
           "name": "keyword.operator.word.klang",
@@ -165,7 +165,7 @@
       "patterns": [
         {
           "name": "storage.type.primitive.klang",
-          "match": "\\b(Int|UInt|String|Float|Bool|Char|Map|List|Option|Result|Complex|SIMD|Function|Any|T|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)\\b"
+          "match": "\\b(Int|UInt|String|Float|Bool|Char|Map|List|Table|Option|Result|Complex|SIMD|Function|Awaitable|Iterator|Coroutine|Any|T|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)\\b"
         }
       ]
     },

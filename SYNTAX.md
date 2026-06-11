@@ -61,6 +61,11 @@ local Int firstItem = itemsList[0];
 -- Map indexes use the map key type.
 local Int total = scores["total"];
 
+-- Table is the Lua-style dynamic container. Keys can be primitive values and values can be mixed.
+local mut Table data = {"name": "klang", 1: True};
+data["count"] = 3;
+local String tableName = data.name;
+
 -- user-defined memory regions for arrays and slices
 -- T[RegionName] stores a zero-initialized region-backed array/slice value.
 -- The final region argument is the maximum element count.
@@ -246,6 +251,30 @@ function CountDown(value : Int, total : Int) : Int {
     }
     return CountDown(value - 1, total + 1);
 }
+
+-- async/await
+-- async functions return Awaitable[T]. await unwraps the completed value.
+async function LoadCount() : Int {
+    return 40;
+}
+
+local Awaitable[Int] pendingCount = LoadCount();
+local Int loadedCount = await pendingCount;
+
+-- iterators
+-- iter(value) creates Iterator[T]. next(iterator) returns Option[T].
+local Iterator[Int] numbers = iter([1, 2, 3]);
+local Option[Int] firstNumber = next(numbers);
+local Option[Int] secondNumber = next(numbers);
+
+-- coroutines
+-- coroutine(functionValue) creates Coroutine[T]. resume(coroutine) returns Option[T].
+function BuildCount() : Int {
+    return 2;
+}
+
+local Coroutine[Int] buildCount = coroutine(BuildCount);
+local Option[Int] resumedCount = resume(buildCount);
 
 -- variadic print and input
 print("count", 1, True);

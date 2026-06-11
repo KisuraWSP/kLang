@@ -70,6 +70,34 @@ func SIMDValue(lanes []Value) Value {
 	return Value{Kind: ValueSIMD, Data: SIMDData{Lanes: copied}}
 }
 
+func TableValue(items map[string]Value) Value {
+	copied := make(map[string]Value, len(items))
+	for key, item := range items {
+		copied[key] = cloneValue(item)
+	}
+	return Value{Kind: ValueTable, Data: copied}
+}
+
+func AwaitableValue(function string, args []Value) Value {
+	copied := make([]Value, 0, len(args))
+	for _, arg := range args {
+		copied = append(copied, cloneValue(arg))
+	}
+	return Value{Kind: ValueAwaitable, Data: &AwaitableData{Function: function, Args: copied}}
+}
+
+func IteratorValue(items []Value) Value {
+	copied := make([]Value, 0, len(items))
+	for _, item := range items {
+		copied = append(copied, cloneValue(item))
+	}
+	return Value{Kind: ValueIterator, Data: &IteratorData{Items: copied}}
+}
+
+func CoroutineValue(function string) Value {
+	return Value{Kind: ValueCoroutine, Data: &CoroutineData{Function: function}}
+}
+
 func zeroValue(typeName string) Value {
 	typeName = strings.TrimSpace(typeName)
 	switch typeName {
@@ -96,6 +124,9 @@ func zeroValue(typeName string) Value {
 	}
 	if strings.HasPrefix(typeName, "Map[") {
 		return Value{Kind: ValueMap, Data: map[string]Value{}}
+	}
+	if typeName == "Table" {
+		return TableValue(map[string]Value{})
 	}
 	if strings.HasPrefix(typeName, "Option[") {
 		return OptionNoneValue()
@@ -135,6 +166,8 @@ func cloneValue(value Value) Value {
 			cloned[key] = cloneValue(item)
 		}
 		return Value{Kind: ValueMap, Data: cloned}
+	case ValueTable:
+		return TableValue(value.Data.(map[string]Value))
 	case ValueOption:
 		option := value.Data.(OptionData)
 		option.Value = cloneValue(option.Value)
@@ -145,6 +178,8 @@ func cloneValue(value Value) Value {
 		return Value{Kind: ValueResult, Data: result}
 	case ValueSIMD:
 		return SIMDValue(value.Data.(SIMDData).Lanes)
+	case ValueAwaitable, ValueIterator, ValueCoroutine:
+		return value
 	case ValueObject:
 		object := value.Data.(ObjectData)
 		fields := make(map[string]Value, len(object.Fields))
@@ -175,6 +210,8 @@ func runtimeTypeName(value Value) string {
 		return "List[T]"
 	case ValueMap:
 		return "Map[T,T]"
+	case ValueTable:
+		return "Table"
 	case ValueOption:
 		return "Option[T]"
 	case ValueResult:
@@ -183,6 +220,12 @@ func runtimeTypeName(value Value) string {
 		return "Complex"
 	case ValueSIMD:
 		return "SIMD[T]"
+	case ValueAwaitable:
+		return "Awaitable[T]"
+	case ValueIterator:
+		return "Iterator[T]"
+	case ValueCoroutine:
+		return "Coroutine[T]"
 	case ValueFunction:
 		return "Function[T]"
 	case ValueObject:
@@ -669,6 +712,27 @@ func valueString(value Value) string {
 			parts = append(parts, valueString(lane))
 		}
 		return "SIMD[" + strings.Join(parts, ", ") + "]"
+	case ValueTable:
+		parts := make([]string, 0, len(value.Data.(map[string]Value)))
+		for key, item := range value.Data.(map[string]Value) {
+			parts = append(parts, key+": "+valueString(item))
+		}
+		return "Table{" + strings.Join(parts, ", ") + "}"
+	case ValueAwaitable:
+		data := value.Data.(*AwaitableData)
+		if data.Done {
+			return "Awaitable(" + valueString(data.Value) + ")"
+		}
+		return "Awaitable(" + data.Function + ")"
+	case ValueIterator:
+		data := value.Data.(*IteratorData)
+		return fmt.Sprintf("Iterator(%d/%d)", data.Index, len(data.Items))
+	case ValueCoroutine:
+		data := value.Data.(*CoroutineData)
+		if data.Done {
+			return "Coroutine(done)"
+		}
+		return "Coroutine(" + data.Function + ")"
 	case ValueObject:
 		object := value.Data.(ObjectData)
 		parts := make([]string, 0, len(object.Fields))
@@ -707,6 +771,12 @@ func valueSize(value Value) int {
 			size += len(key) + valueSize(item)
 		}
 		return size
+	case ValueTable:
+		size := 48
+		for key, item := range value.Data.(map[string]Value) {
+			size += len(key) + valueSize(item)
+		}
+		return size
 	case ValueOption:
 		return 8 + valueSize(value.Data.(OptionData).Value)
 	case ValueResult:
@@ -721,6 +791,23 @@ func valueSize(value Value) int {
 		return size
 	case ValueThunk:
 		return 16
+	case ValueAwaitable:
+		data := value.Data.(*AwaitableData)
+		size := 16 + len(data.Function)
+		for _, arg := range data.Args {
+			size += valueSize(arg)
+		}
+		return size + valueSize(data.Value)
+	case ValueIterator:
+		data := value.Data.(*IteratorData)
+		size := 16
+		for _, item := range data.Items {
+			size += valueSize(item)
+		}
+		return size
+	case ValueCoroutine:
+		data := value.Data.(*CoroutineData)
+		return 16 + len(data.Function) + valueSize(data.Value)
 	case ValueObject:
 		object := value.Data.(ObjectData)
 		size := 32 + len(object.Type)
@@ -740,6 +827,8 @@ func valueLen(value Value) (int, error) {
 	case ValueList:
 		return len(value.Data.([]Value)), nil
 	case ValueMap:
+		return len(value.Data.(map[string]Value)), nil
+	case ValueTable:
 		return len(value.Data.(map[string]Value)), nil
 	case ValueSIMD:
 		return len(value.Data.(SIMDData).Lanes), nil
@@ -786,10 +875,18 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Kind == ValueChar
 	case typeName == "Complex":
 		return value.Kind == ValueComplex
+	case typeName == "Table":
+		return value.Kind == ValueTable || value.Kind == ValueMap
 	case strings.HasPrefix(typeName, "List["):
 		return value.Kind == ValueList
 	case strings.HasPrefix(typeName, "Map["):
 		return value.Kind == ValueMap
+	case strings.HasPrefix(typeName, "Awaitable["):
+		return value.Kind == ValueAwaitable
+	case strings.HasPrefix(typeName, "Iterator["):
+		return value.Kind == ValueIterator
+	case strings.HasPrefix(typeName, "Coroutine["):
+		return value.Kind == ValueCoroutine
 	case strings.HasPrefix(typeName, "SIMD["):
 		elementType, ok := simdType(typeName)
 		if !ok || value.Kind != ValueSIMD {
@@ -834,7 +931,9 @@ func isRuntimeArrayType(typeName string) bool {
 	return strings.Contains(typeName, "[") && strings.HasSuffix(typeName, "]") &&
 		!strings.HasPrefix(typeName, "List[") && !strings.HasPrefix(typeName, "Map[") &&
 		!strings.HasPrefix(typeName, "Option[") && !strings.HasPrefix(typeName, "Result[") &&
-		!strings.HasPrefix(typeName, "SIMD[") && !strings.HasPrefix(typeName, "Function[")
+		!strings.HasPrefix(typeName, "SIMD[") && !strings.HasPrefix(typeName, "Function[") &&
+		!strings.HasPrefix(typeName, "Awaitable[") && !strings.HasPrefix(typeName, "Iterator[") &&
+		!strings.HasPrefix(typeName, "Coroutine[")
 }
 
 func restrictedGenericRuntimeType(typeName string) (string, []string, bool) {

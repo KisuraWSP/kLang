@@ -52,6 +52,7 @@ type functionSymbol struct {
 	Namespace          string
 	Params             []variableSymbol
 	ReturnType         string
+	Async              bool
 	Deprecated         bool
 	DeprecationMessage string
 	File               string
@@ -580,6 +581,7 @@ type statement struct {
 }
 
 func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol, int, error) {
+	async := functionHasPrefixKeyword(unit.Text, start, "async")
 	openBrace := findChar(unit.Text, '{', start)
 	if openBrace == -1 {
 		return functionSymbol{}, start, fmt.Errorf("function block is missing an opening brace")
@@ -643,6 +645,7 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 		Namespace:          namespace,
 		Params:             params,
 		ReturnType:         returnType,
+		Async:              async,
 		Deprecated:         deprecated,
 		DeprecationMessage: deprecationMessage,
 		File:               unit.Path,
@@ -670,6 +673,15 @@ func functionDeprecatedMarker(input string, functionStart int) (bool, string) {
 		}
 	}
 	return false, ""
+}
+
+func functionHasPrefixKeyword(input string, functionStart int, keyword string) bool {
+	prefix := strings.TrimRightFunc(input[:functionStart], unicode.IsSpace)
+	if !strings.HasSuffix(prefix, keyword) {
+		return false
+	}
+	before := strings.TrimSpace(prefix[:len(prefix)-len(keyword)])
+	return before == "" || strings.HasSuffix(before, "\n") || strings.HasSuffix(before, ";") || strings.HasSuffix(before, "}")
 }
 
 func parseParams(input string) ([]variableSymbol, error) {
@@ -887,6 +899,14 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		}
 		return checker.inferExpression(target, locals, source, line)
 	}
+	if strings.HasPrefix(expr, "await ") {
+		valueType := checker.inferExpression(strings.TrimSpace(strings.TrimPrefix(expr, "await")), locals, source, line)
+		if inner, ok := awaitableType(valueType); ok {
+			return inner
+		}
+		checker.addError(source, line, fmt.Sprintf("await expects Awaitable, got %s", valueType))
+		return anyType
+	}
 	if condition, consequence, alternative, ok := splitConditionalExpression(expr); ok {
 		checker.inferExpression(condition, locals, source, line)
 		consequenceType := checker.inferExpression(consequence, locals, source, line)
@@ -917,6 +937,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		return "Float"
 	}
 	if expr == "{}" {
+		return "Map[T,T]"
+	}
+	if strings.HasPrefix(expr, "{") && strings.HasSuffix(expr, "}") {
 		return "Map[T,T]"
 	}
 	if expr == "[]" {
@@ -1008,16 +1031,31 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 
 	if targetExpr, fieldName, ok := splitTrailingSelectorExpression(expr); ok {
 		targetType := checker.inferExpression(targetExpr, locals, source, line)
-		if methodType, ok := checker.aliasMethodType(targetType, fieldName); ok {
-			return methodType
+		if fieldType, ok := checker.selectorFieldType(targetType, fieldName); ok {
+			return fieldType
 		}
-		if targetType == anyType || strings.HasPrefix(normalizeType(targetType), "Map[") {
+		if targetType == anyType || targetType == "Table" || strings.HasPrefix(normalizeType(targetType), "Map[") {
 			return anyType
 		}
 		if !checker.functionExists(expr, checker.namespace) && !checker.namespaceExists(expr) {
 			checker.addError(source, line, fmt.Sprintf("%s has no field %q", targetType, fieldName))
 		}
 		return anyType
+	}
+
+	if targetExpr, fieldName, ok := splitIdentifierSelectorCallName(expr); ok {
+		if variable, exists := checker.lookupVariable(targetExpr, locals); exists {
+			targetType := variable.Type
+			if variable.InferredType != "" {
+				targetType = variable.InferredType
+			}
+			if fieldType, ok := checker.selectorFieldType(targetType, fieldName); ok {
+				return fieldType
+			}
+			if targetType == anyType || targetType == "Table" || strings.HasPrefix(normalizeType(targetType), "Map[") {
+				return anyType
+			}
+		}
 	}
 
 	if calleeExpr, args, ok := parseCallableExpressionCall(expr); ok {
@@ -1074,6 +1112,30 @@ func (checker *TypeChecker) aliasMethodType(typeName string, methodName string) 
 		}
 		parts = append(parts, normalizeType(method.ReturnType))
 		return "Function[" + strings.Join(parts, ",") + "]", true
+	}
+	return "", false
+}
+
+func (checker *TypeChecker) selectorFieldType(targetType string, fieldName string) (string, bool) {
+	targetType = normalizeType(targetType)
+	if methodType, ok := checker.aliasMethodType(targetType, fieldName); ok {
+		return methodType, true
+	}
+	if optionType, ok := optionElementType(targetType); ok {
+		switch fieldName {
+		case "value":
+			return optionType, true
+		case "some":
+			return "Bool", true
+		}
+	}
+	if okType, _, ok := resultValueTypes(targetType); ok {
+		switch fieldName {
+		case "value":
+			return okType, true
+		case "ok":
+			return "Bool", true
+		}
 	}
 	return "", false
 }
@@ -1145,6 +1207,8 @@ func (checker *TypeChecker) checkIndexExpression(targetType string, indexType st
 			checker.addError(source, line, fmt.Sprintf("Map index expects %s, got %s", keyType, indexType))
 		}
 		return valueType
+	case targetType == "Table":
+		return anyType
 	default:
 		checker.addError(source, line, fmt.Sprintf("%s is not indexable", targetType))
 		return anyType
@@ -1177,6 +1241,8 @@ func (checker *TypeChecker) checkIndexedAssignmentTarget(targetType string, inde
 			checker.addError(source, line, fmt.Sprintf("Map index expects %s, got %s", keyType, indexType))
 		}
 		return valueType
+	case targetType == "Table":
+		return anyType
 	default:
 		checker.addError(source, line, fmt.Sprintf("%s is not index-assignable", targetType))
 		return anyType
@@ -1306,6 +1372,61 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		}
 		checker.addError(source, line, fmt.Sprintf("SIMD expects List[T], got %s", argType))
 		return "SIMD[T]"
+	case "Table":
+		if len(args) > 1 {
+			checker.addError(source, line, "Table expects 0 to 1 argument(s)")
+		}
+		for _, arg := range args {
+			checker.inferExpression(arg, locals, source, line)
+		}
+		return "Table"
+	case "iter":
+		if len(args) != 1 {
+			checker.addError(source, line, "iter expects 1 argument")
+			return "Iterator[T]"
+		}
+		itemType, ok := iterableItemType(checker.inferExpression(args[0], locals, source, line))
+		if !ok {
+			checker.addError(source, line, "iter expects List, String, Table, Iterator, or range-compatible Int")
+			itemType = anyType
+		}
+		return "Iterator[" + itemType + "]"
+	case "next":
+		if len(args) != 1 {
+			checker.addError(source, line, "next expects 1 argument")
+			return "Option[T]"
+		}
+		iteratorType := checker.inferExpression(args[0], locals, source, line)
+		itemType, ok := iteratorItemType(iteratorType)
+		if !ok {
+			checker.addError(source, line, fmt.Sprintf("next expects Iterator, got %s", iteratorType))
+			itemType = anyType
+		}
+		return "Option[" + itemType + "]"
+	case "coroutine":
+		if len(args) != 1 {
+			checker.addError(source, line, "coroutine expects 1 argument")
+			return "Coroutine[T]"
+		}
+		argType := checker.inferExpression(args[0], locals, source, line)
+		_, returnType, ok := functionValueType(argType)
+		if !ok {
+			checker.addError(source, line, fmt.Sprintf("coroutine expects Function, got %s", argType))
+			return "Coroutine[T]"
+		}
+		return "Coroutine[" + returnType + "]"
+	case "resume":
+		if len(args) != 1 {
+			checker.addError(source, line, "resume expects 1 argument")
+			return "Option[T]"
+		}
+		coroutineType := checker.inferExpression(args[0], locals, source, line)
+		itemType, ok := coroutineItemType(coroutineType)
+		if !ok {
+			checker.addError(source, line, fmt.Sprintf("resume expects Coroutine, got %s", coroutineType))
+			itemType = anyType
+		}
+		return "Option[" + itemType + "]"
 	case "Box", "Ref", "RefMut", "RefCell":
 		if len(args) != 1 {
 			checker.addError(source, line, fmt.Sprintf("%s expects 1 argument", name))
@@ -1394,7 +1515,11 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		}
 	}
 
-	return checker.inferGenericCallReturn(fn, args, locals, source, line)
+	returnType := checker.inferGenericCallReturn(fn, args, locals, source, line)
+	if fn.Async {
+		return "Awaitable[" + returnType + "]"
+	}
+	return returnType
 }
 
 func (checker *TypeChecker) inferLambdaExpression(expr string, locals map[string]variableSymbol, source string, line int) string {
@@ -1918,7 +2043,8 @@ func isKnownType(typeName string) bool {
 		return true
 	}
 	if typeName == anyType || typeName == "Int" || typeName == "UInt" || typeName == "String" ||
-		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" {
+		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" ||
+		typeName == "Table" {
 		return true
 	}
 	if isCustomTypeName(typeName) {
@@ -1947,6 +2073,15 @@ func isKnownType(typeName string) bool {
 	}
 	if strings.HasPrefix(typeName, "SIMD[") && strings.HasSuffix(typeName, "]") {
 		return isKnownType(typeName[len("SIMD[") : len(typeName)-1])
+	}
+	if strings.HasPrefix(typeName, "Awaitable[") && strings.HasSuffix(typeName, "]") {
+		return isKnownType(typeName[len("Awaitable[") : len(typeName)-1])
+	}
+	if strings.HasPrefix(typeName, "Iterator[") && strings.HasSuffix(typeName, "]") {
+		return isKnownType(typeName[len("Iterator[") : len(typeName)-1])
+	}
+	if strings.HasPrefix(typeName, "Coroutine[") && strings.HasSuffix(typeName, "]") {
+		return isKnownType(typeName[len("Coroutine[") : len(typeName)-1])
 	}
 	if params, returnType, ok := functionValueType(typeName); ok {
 		if !isKnownType(returnType) {
@@ -1984,7 +2119,9 @@ func isArrayTypeName(typeName string) bool {
 	return strings.Contains(typeName, "[") && strings.HasSuffix(typeName, "]") &&
 		!strings.HasPrefix(typeName, "List[") && !strings.HasPrefix(typeName, "Map[") &&
 		!strings.HasPrefix(typeName, "Option[") && !strings.HasPrefix(typeName, "Result[") &&
-		!strings.HasPrefix(typeName, "SIMD[") && !strings.HasPrefix(typeName, "Function[")
+		!strings.HasPrefix(typeName, "SIMD[") && !strings.HasPrefix(typeName, "Function[") &&
+		!strings.HasPrefix(typeName, "Awaitable[") && !strings.HasPrefix(typeName, "Iterator[") &&
+		!strings.HasPrefix(typeName, "Coroutine[")
 }
 
 func arrayElementType(typeName string) (string, bool) {
@@ -2051,6 +2188,33 @@ func resultValueTypes(typeName string) (string, string, bool) {
 	return normalizeType(parts[0]), normalizeType(parts[1]), true
 }
 
+func awaitableType(typeName string) (string, bool) {
+	typeName = normalizeType(typeName)
+	if !strings.HasPrefix(typeName, "Awaitable[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	inner := normalizeType(typeName[len("Awaitable[") : len(typeName)-1])
+	return inner, inner != ""
+}
+
+func iteratorItemType(typeName string) (string, bool) {
+	typeName = normalizeType(typeName)
+	if !strings.HasPrefix(typeName, "Iterator[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	inner := normalizeType(typeName[len("Iterator[") : len(typeName)-1])
+	return inner, inner != ""
+}
+
+func coroutineItemType(typeName string) (string, bool) {
+	typeName = normalizeType(typeName)
+	if !strings.HasPrefix(typeName, "Coroutine[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	inner := normalizeType(typeName[len("Coroutine[") : len(typeName)-1])
+	return inner, inner != ""
+}
+
 func functionValueType(typeName string) ([]string, string, bool) {
 	typeName = normalizeType(typeName)
 	if !strings.HasPrefix(typeName, "Function[") || !strings.HasSuffix(typeName, "]") {
@@ -2095,6 +2259,9 @@ func isAssignable(target string, source string) bool {
 	if target == source {
 		return true
 	}
+	if target == "Table" && (source == "Map[T,T]" || strings.HasPrefix(source, "Map[")) {
+		return true
+	}
 	if target == "Float" && (source == "Int" || source == "UInt") {
 		return true
 	}
@@ -2129,6 +2296,15 @@ func isAssignable(target string, source string) bool {
 	}
 	if strings.HasPrefix(target, "SIMD[") && strings.HasPrefix(source, "SIMD[") {
 		return isAssignable(target[len("SIMD["):len(target)-1], source[len("SIMD["):len(source)-1])
+	}
+	if strings.HasPrefix(target, "Awaitable[") && strings.HasPrefix(source, "Awaitable[") {
+		return isAssignable(target[len("Awaitable["):len(target)-1], source[len("Awaitable["):len(source)-1])
+	}
+	if strings.HasPrefix(target, "Iterator[") && strings.HasPrefix(source, "Iterator[") {
+		return isAssignable(target[len("Iterator["):len(target)-1], source[len("Iterator["):len(source)-1])
+	}
+	if strings.HasPrefix(target, "Coroutine[") && strings.HasPrefix(source, "Coroutine[") {
+		return isAssignable(target[len("Coroutine["):len(target)-1], source[len("Coroutine["):len(source)-1])
 	}
 	if targetParams, targetReturn, targetOk := functionValueType(target); targetOk {
 		sourceParams, sourceReturn, sourceOk := functionValueType(source)
@@ -2346,8 +2522,12 @@ func iterableItemType(typeName string) (string, bool) {
 		return "Char", true
 	case typeName == "Int" || typeName == "UInt":
 		return "Int", true
+	case typeName == "Table":
+		return anyType, true
 	case strings.HasPrefix(typeName, "List[") && strings.HasSuffix(typeName, "]"):
 		return typeName[5 : len(typeName)-1], true
+	case strings.HasPrefix(typeName, "Iterator[") && strings.HasSuffix(typeName, "]"):
+		return typeName[len("Iterator[") : len(typeName)-1], true
 	default:
 		return "", false
 	}
