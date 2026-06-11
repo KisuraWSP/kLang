@@ -21,6 +21,7 @@ if x == {
 ```
 - data race condition prevention mechanics and atomic data handling
 - traits and other features must be able to used in function aliases
+- new keywords "copy" & "clone" for copy semantics and cloning protocols in variables, functions or scopes of any type
 
 
 # LATER <once todo is done>
