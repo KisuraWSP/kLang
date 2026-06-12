@@ -30,6 +30,7 @@ if x == {
 - restrict on lambda functions
 - immutable arguments/parameters on functions (to make a parameter/argument mutable use the "mut" keyword)
 - workspaces <treat a program(if its a standalone script)/project as if its a seperate workspace>
+- add "raw-lang" flag to tell langauge runtime to not allow any stdlib modules/files to be able to used
 
 # LATER <once todo is done>
 - make the runtime be able to work on users native os <done after first>
