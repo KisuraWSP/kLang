@@ -1,0 +1,31 @@
+namespace App {
+    function LoadIndexPage(path : String) : String {
+        if path == "index.html" {
+            return "<!doctype html><html><head><title>kLang Static Page</title></head><body><h1>Hello from kLang</h1><p>This page is served by the static page server example.</p></body></html>";
+        }
+
+        return "<!doctype html><html><body><h1>404</h1><p>Page not found.</p></body></html>";
+    }
+
+    function HandleRequest(route : String) : Int {
+        local mut Table response = {"status": 200, "file": "index.html", "contentType": "text/html"};
+        local mut String page = LoadIndexPage(response.file);
+
+        if route != "/" {
+            response["status"] = 404;
+            page = LoadIndexPage("missing.html");
+        }
+
+        print("GET", route, response.status, response.contentType);
+        print(page);
+        return response.status;
+    }
+
+    function Start() : Int {
+        local String host = "127.0.0.1";
+        local Int port = 8080;
+
+        print("static page server", host, port, "index.html");
+        return HandleRequest("/");
+    }
+}
