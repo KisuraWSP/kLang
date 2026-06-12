@@ -29,6 +29,7 @@ if x == {
 - caching system for improvement of langauge speed
 - restrict on lambda functions
 - immutable arguments/parameters on functions (to make a parameter/argument mutable use the "mut" keyword)
+- workspaces <treat a program(if its a standalone script)/project as if its a seperate workspace>
 
 # LATER <once todo is done>
 - make the runtime be able to work on users native os <done after first>
