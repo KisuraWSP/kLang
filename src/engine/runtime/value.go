@@ -180,6 +180,11 @@ func cloneValue(value Value) Value {
 		return SIMDValue(value.Data.(SIMDData).Lanes)
 	case ValueAwaitable, ValueIterator, ValueCoroutine:
 		return value
+	case ValueAtomic:
+		atomic := value.Data.(*AtomicData)
+		atomic.Mutex.Lock()
+		defer atomic.Mutex.Unlock()
+		return Value{Kind: ValueAtomic, Data: &AtomicData{Value: cloneValue(atomic.Value)}}
 	case ValueObject:
 		object := value.Data.(ObjectData)
 		fields := make(map[string]Value, len(object.Fields))
@@ -226,6 +231,8 @@ func runtimeTypeName(value Value) string {
 		return "Iterator[T]"
 	case ValueCoroutine:
 		return "Coroutine[T]"
+	case ValueAtomic:
+		return "Atomic[T]"
 	case ValueFunction:
 		return "Function[T]"
 	case ValueObject:
@@ -902,6 +909,8 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Kind == ValueIterator
 	case strings.HasPrefix(typeName, "Coroutine["):
 		return value.Kind == ValueCoroutine
+	case strings.HasPrefix(typeName, "Atomic["):
+		return value.Kind == ValueAtomic
 	case strings.HasPrefix(typeName, "SIMD["):
 		elementType, ok := simdType(typeName)
 		if !ok || value.Kind != ValueSIMD {

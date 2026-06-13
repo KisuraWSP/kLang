@@ -2,7 +2,7 @@
 
 kLang is a prototype programming language written in Go. It is built as a small interpreted language with a lexer, parser, module resolver, type checker, runtime, standard library folder, example projects, and editor extensions.
 
-The language is function-first, strongly checked, and experiments with ideas from Go, Rust, Lua, Python, Elm, and functional languages. It supports scoped variables, type inference, `Option`/`Result`, list comprehensions, traits, async/await, coroutines, pattern matching, allocator-style values, and human-friendly diagnostics.
+The language is function-first, strongly checked, and experiments with ideas from Go, Rust, Lua, Python, Elm, and functional languages. It supports scoped variables, type inference, `Option`/`Result`, list comprehensions, traits, async/await, coroutines, pattern matching, alias functions, atomic values, allocator-style values, and human-friendly diagnostics.
 
 ## Project Layout
 
@@ -74,6 +74,12 @@ Create a new project:
 go run . new examples/myproject
 ```
 
+Create a new project with a custom entry point:
+
+```sh
+go run . new examples/myproject --entry=["Process","Int"]
+```
+
 Check a script or project without running it:
 
 ```sh
@@ -85,6 +91,8 @@ Run a script or project:
 ```sh
 go run . run examples/helloworld
 ```
+
+Program runs print OS, architecture, CPU count, Go runtime version, and elapsed execution time after the program finishes.
 
 Pass program arguments. They are available inside kLang as `Args`:
 

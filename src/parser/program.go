@@ -13,8 +13,9 @@ type ParsedSource struct {
 }
 
 type ParsedProgram struct {
-	Name    string
-	Sources []ParsedSource
+	Name       string
+	EntryPoint string
+	Sources    []ParsedSource
 }
 
 func ParseSource(source sourcefile.SourceFile) ParsedSource {
@@ -35,8 +36,37 @@ func ParseLoadedProgram(program sourcefile.Program) ParsedProgram {
 	for _, source := range program.Files {
 		parsed.Sources = append(parsed.Sources, ParseSource(source))
 	}
+	for _, source := range parsed.Sources {
+		if entry := entryPointFromStatements(source.Program.Statements, ""); entry != "" {
+			parsed.EntryPoint = entry
+			break
+		}
+	}
 
 	return parsed
+}
+
+func entryPointFromStatements(statements []Statement, namespace string) string {
+	armed := false
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case EntryPointStatement:
+			armed = true
+		case FunctionStatement:
+			if armed {
+				return namespace + current.Name
+			}
+			armed = false
+		case NamespaceStatement:
+			if entry := entryPointFromStatements(current.Body, namespace+current.Name+"."); entry != "" {
+				return entry
+			}
+			armed = false
+		default:
+			armed = false
+		}
+	}
+	return ""
 }
 
 func (program ParsedProgram) Errors() []Error {

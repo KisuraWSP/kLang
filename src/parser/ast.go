@@ -29,6 +29,10 @@ type ImportStatement struct {
 	Path string
 }
 
+type EntryPointStatement struct {
+	Pos Position
+}
+
 type AliasStatement struct {
 	Pos    Position
 	Name   string
@@ -318,6 +322,8 @@ type RawExpression struct {
 }
 
 func (stmt ImportStatement) statementNode() {}
+func (stmt EntryPointStatement) statementNode() {
+}
 func (stmt AliasStatement) statementNode()  {}
 func (stmt RegionStatement) statementNode() {}
 func (stmt AliasFunctionStatement) statementNode() {
@@ -344,6 +350,9 @@ func (stmt PrivateBlockStatement) statementNode() {
 }
 
 func (stmt ImportStatement) Position() Position { return stmt.Pos }
+func (stmt EntryPointStatement) Position() Position {
+	return stmt.Pos
+}
 func (stmt AliasStatement) Position() Position  { return stmt.Pos }
 func (stmt RegionStatement) Position() Position { return stmt.Pos }
 func (stmt AliasFunctionStatement) Position() Position {

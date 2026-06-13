@@ -896,6 +896,65 @@ end
 	}
 }
 
+func TestParseModernAliasFunctionSyntaxAndInferredParameterDefault(t *testing.T) {
+	program, errors := Parse(`
+alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type {
+    trait LengthTracked {
+        function Size(value : Int) : Int;
+    }
+
+    impl LengthTracked for Int {
+        function Size(value : Int) : Int {
+            return value;
+        }
+    }
+
+    [new] {
+        allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
+    }
+
+    #extend {
+        function get_length() -> int {
+            return this.length;
+        }
+    }
+}
+
+function create_workspace(name : String, workspace := UserDefinedWorkspace()) {
+    print(name);
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	alias, ok := program.Statements[0].(AliasFunctionStatement)
+	if !ok {
+		t.Fatalf("expected alias function, got %T", program.Statements[0])
+	}
+	if alias.ReturnType != "T" || len(alias.Hooks) != 1 || len(alias.Methods) != 1 || len(alias.Body) != 2 {
+		t.Fatalf("unexpected modern alias parse: %#v", alias)
+	}
+	fn := program.Statements[1].(FunctionStatement)
+	if len(fn.Params) != 2 || fn.Params[1].Name != "workspace" || fn.Params[1].Type != "T" || fn.Params[1].Default.Node == nil {
+		t.Fatalf("unexpected inferred default parameter: %#v", fn.Params)
+	}
+}
+
+func TestParseEntryPointDirective(t *testing.T) {
+	program, errors := Parse(`
+namespace App {
+    #set_entry_point_to_here
+    function Process() : Int {
+        return 1;
+    }
+}
+`)
+	assertNoParseErrors(t, errors)
+	namespace := program.Statements[0].(NamespaceStatement)
+	if _, ok := namespace.Body[0].(EntryPointStatement); !ok {
+		t.Fatalf("expected entry point directive, got %T", namespace.Body[0])
+	}
+}
+
 func TestParseExpressionTreeForListAndMapLiterals(t *testing.T) {
 	listProgram, listErrors := Parse(`local List[Int] values = [1, 2, 3];`)
 	assertNoParseErrors(t, listErrors)

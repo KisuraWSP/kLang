@@ -5,8 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	stdruntime "runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
@@ -22,6 +24,11 @@ type commandOptions struct {
 	Verbose     bool
 	RawLang     bool
 	ProgramArgs []string
+}
+
+type entrySpec struct {
+	Name string
+	Type string
 }
 
 func main() {
@@ -55,7 +62,11 @@ func runCLI(args []string) error {
 		if len(values) != 1 {
 			return fmt.Errorf("%s %s expects a project path", cliName, command)
 		}
-		return createProject(values[0])
+		entry, err := parseEntryFlag(rest)
+		if err != nil {
+			return err
+		}
+		return createProject(values[0], entry)
 	case "run":
 		if len(values) < 1 {
 			return fmt.Errorf("%s run expects a .klang file or project folder", cliName)
@@ -124,7 +135,7 @@ func runLegacyFlags(args []string) (bool, error) {
 	return false, nil
 }
 
-func createProject(projectPath string) error {
+func createProject(projectPath string, entry entrySpec) error {
 	cleanPath := filepath.Clean(projectPath)
 	if cleanPath == "." || cleanPath == string(filepath.Separator) {
 		return fmt.Errorf("refusing to create project at %q", projectPath)
@@ -151,7 +162,7 @@ func createProject(projectPath string) error {
 
 	files := map[string]string{
 		file.KlangEntryPoint: newProjectEntrySource(),
-		"app.klang":          newProjectModuleSource(projectNameFromPath(cleanPath)),
+		"app.klang":          newProjectModuleSource(projectNameFromPath(cleanPath), entry),
 	}
 	for name, contents := range files {
 		path := filepath.Join(cleanPath, name)
@@ -245,7 +256,10 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 		return nil
 	}
 
+	started := time.Now()
+	fmt.Printf("  system: os=%s arch=%s cpus=%d go=%s\n", stdruntime.GOOS, stdruntime.GOARCH, stdruntime.NumCPU(), stdruntime.Version())
 	result, err := runtime.NewWithArgs(options.ProgramArgs).Run(parsedProgram)
+	elapsed := time.Since(started)
 	if err != nil {
 		printRuntimeError(resolvedProgram, err)
 		return fmt.Errorf("runtime failed: %w", err)
@@ -254,6 +268,7 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 		fmt.Println(line)
 	}
 	fmt.Printf("  runtime: returned %s\n", describeValue(result.Value))
+	fmt.Printf("  time: %s\n", elapsed.Round(time.Microsecond))
 	if options.Verbose {
 		fmt.Printf("  memory: stack=%d object(s)/%d byte(s), heap=%d object(s)/%d byte(s)\n",
 			result.Memory.StackObjects, result.Memory.StackBytes,
@@ -399,14 +414,81 @@ function Main() : Int {
 `
 }
 
-func newProjectModuleSource(projectName string) string {
-	return fmt.Sprintf(`namespace App {
-    function Start() : Int {
+func newProjectModuleSource(projectName string, entry entrySpec) string {
+	if entry.Name == "" {
+		entry.Name = "Start"
+		entry.Type = "Int"
+	}
+	if entry.Type == "" {
+		return fmt.Sprintf(`namespace App {
+    #set_entry_point_to_here
+    function %s() {
         print("Welcome to %s");
-        return 0;
     }
 }
-`, escapeKlangString(projectName))
+`, entry.Name, escapeKlangString(projectName))
+	}
+	return fmt.Sprintf(`namespace App {
+    #set_entry_point_to_here
+    function %s() : %s {
+        print("Welcome to %s");
+        return %s;
+    }
+}
+`, entry.Name, entry.Type, escapeKlangString(projectName), entryReturnValue(entry.Type))
+}
+
+func entryReturnValue(typeName string) string {
+	switch strings.ToLower(strings.TrimSpace(typeName)) {
+	case "bool":
+		return "False"
+	case "float":
+		return "0.0"
+	case "string":
+		return `""`
+	case "char":
+		return `" "[0]`
+	default:
+		return "0"
+	}
+}
+
+func parseEntryFlag(args []string) (entrySpec, error) {
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		value := ""
+		switch {
+		case strings.HasPrefix(arg, "--entry="):
+			value = strings.TrimSpace(strings.TrimPrefix(arg, "--entry="))
+		case arg == "--entry" && index+1 < len(args):
+			value = strings.TrimSpace(args[index+1])
+		default:
+			continue
+		}
+		return parseEntrySpec(value)
+	}
+	return entrySpec{}, nil
+}
+
+func parseEntrySpec(value string) (entrySpec, error) {
+	value = strings.TrimSpace(value)
+	value = strings.Trim(value, "[]")
+	value = strings.ReplaceAll(value, `"`, "")
+	value = strings.ReplaceAll(value, `'`, "")
+	if value == "" {
+		return entrySpec{}, nil
+	}
+	parts := strings.Split(value, ",")
+	for index := range parts {
+		parts[index] = strings.TrimSpace(parts[index])
+	}
+	if len(parts) == 1 {
+		return entrySpec{Name: parts[0]}, nil
+	}
+	if len(parts) >= 2 {
+		return entrySpec{Name: parts[0], Type: parts[1]}, nil
+	}
+	return entrySpec{}, fmt.Errorf("--entry expects a function name or [name,type]")
 }
 
 func projectNameFromPath(path string) string {
@@ -427,6 +509,10 @@ func positionalArgs(args []string) []string {
 	values := make([]string, 0, len(args))
 	for index := 0; index < len(args); index++ {
 		arg := args[index]
+		if arg == "--entry" {
+			index++
+			continue
+		}
 		if strings.HasPrefix(arg, "-") {
 			continue
 		}
@@ -452,15 +538,17 @@ func usageText() string {
 	return `Klang CLI
 
 Usage:
-  kLang new <project-path>        Create a folder-based Klang project
-  kLang run <file-or-folder>      Check, parse, and execute a Klang program
-  kLang check <file-or-folder>    Resolve modules, type check, and parse
-  kLang test <tests-folder>       Check every Klang program in a folder
-  kLang test <tests-folder> --run Check and run every discovered program
-  kLang file <file.klang>         Print a Klang source file with line labels
+  kLang new <project-path>                    Create a folder-based Klang project
+  kLang new <project-path> --entry=[Name,Int] Create a project with a custom entry point
+  kLang run <file-or-folder>                  Check, parse, and execute a Klang program
+  kLang check <file-or-folder>                Resolve modules, type check, and parse
+  kLang test <tests-folder>                   Check every Klang program in a folder
+  kLang test <tests-folder> --run             Check and run every discovered program
+  kLang file <file.klang>                     Print a Klang source file with line labels
 
 Options:
   --run                           Run programs after checks, for test mode
+  --entry=[Name,Type]              Set generated project entry point for new projects
   --raw-lang                      Disable stdlib imports while resolving modules
   --verbose, -v                   Print import details
   --help, -h                      Show this help

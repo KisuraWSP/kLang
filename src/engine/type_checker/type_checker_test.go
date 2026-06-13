@@ -1107,17 +1107,17 @@ func TestCheckProgramAcceptsAliasFunctionExtensionMethodsAndRegions(t *testing.T
 	program := programFromSource(`
 region MyRegion(T, sizeof(T) * 100, 10);
 
-alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
-    [new] do
+alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type {
+    [new] {
         allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
-    end
+    }
 
-    #extend do
-        function get_length() -> int
+    #extend {
+        function get_length() -> int {
             return this.length;
-        end
-    end
-end
+        }
+    }
+}
 
 function Main() : Int {
     local T list = ArrayList("value", 3, 10);
@@ -1130,6 +1130,30 @@ function Main() : Int {
 	report := CheckProgram(program)
 	if !report.Passed() {
 		t.Fatalf("expected alias function and region program to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsInferredParameterDefaultsAndAtomicBuiltins(t *testing.T) {
+	program := programFromSource(`
+function UserDefinedWorkspace() : String {
+    return "workspace";
+}
+
+function create_workspace(name : String, workspace := UserDefinedWorkspace()) : String {
+    return workspace;
+}
+
+function Main() : Int {
+    local Atomic[Int] counter = Atomic(1);
+    atomic_add(counter, 2);
+    local String workspace = create_workspace("demo");
+    return atomic_load(counter) + len(workspace);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected inferred default and atomic program to type check, got %#v", report.Errors)
 	}
 }
 
@@ -1173,13 +1197,13 @@ function Main() : Int {
 
 func TestCheckProgramChecksAliasExtensionMethodArguments(t *testing.T) {
 	program := programFromSource(`
-alias function Counter(value: int) -> type
-    #extend do
-        function add(amount : Int) -> int
+alias function Counter(value: int) : type {
+    #extend {
+        function add(amount : Int) -> int {
             return this.value + amount;
-        end
-    end
-end
+        }
+    }
+}
 
 function Main() : Int {
     local T counter = Counter(2);
@@ -1195,13 +1219,13 @@ function Main() : Int {
 
 func TestCheckProgramRejectsAliasExtensionMethodArgumentMismatch(t *testing.T) {
 	program := programFromSource(`
-alias function Counter(value: int) -> type
-    #extend do
-        function add(amount : Int) -> int
+alias function Counter(value: int) : type {
+    #extend {
+        function add(amount : Int) -> int {
             return this.value + amount;
-        end
-    end
-end
+        }
+    }
+}
 
 function Main() : Int {
     local T counter = Counter(2);

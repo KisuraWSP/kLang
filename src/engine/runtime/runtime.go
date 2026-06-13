@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
@@ -32,6 +33,7 @@ const (
 	ValueAwaitable   ValueKind = "Awaitable"
 	ValueIterator    ValueKind = "Iterator"
 	ValueCoroutine   ValueKind = "Coroutine"
+	ValueAtomic      ValueKind = "Atomic"
 	ValueFunction    ValueKind = "Function"
 	ValueObject      ValueKind = "Object"
 	ValueBoundMethod ValueKind = "BoundMethod"
@@ -78,6 +80,11 @@ type CoroutineData struct {
 	Function string
 	Done     bool
 	Value    Value
+}
+
+type AtomicData struct {
+	Mutex sync.Mutex
+	Value Value
 }
 
 type ThunkData struct {
@@ -235,7 +242,11 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 		}
 	}
 
-	mainName, err := runtime.resolveFunctionName("Main")
+	entryName := program.EntryPoint
+	if entryName == "" {
+		entryName = "Main"
+	}
+	mainName, err := runtime.resolveFunctionName(entryName)
 	if err != nil {
 		return Result{}, err
 	}
@@ -434,6 +445,8 @@ func (runtime *Runtime) evalReturnValue(stmt parser.ReturnStatement, env *Enviro
 func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment, inLoop bool) (signal, error) {
 	switch current := stmt.(type) {
 	case parser.ImportStatement:
+		return signal{kind: signalNone}, nil
+	case parser.EntryPointStatement:
 		return signal{kind: signalNone}, nil
 	case parser.AliasStatement:
 		return signal{kind: signalNone}, nil
@@ -1789,6 +1802,41 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 		coroutine.Done = true
 		coroutine.Value = value
 		return OptionSomeValue(value), nil
+	case "Atomic":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "Atomic expects one value"}
+		}
+		return Value{Kind: ValueAtomic, Data: &AtomicData{Value: cloneValue(args[0])}}, nil
+	case "atomic_load":
+		if len(args) != 1 || args[0].Kind != ValueAtomic {
+			return NullValue(), Error{Message: "atomic_load expects one Atomic value"}
+		}
+		atomic := args[0].Data.(*AtomicData)
+		atomic.Mutex.Lock()
+		defer atomic.Mutex.Unlock()
+		return cloneValue(atomic.Value), nil
+	case "atomic_store":
+		if len(args) != 2 || args[0].Kind != ValueAtomic {
+			return NullValue(), Error{Message: "atomic_store expects Atomic and value"}
+		}
+		atomic := args[0].Data.(*AtomicData)
+		atomic.Mutex.Lock()
+		atomic.Value = cloneValue(args[1])
+		atomic.Mutex.Unlock()
+		return args[0], nil
+	case "atomic_add":
+		if len(args) != 2 || args[0].Kind != ValueAtomic {
+			return NullValue(), Error{Message: "atomic_add expects Atomic and numeric value"}
+		}
+		atomic := args[0].Data.(*AtomicData)
+		atomic.Mutex.Lock()
+		defer atomic.Mutex.Unlock()
+		next, err := numericBinary(atomic.Value, args[1], func(a, b float64) float64 { return a + b })
+		if err != nil {
+			return NullValue(), err
+		}
+		atomic.Value = next
+		return cloneValue(atomic.Value), nil
 	case "Box", "Ref", "RefMut", "RefCell":
 		if len(args) != 1 {
 			return NullValue(), Error{Message: fmt.Sprintf("%s expects one value", name)}
@@ -2156,7 +2204,7 @@ func (runtime *Runtime) resolveAliasPath(name string) string {
 func isBuiltinFunction(name string) bool {
 	switch name {
 	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
-		"Table", "iter", "next", "coroutine", "resume",
+		"Table", "iter", "next", "coroutine", "resume", "Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true
 	default:

@@ -1172,6 +1172,53 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeUsesEntryPointDirective(t *testing.T) {
+	parsedProgram, errors := parser.Parse(`
+namespace App {
+    #set_entry_point_to_here
+    function Process() : Int {
+        return 7;
+    }
+}
+
+function Main() : Int {
+    return 0;
+}
+`)
+	if len(errors) != 0 {
+		t.Fatalf("unexpected parse errors: %#v", errors)
+	}
+
+	result, err := New().Run(parser.ParsedProgram{
+		Name:       "entry",
+		EntryPoint: "App.Process",
+		Sources: []parser.ParsedSource{
+			{Path: "entry.klang", Program: parsedProgram},
+		},
+	})
+	if err != nil {
+		t.Fatalf("runtime failed: %v", err)
+	}
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 7 {
+		t.Fatalf("expected entry point to return 7, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesAtomicBuiltins(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Atomic[Int] counter = Atomic(1);
+    atomic_add(counter, 2);
+    atomic_store(counter, atomic_load(counter) + 1);
+    return atomic_load(counter);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 4 {
+		t.Fatalf("expected atomic program to return 4, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesLambdaFunction(t *testing.T) {
 	result := runSource(t, `
 function Apply(value : Int, callback : Function[Int, Int]) : Int {

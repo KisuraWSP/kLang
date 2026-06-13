@@ -272,6 +272,25 @@ function AddDefault(left : Int = 1, right : Int = 2) : Int {
     return left + right;
 }
 
+-- inferred default parameters
+-- workspace := UserDefinedWorkspace() infers the parameter type from the default expression.
+function UserDefinedWorkspace() : String {
+    return "default-workspace";
+}
+
+function create_workspace(name : String, workspace := UserDefinedWorkspace()) : String {
+    return workspace;
+}
+
+-- entry point directive
+-- The following function becomes the runtime entry point for this workspace.
+namespace App {
+    #set_entry_point_to_here
+    function Process() {
+        print("custom entry");
+    }
+}
+
 -- callbacks
 -- Function[Return] is a no-argument callback. Function[Arg, Return] takes one argument.
 -- Function[Left, Right, Return] takes two arguments.
@@ -381,13 +400,21 @@ function BuildCount() : Int {
 local Coroutine[Int] buildCount = coroutine(BuildCount);
 local Option[Int] resumedCount = resume(buildCount);
 
+-- atomic race-safe cells
+local Atomic[Int] counter = Atomic(1);
+atomic_add(counter, 2);
+atomic_store(counter, atomic_load(counter) + 1);
+local Int counterValue = atomic_load(counter);
+
 -- variadic print and input
 print("count", 1, True);
 local String name = input("name: ");
 
 -- alias functions and extension methods
 -- alias function creates a constructor-like type value. #extend adds receiver methods.
-alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
+-- [T: Any] can later be replaced with stricter forms like T restrict[Int, Float].
+-- .DEFAULT asks the runtime to use the default initializer for that argument.
+alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type {
     trait LengthTracked {
         function Size(value : Int) : Int;
     }
@@ -398,28 +425,29 @@ alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator 
         }
     }
 
-    [new] do
+    [new] {
         allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
-    end
+    }
 
-    [delete] do
+    [delete] {
         allocator.free = free_all_allocator(.{});
-    end
+    }
 
-    [side_effects] do
+    [side_effects] {
+        local T call_site = #call_site;
         allocator.free = free_all_allocator(.{});
-    end
+    }
 
-    #extend do
-        function get_length() -> int
+    #extend {
+        function get_length() -> int {
             return this.length;
-        end
+        }
 
-        function with_extra(extra : Int) -> int
+        function with_extra(extra : Int) -> int {
             return this.length + extra;
-        end
-    end
-end
+        }
+    }
+}
 
 local T arrayList = ArrayList("value", 1, 100);
 local Int arrayListLength = arrayList.get_length();
@@ -428,33 +456,33 @@ local Int extendedLength = arrayList.with_extra(5);
 -- generic Array alias with allocator support
 -- allocator is typed as T so HeapAllocator, RegionAllocator, BumpAllocator, ArenaAllocator,
 -- Box, Ref, RefMut, RefCell, or any future allocator-like value can be passed in.
-alias function Array[T: Any](data: T, length: int, capacity: int, allocator: T = .DEFAULT) -> type
-    [new] do
+alias function Array[T: Any](data: T, length: int, capacity: int, allocator: T = .DEFAULT) : type {
+    [new] {
         allocator.region = get_default_procces_allocator(#region(capacity, T), #sizeof(T));
-    end
+    }
 
-    [delete] do
+    [delete] {
         allocator.free = free_all_allocator(.{});
-    end
+    }
 
-    [side_effects] do
+    [side_effects] {
         allocator.free = free_all_allocator(.{});
-    end
+    }
 
-    #extend do
-        function get_length() -> int
+    #extend {
+        function get_length() -> int {
             return this.length;
-        end
+        }
 
-        function get_capacity() -> int
+        function get_capacity() -> int {
             return this.capacity;
-        end
+        }
 
-        function remaining() -> int
+        function remaining() -> int {
             return this.capacity - this.length;
-        end
-    end
-end
+        }
+    }
+}
 
 local T heapArray = Array(10, 1, 32, HeapAllocator());
 local T regionArray = Array("text", 1, 64, RegionAllocator("TextRegion"));

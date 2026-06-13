@@ -518,6 +518,10 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 			continue
 		}
 		defaultType := checker.inferExpression(param.Default, locals, fn.File, fn.Line)
+		if param.Type == anyType {
+			param.Type = defaultType
+			locals[param.Name] = param
+		}
 		if !isAssignable(param.Type, defaultType) {
 			checker.addError(fn.File, fn.Line, fmt.Sprintf("parameter %s default expects %s, got %s", param.Name, param.Type, defaultType))
 		}
@@ -821,6 +825,21 @@ func parseParams(input string) ([]variableSymbol, error) {
 	params := make([]variableSymbol, 0, len(parts))
 	for _, part := range parts {
 		defaultValue := ""
+		evalAssign := findTopLevelOperator(part, []string{":="})
+		if evalAssign != -1 {
+			name := strings.TrimSpace(part[:evalAssign])
+			defaultValue = strings.TrimSpace(part[evalAssign+len(":="):])
+			mutable := false
+			if strings.HasPrefix(name, "mut ") {
+				mutable = true
+				name = strings.TrimSpace(strings.TrimPrefix(name, "mut"))
+			}
+			if name == "" || defaultValue == "" {
+				return nil, fmt.Errorf("function parameter %q must include a name and default value", strings.TrimSpace(part))
+			}
+			params = append(params, variableSymbol{Name: name, Type: anyType, Mutable: mutable, Default: defaultValue})
+			continue
+		}
 		if assignIndex := findTopLevelOperator(part, []string{"="}); assignIndex != -1 {
 			defaultValue = strings.TrimSpace(part[assignIndex+1:])
 			part = strings.TrimSpace(part[:assignIndex])
@@ -830,7 +849,7 @@ func parseParams(input string) ([]variableSymbol, error) {
 		}
 		colon := strings.Index(part, ":")
 		if colon == -1 {
-			return nil, fmt.Errorf("function parameter %q must be written as name : Type", strings.TrimSpace(part))
+			return nil, fmt.Errorf("function parameter %q must be written as name : Type or name := Default", strings.TrimSpace(part))
 		}
 		name := strings.TrimSpace(part[:colon])
 		mutable := false
@@ -1648,6 +1667,53 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			itemType = anyType
 		}
 		return "Option[" + itemType + "]"
+	case "Atomic":
+		if len(args) != 1 {
+			checker.addError(source, line, "Atomic expects 1 argument")
+			return "Atomic[T]"
+		}
+		return "Atomic[" + checker.inferExpression(args[0], locals, source, line) + "]"
+	case "atomic_load":
+		if len(args) != 1 {
+			checker.addError(source, line, "atomic_load expects 1 argument")
+			return anyType
+		}
+		inner, ok := atomicItemType(checker.inferExpression(args[0], locals, source, line))
+		if !ok {
+			checker.addError(source, line, "atomic_load expects Atomic[T]")
+			return anyType
+		}
+		return inner
+	case "atomic_store":
+		if len(args) != 2 {
+			checker.addError(source, line, "atomic_store expects 2 arguments")
+			return anyType
+		}
+		inner, ok := atomicItemType(checker.inferExpression(args[0], locals, source, line))
+		valueType := checker.inferExpression(args[1], locals, source, line)
+		if !ok {
+			checker.addError(source, line, "atomic_store expects Atomic[T] as first argument")
+			return anyType
+		}
+		if !isAssignable(inner, valueType) {
+			checker.addError(source, line, fmt.Sprintf("atomic_store expects %s, got %s", inner, valueType))
+		}
+		return "Atomic[" + inner + "]"
+	case "atomic_add":
+		if len(args) != 2 {
+			checker.addError(source, line, "atomic_add expects 2 arguments")
+			return anyType
+		}
+		inner, ok := atomicItemType(checker.inferExpression(args[0], locals, source, line))
+		valueType := checker.inferExpression(args[1], locals, source, line)
+		if !ok {
+			checker.addError(source, line, "atomic_add expects Atomic[T] as first argument")
+			return anyType
+		}
+		if !isNumeric(inner) || !isNumeric(valueType) {
+			checker.addError(source, line, fmt.Sprintf("atomic_add expects numeric Atomic and value, got %s and %s", inner, valueType))
+		}
+		return numericResult(inner, valueType)
 	case "Box", "Ref", "RefMut", "RefCell":
 		if len(args) != 1 {
 			checker.addError(source, line, fmt.Sprintf("%s expects 1 argument", name))
@@ -2036,6 +2102,14 @@ func aliasFunctionStartBefore(input string, functionIndex int) (int, bool) {
 }
 
 func findAliasFunctionEnd(input string, start int) int {
+	blockStart := strings.Index(input[start:], "{")
+	if blockStart >= 0 {
+		blockStart += start
+		end := matchBrace(input, blockStart)
+		if end != -1 {
+			return end + 1
+		}
+	}
 	index := start
 	depth := 0
 	for index < len(input) {
@@ -2316,6 +2390,9 @@ func isKnownType(typeName string) bool {
 	if strings.HasPrefix(typeName, "Coroutine[") && strings.HasSuffix(typeName, "]") {
 		return isKnownType(typeName[len("Coroutine[") : len(typeName)-1])
 	}
+	if strings.HasPrefix(typeName, "Atomic[") && strings.HasSuffix(typeName, "]") {
+		return isKnownType(typeName[len("Atomic[") : len(typeName)-1])
+	}
 	if params, returnType, ok := functionValueType(typeName); ok {
 		if !isKnownType(returnType) {
 			return false
@@ -2354,7 +2431,7 @@ func isArrayTypeName(typeName string) bool {
 		!strings.HasPrefix(typeName, "Option[") && !strings.HasPrefix(typeName, "Result[") &&
 		!strings.HasPrefix(typeName, "SIMD[") && !strings.HasPrefix(typeName, "Function[") &&
 		!strings.HasPrefix(typeName, "Awaitable[") && !strings.HasPrefix(typeName, "Iterator[") &&
-		!strings.HasPrefix(typeName, "Coroutine[")
+		!strings.HasPrefix(typeName, "Coroutine[") && !strings.HasPrefix(typeName, "Atomic[")
 }
 
 func arrayElementType(typeName string) (string, bool) {
@@ -2445,6 +2522,15 @@ func coroutineItemType(typeName string) (string, bool) {
 		return "", false
 	}
 	inner := normalizeType(typeName[len("Coroutine[") : len(typeName)-1])
+	return inner, inner != ""
+}
+
+func atomicItemType(typeName string) (string, bool) {
+	typeName = normalizeType(typeName)
+	if !strings.HasPrefix(typeName, "Atomic[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	inner := normalizeType(typeName[len("Atomic[") : len(typeName)-1])
 	return inner, inner != ""
 }
 

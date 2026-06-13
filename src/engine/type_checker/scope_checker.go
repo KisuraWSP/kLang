@@ -159,6 +159,8 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 	switch current := stmt.(type) {
 	case parser.ImportStatement:
 		return
+	case parser.EntryPointStatement:
+		return
 	case parser.AliasStatement:
 		return
 	case parser.RegionStatement:
@@ -614,7 +616,7 @@ func selectorPath(expr parser.ExpressionNode) (string, bool) {
 func isBuiltinFunctionName(name string) bool {
 	switch name {
 	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
-		"Table", "iter", "next", "coroutine", "resume",
+		"Table", "iter", "next", "coroutine", "resume", "Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true
 	default:

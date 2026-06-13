@@ -179,17 +179,17 @@
   "Alias Function": {
     "prefix": "aliasfn",
     "body": [
-      "alias function ${1:Name}[T: Any](${2:data: T}) -> type",
-      "    [new] do",
+      "alias function ${1:Name}[T: Any](${2:data: T}) : type {",
+      "    [new] {",
       "        ${3}",
-      "    end",
+      "    }",
       "",
-      "    #extend do",
-      "        function ${4:get_value}() -> ${5:T}",
+      "    #extend {",
+      "        function ${4:get_value}() -> ${5:T} {",
       "            ${0:return this.data;}",
-      "        end",
-      "    end",
-      "end"
+      "        }",
+      "    }",
+      "}"
     ],
     "description": "Create an alias function with an extension method"
   },
