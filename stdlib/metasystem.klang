@@ -1,0 +1,20 @@
+namespace metasystem {
+    namespace workspace {
+        -- functions
+        create_workspace(name : String, workspace := UserDefinedWorkspace())
+        build_workspace(name : String, workspace := UserDefinedWorkspace())
+
+        create_workspace(name : String, workspace := DefaultWorkspace())
+        build_workspace(name : String, workspace := DefaultWorkspace())
+
+        edit_workspace(name : String, workspace : T restrict[Option[DefaultWorkspace], Option[UserDefinedWorkspace]])
+
+        -- function aliase
+        alias function UserDefinedWorkspace()
+        alias function DefaultWorkspace()
+    }
+
+    namespace build {
+        -- define a api of build system functions that could be useful
+    }
+}

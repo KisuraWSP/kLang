@@ -20,6 +20,17 @@ function Print2() : (mut String, Int) {
 }
 ```
 - a compact build system (Like if u want to package the project u can do that with the languages source code)
+    - i want the user to be able to define a custom workspace since we have workspaces
+    - WorkSpace should be a builtin type in the langauge
+        - this should take arguments "Program : Program (might have to add this as a seperate type), BuildSystem : BuildSystem (also a seperate type)"
+        - BuidSystem must take in 
+            project_name : String
+            number_of_files : Int
+            files : List[String]
+            backend : String Options are ["WASM", "JS", "Standalone"] if Standalone the entire program runs through the interpretter engine
+        - Program must take in
+            module : List[String]
+    - this system must have its own api that the user can use to program and do meta programming like features
 - private keyword/scope to make either a namespace or a function or even a scope hidden to other files (like the below)
 ```lua
 -- function is now hidden to other modules/files
@@ -64,6 +75,19 @@ let mut here_string = //
         }
     }
     ```
+- add support for this syntax in function arguments/parameters
+```lua
+-- workspace := UserDefinedWorkspace() 
+-- this means above is to infer this type to the function argument/parameter 
+function create_workspace(name : String, workspace := UserDefinedWorkspace()) {
+
+}
+```
+-- add support for the below on restrict on T 
+    - T must allow to be restricted to any builtin data type in the system
+```lua
+T restrict[Option[DefaultWorkspace], Option[UserDefinedWorkspace]]
+```
 
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project within 10 seconds
