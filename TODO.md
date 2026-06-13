@@ -137,6 +137,8 @@ T restrict[Option[DefaultWorkspace], Option[UserDefinedWorkspace]]
 - make clone keyword better like if this variable is containing this word <- the program should give priority that this is cloned before any more processes can continue
 - add defer keyword
 - built in debugger in the language so u can debug code issues
+- ability to inline functions & function aliases 
+    - meaning when we inline the function we are able to like give this a quick priority and get the entire function definition and execute it all at once and saves memory too if we can
 
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project within 10 seconds
