@@ -136,6 +136,7 @@ T restrict[Option[DefaultWorkspace], Option[UserDefinedWorkspace]]
 - add Any type but this is like T except u cannot restrict it, its literally allows you to write a variable or function argument/parameter and u can pass whatever respective type and the program wont error
 - make clone keyword better like if this variable is containing this word <- the program should give priority that this is cloned before any more processes can continue
 - add defer keyword
+- built in debugger in the language so u can debug code issues
 
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project within 10 seconds
