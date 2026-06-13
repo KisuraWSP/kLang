@@ -1,0 +1,200 @@
+%YAML 1.2
+---
+name: Klang
+file_extensions:
+  - klang
+scope: source.klang
+
+variables:
+  identifier: '[A-Za-z_][A-Za-z0-9_]*'
+  builtin_type: '(?:Int|UInt|String|Float|Bool|Char|Map|List|Table|Option|Result|Complex|SIMD|Function|Awaitable|Iterator|Coroutine|Any|T|Args|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)'
+
+contexts:
+  main:
+    - include: comments
+    - include: strings
+    - include: chars
+    - include: imports
+    - include: declarations
+    - include: hooks
+    - include: keywords
+    - include: types
+    - include: constants
+    - include: numbers
+    - include: functions
+    - include: operators
+    - include: punctuation
+
+  comments:
+    - match: '--.*$'
+      scope: comment.line.double-dash.klang
+
+  strings:
+    - match: '"'
+      scope: punctuation.definition.string.begin.klang
+      push:
+        - meta_scope: string.quoted.double.klang
+        - match: '\\[\\''"nrt]'
+          scope: constant.character.escape.klang
+        - match: '\\.'
+          scope: invalid.illegal.escape.klang
+        - match: '"'
+          scope: punctuation.definition.string.end.klang
+          pop: true
+
+  chars:
+    - match: "'"
+      scope: punctuation.definition.string.begin.klang
+      push:
+        - meta_scope: string.quoted.single.klang
+        - match: '\\[\\''"nrt]'
+          scope: constant.character.escape.klang
+        - match: '\\.'
+          scope: invalid.illegal.escape.klang
+        - match: "'"
+          scope: punctuation.definition.string.end.klang
+          pop: true
+
+  imports:
+    - match: '\b(import)\s+("[^"]*")'
+      scope: meta.import.klang
+      captures:
+        1: keyword.control.import.klang
+        2: string.quoted.double.import.klang
+
+  declarations:
+    - match: '\b(namespace)\s+({{identifier}})'
+      scope: meta.namespace.klang
+      captures:
+        1: keyword.control.namespace.klang
+        2: entity.name.namespace.klang
+    - match: '\b(alias)\s+(function)\s+({{identifier}})'
+      scope: meta.alias-function.klang
+      captures:
+        1: keyword.declaration.alias.klang
+        2: keyword.declaration.function.klang
+        3: entity.name.type.alias.klang
+    - match: '\b(function_group)\s+({{identifier}})'
+      scope: meta.function-group.klang
+      captures:
+        1: keyword.declaration.function-group.klang
+        2: entity.name.function-group.klang
+    - match: '\b(trait)\s+({{identifier}})'
+      scope: meta.trait.klang
+      captures:
+        1: keyword.declaration.trait.klang
+        2: entity.name.type.trait.klang
+    - match: '\b(impl)\s+({{identifier}})\s+(for)\s+({{identifier}})'
+      scope: meta.impl.klang
+      captures:
+        1: keyword.declaration.impl.klang
+        2: entity.name.type.trait.klang
+        3: keyword.control.for.klang
+        4: entity.name.type.klang
+    - match: '\b(region)\s+({{identifier}})'
+      scope: meta.region.klang
+      captures:
+        1: keyword.declaration.region.klang
+        2: entity.name.region.klang
+    - match: '\b(async|lazy|inner)?\s*\b(function)\s+({{identifier}})'
+      scope: meta.function.klang
+      captures:
+        1: storage.modifier.function.klang
+        2: keyword.declaration.function.klang
+        3: entity.name.function.klang
+    - match: '\b(fun)(?=\s*(?:\[|\())'
+      scope: keyword.declaration.function.lambda.klang
+    - match: '\b(export)\s+(global|local)\b'
+      scope: meta.variable.export.klang
+      captures:
+        1: storage.modifier.export.klang
+        2: storage.modifier.scope.klang
+    - match: '\b(global|local)\s+(?:(mut)\s+)?({{builtin_type}}(?:\[[^\]]+\])?)\s+({{identifier}})'
+      scope: meta.variable.declaration.typed.klang
+      captures:
+        1: storage.modifier.scope.klang
+        2: storage.modifier.mutability.klang
+        3: storage.type.klang
+        4: variable.other.readwrite.klang
+    - match: '\b(let)\s+(mut)\s+({{identifier}})'
+      scope: meta.variable.declaration.inferred.klang
+      captures:
+        1: storage.modifier.scope.local.klang
+        2: storage.modifier.mutability.klang
+        3: variable.other.readwrite.klang
+    - match: '\b(let|val|var|const)\s+(?:size\s+)?({{identifier}})'
+      scope: meta.variable.declaration.inferred.klang
+      captures:
+        1: storage.modifier.scope.inferred.klang
+        2: variable.other.readwrite.klang
+
+  hooks:
+    - match: '\[(new|delete|side_effects)\]'
+      scope: keyword.control.hook.klang
+    - match: '#extend\b'
+      scope: keyword.control.extend.klang
+    - match: '#(?:region|sizeof)\b'
+      scope: support.function.compiler.klang
+    - match: '@deprecated(?:\([^)]*\))?'
+      scope: storage.modifier.annotation.deprecated.klang
+
+  keywords:
+    - match: '\b(if|then|else|unless|for|while|do|do_while|end|return|break|continue|try|catch|throw|case|partial|await|import|namespace|region|alias|call|inner|function_group)\b'
+      scope: keyword.control.klang
+    - match: '\b(and|or|xor|not|is|as|in)\b'
+      scope: keyword.operator.word.klang
+    - match: '\b(move|copy|clone)\b'
+      scope: keyword.operator.ownership.klang
+    - match: '\b(global|local|let|var|val|const|mut|export|async|lazy)\b'
+      scope: storage.modifier.klang
+
+  types:
+    - match: '\b({{builtin_type}})(\.)(sizeof)\b'
+      captures:
+        1: storage.type.primitive.klang
+        2: punctuation.accessor.klang
+        3: support.variable.sizeof.klang
+    - match: '\b{{builtin_type}}\b'
+      scope: storage.type.primitive.klang
+
+  constants:
+    - match: '\b(True|False)\b'
+      scope: constant.language.boolean.klang
+    - match: '\b(None|Some|Ok|Err|Result)\b'
+      scope: constant.language.option-result.klang
+    - match: '\bDEFAULT\b|\.(DEFAULT)\b'
+      scope: constant.language.default.klang
+
+  numbers:
+    - match: '\b\d+\.\d+\b'
+      scope: constant.numeric.float.klang
+    - match: '\b\d+\b'
+      scope: constant.numeric.integer.klang
+
+  functions:
+    - match: '\b({{identifier}})(::|\.)([A-Za-z_][A-Za-z0-9_]*)\s*(?=\()'
+      scope: meta.function-call.qualified.klang
+      captures:
+        1: entity.name.namespace.klang
+        2: punctuation.accessor.klang
+        3: entity.name.function.klang
+    - match: '\b({{identifier}})\s*(?=\()'
+      scope: entity.name.function.call.klang
+
+  operators:
+    - match: '(\|>|==|!=|>=|<=|:=|\+=|-=|\*=|/=|\*\*|//|->|=>|[=<>+\-*/%|!?])'
+      scope: keyword.operator.klang
+
+  punctuation:
+    - match: ';'
+      scope: punctuation.terminator.statement.klang
+    - match: ','
+      scope: punctuation.separator.comma.klang
+    - match: ':'
+      scope: punctuation.definition.type.return.klang
+    - match: '[{}]'
+      scope: punctuation.section.block.klang
+    - match: '[\[\]()]'
+      scope: punctuation.section.brackets.klang
+    - match: '\.'
+      scope: punctuation.accessor.klang

@@ -1,0 +1,6 @@
+<snippet>
+    <content><![CDATA[let size ${1:intSize} = ${2:Int}.sizeof;]]></content>
+    <tabTrigger>sizeof</tabTrigger>
+    <scope>source.klang</scope>
+    <description>Type sizeof declaration</description>
+</snippet>

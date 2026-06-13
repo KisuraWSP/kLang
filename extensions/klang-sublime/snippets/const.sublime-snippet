@@ -1,0 +1,6 @@
+<snippet>
+    <content><![CDATA[const ${1:name} = ${2:Int.sizeof};]]></content>
+    <tabTrigger>const</tabTrigger>
+    <scope>source.klang</scope>
+    <description>Strict immutable const value</description>
+</snippet>

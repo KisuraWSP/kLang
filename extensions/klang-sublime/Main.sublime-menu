@@ -1,0 +1,23 @@
+[
+    {
+        "caption": "View",
+        "mnemonic": "V",
+        "id": "view",
+        "children": [
+            {
+                "caption": "Syntax",
+                "mnemonic": "S",
+                "id": "syntax",
+                "children": [
+                    {
+                        "caption": "Klang",
+                        "command": "set_file_type",
+                        "args": {
+                            "syntax": "Packages/klang-sublime/Klang.sublime-syntax"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+]

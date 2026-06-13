@@ -1,0 +1,8 @@
+<snippet>
+    <content><![CDATA[fun(${1:value} : ${2:Int}) : ${3:Int} {
+    ${0:return value;}
+}]]></content>
+    <tabTrigger>fun</tabTrigger>
+    <scope>source.klang</scope>
+    <description>Lambda function</description>
+</snippet>

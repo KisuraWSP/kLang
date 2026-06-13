@@ -1,0 +1,8 @@
+<snippet>
+    <content><![CDATA[trait ${1:Printable} {
+    function ${2:Show}(value : ${3:Int}) : ${4:String};
+}]]></content>
+    <tabTrigger>trait</tabTrigger>
+    <scope>source.klang</scope>
+    <description>Klang trait</description>
+</snippet>

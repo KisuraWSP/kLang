@@ -1,0 +1,8 @@
+<snippet>
+    <content><![CDATA[async function ${1:LoadValue}() : ${2:Int} {
+    ${0:return 0;}
+}]]></content>
+    <tabTrigger>asyncfn</tabTrigger>
+    <scope>source.klang</scope>
+    <description>Async Klang function</description>
+</snippet>

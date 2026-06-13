@@ -1,0 +1,261 @@
+{
+  "Function": {
+    "prefix": "fn",
+    "body": [
+      "function ${1:Name}(${2}) : ${3:Int} {",
+      "    ${0:return 0;}",
+      "}"
+    ],
+    "description": "Create a Klang function"
+  },
+  "Main Function": {
+    "prefix": "main",
+    "body": [
+      "function Main() : Int {",
+      "    ${0:return 0;}",
+      "}"
+    ],
+    "description": "Create a Klang Main entrypoint"
+  },
+  "Async Function": {
+    "prefix": "asyncfn",
+    "body": [
+      "async function ${1:LoadValue}() : ${2:Int} {",
+      "    ${0:return 0;}",
+      "}"
+    ],
+    "description": "Create an async Klang function"
+  },
+  "Lazy Function": {
+    "prefix": "lazyfn",
+    "body": [
+      "lazy function ${1:Name}(${2}) : ${3:Int} {",
+      "    ${0:return 0;}",
+      "}"
+    ],
+    "description": "Create a lazy Klang function"
+  },
+  "Inner Function": {
+    "prefix": "innerfn",
+    "body": [
+      "inner function ${1:Eval}() {",
+      "    ${0:print(\"called\");}",
+      "}"
+    ],
+    "description": "Create an inner function"
+  },
+  "Namespace": {
+    "prefix": "namespace",
+    "body": [
+      "namespace ${1:Name} {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Create a Klang namespace"
+  },
+  "Import": {
+    "prefix": "import",
+    "body": "import \"${1:module}\";",
+    "description": "Import a Klang module"
+  },
+  "Local Variable": {
+    "prefix": "local",
+    "body": "local ${1:Int} ${2:name} = ${3:0};",
+    "description": "Create an immutable local variable"
+  },
+  "Mutable Local Variable": {
+    "prefix": "lmut",
+    "body": "local mut ${1:Int} ${2:name} = ${3:0};",
+    "description": "Create a mutable local variable"
+  },
+  "Global Variable": {
+    "prefix": "global",
+    "body": "global ${1:Int} ${2:name} = ${3:0};",
+    "description": "Create an immutable global variable"
+  },
+  "Mutable Global Variable": {
+    "prefix": "gmut",
+    "body": "global mut ${1:Int} ${2:name} = ${3:0};",
+    "description": "Create a mutable global variable"
+  },
+  "Inferred Local Variable": {
+    "prefix": "let",
+    "body": "let ${1:name} = ${2:Some(0)};",
+    "description": "Create an inferred immutable local variable"
+  },
+  "Inferred Mutable Local Variable": {
+    "prefix": "letmut",
+    "body": "let mut ${1:name} = ${2:0};",
+    "description": "Create an inferred mutable local variable"
+  },
+  "Inferred Global Value": {
+    "prefix": "val",
+    "body": "val ${1:name} = ${2:Some(0)};",
+    "description": "Create an inferred immutable global variable"
+  },
+  "Inferred Global Variable": {
+    "prefix": "var",
+    "body": "var ${1:name} = ${2:0};",
+    "description": "Create an inferred mutable global variable"
+  },
+  "Const Value": {
+    "prefix": "const",
+    "body": "const ${1:name} = ${2:Int.sizeof};",
+    "description": "Create a strict immutable const value"
+  },
+  "Type Sizeof": {
+    "prefix": "sizeof",
+    "body": "let size ${1:intSize} = ${2:Int}.sizeof;",
+    "description": "Create a Type.sizeof declaration"
+  },
+  "If Else": {
+    "prefix": "ifelse",
+    "body": [
+      "if ${1:condition} {",
+      "    ${2}",
+      "} else {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Create an if/else block"
+  },
+  "Unless": {
+    "prefix": "unless",
+    "body": [
+      "unless ${1:condition} {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Create an unless block"
+  },
+  "Range Loop": {
+    "prefix": "forrange",
+    "body": [
+      "for ${1:i} := range(${2:count}) {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Create a range loop"
+  },
+  "While Loop": {
+    "prefix": "while",
+    "body": [
+      "while ${1:condition} {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Create a while loop"
+  },
+  "Pattern Match": {
+    "prefix": "match",
+    "body": [
+      "${1:partial }if ${2:value} == {",
+      "    case ${3:pattern}:",
+      "        ${4}",
+      "    case:",
+      "        ${0}",
+      "}"
+    ],
+    "description": "Create a pattern matching switch"
+  },
+  "Lambda Function": {
+    "prefix": "fun",
+    "body": [
+      "fun(${1:value} : ${2:Int}) : ${3:Int} {",
+      "    ${0:return value;}",
+      "}"
+    ],
+    "description": "Create a lambda function"
+  },
+  "Restricted Lambda": {
+    "prefix": "funrestrict",
+    "body": [
+      "fun[T restrict[${1:Int}]](mut ${2:value} : T) : T {",
+      "    ${0:return value;}",
+      "}"
+    ],
+    "description": "Create a restricted generic lambda"
+  },
+  "Alias Function": {
+    "prefix": "aliasfn",
+    "body": [
+      "alias function ${1:Name}[T: Any](${2:data: T}) -> type",
+      "    [new] do",
+      "        ${3}",
+      "    end",
+      "",
+      "    #extend do",
+      "        function ${4:get_value}() -> ${5:T}",
+      "            ${0:return this.data;}",
+      "        end",
+      "    end",
+      "end"
+    ],
+    "description": "Create an alias function with an extension method"
+  },
+  "Trait": {
+    "prefix": "trait",
+    "body": [
+      "trait ${1:Printable} {",
+      "    function ${2:Show}(value : ${3:Int}) : ${4:String};",
+      "}"
+    ],
+    "description": "Create a Klang trait"
+  },
+  "Impl": {
+    "prefix": "impl",
+    "body": [
+      "impl ${1:Printable} for ${2:Int} {",
+      "    function ${3:Show}(value : ${2:Int}) : ${4:String} {",
+      "        ${0:return value as String;}",
+      "    }",
+      "}"
+    ],
+    "description": "Create a trait impl"
+  },
+  "Option Some": {
+    "prefix": "some",
+    "body": "let ${1:maybeValue} = Some(${2:0});",
+    "description": "Create an Option Some value"
+  },
+  "Option None": {
+    "prefix": "none",
+    "body": "local Option[${1:Int}] ${2:maybeValue} = None();",
+    "description": "Create an Option None value"
+  },
+  "Result Ok": {
+    "prefix": "ok",
+    "body": "local Result[${1:Int}, ${2:String}] ${3:result} = Ok(${4:0});",
+    "description": "Create a Result Ok value"
+  },
+  "Result Err": {
+    "prefix": "err",
+    "body": "local Result[${1:Int}, ${2:String}] ${3:result} = Err(${4:\"error\"});",
+    "description": "Create a Result Err value"
+  },
+  "List Comprehension": {
+    "prefix": "listcomp",
+    "body": "let ${1:items} = [${2:value} for ${2:value} in ${3:values} if ${4:condition}];",
+    "description": "Create a list comprehension"
+  },
+  "Region Array": {
+    "prefix": "regionarray",
+    "body": [
+      "region ${1:MyRegion}(T, sizeof(T) * ${2:100}, ${3:10});",
+      "local mut T[${1:MyRegion}] ${4:items};",
+      "${4:items}[0] = ${0:\"value\"};"
+    ],
+    "description": "Create a region-backed array"
+  },
+  "Try Catch": {
+    "prefix": "trycatch",
+    "body": [
+      "try {",
+      "    ${1}",
+      "} catch ${2:error} {",
+      "    ${0:print(error);}",
+      "}"
+    ],
+    "description": "Create a try/catch block"
+  }
+}

@@ -1,0 +1,16 @@
+<snippet>
+    <content><![CDATA[alias function ${1:Name}[T: Any](${2:data: T}) -> type
+    [new] do
+        ${3}
+    end
+
+    #extend do
+        function ${4:get_value}() -> ${5:T}
+            ${0:return this.data;}
+        end
+    end
+end]]></content>
+    <tabTrigger>aliasfn</tabTrigger>
+    <scope>source.klang</scope>
+    <description>Alias function with extension method</description>
+</snippet>

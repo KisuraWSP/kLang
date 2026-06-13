@@ -1,0 +1,8 @@
+<snippet>
+    <content><![CDATA[namespace ${1:Name} {
+    ${0}
+}]]></content>
+    <tabTrigger>namespace</tabTrigger>
+    <scope>source.klang</scope>
+    <description>Klang namespace</description>
+</snippet>

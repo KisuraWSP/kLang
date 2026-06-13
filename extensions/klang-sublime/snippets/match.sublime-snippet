@@ -1,0 +1,11 @@
+<snippet>
+    <content><![CDATA[${1:partial }if ${2:value} == {
+    case ${3:pattern}:
+        ${4}
+    case:
+        ${0}
+}]]></content>
+    <tabTrigger>match</tabTrigger>
+    <scope>source.klang</scope>
+    <description>Pattern matching switch</description>
+</snippet>

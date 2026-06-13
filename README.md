@@ -1,2 +1,194 @@
-# KLANG
-- A Simple Prototype Programming Language Project to understand golang
+# kLang
+
+kLang is a prototype programming language written in Go. It is built as a small interpreted language with a lexer, parser, module resolver, type checker, runtime, standard library folder, example projects, and editor extensions.
+
+The language is function-first, strongly checked, and experiments with ideas from Go, Rust, Lua, Python, Elm, and functional languages. It supports scoped variables, type inference, `Option`/`Result`, list comprehensions, traits, async/await, coroutines, pattern matching, allocator-style values, and human-friendly diagnostics.
+
+## Project Layout
+
+- `main.go` contains the CLI entrypoint.
+- `src/lexer` tokenizes `.klang` source files.
+- `src/parser` builds the AST and expression trees.
+- `src/engine/module_system` resolves local and stdlib imports.
+- `src/engine/type_checker` performs semantic checks and type checks.
+- `src/engine/runtime` executes parsed Klang programs.
+- `stdlib` contains standard library modules written for the language.
+- `examples` contains runnable Klang projects.
+- `tests` contains language test fixtures.
+- `extensions/klang-vscode` contains the VS Code language extension.
+- `extensions/klang-sublime` contains the Sublime Text language package.
+
+## How To Program In kLang
+
+kLang files use the `.klang` extension. A folder project uses `first.klang` as the entry file, and can import sibling files or stdlib modules.
+
+```lua
+import "mathg";
+
+val appName = "demo";
+const intSize = Int.sizeof;
+
+function Add(left : Int, right : Int) : Int {
+    return left + right;
+}
+
+function Main() : Int {
+    let maybeCount = Some(41);
+    let mut total = Add(maybeCount.value, 1);
+
+    if total == {
+        case 42:
+            print(appName, "answer", total);
+        case:
+            print("unexpected", total);
+    }
+
+    return total;
+}
+```
+
+Common language rules:
+
+- Variables are immutable by default. Use `mut` when a binding or parameter must change.
+- `local` and `global` declarations use explicit types.
+- `let`, `val`, `var`, and `const` infer types strictly from initializers.
+- `let` is local immutable, `let mut` is local mutable, `val` is global immutable, and `var` is global mutable.
+- `const` is strictly immutable and must be resolved before runtime.
+- `Args` is a builtin immutable `List[String]` containing command-line arguments passed to the program.
+- `Type.sizeof` returns the language runtime size for builtin types as an `Int`.
+- Tables are the dynamic Lua-style container; most other values are statically checked.
+
+For the full syntax tour, see `SYNTAX.md`.
+
+## How To Use The CLI
+
+Run commands from the repository root with `go run .`:
+
+```sh
+go run . --help
+```
+
+Create a new project:
+
+```sh
+go run . new examples/myproject
+```
+
+Check a script or project without running it:
+
+```sh
+go run . check examples/helloworld
+```
+
+Run a script or project:
+
+```sh
+go run . run examples/helloworld
+```
+
+Pass program arguments. They are available inside kLang as `Args`:
+
+```sh
+go run . run examples/commandlinearena demo 100
+```
+
+Run without stdlib module resolution:
+
+```sh
+go run . check examples/helloworld --raw-lang
+```
+
+Show import cache/details:
+
+```sh
+go run . check examples/showcase --verbose
+```
+
+Print a source file with line labels:
+
+```sh
+go run . file examples/helloworld/first.klang
+```
+
+## How To Build
+
+Build a local binary:
+
+```sh
+go build -o kLang .
+```
+
+Then run the binary directly:
+
+```sh
+./kLang check examples/helloworld
+./kLang run examples/helloworld
+```
+
+## How To Run Tests
+
+Run the Go unit test suite:
+
+```sh
+go test ./...
+```
+
+Run the language fixture tests:
+
+```sh
+go run . test tests
+```
+
+Run and execute every discovered example project:
+
+```sh
+go run . test examples --run
+```
+
+Check every example project without executing it:
+
+```sh
+go run . test examples
+```
+
+## Root Markdown Files
+
+- `README.md` is this project overview and getting-started guide.
+- `AGENTS.md` contains contributor and agent guidance for working on the language.
+- `DATA-TYPES.md` lists builtin language data types.
+- `LANGUAGE-SPEC.md` describes the high-level language rules and design.
+- `SYNTAX.md` shows syntax examples for variables, functions, modules, runtime features, and newer language constructs.
+
+## Recommended Reading Path
+
+1. Start with this `README.md`.
+2. Read `LANGUAGE-SPEC.md` for the design rules.
+3. Read `DATA-TYPES.md` for the builtin type surface.
+4. Use `SYNTAX.md` as the practical cookbook while writing `.klang` files.
+5. Explore `examples/showcase` and `examples/stresstest` for larger programs.
+
+## Editor Support
+
+VS Code:
+
+```sh
+code extensions/klang-vscode
+```
+
+Sublime Text:
+
+Copy `extensions/klang-sublime` into your Sublime Text `Packages` directory.
+
+Both editor packages include syntax highlighting and snippets for current kLang syntax.
+
+## Suggested Improvement
+
+The next readability improvement would be adding a dedicated `docs/` folder with focused guides:
+
+- `docs/getting-started.md`
+- `docs/cli.md`
+- `docs/language-tour.md`
+- `docs/runtime.md`
+- `docs/editor-extensions.md`
+
+That would keep the root README short and friendly while giving bigger language topics room to breathe.

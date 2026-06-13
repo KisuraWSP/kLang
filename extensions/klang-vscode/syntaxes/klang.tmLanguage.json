@@ -10,6 +10,7 @@
     { "include": "#namespace" },
     { "include": "#function-declaration" },
     { "include": "#variable-declaration" },
+    { "include": "#hooks" },
     { "include": "#keywords" },
     { "include": "#types" },
     { "include": "#constants" },
@@ -113,13 +114,52 @@
           }
         },
         {
-          "name": "meta.function.klang",
-          "match": "\\b(function|fun)\\s+([A-Za-z_][A-Za-z0-9_]*)?\\s*(\\()",
+          "name": "meta.function-group.klang",
+          "match": "\\b(function_group)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
-            "1": { "name": "keyword.declaration.function.klang" },
-            "2": { "name": "entity.name.function.klang" },
-            "3": { "name": "punctuation.section.parameters.begin.klang" }
+            "1": { "name": "keyword.declaration.function-group.klang" },
+            "2": { "name": "entity.name.function-group.klang" }
           }
+        },
+        {
+          "name": "meta.trait.klang",
+          "match": "\\b(trait)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.trait.klang" },
+            "2": { "name": "entity.name.type.trait.klang" }
+          }
+        },
+        {
+          "name": "meta.impl.klang",
+          "match": "\\b(impl)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(for)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.impl.klang" },
+            "2": { "name": "entity.name.type.trait.klang" },
+            "3": { "name": "keyword.control.for.klang" },
+            "4": { "name": "entity.name.type.klang" }
+          }
+        },
+        {
+          "name": "meta.region.klang",
+          "match": "\\b(region)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.region.klang" },
+            "2": { "name": "entity.name.region.klang" }
+          }
+        },
+        {
+          "name": "meta.function.klang",
+          "match": "\\b(?:(async|lazy|inner)\\s+)?(function)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+          "captures": {
+            "1": { "name": "storage.modifier.function.klang" },
+            "2": { "name": "keyword.declaration.function.klang" },
+            "3": { "name": "entity.name.function.klang" },
+            "4": { "name": "punctuation.section.parameters.begin.klang" }
+          }
+        },
+        {
+          "name": "keyword.declaration.function.lambda.klang",
+          "match": "\\bfun\\b(?=\\s*(?:\\[|\\())"
         }
       ]
     },
@@ -134,15 +174,28 @@
             "3": { "name": "storage.type.klang" },
             "4": { "name": "variable.other.readwrite.klang" }
           }
+        },
+        {
+          "name": "meta.variable.declaration.inferred.klang",
+          "match": "\\b(let)\\s+(mut)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.modifier.scope.local.klang" },
+            "2": { "name": "storage.modifier.mutability.klang" },
+            "3": { "name": "variable.other.readwrite.klang" }
+          }
+        },
+        {
+          "name": "meta.variable.declaration.inferred.klang",
+          "match": "\\b(let|val|var|const)\\s+(?:size\\s+)?([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.modifier.scope.inferred.klang" },
+            "2": { "name": "variable.other.readwrite.klang" }
+          }
         }
       ]
     },
-    "keywords": {
+    "hooks": {
       "patterns": [
-        {
-          "name": "keyword.control.klang",
-          "match": "\\b(if|else|unless|for|while|do|do_while|end|return|break|try|catch|throw|and|or|not|await|import|namespace|region|alias|call|inner|function_group)\\b"
-        },
         {
           "name": "keyword.control.hook.klang",
           "match": "\\[(new|delete|side_effects)\\]"
@@ -152,20 +205,49 @@
           "match": "#extend\\b"
         },
         {
+          "name": "support.function.compiler.klang",
+          "match": "#(?:region|sizeof)\\b"
+        },
+        {
+          "name": "storage.modifier.annotation.deprecated.klang",
+          "match": "@deprecated(?:\\([^)]*\\))?"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.klang",
+          "match": "\\b(if|then|else|unless|for|while|do|do_while|end|return|break|continue|try|catch|throw|case|partial|await|import|namespace|region|alias|call|inner|function_group)\\b"
+        },
+        {
           "name": "storage.modifier.klang",
-          "match": "\\b(global|local|mut|async)\\b"
+          "match": "\\b(global|local|let|var|val|const|mut|export|async|lazy)\\b"
         },
         {
           "name": "keyword.operator.word.klang",
-          "match": "\\b(is|as|in)\\b"
+          "match": "\\b(and|or|xor|not|is|as|in)\\b"
+        },
+        {
+          "name": "keyword.operator.ownership.klang",
+          "match": "\\b(move|copy|clone)\\b"
         }
       ]
     },
     "types": {
       "patterns": [
         {
+          "name": "meta.type.sizeof.klang",
+          "match": "\\b(Int|UInt|String|Float|Bool|Char|Map|List|Table|Option|Result|Complex|SIMD|Function|Awaitable|Iterator|Coroutine|Any|T|Args|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)(\\.)(sizeof)\\b",
+          "captures": {
+            "1": { "name": "storage.type.primitive.klang" },
+            "2": { "name": "punctuation.accessor.klang" },
+            "3": { "name": "support.variable.sizeof.klang" }
+          }
+        },
+        {
           "name": "storage.type.primitive.klang",
-          "match": "\\b(Int|UInt|String|Float|Bool|Char|Map|List|Table|Option|Result|Complex|SIMD|Function|Awaitable|Iterator|Coroutine|Any|T|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)\\b"
+          "match": "\\b(Int|UInt|String|Float|Bool|Char|Map|List|Table|Option|Result|Complex|SIMD|Function|Awaitable|Iterator|Coroutine|Any|T|Args|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)\\b"
         }
       ]
     },
@@ -174,6 +256,14 @@
         {
           "name": "constant.language.boolean.klang",
           "match": "\\b(True|False)\\b"
+        },
+        {
+          "name": "constant.language.option-result.klang",
+          "match": "\\b(None|Some|Ok|Err|Result)\\b"
+        },
+        {
+          "name": "constant.language.default.klang",
+          "match": "\\bDEFAULT\\b|\\.(DEFAULT)\\b"
         }
       ]
     },
@@ -193,7 +283,7 @@
       "patterns": [
         {
           "name": "meta.function-call.qualified.klang",
-          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(\\.)([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(::|\\.)([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
           "captures": {
             "1": { "name": "entity.name.namespace.klang" },
             "2": { "name": "punctuation.accessor.klang" },
@@ -221,8 +311,16 @@
           "match": "(\\*\\*|//|[+\\-*/%])"
         },
         {
+          "name": "keyword.operator.pipe.klang",
+          "match": "\\|>"
+        },
+        {
+          "name": "keyword.operator.null-safety.klang",
+          "match": "[!?]"
+        },
+        {
           "name": "keyword.operator.arrow.klang",
-          "match": "->"
+          "match": "(->|=>)"
         }
       ]
     },
