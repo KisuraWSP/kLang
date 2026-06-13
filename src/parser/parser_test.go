@@ -112,6 +112,51 @@ let size intSize = Int.sizeof;
 	}
 }
 
+func TestParsePrivateInlineDeferHereStringAndMultipleReturns(t *testing.T) {
+	program, errors := Parse(`
+private inline function Print() : (name : String, value : Int) {
+    defer print("done");
+    let mut here_string = //
+<h1>Hello</h1>
+//;
+    return here_string, 1;
+}
+
+private {
+    local Int hidden = 1;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function, got %T", program.Statements[0])
+	}
+	if !fn.Private || !fn.Inline || fn.ReturnType != "(String,Int)" || len(fn.ReturnValues) != 2 {
+		t.Fatalf("unexpected private inline function: %#v", fn)
+	}
+	if fn.ReturnValues[0].Name != "name" || fn.ReturnValues[0].Type != "String" || fn.ReturnValues[1].Name != "value" || fn.ReturnValues[1].Type != "Int" {
+		t.Fatalf("unexpected return values: %#v", fn.ReturnValues)
+	}
+	if _, ok := fn.Body[0].(DeferStatement); !ok {
+		t.Fatalf("expected defer statement, got %T", fn.Body[0])
+	}
+	decl, ok := fn.Body[1].(VariableStatement)
+	if !ok {
+		t.Fatalf("expected here string declaration, got %T", fn.Body[1])
+	}
+	if literal, ok := decl.Expression.Node.(LiteralExpression); !ok || literal.Kind != "String" || !strings.Contains(literal.Value, "<h1>Hello</h1>") {
+		t.Fatalf("expected here string literal, got %#v", decl.Expression.Node)
+	}
+	ret, ok := fn.Body[2].(ReturnStatement)
+	if !ok || len(ret.Values) != 2 {
+		t.Fatalf("expected multi return, got %#v", fn.Body[2])
+	}
+	if _, ok := program.Statements[1].(PrivateBlockStatement); !ok {
+		t.Fatalf("expected private block, got %T", program.Statements[1])
+	}
+}
+
 func TestParseFunctionCallbackParameterType(t *testing.T) {
 	program, errors := Parse(`
 function Apply(value : Int, callback : Function[Int, Int]) : Int {

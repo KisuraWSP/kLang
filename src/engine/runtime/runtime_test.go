@@ -97,6 +97,30 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesMultipleReturnsHereStringAndDefer(t *testing.T) {
+	result := runParsedSource(t, `
+function Pair() : (name : String, value : Int) {
+    let html = //
+<h1>Hello</h1>
+//;
+    defer print("done");
+    return html, 7;
+}
+
+function Main() : Int {
+    let pair = Pair();
+    return len(pair[0]) + pair[1];
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 21 {
+		t.Fatalf("expected multiple return program to return 21, got %#v", result.Value)
+	}
+	if len(result.Output) != 1 || result.Output[0] != "done" {
+		t.Fatalf("expected deferred output, got %#v", result.Output)
+	}
+}
+
 func TestRuntimeRejectsImmutableParameterMutation(t *testing.T) {
 	_, err := runSourceWithError(`
 function Mutate(value : Int) : Int {

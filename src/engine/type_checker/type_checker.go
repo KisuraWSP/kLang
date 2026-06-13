@@ -11,6 +11,7 @@ import (
 )
 
 const anyType = "T"
+const dynamicAnyType = "Any"
 const movedType = "<moved>"
 
 type Error struct {
@@ -52,13 +53,22 @@ type functionSymbol struct {
 	Namespace          string
 	Params             []variableSymbol
 	ReturnType         string
+	ReturnTypes        []returnValueSymbol
 	Async              bool
+	Inline             bool
+	Private            bool
 	Deprecated         bool
 	DeprecationMessage string
 	File               string
 	Line               int
 	Body               string
 	TypeRestrictions   map[string]string
+}
+
+type returnValueSymbol struct {
+	Name    string
+	Type    string
+	Mutable bool
 }
 
 type traitSymbol struct {
@@ -487,6 +497,12 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 	for _, param := range fn.Params {
 		locals[param.Name] = param
 	}
+	for _, returnValue := range fn.ReturnTypes {
+		if returnValue.Name == "" {
+			continue
+		}
+		locals[returnValue.Name] = variableSymbol{Name: returnValue.Name, Type: returnValue.Type, Mutable: returnValue.Mutable, File: fn.File, Line: fn.Line}
+	}
 
 	for nestedName := range collectNestedFunctionNames(fn.Body) {
 		locals[nestedName] = variableSymbol{Name: nestedName, Type: anyType}
@@ -556,9 +572,13 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 
 		if strings.HasPrefix(current, "return ") {
 			expr := strings.TrimSpace(strings.TrimPrefix(current, "return "))
-			exprType := checker.inferExpression(expr, locals, fn.File, line)
-			if !isAssignable(fn.ReturnType, exprType) {
-				checker.addError(fn.File, line, fmt.Sprintf("function %s returns %s but return expression is %s", fn.Name, fn.ReturnType, exprType))
+			if len(fn.ReturnTypes) != 0 {
+				checker.checkTupleReturn(fn, expr, locals, line)
+			} else {
+				exprType := checker.inferExpression(expr, locals, fn.File, line)
+				if !isAssignable(fn.ReturnType, exprType) {
+					checker.addError(fn.File, line, fmt.Sprintf("function %s returns %s but return expression is %s", fn.Name, fn.ReturnType, exprType))
+				}
 			}
 			continue
 		}
@@ -582,6 +602,25 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 
 		if looksLikeCall(current) {
 			checker.inferExpression(current, locals, fn.File, line)
+		}
+	}
+}
+
+func (checker *TypeChecker) checkTupleReturn(fn functionSymbol, expr string, locals map[string]variableSymbol, line int) {
+	parts := splitTopLevel(expr, ',')
+	if len(parts) != len(fn.ReturnTypes) {
+		checker.addError(fn.File, line, fmt.Sprintf("function %s returns %d value(s), got %d", fn.Name, len(fn.ReturnTypes), len(parts)))
+		return
+	}
+	for index, part := range parts {
+		exprType := checker.inferExpression(part, locals, fn.File, line)
+		expected := fn.ReturnTypes[index]
+		if !isAssignable(expected.Type, exprType) {
+			name := fmt.Sprintf("return value %d", index+1)
+			if expected.Name != "" {
+				name = fmt.Sprintf("return value %q", expected.Name)
+			}
+			checker.addError(fn.File, line, fmt.Sprintf("function %s %s expects %s but got %s", fn.Name, name, expected.Type, exprType))
 		}
 	}
 }
@@ -611,6 +650,8 @@ type statement struct {
 
 func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol, int, error) {
 	async := functionHasPrefixKeyword(unit.Text, start, "async")
+	inline := functionHasPrefixKeyword(unit.Text, start, "inline")
+	private := functionHasPrefixKeyword(unit.Text, start, "private")
 	openBrace := findChar(unit.Text, '{', start)
 	if openBrace == -1 {
 		return functionSymbol{}, start, fmt.Errorf("function block is missing an opening brace")
@@ -659,10 +700,19 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 
 	afterParams := strings.TrimSpace(header[paramsEnd+1:])
 	returnType := anyType
+	var returnTypes []returnValueSymbol
 	if strings.HasPrefix(afterParams, ":") {
-		returnType = normalizeType(strings.TrimSpace(afterParams[1:]))
+		parsedReturnType, parsedReturnTypes, err := parseReturnSignatureText(strings.TrimSpace(afterParams[1:]))
+		if err != nil {
+			return functionSymbol{}, openBrace, err
+		}
+		returnType = parsedReturnType
+		returnTypes = parsedReturnTypes
 	}
 	returnType = applyFunctionTypeRestrictions(returnType, typeRestrictions)
+	for index := range returnTypes {
+		returnTypes[index].Type = applyFunctionTypeRestrictions(returnTypes[index].Type, typeRestrictions)
+	}
 	if !isKnownType(returnType) {
 		return functionSymbol{}, openBrace, fmt.Errorf("function %s uses unknown return type %s", name, returnType)
 	}
@@ -674,7 +724,10 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 		Namespace:          namespace,
 		Params:             params,
 		ReturnType:         returnType,
+		ReturnTypes:        returnTypes,
 		Async:              async,
+		Inline:             inline,
+		Private:            private,
 		Deprecated:         deprecated,
 		DeprecationMessage: deprecationMessage,
 		File:               unit.Path,
@@ -704,9 +757,55 @@ func functionDeprecatedMarker(input string, functionStart int) (bool, string) {
 	return false, ""
 }
 
+func parseReturnSignatureText(input string) (string, []returnValueSymbol, error) {
+	input = strings.TrimSpace(input)
+	if !strings.HasPrefix(input, "(") {
+		return normalizeType(input), nil, nil
+	}
+	closeIndex := findMatchingIn(input, 0, '(', ')')
+	if closeIndex == -1 {
+		return "", nil, fmt.Errorf("function return tuple is missing a closing ')'")
+	}
+	inner := strings.TrimSpace(input[1:closeIndex])
+	if inner == "" {
+		return "", nil, fmt.Errorf("function return tuple must contain at least one type")
+	}
+	parts := splitTopLevel(inner, ',')
+	returnValues := make([]returnValueSymbol, 0, len(parts))
+	typeParts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		current := strings.TrimSpace(part)
+		mutable := false
+		if strings.HasPrefix(current, "mut ") {
+			mutable = true
+			current = strings.TrimSpace(strings.TrimPrefix(current, "mut"))
+		}
+		name := ""
+		typeName := current
+		if colon := strings.Index(current, ":"); colon != -1 {
+			name = strings.TrimSpace(current[:colon])
+			typeName = strings.TrimSpace(current[colon+1:])
+		}
+		typeName = normalizeType(typeName)
+		if typeName == "" {
+			return "", nil, fmt.Errorf("function return tuple contains an empty type")
+		}
+		returnValues = append(returnValues, returnValueSymbol{Name: name, Type: typeName, Mutable: mutable})
+		typeParts = append(typeParts, typeName)
+	}
+	return "(" + strings.Join(typeParts, ",") + ")", returnValues, nil
+}
+
 func functionHasPrefixKeyword(input string, functionStart int, keyword string) bool {
 	prefix := strings.TrimRightFunc(input[:functionStart], unicode.IsSpace)
 	if !strings.HasSuffix(prefix, keyword) {
+		lineStart := strings.LastIndexAny(prefix, "\n;}")
+		marker := strings.TrimSpace(prefix[lineStart+1:])
+		for _, field := range strings.Fields(marker) {
+			if field == keyword {
+				return true
+			}
+		}
 		return false
 	}
 	before := strings.TrimSpace(prefix[:len(prefix)-len(keyword)])
@@ -1622,6 +1721,10 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		}
 		checker.addWarning(source, line, message)
 	}
+	if fn.Private && filepath.Clean(source) != filepath.Clean(fn.File) {
+		checker.addError(source, line, fmt.Sprintf("function %s is private to %s", fn.Name, fn.File))
+		return fn.ReturnType
+	}
 
 	required := requiredParamCount(fn.Params)
 	if len(args) < required || len(args) > len(fn.Params) {
@@ -2099,7 +2202,7 @@ func normalizeType(input string) string {
 	case "float":
 		return "Float"
 	case "Any":
-		return anyType
+		return dynamicAnyType
 	}
 	if canonical, ok := canonicalRestrictedType(input); ok {
 		return canonical
@@ -2156,6 +2259,14 @@ func applyFunctionTypeRestrictions(typeName string, restrictions map[string]stri
 }
 
 func isKnownType(typeName string) bool {
+	if parts, ok := tupleTypeParts(typeName); ok {
+		for _, part := range parts {
+			if !isKnownType(part) {
+				return false
+			}
+		}
+		return true
+	}
 	if _, allowed, ok := restrictedGenericType(typeName); ok {
 		for _, option := range allowed {
 			if !isKnownType(option) {
@@ -2164,7 +2275,7 @@ func isKnownType(typeName string) bool {
 		}
 		return true
 	}
-	if typeName == anyType || typeName == "Int" || typeName == "UInt" || typeName == "String" ||
+	if typeName == anyType || typeName == dynamicAnyType || typeName == "Int" || typeName == "UInt" || typeName == "String" ||
 		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" ||
 		typeName == "Table" {
 		return true
@@ -2363,6 +2474,18 @@ func isIntegerIndexType(typeName string) bool {
 func isAssignable(target string, source string) bool {
 	target = normalizeType(target)
 	source = normalizeType(source)
+	if targetParts, ok := tupleTypeParts(target); ok {
+		sourceParts, sourceOK := tupleTypeParts(source)
+		if !sourceOK || len(targetParts) != len(sourceParts) {
+			return false
+		}
+		for index := range targetParts {
+			if !isAssignable(targetParts[index], sourceParts[index]) {
+				return false
+			}
+		}
+		return true
+	}
 	solver := newConstraintSolver()
 	if solver.unify(target, source) {
 		return true
@@ -2374,6 +2497,9 @@ func isAssignable(target string, source string) bool {
 			}
 		}
 		return false
+	}
+	if target == dynamicAnyType || source == dynamicAnyType {
+		return true
 	}
 	if target == anyType || source == anyType {
 		return true
@@ -2441,6 +2567,22 @@ func isAssignable(target string, source string) bool {
 		return isAssignable(targetReturn, sourceReturn)
 	}
 	return false
+}
+
+func tupleTypeParts(typeName string) ([]string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	if !strings.HasPrefix(typeName, "(") || !strings.HasSuffix(typeName, ")") {
+		return nil, false
+	}
+	inner := strings.TrimSpace(typeName[1 : len(typeName)-1])
+	if inner == "" {
+		return nil, false
+	}
+	parts := splitTopLevel(inner, ',')
+	for index := range parts {
+		parts[index] = normalizeType(parts[index])
+	}
+	return parts, true
 }
 
 type constraintSolver struct {

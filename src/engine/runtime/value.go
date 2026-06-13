@@ -848,6 +848,21 @@ func mapKey(value Value) (string, error) {
 
 func valueMatchesType(value Value, typeName string) bool {
 	typeName = strings.TrimSpace(typeName)
+	if tupleTypes, ok := tupleRuntimeTypes(typeName); ok {
+		if value.Kind != ValueList {
+			return false
+		}
+		items := value.Data.([]Value)
+		if len(items) != len(tupleTypes) {
+			return false
+		}
+		for index, item := range items {
+			if !valueMatchesType(item, tupleTypes[index]) {
+				return false
+			}
+		}
+		return true
+	}
 	if _, allowed, ok := restrictedGenericRuntimeType(typeName); ok {
 		for _, option := range allowed {
 			if valueMatchesType(value, option) {
@@ -857,7 +872,7 @@ func valueMatchesType(value Value, typeName string) bool {
 		return false
 	}
 	switch {
-	case typeName == "" || typeName == "T":
+	case typeName == "" || typeName == "T" || typeName == "Any":
 		return true
 	case value.Kind == ValueThunk:
 		return true
@@ -925,6 +940,18 @@ func valueMatchesType(value Value, typeName string) bool {
 		}
 		return true
 	}
+}
+
+func tupleRuntimeTypes(typeName string) ([]string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	if !strings.HasPrefix(typeName, "(") || !strings.HasSuffix(typeName, ")") {
+		return nil, false
+	}
+	inner := strings.TrimSpace(typeName[1 : len(typeName)-1])
+	if inner == "" {
+		return nil, false
+	}
+	return splitTopLevelType(inner, ','), true
 }
 
 func isRuntimeArrayType(typeName string) bool {

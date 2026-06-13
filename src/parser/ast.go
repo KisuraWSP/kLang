@@ -49,6 +49,8 @@ type AliasFunctionStatement struct {
 	TypeParams []TypeParameter
 	Params     []Parameter
 	ReturnType string
+	Inline     bool
+	Private    bool
 	Hooks      []AliasHook
 	Methods    []FunctionStatement
 	Body       []Statement
@@ -60,9 +62,10 @@ type AliasHook struct {
 }
 
 type NamespaceStatement struct {
-	Pos  Position
-	Name string
-	Body []Statement
+	Pos     Position
+	Name    string
+	Private bool
+	Body    []Statement
 }
 
 type TraitStatement struct {
@@ -97,12 +100,21 @@ type FunctionStatement struct {
 	TypeParams         []TypeParameter
 	Params             []Parameter
 	ReturnType         string
+	ReturnValues       []ReturnValue
+	Inline             bool
+	Private            bool
 	Lazy               bool
 	Async              bool
 	Inner              bool
 	Deprecated         bool
 	DeprecationMessage string
 	Body               []Statement
+}
+
+type ReturnValue struct {
+	Name    string
+	Type    string
+	Mutable bool
 }
 
 type TypeParameter struct {
@@ -131,6 +143,7 @@ type VariableStatement struct {
 type ReturnStatement struct {
 	Pos        Position
 	Expression Expression
+	Values     []Expression
 }
 
 type ThrowStatement struct {
@@ -193,6 +206,17 @@ type TryCatchStatement struct {
 	TryBody   []Statement
 	ErrorName string
 	CatchBody []Statement
+}
+
+type DeferStatement struct {
+	Pos  Position
+	Stmt Statement
+	Body []Statement
+}
+
+type PrivateBlockStatement struct {
+	Pos  Position
+	Body []Statement
 }
 
 type Expression struct {
@@ -315,6 +339,9 @@ func (stmt IfStatement) statementNode()         {}
 func (stmt MatchStatement) statementNode()      {}
 func (stmt LoopStatement) statementNode()       {}
 func (stmt TryCatchStatement) statementNode()   {}
+func (stmt DeferStatement) statementNode()      {}
+func (stmt PrivateBlockStatement) statementNode() {
+}
 
 func (stmt ImportStatement) Position() Position { return stmt.Pos }
 func (stmt AliasStatement) Position() Position  { return stmt.Pos }
@@ -340,6 +367,10 @@ func (stmt IfStatement) Position() Position         { return stmt.Pos }
 func (stmt MatchStatement) Position() Position      { return stmt.Pos }
 func (stmt LoopStatement) Position() Position       { return stmt.Pos }
 func (stmt TryCatchStatement) Position() Position   { return stmt.Pos }
+func (stmt DeferStatement) Position() Position      { return stmt.Pos }
+func (stmt PrivateBlockStatement) Position() Position {
+	return stmt.Pos
+}
 
 func (expr IdentifierExpression) expressionNode()  {}
 func (expr LiteralExpression) expressionNode()     {}

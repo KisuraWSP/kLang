@@ -1,4 +1,8 @@
 # TODO
+- vim and emacs plugin for the langauge
+
+
+
 - foreign function interface for javascript apis/libraries (via a js filesystem only)
 - Improved CLI for better user experience and creation of ".klang" projects
     - Add time it takes to run and execute the project once the project is finished executing
@@ -9,16 +13,7 @@
 - make the runtime be able to work on users browser by compiling to wasm code <done after first>
 - multi threaded interpretter runtime <done first >
 - add a flag to start a simple web server that is built into the language that will package our entire languages runtime if the user doesnt want to build wasm and ship it
-- mutliple return values on functions & the ability to define whether a return value can be mutable or not, and also named return values (like the below)
-```lua
-function Print() : (name : String, value : Int) {
-    return name, value;
-}
 
-function Print2() : (mut String, Int) {
-    return "", 0;
-}
-```
 - a compact build system (Like if u want to package the project u can do that with the languages source code)
     - i want the user to be able to define a custom workspace since we have workspaces
     - WorkSpace should be a builtin type in the langauge
@@ -31,19 +26,7 @@ function Print2() : (mut String, Int) {
         - Program must take in
             module : List[String]
     - this system must have its own api that the user can use to program and do meta programming like features
-- private keyword/scope to make either a namespace or a function or even a scope hidden to other files (like the below)
-```lua
--- function is now hidden to other modules/files
-private function Add() : T{
-    return "String is added" as Int;
-}
 
--- this is a scope we can use this for many usecases we just don't know what but we 
--- will provide this
-private {
-    -- any code can exist here
-}
-```
 - update function aliases to use new syntax ruleset rather than grua langs syntax XD (just tell the clanker to like make the function alias use like a actual readable syntax thats it) (like the below)
 ```lua
 -- this [T : Any] should allow custom definitions such as restrict or whatever
@@ -89,26 +72,7 @@ alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator 
 }
 ```
 
--- here strings (like the below)
-```lua
-let mut here_string = //
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>GRUA Web Server</title>
-    <style>
-        body { font-family: sans-serif; background: #121212; color: #fff; }
-        h1 { color: #00ffcc; }
-    </style>
-</head>
-<body>
-    <h1>Hello from Native GRUA!</h1>
-    <p>This string was parsed perfectly across multiple lines.</p>
-</body>
-</html>
-//
-```
+
 - add this #set_entry_point_to_here
     - reason if u want to set any function as entry point
     - add that as a cli flag when creating new project like as this "go run . new --entry=["Process", "<Data Type>"]" if Data Type Area is not mentioned make the below
@@ -127,18 +91,8 @@ function create_workspace(name : String, workspace := UserDefinedWorkspace()) {
 
 }
 ```
--- add support for the below on restrict on T 
-    - T must allow to be restricted to any builtin data type/function alias in the system
-```lua
-T restrict[Option[DefaultWorkspace], Option[UserDefinedWorkspace]]
-```
-- vim and emacs plugin for the langauge
-- add Any type but this is like T except u cannot restrict it, its literally allows you to write a variable or function argument/parameter and u can pass whatever respective type and the program wont error
-- make clone keyword better like if this variable is containing this word <- the program should give priority that this is cloned before any more processes can continue
-- add defer keyword
 - built in debugger in the language so u can debug code issues
-- ability to inline functions & function aliases 
-    - meaning when we inline the function we are able to like give this a quick priority and get the entire function definition and execute it all at once and saves memory too if we can
+
 
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project within 10 seconds

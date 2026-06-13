@@ -1,12 +1,15 @@
 package lexer
 
+import "strings"
+
 type Lexer struct {
-	input        string
-	position     int
-	readPosition int
-	ch           byte
-	line         int
-	column       int
+	input           string
+	position        int
+	readPosition    int
+	ch              byte
+	line            int
+	column          int
+	lastSignificant TokenType
 }
 
 func New(input string) *Lexer {
@@ -40,53 +43,72 @@ func (lexer *Lexer) NextToken() Token {
 		return Token{Type: TokenEOFDescriptor, Literal: "", Line: line, Column: column}
 	}
 
+	if lexer.ch == '/' && lexer.peekChar() == '/' && lexer.canStartHereString() {
+		literal, ok := lexer.readHereString()
+		return lexer.emit(Token{Type: tokenTypeForHereString(ok), Literal: literal, Line: line, Column: column})
+	}
+
 	if isLetter(lexer.ch) {
 		literal := lexer.readIdentifier()
-		return Token{
+		return lexer.emit(Token{
 			Type:    lookupIdentifier(literal),
 			Literal: literal,
 			Line:    line,
 			Column:  column,
-		}
+		})
 	}
 
 	if isDigit(lexer.ch) {
 		literal, tokenType := lexer.readNumber()
-		return Token{
+		return lexer.emit(Token{
 			Type:    tokenType,
 			Literal: literal,
 			Line:    line,
 			Column:  column,
-		}
+		})
 	}
 
 	switch lexer.ch {
 	case '"':
 		literal, ok := lexer.readString()
 		if !ok {
-			return Token{Type: TokenIllegal, Literal: literal, Line: line, Column: column}
+			return lexer.emit(Token{Type: TokenIllegal, Literal: literal, Line: line, Column: column})
 		}
-		return Token{Type: TokenString, Literal: literal, Line: line, Column: column}
+		return lexer.emit(Token{Type: TokenString, Literal: literal, Line: line, Column: column})
 	case '\'':
 		literal, ok := lexer.readCharLiteral()
 		if !ok {
-			return Token{Type: TokenIllegal, Literal: literal, Line: line, Column: column}
+			return lexer.emit(Token{Type: TokenIllegal, Literal: literal, Line: line, Column: column})
 		}
-		return Token{Type: TokenChar, Literal: literal, Line: line, Column: column}
+		return lexer.emit(Token{Type: TokenChar, Literal: literal, Line: line, Column: column})
 	}
 
 	if tokenType, literal, ok := lexer.readOperator(); ok {
-		return Token{Type: tokenType, Literal: literal, Line: line, Column: column}
+		return lexer.emit(Token{Type: tokenType, Literal: literal, Line: line, Column: column})
 	}
 
 	literal := string(lexer.ch)
 	if tokenType, ok := Punctuations[literal]; ok {
 		lexer.readChar()
-		return Token{Type: tokenType, Literal: literal, Line: line, Column: column}
+		return lexer.emit(Token{Type: tokenType, Literal: literal, Line: line, Column: column})
 	}
 
 	lexer.readChar()
-	return Token{Type: TokenIllegal, Literal: literal, Line: line, Column: column}
+	return lexer.emit(Token{Type: TokenIllegal, Literal: literal, Line: line, Column: column})
+}
+
+func (lexer *Lexer) emit(token Token) Token {
+	if token.Type != TokenWhiteSpace && token.Type != TokenComment && token.Type != TokenEOFDescriptor {
+		lexer.lastSignificant = token.Type
+	}
+	return token
+}
+
+func tokenTypeForHereString(ok bool) TokenType {
+	if ok {
+		return TokenString
+	}
+	return TokenIllegal
 }
 
 func (lexer *Lexer) readChar() {
@@ -211,6 +233,38 @@ func (lexer *Lexer) readCharLiteral() (string, bool) {
 
 	lexer.readChar()
 	return literal, valid && isValidCharLiteral(literal)
+}
+
+func (lexer *Lexer) canStartHereString() bool {
+	switch lexer.lastSignificant {
+	case 0, TokenAssign, TokenEvaluationAssign, TokenReturn, TokenComma, TokenLeftBrace, TokenScopeBegin:
+		return true
+	default:
+		return false
+	}
+}
+
+func (lexer *Lexer) readHereString() (string, bool) {
+	lexer.readChar()
+	lexer.readChar()
+	if lexer.ch == '\r' && lexer.peekChar() == '\n' {
+		lexer.readChar()
+		lexer.readChar()
+	} else if lexer.ch == '\n' {
+		lexer.readChar()
+	}
+
+	position := lexer.position
+	for lexer.ch != 0 {
+		if lexer.ch == '/' && lexer.peekChar() == '/' && (lexer.position == 0 || lexer.input[lexer.position-1] == '\n' || lexer.input[lexer.position-1] == '\r') {
+			literal := lexer.input[position:lexer.position]
+			lexer.readChar()
+			lexer.readChar()
+			return strings.TrimSuffix(strings.TrimSuffix(literal, "\n"), "\r"), true
+		}
+		lexer.readChar()
+	}
+	return lexer.input[position:lexer.position], false
 }
 
 func (lexer *Lexer) readOperator() (TokenType, string, bool) {

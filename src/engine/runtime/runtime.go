@@ -305,6 +305,51 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 				}
 			}
 		}
+	case parser.IfStatement:
+		for _, nested := range current.Consequence {
+			if err := runtime.collectFunctions(nested, namespace); err != nil {
+				return err
+			}
+		}
+		for _, nested := range current.Alternative {
+			if err := runtime.collectFunctions(nested, namespace); err != nil {
+				return err
+			}
+		}
+	case parser.LoopStatement:
+		for _, nested := range current.Body {
+			if err := runtime.collectFunctions(nested, namespace); err != nil {
+				return err
+			}
+		}
+	case parser.TryCatchStatement:
+		for _, nested := range current.TryBody {
+			if err := runtime.collectFunctions(nested, namespace); err != nil {
+				return err
+			}
+		}
+		for _, nested := range current.CatchBody {
+			if err := runtime.collectFunctions(nested, namespace); err != nil {
+				return err
+			}
+		}
+	case parser.PrivateBlockStatement:
+		for _, nested := range current.Body {
+			if err := runtime.collectFunctions(nested, namespace); err != nil {
+				return err
+			}
+		}
+	case parser.DeferStatement:
+		if current.Stmt != nil {
+			if err := runtime.collectFunctions(current.Stmt, namespace); err != nil {
+				return err
+			}
+		}
+		for _, nested := range current.Body {
+			if err := runtime.collectFunctions(nested, namespace); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -328,16 +373,62 @@ type signal struct {
 }
 
 func (runtime *Runtime) executeBlock(statements []parser.Statement, env *Environment, inLoop bool) (signal, error) {
+	var deferred []parser.DeferStatement
 	for _, stmt := range statements {
+		if deferStmt, ok := stmt.(parser.DeferStatement); ok {
+			deferred = append(deferred, deferStmt)
+			continue
+		}
 		currentSignal, err := runtime.executeStatement(stmt, env, inLoop)
 		if err != nil {
-			return signal{}, err
+			return signal{}, runtime.executeDeferred(deferred, env, inLoop, err)
 		}
 		if currentSignal.kind != signalNone {
+			if err := runtime.executeDeferred(deferred, env, inLoop, nil); err != nil {
+				return signal{}, err
+			}
 			return currentSignal, nil
 		}
 	}
+	if err := runtime.executeDeferred(deferred, env, inLoop, nil); err != nil {
+		return signal{}, err
+	}
 	return signal{kind: signalNone}, nil
+}
+
+func (runtime *Runtime) executeDeferred(deferred []parser.DeferStatement, env *Environment, inLoop bool, existing error) error {
+	for index := len(deferred) - 1; index >= 0; index-- {
+		current := deferred[index]
+		var currentSignal signal
+		var err error
+		if len(current.Body) != 0 {
+			currentSignal, err = runtime.executeBlock(current.Body, NewEnvironment(env), inLoop)
+		} else if current.Stmt != nil {
+			currentSignal, err = runtime.executeStatement(current.Stmt, env, inLoop)
+		}
+		if err != nil && existing == nil {
+			existing = err
+		}
+		if currentSignal.kind == signalThrow && existing == nil {
+			existing = Error{Message: "defer threw exception: " + valueString(currentSignal.value)}
+		}
+	}
+	return existing
+}
+
+func (runtime *Runtime) evalReturnValue(stmt parser.ReturnStatement, env *Environment) (Value, error) {
+	if len(stmt.Values) == 0 {
+		return runtime.evalExpression(stmt.Expression.Node, env)
+	}
+	items := make([]Value, 0, len(stmt.Values))
+	for _, expr := range stmt.Values {
+		value, err := runtime.evalExpression(expr.Node, env)
+		if err != nil {
+			return NullValue(), err
+		}
+		items = append(items, value)
+	}
+	return Value{Kind: ValueList, Data: items}, nil
 }
 
 func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment, inLoop bool) (signal, error) {
@@ -415,13 +506,15 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		}
 		return signal{kind: signalNone}, nil
 	case parser.ReturnStatement:
-		if tailSignal, ok, err := runtime.tailCallSignal(current.Expression.Node, env); ok || err != nil {
-			if err != nil {
-				return signal{}, err
+		if len(current.Values) == 0 {
+			if tailSignal, ok, err := runtime.tailCallSignal(current.Expression.Node, env); ok || err != nil {
+				if err != nil {
+					return signal{}, err
+				}
+				return tailSignal, nil
 			}
-			return tailSignal, nil
 		}
-		value, err := runtime.evalExpression(current.Expression.Node, env)
+		value, err := runtime.evalReturnValue(current, env)
 		if err != nil {
 			if thrown, ok := thrownValue(err); ok {
 				return signal{kind: signalThrow, value: thrown}, nil
@@ -429,6 +522,10 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 			return signal{}, err
 		}
 		return signal{kind: signalReturn, value: value}, nil
+	case parser.DeferStatement:
+		return signal{kind: signalNone}, nil
+	case parser.PrivateBlockStatement:
+		return runtime.executeBlock(current.Body, NewEnvironment(env), inLoop)
 	case parser.ThrowStatement:
 		value, err := runtime.evalExpression(current.Expression.Node, env)
 		if err != nil {
@@ -1767,6 +1864,14 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 				return NullValue(), err
 			}
 		}
+		for _, returnValue := range function.ReturnValues {
+			if returnValue.Name == "" {
+				continue
+			}
+			if err := runtime.defineValue(env, returnValue.Name, returnValue.Mutable, returnValue.Type, zeroValue(returnValue.Type)); err != nil {
+				return NullValue(), err
+			}
+		}
 		runtime.innerSets = append(runtime.innerSets, map[string]Value{})
 		currentSignal, err := runtime.executeBlock(function.Body, env, false)
 		innerFields := runtime.innerSets[len(runtime.innerSets)-1]
@@ -1788,6 +1893,9 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 			return currentSignal.value, nil
 		}
 		if function.ReturnType != "" && function.ReturnType != "T" {
+			if value, ok, err := runtime.namedReturnValue(function, env); ok || err != nil {
+				return value, err
+			}
 			return NullValue(), Error{Message: fmt.Sprintf("function %s returns %s, got Null", resolvedName, function.ReturnType)}
 		}
 		if len(innerFields) != 0 {
@@ -1795,6 +1903,24 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 		}
 		return NullValue(), nil
 	}
+}
+
+func (runtime *Runtime) namedReturnValue(function parser.FunctionStatement, env *Environment) (Value, bool, error) {
+	if len(function.ReturnValues) == 0 {
+		return NullValue(), false, nil
+	}
+	items := make([]Value, 0, len(function.ReturnValues))
+	for _, returnValue := range function.ReturnValues {
+		if returnValue.Name == "" {
+			return NullValue(), false, nil
+		}
+		binding, ok := env.Get(returnValue.Name)
+		if !ok {
+			return NullValue(), false, Error{Message: fmt.Sprintf("named return value %q is not defined", returnValue.Name)}
+		}
+		items = append(items, binding.Value)
+	}
+	return Value{Kind: ValueList, Data: items}, true, nil
 }
 
 func allocatorObject(kind string, fields map[string]Value) Value {

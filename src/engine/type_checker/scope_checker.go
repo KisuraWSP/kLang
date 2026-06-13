@@ -45,6 +45,8 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 			}
 		case parser.NamespaceStatement:
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
+		case parser.PrivateBlockStatement:
+			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		case parser.RegionStatement:
 			continue
 		case parser.AliasFunctionStatement:
@@ -71,6 +73,11 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 				checker.collectASTGlobalsFromStatements([]parser.Statement{*current.ElseIf}, source, false)
 			}
 		case parser.LoopStatement:
+			checker.collectASTGlobalsFromStatements(current.Body, source, false)
+		case parser.DeferStatement:
+			if current.Stmt != nil {
+				checker.collectASTGlobalsFromStatements([]parser.Statement{current.Stmt}, source, false)
+			}
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		}
 	}
@@ -180,7 +187,13 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 			checker.addError(source, current.Pos.Line, fmt.Sprintf("variable %q is already defined in this scope", current.Name))
 		}
 	case parser.ReturnStatement:
-		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
+		if len(current.Values) != 0 {
+			for _, value := range current.Values {
+				checker.checkScopeExpression(value.Node, scope, namespace, source, current.Pos.Line)
+			}
+		} else {
+			checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
+		}
 	case parser.ThrowStatement:
 		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
 	case parser.BreakStatement:
@@ -212,6 +225,15 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		catchScope := newLexicalScope(scope)
 		catchScope.define(variableSymbol{Name: current.ErrorName, Type: anyType, File: source, Line: current.Pos.Line})
 		checker.checkScopeStatements(current.CatchBody, catchScope, namespace, source, inLoop, false)
+	case parser.DeferStatement:
+		if current.Stmt != nil {
+			checker.checkScopeStatement(current.Stmt, scope, namespace, source, inLoop, topLevel)
+		}
+		if len(current.Body) != 0 {
+			checker.checkScopeStatements(current.Body, newLexicalScope(scope), namespace, source, inLoop, false)
+		}
+	case parser.PrivateBlockStatement:
+		checker.checkScopeStatements(current.Body, newLexicalScope(scope), namespace, source, inLoop, false)
 	}
 }
 

@@ -62,9 +62,13 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseImport()
 	case lexer.TokenAlias:
 		if parser.peek().Type == lexer.TokenFunc {
-			return parser.parseAliasFunction()
+			return parser.parseAliasFunction(false, false)
 		}
 		return parser.parseAlias()
+	case lexer.TokenInline:
+		return parser.parseInline()
+	case lexer.TokenPrivate:
+		return parser.parsePrivate()
 	case lexer.TokenRegion:
 		return parser.parseRegion()
 	case lexer.TokenNameSpace:
@@ -78,7 +82,7 @@ func (parser *Parser) parseStatement() Statement {
 	case lexer.TokenAt:
 		return parser.parseTag()
 	case lexer.TokenFunc:
-		return parser.parseFunction(false, "", false, false, false)
+		return parser.parseFunction(false, "", false, false, false, false, false)
 	case lexer.TokenLazy:
 		return parser.parseLazyFunction()
 	case lexer.TokenAsync:
@@ -103,6 +107,8 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseReturn()
 	case lexer.TokenThrow:
 		return parser.parseThrow()
+	case lexer.TokenDefer:
+		return parser.parseDefer()
 	case lexer.TokenBreak:
 		return parser.parseBreak()
 	case lexer.TokenContinue:
@@ -187,7 +193,7 @@ func (parser *Parser) parseRegion() Statement {
 	}
 }
 
-func (parser *Parser) parseAliasFunction() Statement {
+func (parser *Parser) parseAliasFunction(inline bool, private bool) Statement {
 	start := parser.consume(lexer.TokenAlias, "expected alias")
 	parser.consume(lexer.TokenFunc, "expected function after alias")
 	name := parser.consume(lexer.TokenIdentifier, "expected alias function name")
@@ -206,6 +212,8 @@ func (parser *Parser) parseAliasFunction() Statement {
 		TypeParams: typeParams,
 		Params:     params,
 		ReturnType: normalizeAliasReturnType(returnType),
+		Inline:     inline,
+		Private:    private,
 	}
 
 	for !parser.check(lexer.TokenEnd) && !parser.atEnd() {
@@ -369,8 +377,10 @@ func aliasMethodBodyFromTokens(tokens []lexer.Token) []Statement {
 
 func normalizeAliasReturnType(typeName string) string {
 	switch typeName {
-	case "type", "Any":
+	case "type":
 		return "T"
+	case "Any":
+		return "Any"
 	case "int":
 		return "Int"
 	case "bool":
@@ -443,9 +453,56 @@ func (parser *Parser) parseNamespace() Statement {
 	name := parser.consume(lexer.TokenIdentifier, "expected namespace name")
 	body := parser.parseBlock()
 	return NamespaceStatement{
-		Pos:  positionFromToken(start),
-		Name: name.Literal,
-		Body: body,
+		Pos:     positionFromToken(start),
+		Name:    name.Literal,
+		Private: false,
+		Body:    body,
+	}
+}
+
+func (parser *Parser) parseInline() Statement {
+	parser.consume(lexer.TokenInline, "expected inline")
+	switch {
+	case parser.check(lexer.TokenFunc):
+		return parser.parseFunction(false, "", false, false, false, true, false)
+	case parser.check(lexer.TokenAlias) && parser.peek().Type == lexer.TokenFunc:
+		return parser.parseAliasFunction(true, false)
+	default:
+		parser.addError(parser.current(), "inline must be followed by function or alias function")
+		return nil
+	}
+}
+
+func (parser *Parser) parsePrivate() Statement {
+	start := parser.consume(lexer.TokenPrivate, "expected private")
+	switch {
+	case parser.check(lexer.TokenFunc):
+		return parser.parseFunction(false, "", false, false, false, false, true)
+	case parser.check(lexer.TokenInline):
+		parser.advance()
+		if parser.check(lexer.TokenFunc) {
+			return parser.parseFunction(false, "", false, false, false, true, true)
+		}
+		if parser.check(lexer.TokenAlias) && parser.peek().Type == lexer.TokenFunc {
+			return parser.parseAliasFunction(true, true)
+		}
+		parser.addError(parser.current(), "private inline must be followed by function or alias function")
+		return nil
+	case parser.check(lexer.TokenAlias) && parser.peek().Type == lexer.TokenFunc:
+		return parser.parseAliasFunction(false, true)
+	case parser.check(lexer.TokenNameSpace):
+		namespace := parser.parseNamespace()
+		if stmt, ok := namespace.(NamespaceStatement); ok {
+			stmt.Private = true
+			return stmt
+		}
+		return namespace
+	case parser.check(lexer.TokenScopeBegin):
+		body := parser.parseBlock()
+		return PrivateBlockStatement{Pos: positionFromToken(start), Body: body}
+	default:
+		parser.addError(parser.current(), "private must be followed by function, alias function, namespace, or block")
+		return nil
 	}
 }
 
@@ -499,7 +556,7 @@ func (parser *Parser) parseImpl() Statement {
 		if parser.match(lexer.TokenSemicolon) {
 			continue
 		}
-		stmt := parser.parseFunction(false, "", false, false, false)
+		stmt := parser.parseFunction(false, "", false, false, false, false, false)
 		if fn, ok := stmt.(FunctionStatement); ok {
 			methods = append(methods, fn)
 		} else {
@@ -594,7 +651,7 @@ func (parser *Parser) parseTag() Statement {
 		parser.addError(parser.current(), "@deprecated must be followed by a function declaration")
 		return nil
 	}
-	return parser.parseFunction(true, message, false, false, false)
+	return parser.parseFunction(true, message, false, false, false, false, false)
 }
 
 func (parser *Parser) parseLazyFunction() Statement {
@@ -603,7 +660,7 @@ func (parser *Parser) parseLazyFunction() Statement {
 		parser.addError(parser.current(), "lazy must be followed by a function declaration")
 		return nil
 	}
-	return parser.parseFunction(false, "", true, false, false)
+	return parser.parseFunction(false, "", true, false, false, false, false)
 }
 
 func (parser *Parser) parseAsyncFunction() Statement {
@@ -612,7 +669,7 @@ func (parser *Parser) parseAsyncFunction() Statement {
 		parser.addError(parser.current(), "async must be followed by a function declaration")
 		return nil
 	}
-	return parser.parseFunction(false, "", false, true, false)
+	return parser.parseFunction(false, "", false, true, false, false, false)
 }
 
 func (parser *Parser) parseInnerFunction() Statement {
@@ -621,10 +678,10 @@ func (parser *Parser) parseInnerFunction() Statement {
 		parser.addError(parser.current(), "inner must be followed by a function declaration")
 		return nil
 	}
-	return parser.parseFunction(false, "", false, false, true)
+	return parser.parseFunction(false, "", false, false, true, false, false)
 }
 
-func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string, lazy bool, async bool, inner bool) Statement {
+func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string, lazy bool, async bool, inner bool, inline bool, private bool) Statement {
 	start := parser.consume(lexer.TokenFunc, "expected function")
 	name := parser.consume(lexer.TokenIdentifier, "expected function name")
 	typeParams := parser.parseTypeParameters()
@@ -632,11 +689,15 @@ func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string, 
 	params := parser.parseParameters()
 	parser.consume(lexer.TokenRightBrace, "expected ')' after function parameters")
 	returnType := "T"
+	var returnValues []ReturnValue
 	if parser.match(lexer.TokenInferReturn) {
-		returnType = parser.parseType()
+		returnType, returnValues = parser.parseReturnTypeSignature()
 	}
 	params = applyTypeParameterRestrictions(params, typeParams)
 	returnType = applyReturnTypeRestriction(returnType, typeParams)
+	for index := range returnValues {
+		returnValues[index].Type = applyReturnTypeRestriction(returnValues[index].Type, typeParams)
+	}
 	body := parser.parseBlock()
 
 	return FunctionStatement{
@@ -645,6 +706,9 @@ func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string, 
 		TypeParams:         typeParams,
 		Params:             params,
 		ReturnType:         returnType,
+		ReturnValues:       returnValues,
+		Inline:             inline,
+		Private:            private,
 		Lazy:               lazy,
 		Async:              async,
 		Inner:              inner,
@@ -668,6 +732,90 @@ func applyReturnTypeRestriction(typeName string, typeParams []TypeParameter) str
 		}
 	}
 	return typeName
+}
+
+func (parser *Parser) parseReturnTypeSignature() (string, []ReturnValue) {
+	if !parser.match(lexer.TokenLeftBrace) {
+		typeName := parser.parseType()
+		return typeName, nil
+	}
+	tokens := parser.collectReturnTypeTupleTokens()
+	parser.consume(lexer.TokenRightBrace, "expected ')' after return value list")
+
+	parts := splitTopLevelExpressionTokens(tokens, lexer.TokenComma)
+	values := make([]ReturnValue, 0, len(parts))
+	for _, part := range parts {
+		if len(part) == 0 {
+			continue
+		}
+		values = append(values, parseReturnValueTokens(part))
+	}
+	if len(values) == 0 {
+		parser.addError(parser.previous(), "function return tuple must contain at least one type")
+		return "T", nil
+	}
+
+	typeParts := make([]string, 0, len(values))
+	for _, value := range values {
+		typeParts = append(typeParts, value.Type)
+	}
+	return "(" + strings.Join(typeParts, ",") + ")", values
+}
+
+func (parser *Parser) collectReturnTypeTupleTokens() []lexer.Token {
+	var tokens []lexer.Token
+	depth := 0
+	for !parser.check(lexer.TokenRightBrace) && !parser.atEnd() {
+		token := parser.current()
+		switch token.Type {
+		case lexer.TokenLeftSquareBrace:
+			depth++
+		case lexer.TokenRightSquareBrace:
+			if depth > 0 {
+				depth--
+			}
+		case lexer.TokenLeftBrace:
+			depth++
+		case lexer.TokenRightBrace:
+			if depth == 0 {
+				return tokens
+			}
+			depth--
+		}
+		tokens = append(tokens, parser.advance())
+	}
+	return tokens
+}
+
+func parseReturnValueTokens(tokens []lexer.Token) ReturnValue {
+	mutable := false
+	if len(tokens) > 0 && tokens[0].Type == lexer.TokenMut {
+		mutable = true
+		tokens = tokens[1:]
+	}
+	colon := -1
+	for index, token := range tokens {
+		if token.Type == lexer.TokenInferReturn {
+			colon = index
+			break
+		}
+	}
+	if colon != -1 {
+		return ReturnValue{
+			Name:    tokensLiteral(tokens[:colon]),
+			Type:    tokensLiteral(tokens[colon+1:]),
+			Mutable: mutable,
+		}
+	}
+	return ReturnValue{Type: tokensLiteral(tokens), Mutable: mutable}
+}
+
+func tokensLiteral(tokens []lexer.Token) string {
+	parts := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		parts = append(parts, token.Literal)
+	}
+	return strings.Join(parts, "")
 }
 
 func (parser *Parser) parseTypeParameters() []TypeParameter {
@@ -797,10 +945,27 @@ func (parser *Parser) parseReturn() Statement {
 	start := parser.consume(lexer.TokenReturn, "expected return")
 	expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
 	parser.consumeOptionalSemicolon()
+	values := splitReturnValues(expr)
 	return ReturnStatement{
 		Pos:        positionFromToken(start),
 		Expression: expr,
+		Values:     values,
 	}
+}
+
+func splitReturnValues(expr Expression) []Expression {
+	if len(expr.Tokens) == 0 {
+		return nil
+	}
+	parts := splitTopLevelExpressionTokens(expr.Tokens, lexer.TokenComma)
+	if len(parts) <= 1 {
+		return nil
+	}
+	values := make([]Expression, 0, len(parts))
+	for _, part := range parts {
+		values = append(values, expressionFromTokens(part))
+	}
+	return values
 }
 
 func (parser *Parser) parseThrow() Statement {
@@ -811,6 +976,15 @@ func (parser *Parser) parseThrow() Statement {
 		Pos:        positionFromToken(start),
 		Expression: expr,
 	}
+}
+
+func (parser *Parser) parseDefer() Statement {
+	start := parser.consume(lexer.TokenDefer, "expected defer")
+	if parser.check(lexer.TokenScopeBegin) {
+		return DeferStatement{Pos: positionFromToken(start), Body: parser.parseBlock()}
+	}
+	stmt := parser.parseStatement()
+	return DeferStatement{Pos: positionFromToken(start), Stmt: stmt}
 }
 
 func (parser *Parser) parseBreak() Statement {
@@ -983,7 +1157,8 @@ func inlineStatementStart(tokens []lexer.Token) int {
 	for index, token := range tokens {
 		switch token.Type {
 		case lexer.TokenBreak, lexer.TokenContinue, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport,
-			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenAsync, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
+			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenAsync, lexer.TokenInline,
+			lexer.TokenPrivate, lexer.TokenDefer, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
 			return index
 		}
 	}

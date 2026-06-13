@@ -16,6 +16,12 @@
 16. `--raw-lang` disables stdlib module resolution while preserving local workspace imports.
 17. `let`, `val`, `var`, and `const` are inferred declaration keywords with strict type checking.
 18. Builtin type names expose `.sizeof`, which returns an `Int` size value.
+19. Functions may return multiple values through tuple-style return signatures.
+20. `private` hides functions and namespaces from other files where the checker can enforce file ownership.
+21. Here strings use `//` delimiters in expression-start positions and produce multiline `String` values.
+22. `Any` is a fully dynamic wildcard type and cannot be restricted.
+23. `defer` schedules statements or blocks to run at the end of the current runtime block.
+24. `inline` marks functions and alias functions as eager inline candidates for compiler/runtime optimization.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -24,6 +30,9 @@ Rules
 - `val` declares a global inferred immutable variable, and `var` declares a global inferred mutable variable.
 - `const` declares a strictly immutable inferred value in the current scope and requires an initializer.
 - Inferred declarations must have an initializer and are checked before runtime.
+- Multiple return signatures use `(name : Type, mut OtherType)` syntax and return values with `return left, right;`.
+- Named return values are zero-initialized in the function body.
+- `private { ... }` creates a private lexical block.
 - Extension methods declared inside an alias function use `this` as their receiver.
 - Region-backed array types use the `ElementType[RegionName]` form and must reference an existing `region`.
 - Region-backed arrays grow through indexed assignment, but an index must be inside the region count.

@@ -158,6 +158,20 @@ local Complex moved = z + Complex(1, -1);
 -- SIMD(list) creates a vector-like value with numeric lanes.
 local SIMD[Int] lanes = SIMD([1, 2, 3, 4]);
 local SIMD[Int] doubledLanes = lanes * 2;
+
+-- Any accepts any value and cannot be restricted.
+local mut Any dynamicValue = "text";
+dynamicValue = 10;
+
+-- here strings use // delimiters and produce multiline String values.
+let mut here_string = //
+<!DOCTYPE html>
+<html lang="en">
+<body>
+    <h1>Hello from kLang!</h1>
+</body>
+</html>
+//;
 ```
 
 2. Functions
@@ -205,6 +219,37 @@ function ToNumber(value : String) : Int {
 
 function Add(left : Int, right : Int) : Int {
     return left + right;
+}
+
+-- multiple return values
+-- Named return values are zero-initialized in the body.
+function PrintPair() : (name : String, value : Int) {
+    return "count", 10;
+}
+
+function PrintPair2() : (mut String, Int) {
+    return "", 0;
+}
+
+-- private functions are hidden from other files.
+private function HiddenAdd() : T {
+    return "String is added" as Int;
+}
+
+-- private blocks create a hidden lexical scope.
+private {
+    local Int hiddenScratch = 1;
+}
+
+-- inline marks a function as an eager inline candidate.
+inline function InlineAdd(left : Int, right : Int) : Int {
+    return left + right;
+}
+
+-- defer runs at the end of the current runtime block.
+function WithCleanup() : Int {
+    defer print("cleanup");
+    return 1;
 }
 
 -- parameters are immutable by default; add mut before the name to allow mutation.

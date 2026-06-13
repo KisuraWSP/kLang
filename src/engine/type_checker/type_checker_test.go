@@ -159,6 +159,43 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsMultipleReturnsAnyAndPrivateInline(t *testing.T) {
+	program := programFromSource(`
+private inline function Pair() : (name : String, value : Int) {
+    return "ready", 7;
+}
+
+function Echo(value : Any) : Any {
+    return value;
+}
+
+function Main() : Int {
+    local Any anyValue = Echo("ok");
+    let pair = Pair();
+    return len(anyValue as String) + 1;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected multiple return/Any/private inline type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsMultipleReturnMismatch(t *testing.T) {
+	program := programFromSource(`
+function Pair() : (String, Int) {
+    return 1, "bad";
+}
+
+function Main() : Int {
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "return value 1 expects String but got Int")
+}
+
 func TestCheckProgramRejectsConstMutation(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

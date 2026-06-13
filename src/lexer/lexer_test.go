@@ -78,6 +78,33 @@ func TestLexerTokenizesInferredVariableKeywords(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesPrivateInlineDeferAndHereString(t *testing.T) {
+	input := "private inline function Hidden() : String { defer print(\"done\"); let html = //\n<section>\n    hi\n</section>\n//;\nreturn html;\n}"
+
+	tokens := New(input).Tokenize()
+	foundPrivate := false
+	foundInline := false
+	foundDefer := false
+	foundHereString := false
+	for _, token := range tokens {
+		switch token.Type {
+		case TokenPrivate:
+			foundPrivate = true
+		case TokenInline:
+			foundInline = true
+		case TokenDefer:
+			foundDefer = true
+		case TokenString:
+			if strings.Contains(token.Literal, "<section>") && strings.Contains(token.Literal, "</section>") {
+				foundHereString = true
+			}
+		}
+	}
+	if !foundPrivate || !foundInline || !foundDefer || !foundHereString {
+		t.Fatalf("expected private/inline/defer/here string tokens, got %#v", tokens)
+	}
+}
+
 func TestLexerTokenizesFunctionAndControlFlowSyntax(t *testing.T) {
 	input := `
 -- comments are skipped

@@ -89,6 +89,9 @@ const (
 	TokenLazy       // lazy
 	TokenAsync      // async
 	TokenAwait      // await
+	TokenInline     // inline
+	TokenPrivate    // private
+	TokenDefer      // defer
 	TokenInner      // inner
 	TokenTrait      // trait
 	TokenImpl       // impl
@@ -148,6 +151,9 @@ var Keywords = map[string]TokenType{
 	"lazy":           TokenLazy,
 	"async":          TokenAsync,
 	"await":          TokenAwait,
+	"inline":         TokenInline,
+	"private":        TokenPrivate,
+	"defer":          TokenDefer,
 	"inner":          TokenInner,
 	"trait":          TokenTrait,
 	"impl":           TokenImpl,
