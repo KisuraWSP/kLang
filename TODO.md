@@ -88,6 +88,7 @@ function create_workspace(name : String, workspace := UserDefinedWorkspace()) {
 ```lua
 T restrict[Option[DefaultWorkspace], Option[UserDefinedWorkspace]]
 ```
+- vim and emacs plugin for the langauge
 
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project within 10 seconds
