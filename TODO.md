@@ -36,6 +36,16 @@ if x == {
 - make the runtime be able to work on users browser by compiling to wasm code <done after first>
 - multi threaded interpretter runtime <done first >
 - add a flag to start a simple web server that is built into the language that will package our entire languages runtime if the user doesnt want to build wasm and ship it
+- mutliple return values on functions & the ability to define whether a return value can be mutable or not, and also named return values (like the below)
+```lua
+function Print() : (name : String, value : Int) {
+    return name, value;
+}
+
+function Print2() : (mut String, Int) {
+    return "", 0;
+}
+```
 
 
 # TODO When All Previous todos are done (End Goal)
