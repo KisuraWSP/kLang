@@ -82,6 +82,29 @@ function Add(a : Int, b : Int) : Int {
 	})
 }
 
+func TestLexerTokenizesPatternMatchKeywords(t *testing.T) {
+	input := `partial if value == { case "blank": continue; case: break; }`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenPartial, Literal: "partial"},
+		{Type: TokenIf, Literal: "if"},
+		{Type: TokenIdentifier, Literal: "value"},
+		{Type: TokenStrictEquality, Literal: "=="},
+		{Type: TokenScopeBegin, Literal: "{"},
+		{Type: TokenCase, Literal: "case"},
+		{Type: TokenString, Literal: "blank"},
+		{Type: TokenInferReturn, Literal: ":"},
+		{Type: TokenContinue, Literal: "continue"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenCase, Literal: "case"},
+		{Type: TokenInferReturn, Literal: ":"},
+		{Type: TokenBreak, Literal: "break"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenScopeEnd, Literal: "}"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesFunctionMarkerTags(t *testing.T) {
 	input := `@deprecated("use NewAdd") function OldAdd() : Int { return 1; }`
 

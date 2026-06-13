@@ -58,6 +58,49 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesPatternMatchWithDefaultBreak(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local String mode = "blank";
+    local mut Int score = 0;
+    if mode == {
+        case "blank":
+            score += 10;
+        case:
+            score += 100;
+    }
+    return score;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 10 {
+		t.Fatalf("expected pattern match default break to return 10, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesPatternMatchFallthroughWithContinue(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Int value = 1;
+    local mut Int score = 0;
+    if value == {
+        case 1:
+            score += 10;
+            continue;
+        case 2:
+            score += 20;
+        case:
+            score += 100;
+    }
+    return score;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 30 {
+		t.Fatalf("expected pattern match fallthrough to return 30, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesCStyleForLoop(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {

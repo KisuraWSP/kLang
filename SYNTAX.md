@@ -435,6 +435,38 @@ if maybeCount and parsedCount {
     print("values are present");
 }
 
+-- pattern matching switch statement
+-- Matches are strict and type safe. Bool, String, Int, and Float values are allowed.
+-- Table values cannot be matched. Each case breaks by default.
+-- Use continue inside a case to fall through to the next case.
+-- Non-partial matches must include a default case, except Bool matches can cover True and False.
+local String mode = "blank";
+if mode == {
+    case "blank":
+        print("hallo");
+    case "debug":
+        print("debug");
+        continue;
+    case:
+        print(10);
+}
+
+local Bool ready = True;
+if ready and not False == {
+    case True:
+        print("ready");
+    case False:
+        print("not ready");
+}
+
+local Int code = 2;
+partial if code == {
+    case 1:
+        print("one");
+    case 2:
+        print("two");
+}
+
 -- unless .. else
 -- If the Boolean expression evaluates to false, then the block of code inside the unless statement will be executed. If the Boolean expression evaluates to true, then the code after the else keyword of the given unless statement will be executed.
 unless x > y {

@@ -97,6 +97,64 @@ function Apply(value : Int, callback : Function[Int, Int]) : Int {
 	}
 }
 
+func TestParsePatternMatchStatement(t *testing.T) {
+	program, errors := Parse(`
+function Main() : Int {
+    local String mode = "blank";
+    if mode == {
+        case "blank":
+            print("hallo");
+            continue;
+        case:
+            print(10);
+    }
+    return 0;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	match, ok := fn.Body[1].(MatchStatement)
+	if !ok {
+		t.Fatalf("expected match statement, got %T", fn.Body[1])
+	}
+	if match.Partial || match.Value.Literal() != "mode" || len(match.Cases) != 2 {
+		t.Fatalf("unexpected match statement: %#v", match)
+	}
+	if match.Cases[0].Pattern.Literal() != "blank" || match.Cases[0].Default {
+		t.Fatalf("unexpected first match case: %#v", match.Cases[0])
+	}
+	if _, ok := match.Cases[0].Body[1].(ContinueStatement); !ok {
+		t.Fatalf("expected continue statement in first case, got %#v", match.Cases[0].Body)
+	}
+	if !match.Cases[1].Default {
+		t.Fatalf("expected second case to be default: %#v", match.Cases[1])
+	}
+}
+
+func TestParsePartialPatternMatchStatement(t *testing.T) {
+	program, errors := Parse(`
+function Main() : Int {
+    local Int value = 1;
+    partial if value == {
+        case 1:
+            return 1;
+    }
+    return 0;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn := program.Statements[0].(FunctionStatement)
+	match, ok := fn.Body[1].(MatchStatement)
+	if !ok || !match.Partial {
+		t.Fatalf("expected partial match statement, got %#v", fn.Body[1])
+	}
+}
+
 func TestParseLazyFunction(t *testing.T) {
 	program, errors := Parse(`
 lazy function Choose(useFirst : Bool, first : Int, second : Int) : Int {

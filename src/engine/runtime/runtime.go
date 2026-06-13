@@ -217,7 +217,7 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 			if signal.kind == signalThrow {
 				return Result{}, Error{Message: "uncaught exception: " + valueString(signal.value)}
 			}
-			return Result{}, Error{Message: "top-level return or break is not allowed"}
+			return Result{}, Error{Message: "top-level return, break, or continue is not allowed"}
 		}
 	}
 
@@ -275,6 +275,14 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 				return err
 			}
 		}
+	case parser.MatchStatement:
+		for _, matchCase := range current.Cases {
+			for _, nested := range matchCase.Body {
+				if err := runtime.collectFunctions(nested, namespace); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -285,6 +293,7 @@ const (
 	signalNone signalKind = iota
 	signalReturn
 	signalBreak
+	signalContinue
 	signalTailCall
 	signalThrow
 )
@@ -405,6 +414,11 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 			return signal{}, errorAt(current.Pos, "break is only allowed inside a loop")
 		}
 		return signal{kind: signalBreak}, nil
+	case parser.ContinueStatement:
+		if !inLoop {
+			return signal{}, errorAt(current.Pos, "continue is only allowed inside a loop or pattern match case")
+		}
+		return signal{kind: signalContinue}, nil
 	case parser.ExpressionStatement:
 		_, err := runtime.evalExpression(current.Expression.Node, env)
 		if thrown, ok := thrownValue(err); ok {
@@ -421,6 +435,8 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		return signal{kind: signalNone}, nil
 	case parser.IfStatement:
 		return runtime.executeIf(current, env, inLoop)
+	case parser.MatchStatement:
+		return runtime.executeMatch(current, env, inLoop)
 	case parser.LoopStatement:
 		return runtime.executeLoop(current, env)
 	case parser.TryCatchStatement:
@@ -428,6 +444,54 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 	default:
 		return signal{}, Error{Message: fmt.Sprintf("unsupported statement %T", stmt)}
 	}
+}
+
+func (runtime *Runtime) executeMatch(stmt parser.MatchStatement, env *Environment, inLoop bool) (signal, error) {
+	value, err := runtime.evalExpression(stmt.Value.Node, env)
+	if err != nil {
+		return signal{}, err
+	}
+	if !isRuntimePatternMatchValue(value) {
+		return signal{}, errorAt(stmt.Pos, fmt.Sprintf("pattern match value must be Bool, String, Int, or Float, got %s", value.Kind))
+	}
+
+	matched := false
+	for _, matchCase := range stmt.Cases {
+		if !matched {
+			if matchCase.Default {
+				matched = true
+			} else {
+				pattern, err := runtime.evalExpression(matchCase.Pattern.Node, env)
+				if err != nil {
+					return signal{}, err
+				}
+				if !isRuntimePatternMatchValue(pattern) {
+					return signal{}, errorAt(matchCase.Pos, fmt.Sprintf("case pattern must be Bool, String, Int, or Float, got %s", pattern.Kind))
+				}
+				if value.Kind != pattern.Kind {
+					return signal{}, errorAt(matchCase.Pos, fmt.Sprintf("case pattern type %s does not match %s", pattern.Kind, value.Kind))
+				}
+				matched = valuesEqual(value, pattern)
+			}
+		}
+		if !matched {
+			continue
+		}
+
+		currentSignal, err := runtime.executeBlock(matchCase.Body, NewEnvironment(env), true)
+		if err != nil {
+			return signal{}, err
+		}
+		switch currentSignal.kind {
+		case signalNone, signalBreak:
+			return signal{kind: signalNone}, nil
+		case signalContinue:
+			continue
+		default:
+			return currentSignal, nil
+		}
+	}
+	return signal{kind: signalNone}, nil
 }
 
 func (runtime *Runtime) executeTryCatch(stmt parser.TryCatchStatement, env *Environment, inLoop bool) (signal, error) {
@@ -530,6 +594,14 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 			if currentSignal.kind == signalBreak {
 				break
 			}
+			if currentSignal.kind == signalContinue {
+				if len(post.Tokens) != 0 {
+					if err := runtime.executeLoopHeaderAssignment(post, loopEnv); err != nil {
+						return signal{}, errorAt(stmt.Pos, err.Error())
+					}
+				}
+				continue
+			}
 			if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall || currentSignal.kind == signalThrow {
 				return currentSignal, nil
 			}
@@ -566,6 +638,9 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 			}
 			if currentSignal.kind == signalBreak {
 				return signal{kind: signalNone}, nil
+			}
+			if currentSignal.kind == signalContinue {
+				continue
 			}
 			if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall || currentSignal.kind == signalThrow {
 				return currentSignal, nil
@@ -607,11 +682,41 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 		if currentSignal.kind == signalBreak {
 			break
 		}
+		if currentSignal.kind == signalContinue {
+			continue
+		}
 		if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall || currentSignal.kind == signalThrow {
 			return currentSignal, nil
 		}
 	}
 	return signal{kind: signalNone}, nil
+}
+
+func isRuntimePatternMatchValue(value Value) bool {
+	switch value.Kind {
+	case ValueBool, ValueString, ValueInt, ValueFloat:
+		return true
+	default:
+		return false
+	}
+}
+
+func valuesEqual(left Value, right Value) bool {
+	if left.Kind != right.Kind {
+		return false
+	}
+	switch left.Kind {
+	case ValueBool:
+		return left.Data.(bool) == right.Data.(bool)
+	case ValueString:
+		return left.Data.(string) == right.Data.(string)
+	case ValueInt:
+		return left.Data.(int) == right.Data.(int)
+	case ValueFloat:
+		return left.Data.(float64) == right.Data.(float64)
+	default:
+		return false
+	}
 }
 
 func (runtime *Runtime) storeLoopHeaderBinding(name string, value Value, env *Environment) error {

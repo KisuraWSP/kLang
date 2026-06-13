@@ -402,6 +402,10 @@ func (checker *TypeChecker) collectAliasStatements(statements []parser.Statement
 			if current.ElseIf != nil {
 				checker.collectAliasStatements([]parser.Statement{*current.ElseIf}, source)
 			}
+		case parser.MatchStatement:
+			for _, matchCase := range current.Cases {
+				checker.collectAliasStatements(matchCase.Body, source)
+			}
 		case parser.LoopStatement:
 			checker.collectAliasStatements(current.Body, source)
 		}

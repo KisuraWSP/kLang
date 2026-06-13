@@ -101,6 +101,9 @@ const (
 	TokenNameSpace  // namespace
 	TokenReturn     // return
 	TokenBreak      // break
+	TokenContinue   // continue
+	TokenCase       // case
+	TokenPartial    // partial
 	TokenDoWhile    // do_while
 	TokenExport     // export
 )
@@ -151,6 +154,9 @@ var Keywords = map[string]TokenType{
 	"namespace":      TokenNameSpace,
 	"return":         TokenReturn,
 	"break":          TokenBreak,
+	"continue":       TokenContinue,
+	"case":           TokenCase,
+	"partial":        TokenPartial,
 	"do_while":       TokenDoWhile,
 	"export":         TokenExport,
 }

@@ -139,6 +139,10 @@ type BreakStatement struct {
 	Pos Position
 }
 
+type ContinueStatement struct {
+	Pos Position
+}
+
 type AssignmentStatement struct {
 	Pos        Position
 	Target     Expression
@@ -158,6 +162,20 @@ type IfStatement struct {
 	Consequence []Statement
 	Alternative []Statement
 	ElseIf      *IfStatement
+}
+
+type MatchStatement struct {
+	Pos     Position
+	Partial bool
+	Value   Expression
+	Cases   []MatchCase
+}
+
+type MatchCase struct {
+	Pos     Position
+	Pattern Expression
+	Default bool
+	Body    []Statement
 }
 
 type LoopStatement struct {
@@ -286,9 +304,11 @@ func (stmt VariableStatement) statementNode()   {}
 func (stmt ReturnStatement) statementNode()     {}
 func (stmt ThrowStatement) statementNode()      {}
 func (stmt BreakStatement) statementNode()      {}
+func (stmt ContinueStatement) statementNode()   {}
 func (stmt AssignmentStatement) statementNode() {}
 func (stmt ExpressionStatement) statementNode() {}
 func (stmt IfStatement) statementNode()         {}
+func (stmt MatchStatement) statementNode()      {}
 func (stmt LoopStatement) statementNode()       {}
 func (stmt TryCatchStatement) statementNode()   {}
 
@@ -309,9 +329,11 @@ func (stmt VariableStatement) Position() Position   { return stmt.Pos }
 func (stmt ReturnStatement) Position() Position     { return stmt.Pos }
 func (stmt ThrowStatement) Position() Position      { return stmt.Pos }
 func (stmt BreakStatement) Position() Position      { return stmt.Pos }
+func (stmt ContinueStatement) Position() Position   { return stmt.Pos }
 func (stmt AssignmentStatement) Position() Position { return stmt.Pos }
 func (stmt ExpressionStatement) Position() Position { return stmt.Pos }
 func (stmt IfStatement) Position() Position         { return stmt.Pos }
+func (stmt MatchStatement) Position() Position      { return stmt.Pos }
 func (stmt LoopStatement) Position() Position       { return stmt.Pos }
 func (stmt TryCatchStatement) Position() Position   { return stmt.Pos }
 

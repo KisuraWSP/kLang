@@ -1114,6 +1114,111 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "next expects Iterator, got Int")
 }
 
+func TestCheckProgramAcceptsPatternMatchStatement(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local String mode = "blank";
+    if mode == {
+        case "blank":
+            print("blank");
+        case:
+            print("default");
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected pattern match type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsExhaustiveBoolPatternMatch(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Bool ready = True;
+    if ready == {
+        case True:
+            print("yes");
+        case False:
+            print("no");
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected exhaustive bool pattern match to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsPartialPatternMatchWithoutDefault(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Int value = 1;
+    partial if value == {
+        case 1:
+            print(value);
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected partial pattern match to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsNonExhaustivePatternMatch(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Int value = 1;
+    if value == {
+        case 1:
+            print(value);
+    }
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "pattern match is not exhaustive")
+}
+
+func TestCheckProgramRejectsPatternMatchTypeMismatch(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Int value = 1;
+    if value == {
+        case "one":
+            print(value);
+        case:
+            print(0);
+    }
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "case pattern type String does not match Int")
+}
+
+func TestCheckProgramRejectsTablePatternMatch(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Table data = {"kind": "blank"};
+    partial if data == {
+        case "blank":
+            print("no");
+    }
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "pattern match value must be Bool, String, Int, or Float, got Table")
+}
+
 func programFromSource(source string) file.Program {
 	lines := strings.Split(strings.TrimSpace(source), "\n")
 	return file.Program{

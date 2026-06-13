@@ -55,6 +55,10 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 		case parser.TryCatchStatement:
 			checker.collectASTGlobalsFromStatements(current.TryBody, source, false)
 			checker.collectASTGlobalsFromStatements(current.CatchBody, source, false)
+		case parser.MatchStatement:
+			for _, matchCase := range current.Cases {
+				checker.collectASTGlobalsFromStatements(matchCase.Body, source, false)
+			}
 		case parser.FunctionStatement:
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		case parser.IfStatement:
@@ -177,6 +181,10 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		if !inLoop {
 			checker.addError(source, current.Pos.Line, "break is only allowed inside a loop")
 		}
+	case parser.ContinueStatement:
+		if !inLoop {
+			checker.addError(source, current.Pos.Line, "continue is only allowed inside a loop or pattern match case")
+		}
 	case parser.ExpressionStatement:
 		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
 	case parser.AssignmentStatement:
@@ -189,6 +197,8 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 			checker.checkScopeStatement(*current.ElseIf, newLexicalScope(scope), namespace, source, inLoop, false)
 		}
 		checker.checkScopeStatements(current.Alternative, newLexicalScope(scope), namespace, source, inLoop, false)
+	case parser.MatchStatement:
+		checker.checkMatchScope(current, scope, namespace, source, inLoop)
 	case parser.LoopStatement:
 		checker.checkLoopScope(current, scope, namespace, source)
 	case parser.TryCatchStatement:
@@ -196,6 +206,97 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		catchScope := newLexicalScope(scope)
 		catchScope.define(variableSymbol{Name: current.ErrorName, Type: anyType, File: source, Line: current.Pos.Line})
 		checker.checkScopeStatements(current.CatchBody, catchScope, namespace, source, inLoop, false)
+	}
+}
+
+func (checker *TypeChecker) checkMatchScope(stmt parser.MatchStatement, scope *lexicalScope, namespace string, source string, inLoop bool) {
+	checker.checkScopeExpression(stmt.Value.Node, scope, namespace, source, stmt.Pos.Line)
+	locals := scopeVariables(scope)
+	valueType := checker.inferMatchExpressionType(stmt.Value, locals, source, stmt.Pos.Line)
+	valueType = normalizeType(valueType)
+	if !isPatternMatchType(valueType) {
+		checker.addError(source, stmt.Pos.Line, fmt.Sprintf("pattern match value must be Bool, String, Int, or Float, got %s", valueType))
+	}
+
+	hasDefault := false
+	boolCases := map[string]bool{}
+	for _, matchCase := range stmt.Cases {
+		if matchCase.Default {
+			if hasDefault {
+				checker.addError(source, matchCase.Pos.Line, "pattern match can only have one default case")
+			}
+			hasDefault = true
+		} else {
+			checker.checkScopeExpression(matchCase.Pattern.Node, scope, namespace, source, matchCase.Pos.Line)
+			patternType := normalizeType(checker.inferMatchExpressionType(matchCase.Pattern, locals, source, matchCase.Pos.Line))
+			if !isPatternMatchType(patternType) {
+				checker.addError(source, matchCase.Pos.Line, fmt.Sprintf("case pattern must be Bool, String, Int, or Float, got %s", patternType))
+			}
+			if valueType != anyType && patternType != anyType && valueType != patternType {
+				checker.addError(source, matchCase.Pos.Line, fmt.Sprintf("case pattern type %s does not match %s", patternType, valueType))
+			}
+			if valueType == "Bool" && patternType == "Bool" {
+				if value, ok := boolPatternLiteral(matchCase.Pattern.Node); ok && value {
+					boolCases["True"] = true
+				}
+				if value, ok := boolPatternLiteral(matchCase.Pattern.Node); ok && !value {
+					boolCases["False"] = true
+				}
+			}
+		}
+		checker.checkScopeStatements(matchCase.Body, newLexicalScope(scope), namespace, source, true, false)
+	}
+
+	if !stmt.Partial && !hasDefault {
+		if valueType == "Bool" && boolCases["True"] && boolCases["False"] {
+			return
+		}
+		checker.addError(source, stmt.Pos.Line, "pattern match is not exhaustive; add case: or mark it partial")
+	}
+}
+
+func (checker *TypeChecker) inferMatchExpressionType(expr parser.Expression, locals map[string]variableSymbol, source string, line int) string {
+	switch current := expr.Node.(type) {
+	case parser.LiteralExpression:
+		return normalizeType(current.Kind)
+	case parser.IdentifierExpression:
+		if variable, exists := checker.lookupVariable(current.Name, locals); exists {
+			if variable.InferredType != "" {
+				return variable.InferredType
+			}
+			return variable.Type
+		}
+	}
+	return checker.inferExpression(expr.Literal(), locals, source, line)
+}
+
+func boolPatternLiteral(expr parser.ExpressionNode) (bool, bool) {
+	literal, ok := expr.(parser.LiteralExpression)
+	if !ok || literal.Kind != "Bool" {
+		return false, false
+	}
+	return literal.Value == "True", true
+}
+
+func scopeVariables(scope *lexicalScope) map[string]variableSymbol {
+	locals := map[string]variableSymbol{}
+	for current := scope; current != nil; current = current.parent {
+		for name, variable := range current.variables {
+			if _, exists := locals[name]; !exists {
+				locals[name] = variable
+			}
+		}
+	}
+	return locals
+}
+
+func isPatternMatchType(typeName string) bool {
+	typeName = normalizeType(typeName)
+	switch typeName {
+	case anyType, "Bool", "String", "Int", "Float":
+		return true
+	default:
+		return false
 	}
 }
 

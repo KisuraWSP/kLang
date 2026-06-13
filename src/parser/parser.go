@@ -97,8 +97,12 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseThrow()
 	case lexer.TokenBreak:
 		return parser.parseBreak()
+	case lexer.TokenContinue:
+		return parser.parseContinue()
 	case lexer.TokenTry:
 		return parser.parseTryCatch()
+	case lexer.TokenPartial:
+		return parser.parsePartial()
 	case lexer.TokenIf:
 		return parser.parseCondition("if")
 	case lexer.TokenUnless:
@@ -749,6 +753,21 @@ func (parser *Parser) parseBreak() Statement {
 	return BreakStatement{Pos: positionFromToken(start)}
 }
 
+func (parser *Parser) parseContinue() Statement {
+	start := parser.consume(lexer.TokenContinue, "expected continue")
+	parser.consumeOptionalSemicolon()
+	return ContinueStatement{Pos: positionFromToken(start)}
+}
+
+func (parser *Parser) parsePartial() Statement {
+	start := parser.consume(lexer.TokenPartial, "expected partial")
+	if !parser.check(lexer.TokenIf) {
+		parser.addError(parser.current(), "partial must be followed by a pattern matching if statement")
+		return nil
+	}
+	return parser.parseConditionFromStart(start, "if", true)
+}
+
 func (parser *Parser) parseTryCatch() Statement {
 	start := parser.consume(lexer.TokenTry, "expected try")
 	tryBody := parser.parseBlock()
@@ -765,7 +784,22 @@ func (parser *Parser) parseTryCatch() Statement {
 
 func (parser *Parser) parseCondition(kind string) Statement {
 	start := parser.advance()
+	return parser.parseConditionFromStart(start, kind, false)
+}
+
+func (parser *Parser) parseConditionFromStart(start lexer.Token, kind string, partial bool) Statement {
+	if partial {
+		parser.consume(lexer.TokenIf, "expected if after partial")
+	} else if start.Type != lexer.TokenIf && start.Type != lexer.TokenUnless {
+		parser.addError(start, "expected condition")
+		return nil
+	}
 	condition := parser.parseExpressionUntil(lexer.TokenScopeBegin, lexer.TokenSemicolon)
+	if kind == "if" && parser.check(lexer.TokenScopeBegin) {
+		if value, ok := matchSubjectExpression(condition); ok {
+			return parser.parseMatchFromCondition(start, value, partial)
+		}
+	}
 	var consequence []Statement
 	if parser.check(lexer.TokenScopeBegin) {
 		consequence = parser.parseBlock()
@@ -799,6 +833,63 @@ func (parser *Parser) parseCondition(kind string) Statement {
 	return stmt
 }
 
+func matchSubjectExpression(expr Expression) (Expression, bool) {
+	tokens := trimExpressionTokens(expr.Tokens)
+	if len(tokens) < 2 || tokens[len(tokens)-1].Type != lexer.TokenStrictEquality {
+		return Expression{}, false
+	}
+	valueTokens := trimExpressionTokens(tokens[:len(tokens)-1])
+	if len(valueTokens) == 0 {
+		return Expression{}, false
+	}
+	return expressionFromTokens(valueTokens), true
+}
+
+func (parser *Parser) parseMatchFromCondition(start lexer.Token, value Expression, partial bool) Statement {
+	parser.consume(lexer.TokenScopeBegin, "expected '{' to start pattern match")
+	stmt := MatchStatement{
+		Pos:     positionFromToken(start),
+		Partial: partial,
+		Value:   value,
+	}
+	for !parser.check(lexer.TokenScopeEnd) && !parser.atEnd() {
+		if parser.match(lexer.TokenSemicolon) {
+			continue
+		}
+		if !parser.check(lexer.TokenCase) {
+			parser.addError(parser.current(), "expected case in pattern match")
+			parser.synchronize()
+			continue
+		}
+		stmt.Cases = append(stmt.Cases, parser.parseMatchCase())
+	}
+	parser.consume(lexer.TokenScopeEnd, "expected '}' to close pattern match")
+	return stmt
+}
+
+func (parser *Parser) parseMatchCase() MatchCase {
+	start := parser.consume(lexer.TokenCase, "expected case")
+	current := MatchCase{Pos: positionFromToken(start)}
+	if parser.match(lexer.TokenInferReturn) {
+		current.Default = true
+	} else {
+		current.Pattern = parser.parseExpressionUntil(lexer.TokenInferReturn)
+		parser.consume(lexer.TokenInferReturn, "expected ':' after case pattern")
+	}
+	for !parser.check(lexer.TokenCase) && !parser.check(lexer.TokenScopeEnd) && !parser.atEnd() {
+		if parser.match(lexer.TokenSemicolon) {
+			continue
+		}
+		stmt := parser.parseStatement()
+		if stmt == nil {
+			parser.synchronize()
+			continue
+		}
+		current.Body = append(current.Body, stmt)
+	}
+	return current
+}
+
 func parseInlineCondition(expr Expression) (Expression, []Statement) {
 	index := inlineStatementStart(expr.Tokens)
 	if index == -1 {
@@ -825,7 +916,7 @@ func parseInlineStatements(tokens []lexer.Token) []Statement {
 func inlineStatementStart(tokens []lexer.Token) int {
 	for index, token := range tokens {
 		switch token.Type {
-		case lexer.TokenBreak, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport,
+		case lexer.TokenBreak, lexer.TokenContinue, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport,
 			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenAsync, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
 			return index
 		}
