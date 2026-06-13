@@ -19,37 +19,6 @@ function Print2() : (mut String, Int) {
     return "", 0;
 }
 ```
-- introduce 3 new keywords to simplify the code which are "let, var, val"
-    - these keywords do strict type checking and type inference to variables
-```lua
--- infers the type Option[Int] but this variable represents the below
--- local Option[Int] x = Some(69420);
-let x = Some(69420);
-
--- infers the type Option[Int] but this variable represents the below
--- local mut Option[Int] x = Some(69420);
-let mut x = Some(69420);
-
--- infers the type Option[Int] but this variable represents the below
--- global Option[Int] x = Some(69420);
-val x = Some(69420);
-
--- infers the type Option[Int] but this variable represents the below
--- global mut Option[Int] x = Some(69420);
-var x = Some(69420);
-```
-- add a new operator to return size of a type like the below
-```lua
-let size intSize = Int.sizeof;
-```
-- add new keyword called "const"
-    - this keyword will work in local or global scope
-    - is strictly immutable
-    - this keyword if a value propagation is not correct during like the steps to either check the type/parsing like what ever proccess if it fails before any step before running the code this will immediately stop what the language is doing and propagate what the error is occuring in this
-    - this keyword must have strict semantics
-```lua
-const x = Int.sizeof;
-```
 - a compact build system (Like if u want to package the project u can do that with the languages source code)
 
 

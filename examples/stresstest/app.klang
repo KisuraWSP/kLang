@@ -9,14 +9,29 @@ namespace App {
     }
 
     function Start() : Int {
-        local Awaitable[Int] pendingBatch = LoadBatchSize();
-        local Int batch = await pendingBatch;
-        local List[Int] values = [index for index in range(batch)];
-        local List[Int] scored = [Score(value) for value in values if value % 2 == 0];
+        const size = String.sizeof;
+        const size2 = Int.sizeof;
+        const size3 = UInt.sizeof;
+        const size4 = Float.sizeof;
+        const size5 = Char.sizeof;
+        const size6 = Bool.sizeof;
+        const size7 = T.sizeof;
+        print("size of String is: ", size);
+        print("size of Int is: ", size2);
+        print("size of UInt is: ", size3);
+        print("size of Float is: ", size4);
+        print("size of Char is: ", size5);
+        print("size of Bool is: ", size6);
+        print("size of T is: ", size7);
+        let pendingBatch = LoadBatchSize();
+        let batch = await pendingBatch;
+        let values = [index for index in range(batch)];
+        let scored = [Score(value) for value in values if value % 2 == 0];
 
-        local Iterator[Int] iterator = iter(scored);
-        local mut Option[Int] current = next(iterator);
-        local mut Int total = 0;
+        let iterator = iter(scored);
+        let mut  current = next(iterator);
+        let mut total = 0;
+        -- cannot do let mut stats = {... whatever} because Table type is not allowed for this syntax
         local mut Table stats = {"count": len(scored), "max": 0, "allocator": HeapAllocator()};
 
         while current.some {

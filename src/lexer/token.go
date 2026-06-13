@@ -99,6 +99,10 @@ const (
 	TokenGlobal     // global
 	TokenMut        // mut
 	TokenLocal      // local
+	TokenLet        // let
+	TokenVar        // var
+	TokenVal        // val
+	TokenConst      // const
 	TokenCall       // call
 	TokenNameSpace  // namespace
 	TokenReturn     // return
@@ -154,6 +158,10 @@ var Keywords = map[string]TokenType{
 	"fun":            TokenLambdaFunc,
 	"mut":            TokenMut,
 	"local":          TokenLocal,
+	"let":            TokenLet,
+	"var":            TokenVar,
+	"val":            TokenVal,
+	"const":          TokenConst,
 	"call":           TokenCall,
 	"namespace":      TokenNameSpace,
 	"return":         TokenReturn,

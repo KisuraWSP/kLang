@@ -91,6 +91,14 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseVariable("global", false)
 	case lexer.TokenLocal:
 		return parser.parseVariable("local", false)
+	case lexer.TokenLet:
+		return parser.parseInferredVariable("local", false, true)
+	case lexer.TokenVal:
+		return parser.parseInferredVariable("global", false, false)
+	case lexer.TokenVar:
+		return parser.parseInferredVariable("global", false, true)
+	case lexer.TokenConst:
+		return parser.parseInferredVariable("const", true, false)
 	case lexer.TokenReturn:
 		return parser.parseReturn()
 	case lexer.TokenThrow:
@@ -251,7 +259,7 @@ func (parser *Parser) parseAliasParameters() []Parameter {
 	}
 	for {
 		mutable := parser.match(lexer.TokenMut)
-		name := parser.consume(lexer.TokenIdentifier, "expected alias parameter name")
+		name := parser.consumeIdentifierLike("expected alias parameter name")
 		typeName := "T"
 		if parser.match(lexer.TokenInferReturn) {
 			typeName = normalizeAliasReturnType(parser.parseType())
@@ -687,7 +695,7 @@ func (parser *Parser) parseParameters() []Parameter {
 
 	for {
 		mutable := parser.match(lexer.TokenMut)
-		name := parser.consume(lexer.TokenIdentifier, "expected parameter name")
+		name := parser.consumeIdentifierLike("expected parameter name")
 		parser.consume(lexer.TokenInferReturn, "expected ':' after parameter name")
 		typeName := parser.parseType()
 		var defaultExpr Expression
@@ -743,6 +751,46 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 		Name:       name.Literal,
 		Expression: expr,
 	}
+}
+
+func (parser *Parser) parseInferredVariable(scope string, constant bool, defaultMutable bool) Statement {
+	start := parser.advance()
+	mutable := defaultMutable
+	if scope == "local" {
+		mutable = parser.match(lexer.TokenMut)
+	}
+	typeName := "T"
+	name := parser.consume(lexer.TokenIdentifier, "expected variable name")
+	if parser.check(lexer.TokenIdentifier) && parser.peek().Type == lexer.TokenAssign {
+		typeName = inferredExplicitType(name.Literal)
+		name = parser.consume(lexer.TokenIdentifier, "expected variable name")
+	}
+	if constant {
+		mutable = false
+	}
+	if !parser.match(lexer.TokenAssign) {
+		parser.addError(parser.current(), "inferred variable declarations require an initializer")
+		parser.consumeOptionalSemicolon()
+		return VariableStatement{Pos: positionFromToken(start), Scope: scope, Inferred: true, Mutable: mutable, Type: typeName, Name: name.Literal}
+	}
+	expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
+	parser.consumeOptionalSemicolon()
+	return VariableStatement{
+		Pos:        positionFromToken(start),
+		Scope:      scope,
+		Inferred:   true,
+		Mutable:    mutable,
+		Type:       typeName,
+		Name:       name.Literal,
+		Expression: expr,
+	}
+}
+
+func inferredExplicitType(typeName string) string {
+	if typeName == "size" {
+		return "Int"
+	}
+	return typeName
 }
 
 func (parser *Parser) parseReturn() Statement {
@@ -1141,6 +1189,16 @@ func (parser *Parser) consume(expected lexer.TokenType, message string) lexer.To
 	token := parser.current()
 	parser.addError(token, message)
 	return lexer.Token{Type: expected, Line: token.Line, Column: token.Column}
+}
+
+func (parser *Parser) consumeIdentifierLike(message string) lexer.Token {
+	if parser.check(lexer.TokenIdentifier) || parser.check(lexer.TokenLet) || parser.check(lexer.TokenVar) ||
+		parser.check(lexer.TokenVal) || parser.check(lexer.TokenConst) {
+		return parser.advance()
+	}
+	token := parser.current()
+	parser.addError(token, message)
+	return lexer.Token{Type: lexer.TokenIdentifier, Line: token.Line, Column: token.Column}
 }
 
 func (parser *Parser) consumeOptionalSemicolon() {

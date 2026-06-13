@@ -71,6 +71,47 @@ function Pick[T restrict[UInt, Int, Float]](value : T = 1) : T {
 	}
 }
 
+func TestParseInferredVariableDeclarations(t *testing.T) {
+	program, errors := Parse(`
+let x = Some(1);
+let mut y = Some(2);
+val z = Some(3);
+var w = Some(4);
+const sizeValue = Int.sizeof;
+let size intSize = Int.sizeof;
+`)
+	assertNoParseErrors(t, errors)
+
+	if len(program.Statements) != 6 {
+		t.Fatalf("expected 6 statements, got %d", len(program.Statements))
+	}
+
+	cases := []struct {
+		index    int
+		scope    string
+		name     string
+		typeName string
+		mutable  bool
+	}{
+		{0, "local", "x", "T", false},
+		{1, "local", "y", "T", true},
+		{2, "global", "z", "T", false},
+		{3, "global", "w", "T", true},
+		{4, "const", "sizeValue", "T", false},
+		{5, "local", "intSize", "Int", false},
+	}
+
+	for _, expected := range cases {
+		decl, ok := program.Statements[expected.index].(VariableStatement)
+		if !ok {
+			t.Fatalf("expected variable declaration at %d, got %T", expected.index, program.Statements[expected.index])
+		}
+		if !decl.Inferred || decl.Scope != expected.scope || decl.Name != expected.name || decl.Type != expected.typeName || decl.Mutable != expected.mutable {
+			t.Fatalf("unexpected inferred declaration at %d: %#v", expected.index, decl)
+		}
+	}
+}
+
 func TestParseFunctionCallbackParameterType(t *testing.T) {
 	program, errors := Parse(`
 function Apply(value : Int, callback : Function[Int, Int]) : Int {

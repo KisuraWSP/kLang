@@ -23,7 +23,10 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 	for _, stmt := range statements {
 		switch current := stmt.(type) {
 		case parser.VariableStatement:
-			if current.Scope != "global" && !current.Exported {
+			if current.Scope == "const" && !topLevel {
+				continue
+			}
+			if current.Scope != "global" && current.Scope != "const" && !current.Exported {
 				continue
 			}
 			if existing, exists := checker.globals[current.Name]; exists {
@@ -167,7 +170,10 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		checker.checkFunctionScope(current, scope, namespace, source)
 	case parser.VariableStatement:
 		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
-		if current.Scope == "global" || current.Exported {
+		if current.Scope == "const" && topLevel {
+			return
+		}
+		if (current.Scope == "global" || current.Exported) && current.Scope != "const" {
 			return
 		}
 		if !scope.define(variableSymbol{Name: current.Name, Type: normalizeType(current.Type), Mutable: current.Mutable, File: source, Line: current.Pos.Line}) {
@@ -428,6 +434,11 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 		checker.checkScopeExpression(current.Target, scope, namespace, source, line)
 		checker.checkScopeExpression(current.Index, scope, namespace, source, line)
 	case parser.SelectorExpression:
+		if current.Field == "sizeof" {
+			if target, ok := current.Target.(parser.IdentifierExpression); ok && isKnownType(normalizeType(target.Name)) {
+				return
+			}
+		}
 		if checker.selectorFunctionExists(current) {
 			return
 		}

@@ -81,6 +81,22 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesInferredVariablesConstAndSizeof(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    let maybe = Some(69420);
+    let mut count = 1;
+    const intSize = Int.sizeof;
+    count += 2;
+    return maybe.value + count + intSize;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 69431 {
+		t.Fatalf("expected inferred variable program to return 69431, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeRejectsImmutableParameterMutation(t *testing.T) {
 	_, err := runSourceWithError(`
 function Mutate(value : Int) : Int {

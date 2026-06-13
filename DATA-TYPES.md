@@ -27,3 +27,6 @@
 26. Iterator[$Item]
 27. Coroutine[$Item]
 28. Args // Builtin immutable List[String] containing command line arguments passed to the program workspace
+
+All builtin type names expose a compile-time size query through `.sizeof`, which returns an `Int`.
+For example, `Int.sizeof` returns the runtime size used for an `Int` value.

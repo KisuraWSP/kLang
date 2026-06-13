@@ -395,8 +395,12 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		if current.Type == "Table" && value.Kind == ValueMap {
 			value = TableValue(value.Data.(map[string]Value))
 		}
-		if !valueMatchesType(value, current.Type) {
-			return signal{}, errorAt(current.Pos, fmt.Sprintf("cannot assign %s to %s variable %q", value.Kind, current.Type, current.Name))
+		typeName := current.Type
+		if current.Inferred && typeName == "T" {
+			typeName = runtimeTypeName(value)
+		}
+		if !valueMatchesType(value, typeName) {
+			return signal{}, errorAt(current.Pos, fmt.Sprintf("cannot assign %s to %s variable %q", value.Kind, typeName, current.Name))
 		}
 		targetEnv := env
 		region := MemoryStack
@@ -406,7 +410,7 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		} else if preferred := preferredMemoryRegion(value); preferred != "" {
 			region = preferred
 		}
-		if err := runtime.defineValueInRegion(targetEnv, current.Name, current.Mutable, current.Type, value, region); err != nil {
+		if err := runtime.defineValueInRegion(targetEnv, current.Name, current.Mutable, typeName, value, region); err != nil {
 			return signal{}, errorAt(current.Pos, err.Error())
 		}
 		return signal{kind: signalNone}, nil
@@ -741,6 +745,19 @@ func valuesEqual(left Value, right Value) bool {
 	}
 }
 
+func typeSizeof(typeName string) (int, bool) {
+	switch typeName {
+	case "Bool", "Char":
+		return 1, true
+	case "Int", "UInt", "Float", "Complex":
+		return 8, true
+	case "String", "List", "Map", "Table", "T", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine":
+		return 16, true
+	default:
+		return 0, false
+	}
+}
+
 func (runtime *Runtime) storeLoopHeaderBinding(name string, value Value, env *Environment) error {
 	if binding, ok := env.bindings[name]; ok {
 		runtime.storeBindingValue(binding, value)
@@ -1047,6 +1064,11 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 	case parser.CallExpression:
 		return runtime.evalCall(current, env)
 	case parser.SelectorExpression:
+		if target, ok := current.Target.(parser.IdentifierExpression); ok && current.Field == "sizeof" {
+			if size, ok := typeSizeof(target.Name); ok {
+				return IntValue(size), nil
+			}
+		}
 		value, err := runtime.evalExpression(current.Target, env)
 		if err == nil && value.Kind == ValueFunction {
 			return FunctionValue(runtime.resolveAliasPath(value.Data.(string)) + "." + current.Field), nil

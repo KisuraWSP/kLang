@@ -425,7 +425,7 @@ func (checker *TypeChecker) collectAliasStatements(statements []parser.Statement
 func (checker *TypeChecker) collectGlobals(unit sourceUnit) {
 	text := maskBlocks(unit.Text)
 	for _, stmt := range splitStatements(text) {
-		decl, ok := parseVariableDeclaration(stmt.Text, "global")
+		decl, ok := parseGlobalLikeDeclaration(stmt.Text)
 		if !ok {
 			continue
 		}
@@ -436,13 +436,21 @@ func (checker *TypeChecker) collectGlobals(unit sourceUnit) {
 			checker.addError(unit.Path, decl.Line, fmt.Sprintf("global variable %q is already defined", decl.Name))
 			continue
 		}
-		checker.checkDeclaredType(decl.Type, unit.Path, decl.Line)
+		if decl.Type != anyType {
+			checker.checkDeclaredType(decl.Type, unit.Path, decl.Line)
+		}
 
 		if decl.Expression != "" {
 			exprType := checker.inferExpression(decl.Expression, map[string]variableSymbol{}, unit.Path, decl.Line)
+			if decl.Inferred && decl.Type == anyType {
+				decl.Type = exprType
+			}
 			if !isAssignable(decl.Type, exprType) {
 				checker.addError(unit.Path, decl.Line, fmt.Sprintf("cannot assign %s to global %s %s", exprType, decl.Type, decl.Name))
 			}
+		} else if decl.Inferred && decl.Type == anyType {
+			checker.addError(unit.Path, decl.Line, fmt.Sprintf("%s %s requires an initializer", decl.Scope, decl.Name))
+			decl.Type = anyType
 		}
 
 		checker.globals[decl.Name] = variableSymbol{
@@ -507,15 +515,20 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 			continue
 		}
 
-		if decl, ok := parseVariableDeclaration(current, "local"); ok {
+		if decl, ok := parseFunctionLocalDeclaration(current); ok {
 			inferredType := ""
-			checker.checkDeclaredType(decl.Type, fn.File, line)
+			if decl.Type != anyType {
+				checker.checkDeclaredType(decl.Type, fn.File, line)
+			}
 			if decl.Expression != "" {
 				exprType := checker.inferExpression(decl.Expression, locals, fn.File, line)
+				if decl.Inferred && decl.Type == anyType {
+					decl.Type = exprType
+				}
 				if !isAssignable(decl.Type, exprType) {
 					checker.addError(fn.File, line, fmt.Sprintf("cannot assign %s to local %s %s", exprType, decl.Type, decl.Name))
 				}
-				if decl.Type == anyType && exprType != anyType {
+				if !decl.Inferred && decl.Type == anyType && exprType != anyType {
 					inferredType = exprType
 				}
 				if movedName, ok := movedIdentifier(decl.Expression); ok {
@@ -537,7 +550,7 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 			continue
 		}
 
-		if _, ok := parseVariableDeclaration(current, "global"); ok {
+		if _, ok := parseGlobalLikeDeclaration(current); ok {
 			continue
 		}
 
@@ -574,6 +587,8 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 }
 
 type variableDeclaration struct {
+	Scope      string
+	Inferred   bool
 	Mutable    bool
 	Exported   bool
 	Type       string
@@ -767,12 +782,84 @@ func parseVariableDeclaration(stmt string, scope string) (variableDeclaration, b
 	}
 
 	return variableDeclaration{
+		Scope:      scope,
 		Mutable:    mutable,
 		Exported:   exported,
 		Type:       typeName,
 		Name:       name,
 		Expression: expr,
 	}, true
+}
+
+func parseGlobalLikeDeclaration(stmt string) (variableDeclaration, bool) {
+	if decl, ok := parseVariableDeclaration(stmt, "global"); ok {
+		return decl, true
+	}
+	current := trimStatementPrefix(stmt)
+	switch {
+	case strings.HasPrefix(current, "val "):
+		return parseInferredDeclaration(current, "global", false, "val")
+	case strings.HasPrefix(current, "var "):
+		return parseInferredDeclaration(current, "global", true, "var")
+	case strings.HasPrefix(current, "const "):
+		return parseInferredDeclaration(current, "const", false, "const")
+	default:
+		return variableDeclaration{}, false
+	}
+}
+
+func parseFunctionLocalDeclaration(stmt string) (variableDeclaration, bool) {
+	if decl, ok := parseVariableDeclaration(stmt, "local"); ok {
+		return decl, true
+	}
+	current := trimStatementPrefix(stmt)
+	switch {
+	case strings.HasPrefix(current, "let "):
+		return parseInferredDeclaration(current, "local", false, "let")
+	case strings.HasPrefix(current, "const "):
+		return parseInferredDeclaration(current, "const", false, "const")
+	default:
+		return variableDeclaration{}, false
+	}
+}
+
+func parseInferredDeclaration(stmt string, scope string, mutable bool, keyword string) (variableDeclaration, bool) {
+	rest := strings.TrimSpace(strings.TrimPrefix(stmt, keyword))
+	if keyword == "let" && strings.HasPrefix(rest, "mut ") {
+		mutable = true
+		rest = strings.TrimSpace(strings.TrimPrefix(rest, "mut"))
+	}
+	assignIndex := findTopLevelAssignment(rest)
+	if assignIndex == -1 {
+		return variableDeclaration{Scope: scope, Mutable: mutable, Type: anyType}, false
+	}
+	left := strings.TrimSpace(rest[:assignIndex])
+	expr := strings.TrimSpace(rest[assignIndex+1:])
+	parts := strings.Fields(left)
+	if len(parts) == 0 || len(parts) > 2 {
+		return variableDeclaration{}, false
+	}
+	typeName := anyType
+	name := parts[0]
+	if len(parts) == 2 {
+		typeName = normalizeType(inferredExplicitTypeName(parts[0]))
+		name = parts[1]
+	}
+	return variableDeclaration{
+		Scope:      scope,
+		Inferred:   true,
+		Mutable:    mutable,
+		Type:       typeName,
+		Name:       name,
+		Expression: expr,
+	}, true
+}
+
+func inferredExplicitTypeName(typeName string) string {
+	if typeName == "size" {
+		return "Int"
+	}
+	return typeName
 }
 
 func parseAssignment(stmt string) (assignmentStatement, bool) {
@@ -908,6 +995,13 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	expr = normalizeNamespaceAccess(expr)
 	expr = trimOuterParens(expr)
 	if expr == "" {
+		return anyType
+	}
+	if typeName, ok := splitSizeofExpression(expr); ok {
+		if isKnownType(typeName) {
+			return "Int"
+		}
+		checker.addError(source, line, fmt.Sprintf("unknown type %s", typeName))
 		return anyType
 	}
 	if strings.HasPrefix(expr, "move ") {
@@ -1055,6 +1149,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	}
 
 	if targetExpr, fieldName, ok := splitTrailingSelectorExpression(expr); ok {
+		if fieldName == "sizeof" && isKnownType(normalizeType(targetExpr)) {
+			return "Int"
+		}
 		targetType := checker.inferExpression(targetExpr, locals, source, line)
 		if fieldType, ok := checker.selectorFieldType(targetType, fieldName); ok {
 			return fieldType
@@ -1993,7 +2090,7 @@ func splitTypeAndName(input string) (string, string, bool) {
 func normalizeType(input string) string {
 	input = strings.TrimSpace(input)
 	switch input {
-	case "int":
+	case "int", "size":
 		return "Int"
 	case "bool":
 		return "Bool"
@@ -2811,6 +2908,18 @@ func splitTrailingSelectorExpression(expr string) (string, string, bool) {
 		}
 	}
 	return "", "", false
+}
+
+func splitSizeofExpression(expr string) (string, bool) {
+	expr = strings.TrimSpace(expr)
+	if !strings.HasSuffix(expr, ".sizeof") {
+		return "", false
+	}
+	target := strings.TrimSpace(strings.TrimSuffix(expr, ".sizeof"))
+	if target == "" || !isIdentifier(target) {
+		return "", false
+	}
+	return normalizeType(target), true
 }
 
 func splitIdentifierSelectorCallName(name string) (string, string, bool) {

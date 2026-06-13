@@ -136,6 +136,53 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsInferredVariableKeywordsAndSizeof(t *testing.T) {
+	program := programFromSource(`
+val maybeGlobal = Some(10);
+var globalCount = 1;
+const globalSize = Int.sizeof;
+
+function Main() : Int {
+    let maybeLocal = Some(69420);
+    let mut localCount = 1;
+    const localSize = Int.sizeof;
+    let size intSize = Int.sizeof;
+    localCount += 1;
+    globalCount += 1;
+    return maybeLocal.value + localCount + globalCount + localSize + intSize + globalSize;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected inferred variable keyword type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsConstMutation(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    const value = 1;
+    value = 2;
+    return value;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "cannot mutate immutable variable")
+}
+
+func TestCheckProgramRejectsInferredDeclarationWithoutUsableValue(t *testing.T) {
+	program := programFromSource(`
+const value = Missing();
+
+function Main() : Int {
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "unknown function \"Missing\"")
+}
+
 func TestCheckProgramAcceptsConditionalExpressionsDefaultsAndZeroValues(t *testing.T) {
 	program := programFromSource(`
 function Init() : Int {

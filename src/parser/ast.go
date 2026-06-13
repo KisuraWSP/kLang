@@ -120,6 +120,7 @@ type Parameter struct {
 type VariableStatement struct {
 	Pos        Position
 	Scope      string
+	Inferred   bool
 	Exported   bool
 	Mutable    bool
 	Type       string

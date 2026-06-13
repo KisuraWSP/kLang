@@ -30,6 +30,54 @@ func TestLexerTokenizesVariableDeclaration(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesInferredVariableKeywords(t *testing.T) {
+	input := `let x = Some(1); let mut y = Some(2); val z = Some(3); var w = Some(4); const sizeValue = Int.sizeof;`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenLet, Literal: "let"},
+		{Type: TokenIdentifier, Literal: "x"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenIdentifier, Literal: "Some"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenInt, Literal: "1"},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLet, Literal: "let"},
+		{Type: TokenMut, Literal: "mut"},
+		{Type: TokenIdentifier, Literal: "y"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenIdentifier, Literal: "Some"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenInt, Literal: "2"},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenVal, Literal: "val"},
+		{Type: TokenIdentifier, Literal: "z"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenIdentifier, Literal: "Some"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenInt, Literal: "3"},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenVar, Literal: "var"},
+		{Type: TokenIdentifier, Literal: "w"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenIdentifier, Literal: "Some"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenInt, Literal: "4"},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenConst, Literal: "const"},
+		{Type: TokenIdentifier, Literal: "sizeValue"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenDot, Literal: "."},
+		{Type: TokenIdentifier, Literal: "sizeof"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesFunctionAndControlFlowSyntax(t *testing.T) {
 	input := `
 -- comments are skipped

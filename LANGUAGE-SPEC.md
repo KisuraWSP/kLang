@@ -14,10 +14,16 @@
 14. `copy` and `clone` create cloned values without moving from the source binding.
 15. Function and lambda parameters are immutable by default; use `mut` before the parameter name to allow mutation.
 16. `--raw-lang` disables stdlib module resolution while preserving local workspace imports.
+17. `let`, `val`, `var`, and `const` are inferred declaration keywords with strict type checking.
+18. Builtin type names expose `.sizeof`, which returns an `Int` size value.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
 - Variables are immutable by default unless specified mutable via (mut keyword)
+- `let` declares a local inferred immutable variable, and `let mut` declares a local inferred mutable variable.
+- `val` declares a global inferred immutable variable, and `var` declares a global inferred mutable variable.
+- `const` declares a strictly immutable inferred value in the current scope and requires an initializer.
+- Inferred declarations must have an initializer and are checked before runtime.
 - Extension methods declared inside an alias function use `this` as their receiver.
 - Region-backed array types use the `ElementType[RegionName]` form and must reference an existing `region`.
 - Region-backed arrays grow through indexed assignment, but an index must be inside the region count.

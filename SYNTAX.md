@@ -22,6 +22,25 @@ global Bool isTrue = False;
 global mut List[Int] itemsList = [10, 20, 30, 40];
 itemsList[0] = 99;
 
+-- inferred local variables
+-- let is immutable by default. let mut allows mutation.
+let maybeCount = Some(69420);
+let mut maybeMutableCount = Some(10);
+maybeMutableCount = Some(11);
+
+-- inferred global variables
+-- val is immutable, while var is mutable.
+val globalMaybeCount = Some(69420);
+var sharedMaybeCount = Some(10);
+sharedMaybeCount = Some(11);
+
+-- const values are strictly immutable and must be resolved before runtime.
+const intSize = Int.sizeof;
+
+-- Type.sizeof returns the size of a builtin type as Int.
+-- The optional size marker maps the declaration type to Int.
+let size intSizeAlias = Int.sizeof;
+
 -- lvalues and rvalues
 -- Only variables and indexed mutable variables can be assigned to.
 -- Computed expressions, literals, function calls, and string indexes are rvalues.
