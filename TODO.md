@@ -44,7 +44,51 @@ private {
     -- any code can exist here
 }
 ```
-- update function aliases to use new syntax ruleset rather than grua langs syntax XD (just tell the clanker to like make the function alias use like a actual readable syntax thats it)
+- update function aliases to use new syntax ruleset rather than grua langs syntax XD (just tell the clanker to like make the function alias use like a actual readable syntax thats it) (like the below)
+```lua
+-- this [T : Any] should allow custom definitions such as restrict or whatever
+-- Any Type should be a built in type of the langauge
+-- .DEFAULT is a default initializer system that allows any sort of types or custom function aliases to be initialized with the default value of a type mainly this value should be runtime safe and should error if the propagation error doesnt exist
+-- so to allow propagation error we do the !! operator on this if the alias function is like the below
+-- ArrayList[Int]()!!;
+-- alias functions must allow variables and members as this is actually a normal function but with special semantics that it can either allocate via [new], or deallocate via [delete], or even do side effects via [side_effects]
+-- so a side effect can only happen if the runtime is having weird behaviors
+-- these weird behaviours cannot be tracked so to actually prevent these from happening we have this hook to do some sort of callback on the #call_site (allow users to define the callsite via this like call_site := #call_site) this way we can be sure our thing actually does what we want
+alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type {
+    trait LengthTracked {
+        function Size(value : Int) : Int;
+    }
+
+    impl LengthTracked for Int {
+        function Size(value : Int) : Int {
+            return value;
+        }
+    }
+
+    [new] {
+        allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
+    }
+
+    [delete] {
+        allocator.free = free_all_allocator(.{});
+    }
+
+    [side_effects] {
+        allocator.free = free_all_allocator(.{});
+    }
+
+    #extend {
+        function get_length() -> int {
+            return this.length;
+        }
+
+        function with_extra(extra : Int) : int {
+            return this.length + extra;
+        }
+    }
+}
+```
+
 -- here strings (like the below)
 ```lua
 let mut here_string = //
