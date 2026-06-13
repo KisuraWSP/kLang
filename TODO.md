@@ -20,7 +20,50 @@ function Print2() : (mut String, Int) {
 }
 ```
 - a compact build system (Like if u want to package the project u can do that with the languages source code)
+- private keyword/scope to make either a namespace or a function or even a scope hidden to other files (like the below)
+```lua
+-- function is now hidden to other modules/files
+private function Add() : T{
+    return "String is added" as Int;
+}
 
+-- this is a scope we can use this for many usecases we just don't know what but we 
+-- will provide this
+private {
+    -- any code can exist here
+}
+```
+- update function aliases to use new syntax ruleset rather than grua langs syntax XD (just tell the clanker to like make the function alias use like a actual readable syntax thats it)
+-- here strings (like the below)
+```lua
+let mut here_string = //
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GRUA Web Server</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #fff; }
+        h1 { color: #00ffcc; }
+    </style>
+</head>
+<body>
+    <h1>Hello from Native GRUA!</h1>
+    <p>This string was parsed perfectly across multiple lines.</p>
+</body>
+</html>
+//
+```
+- add this #set_entry_point_to_here
+    - reason if u want to set any function as entry point
+    - add that as a cli flag when creating new project like as this "go run . new --entry=["Process", "<Data Type>"]" if Data Type Area is not mentioned make the below
+    ```lua
+    namespace App {
+        function Process() {
+
+        }
+    }
+    ```
 
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project within 10 seconds
