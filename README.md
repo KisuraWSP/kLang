@@ -17,6 +17,8 @@ The language is function-first, strongly checked, and experiments with ideas fro
 - `tests` contains language test fixtures.
 - `extensions/klang-vscode` contains the VS Code language extension.
 - `extensions/klang-sublime` contains the Sublime Text language package.
+- `extensions/klang-vim` contains the Vim and Neovim language plugin.
+- `extensions/klang-emacs` contains the Emacs major mode.
 
 ## How To Program In kLang
 
@@ -187,7 +189,21 @@ Sublime Text:
 
 Copy `extensions/klang-sublime` into your Sublime Text `Packages` directory.
 
-Both editor packages include syntax highlighting and snippets for current kLang syntax.
+Vim or Neovim:
+
+```sh
+mkdir -p ~/.vim/pack/klang/start
+cp -R extensions/klang-vim ~/.vim/pack/klang/start/klang-vim
+```
+
+Emacs:
+
+```elisp
+(add-to-list 'load-path "/path/to/kLang/extensions/klang-emacs")
+(require 'klang-mode)
+```
+
+The editor packages include syntax highlighting and templates/snippets for current kLang syntax.
 
 ## Suggested Improvement
 

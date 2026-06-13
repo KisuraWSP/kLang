@@ -1,11 +1,6 @@
 # TODO
-- vim and emacs plugin for the langauge
-- foreign function interface for javascript apis/libraries (via a js filesystem only)
+- add neovim plugin
 
-# LATER <once todo is done>
-- make the runtime be able to work on users browser by compiling to wasm code <done after first>
-- multi threaded interpretter runtime <done first >
-- add a flag to start a simple web server that is built into the language that will package our entire languages runtime if the user doesnt want to build wasm and ship it
 - a compact build system (Like if u want to package the project u can do that with the languages source code)
     - i want the user to be able to define a custom workspace since we have workspaces
     - WorkSpace should be a builtin type in the langauge
@@ -18,9 +13,15 @@
         - Program must take in
             module : List[String]
     - this system must have its own api that the user can use to program and do meta programming like features
-
 - built in debugger in the language so u can debug code issues
+- foreign function interface for javascript apis/libraries (via a js filesystem only)
 
+
+- multi threaded interpretter runtime <done first >
+- make the runtime be able to work on users browser by compiling to wasm code <done second>
+- add a flag to start a simple web server that is built into the language that will package our entire languages runtime if the user doesnt want to build wasm and ship it <done third>
+
+- start work on the standard library once all of the above are truely done
 
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project within 10 seconds
