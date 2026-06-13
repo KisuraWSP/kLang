@@ -40,6 +40,17 @@ itemsList[0] = 100;
 local String owned = "hello";
 local String transferred = move owned;
 
+-- copy and clone semantics
+-- copy and clone create cloned values without moving from the original binding.
+local List[Int] sourceItems = [1, 2, 3];
+local List[Int] copiedItems = copy sourceItems;
+local List[Int] clonedItems = clone sourceItems;
+
+-- command line arguments
+-- Args is an immutable List[String] provided by the current program workspace.
+local Int argCount = len(Args);
+local String firstArg = Args[0];
+
 -- exported variable
 -- export makes the variable accessible through the global scope even when declared inside a block or function.
 export local Int sharedValue = 10;
@@ -177,6 +188,12 @@ function Add(left : Int, right : Int) : Int {
     return left + right;
 }
 
+-- parameters are immutable by default; add mut before the name to allow mutation.
+function Increment(mut value : Int) : Int {
+    value += 1;
+    return value;
+}
+
 function Double(value : Int) : Int {
     return value * 2;
 }
@@ -218,6 +235,11 @@ local Int generated = NumberFactory(5)(10);
 -- fun creates an anonymous first-class function that captures the current scope.
 local Function[Int, Int] increment = fun(value : Int) : Int {
     return value + 1;
+};
+
+local Function[Int, Int] restrictedIncrement = fun[T restrict[Int]](mut value : T) : T {
+    value += 1;
+    return value;
 };
 
 local Int appliedLambda = Apply(41, fun(value : Int) : Int {
@@ -302,6 +324,16 @@ local String name = input("name: ");
 -- alias functions and extension methods
 -- alias function creates a constructor-like type value. #extend adds receiver methods.
 alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
+    trait LengthTracked {
+        function Size(value : Int) : Int;
+    }
+
+    impl LengthTracked for Int {
+        function Size(value : Int) : Int {
+            return value;
+        }
+    }
+
     [new] do
         allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
     end
@@ -549,4 +581,15 @@ impl Printable for Int {
         return value as String;
     }
 }
+```
+
+8. Workspaces and raw language mode
+- Each standalone script or folder project is resolved as a separate workspace.
+- Local imports are resolved inside the workspace before stdlib imports.
+- Resolver caches imported files and parsed import lists to speed repeated checks.
+- Use `--raw-lang` with the CLI to disable stdlib imports for a pure language run.
+```sh
+kLang run examples/helloworld
+kLang run examples/helloworld first second
+kLang check examples/helloworld --raw-lang
 ```

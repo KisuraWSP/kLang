@@ -18,8 +18,10 @@ import (
 const cliName = "kLang"
 
 type commandOptions struct {
-	Run     bool
-	Verbose bool
+	Run         bool
+	Verbose     bool
+	RawLang     bool
+	ProgramArgs []string
 }
 
 func main() {
@@ -44,6 +46,7 @@ func runCLI(args []string) error {
 	options := commandOptions{
 		Run:     hasFlag(rest, "--run"),
 		Verbose: hasFlag(rest, "--verbose") || hasFlag(rest, "-v"),
+		RawLang: hasFlag(rest, "--raw-lang"),
 	}
 	values := positionalArgs(rest)
 
@@ -54,14 +57,16 @@ func runCLI(args []string) error {
 		}
 		return createProject(values[0])
 	case "run":
-		if len(values) != 1 {
+		if len(values) < 1 {
 			return fmt.Errorf("%s run expects a .klang file or project folder", cliName)
 		}
 		program, err := file.LoadProgram(values[0])
 		if err != nil {
 			return err
 		}
-		return executePrograms([]file.Program{program}, commandOptions{Run: true, Verbose: options.Verbose})
+		options.Run = true
+		options.ProgramArgs = append([]string(nil), values[1:]...)
+		return executePrograms([]file.Program{program}, options)
 	case "check":
 		if len(values) != 1 {
 			return fmt.Errorf("%s check expects a .klang file or project folder", cliName)
@@ -70,7 +75,7 @@ func runCLI(args []string) error {
 		if err != nil {
 			return err
 		}
-		return executePrograms([]file.Program{program}, commandOptions{Run: false, Verbose: options.Verbose})
+		return executePrograms([]file.Program{program}, commandOptions{Run: false, Verbose: options.Verbose, RawLang: options.RawLang})
 	case "test", "tests":
 		if len(values) != 1 {
 			return fmt.Errorf("%s test expects a folder containing .klang tests", cliName)
@@ -98,7 +103,7 @@ func runLegacyFlags(args []string) (bool, error) {
 		if err != nil {
 			return true, fmt.Errorf("failed to read tests: %w", err)
 		}
-		return true, executePrograms(programs, commandOptions{Run: file.HasRunFlag(args), Verbose: true})
+		return true, executePrograms(programs, commandOptions{Run: file.HasRunFlag(args), Verbose: true, RawLang: hasFlag(args, "--raw-lang")})
 	}
 
 	programPath := file.GetProgramPath(args)
@@ -107,7 +112,7 @@ func runLegacyFlags(args []string) (bool, error) {
 		if err != nil {
 			return true, fmt.Errorf("failed to read program: %w", err)
 		}
-		return true, executePrograms([]file.Program{program}, commandOptions{Run: file.HasRunFlag(args), Verbose: true})
+		return true, executePrograms([]file.Program{program}, commandOptions{Run: file.HasRunFlag(args), Verbose: true, RawLang: hasFlag(args, "--raw-lang")})
 	}
 
 	filePath := file.GetFilePath(args)
@@ -171,6 +176,7 @@ func executePrograms(programs []file.Program, options commandOptions) error {
 
 	failed := false
 	resolver := modulesystem.NewResolver("")
+	resolver.DisableStdlib = options.RawLang
 	for _, program := range programs {
 		if err := executeProgram(resolver, program, options); err != nil {
 			failed = true
@@ -204,6 +210,10 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 		fmt.Printf(" (%d import(s))", len(moduleReport.Modules))
 	}
 	fmt.Println()
+	if options.Verbose {
+		stats := resolver.Stats()
+		fmt.Printf("  cache: paths=%d program(s)=%d import-set(s)=%d\n", stats.ExistsEntries, stats.ProgramEntries, stats.ImportEntries)
+	}
 
 	typeReport := typechecker.CheckProgram(resolvedProgram)
 	if !typeReport.Passed() {
@@ -235,7 +245,7 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 		return nil
 	}
 
-	result, err := runtime.New().Run(parsedProgram)
+	result, err := runtime.NewWithArgs(options.ProgramArgs).Run(parsedProgram)
 	if err != nil {
 		printRuntimeError(resolvedProgram, err)
 		return fmt.Errorf("runtime failed: %w", err)
@@ -451,6 +461,7 @@ Usage:
 
 Options:
   --run                           Run programs after checks, for test mode
+  --raw-lang                      Disable stdlib imports while resolving modules
   --verbose, -v                   Print import details
   --help, -h                      Show this help
 

@@ -162,6 +162,7 @@ type Runtime struct {
 	callStack      []string
 	nextFunc       int
 	innerSets      []map[string]Value
+	args           []string
 }
 
 const defaultMaxCallDepth = 1024
@@ -180,7 +181,17 @@ func New() *Runtime {
 	}
 }
 
+func NewWithArgs(args []string) *Runtime {
+	runtime := New()
+	runtime.args = append([]string(nil), args...)
+	return runtime
+}
+
 func RunProgram(program file.Program) (Result, error) {
+	return RunProgramWithArgs(program, nil)
+}
+
+func RunProgramWithArgs(program file.Program, args []string) (Result, error) {
 	resolvedProgram, moduleReport := modulesystem.ResolveProgram(program)
 	if !moduleReport.Passed() {
 		return Result{}, Error{Message: fmt.Sprintf("module resolution failed: %v", moduleReport.Errors)}
@@ -196,10 +207,13 @@ func RunProgram(program file.Program) (Result, error) {
 		return Result{}, Error{Message: fmt.Sprintf("parse failed: %v", parsed.Errors())}
 	}
 
-	return New().Run(parsed)
+	return NewWithArgs(args).Run(parsed)
 }
 
 func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
+	if err := runtime.defineArgs(); err != nil {
+		return Result{}, err
+	}
 	for _, source := range program.Sources {
 		for _, stmt := range source.Program.Statements {
 			if err := runtime.collectFunctions(stmt, ""); err != nil {
@@ -234,6 +248,14 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 		return Result{}, err
 	}
 	return Result{Value: value, Output: runtime.output, Memory: runtime.memory.Stats()}, nil
+}
+
+func (runtime *Runtime) defineArgs() error {
+	values := make([]Value, 0, len(runtime.args))
+	for _, arg := range runtime.args {
+		values = append(values, StringValue(arg))
+	}
+	return runtime.defineValueInRegion(runtime.global, "Args", false, "List[String]", Value{Kind: ValueList, Data: values}, MemoryHeap)
 }
 
 func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string) error {
@@ -1237,6 +1259,8 @@ func (runtime *Runtime) evalUnary(expr parser.UnaryExpression, env *Environment)
 		return NullValue(), err
 	}
 	switch expr.Operator {
+	case "copy", "clone":
+		return cloneValue(value), nil
 	case "-":
 		if value.Kind == ValueFloat {
 			return FloatValue(-value.Data.(float64)), nil
@@ -1717,7 +1741,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 			if !valueMatchesType(value, param.Type) {
 				return NullValue(), Error{Message: fmt.Sprintf("function %s argument %q expects %s, got %s", resolvedName, param.Name, param.Type, value.Kind)}
 			}
-			if err := runtime.defineValue(env, param.Name, false, param.Type, value); err != nil {
+			if err := runtime.defineValue(env, param.Name, param.Mutable, param.Type, value); err != nil {
 				return NullValue(), err
 			}
 		}
@@ -1860,7 +1884,7 @@ func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parse
 			if !valueMatchesType(value, param.Type) {
 				return NullValue(), Error{Message: fmt.Sprintf("method %s.%s argument %d expects %s, got %s", method.Type, method.Name, index+1, param.Type, runtimeTypeName(value))}
 			}
-			if err := runtime.defineValue(methodEnv, param.Name, false, param.Type, value); err != nil {
+			if err := runtime.defineValue(methodEnv, param.Name, param.Mutable, param.Type, value); err != nil {
 				return NullValue(), err
 			}
 		}

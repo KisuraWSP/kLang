@@ -10,6 +10,10 @@
 10. Table is a builtin Lua-style dynamic data type and is the only dynamically typed container.
 11. Async functions return Awaitable values, and await unwraps the completed value.
 12. Iterators and coroutines are builtin first-class runtime values.
+13. `Args` is a builtin immutable `List[String]` containing the command line arguments for the current workspace.
+14. `copy` and `clone` create cloned values without moving from the source binding.
+15. Function and lambda parameters are immutable by default; use `mut` before the parameter name to allow mutation.
+16. `--raw-lang` disables stdlib module resolution while preserving local workspace imports.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -21,3 +25,5 @@ Rules
 - Table values allow mixed primitive keys and mixed value types.
 - `next(iterator)` returns Option[T], with None when the iterator is exhausted.
 - `resume(coroutine)` returns Option[T], with None after the coroutine has completed.
+- Each standalone script or project is resolved as its own workspace. Resolver caches speed repeated imports without sharing visited-state between workspaces.
+- Alias functions may contain trait and impl declarations in addition to hooks and extension methods.

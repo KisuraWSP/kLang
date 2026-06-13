@@ -119,6 +119,7 @@ func CheckProgram(program file.Program) Report {
 	for _, unit := range units {
 		checker.collectGlobals(unit)
 	}
+	checker.globals["Args"] = variableSymbol{Name: "Args", Type: "List[String]", Mutable: false}
 	checker.collectASTGlobals(program)
 	for _, unit := range units {
 		checker.checkTopLevelCalls(unit)
@@ -166,6 +167,7 @@ func (checker *TypeChecker) collectAliasFunctionStatements(statements []parser.S
 				continue
 			}
 			checker.aliasFunctions[current.Name] = current
+			checker.collectAliasFunctionStatements(current.Body, source)
 		case parser.NamespaceStatement:
 			checker.collectAliasFunctionStatements(current.Body, source)
 		}
@@ -189,6 +191,8 @@ func (checker *TypeChecker) collectFunctionGroupStatements(statements []parser.S
 			checker.groups[name] = append([]string(nil), current.Functions...)
 		case parser.NamespaceStatement:
 			checker.collectFunctionGroupStatements(current.Body, namespace+current.Name+".", source)
+		case parser.AliasFunctionStatement:
+			checker.collectFunctionGroupStatements(current.Body, namespace, source)
 		}
 	}
 }
@@ -320,6 +324,8 @@ func (checker *TypeChecker) collectTraitStatements(statements []parser.Statement
 			checker.traits[current.Name] = traitSymbol{Name: current.Name, Methods: methods, File: source, Line: current.Pos.Line}
 		case parser.NamespaceStatement:
 			checker.collectTraitStatements(current.Body, source)
+		case parser.AliasFunctionStatement:
+			checker.collectTraitStatements(current.Body, source)
 		}
 	}
 }
@@ -353,6 +359,8 @@ func (checker *TypeChecker) checkImplStatements(statements []parser.Statement, s
 				}
 			}
 		case parser.NamespaceStatement:
+			checker.checkImplStatements(current.Body, source)
+		case parser.AliasFunctionStatement:
 			checker.checkImplStatements(current.Body, source)
 		}
 	}
@@ -393,6 +401,8 @@ func (checker *TypeChecker) collectAliasStatements(statements []parser.Statement
 			}
 			checker.aliases[current.Name] = current.Target
 		case parser.NamespaceStatement:
+			checker.collectAliasStatements(current.Body, source)
+		case parser.AliasFunctionStatement:
 			checker.collectAliasStatements(current.Body, source)
 		case parser.FunctionStatement:
 			checker.collectAliasStatements(current.Body, source)
@@ -709,6 +719,11 @@ func parseParams(input string) ([]variableSymbol, error) {
 			return nil, fmt.Errorf("function parameter %q must be written as name : Type", strings.TrimSpace(part))
 		}
 		name := strings.TrimSpace(part[:colon])
+		mutable := false
+		if strings.HasPrefix(name, "mut ") {
+			mutable = true
+			name = strings.TrimSpace(strings.TrimPrefix(name, "mut"))
+		}
 		typeName := normalizeType(part[colon+1:])
 		if name == "" || typeName == "" {
 			return nil, fmt.Errorf("function parameter %q must be written as name : Type", strings.TrimSpace(part))
@@ -716,7 +731,7 @@ func parseParams(input string) ([]variableSymbol, error) {
 		if !isKnownType(typeName) {
 			return nil, fmt.Errorf("function parameter %s uses unknown type %s", name, typeName)
 		}
-		params = append(params, variableSymbol{Name: name, Type: typeName, Default: defaultValue})
+		params = append(params, variableSymbol{Name: name, Type: typeName, Mutable: mutable, Default: defaultValue})
 	}
 	return params, nil
 }
@@ -902,6 +917,12 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 			return anyType
 		}
 		return checker.inferExpression(target, locals, source, line)
+	}
+	if strings.HasPrefix(expr, "copy ") {
+		return checker.inferExpression(strings.TrimSpace(strings.TrimPrefix(expr, "copy")), locals, source, line)
+	}
+	if strings.HasPrefix(expr, "clone ") {
+		return checker.inferExpression(strings.TrimSpace(strings.TrimPrefix(expr, "clone")), locals, source, line)
 	}
 	if strings.HasPrefix(expr, "await ") {
 		valueType := checker.inferExpression(strings.TrimSpace(strings.TrimPrefix(expr, "await")), locals, source, line)

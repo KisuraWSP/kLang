@@ -134,7 +134,7 @@ func (parser *expressionParser) parsePrefix() ExpressionNode {
 		return LiteralExpression{Kind: "Char", Value: token.Literal}
 	case lexer.TokenBool:
 		return LiteralExpression{Kind: "Bool", Value: token.Literal}
-	case lexer.TokenMinus, lexer.TokenNot, lexer.TokenCall, lexer.TokenMove, lexer.TokenAwait:
+	case lexer.TokenMinus, lexer.TokenNot, lexer.TokenCall, lexer.TokenMove, lexer.TokenCopy, lexer.TokenClone, lexer.TokenAwait:
 		return UnaryExpression{
 			Operator: token.Literal,
 			Right:    parser.parseExpression(precedencePrefix),
@@ -180,6 +180,7 @@ func parseLambdaExpressionTokens(tokens []lexer.Token) (ExpressionNode, bool) {
 	lambdaTokens = append(lambdaTokens, lexer.Token{Type: lexer.TokenEOFDescriptor})
 	lambdaParser := New(lambdaTokens)
 	lambdaParser.consume(lexer.TokenLambdaFunc, "expected fun")
+	typeParams := lambdaParser.parseTypeParameters()
 	lambdaParser.consume(lexer.TokenLeftBrace, "expected '(' after fun")
 	params := lambdaParser.parseParameters()
 	lambdaParser.consume(lexer.TokenRightBrace, "expected ')' after lambda parameters")
@@ -191,7 +192,9 @@ func parseLambdaExpressionTokens(tokens []lexer.Token) (ExpressionNode, bool) {
 	if len(lambdaParser.Errors()) != 0 || !lambdaParser.atEnd() {
 		return nil, false
 	}
-	return LambdaExpression{Params: params, ReturnType: returnType, Body: body}, true
+	params = applyTypeParameterRestrictions(params, typeParams)
+	returnType = applyReturnTypeRestriction(returnType, typeParams)
+	return LambdaExpression{TypeParams: typeParams, Params: params, ReturnType: returnType, Body: body}, true
 }
 
 func findLambdaBodyStart(tokens []lexer.Token, start int) int {

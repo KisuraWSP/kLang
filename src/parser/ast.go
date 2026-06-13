@@ -51,6 +51,7 @@ type AliasFunctionStatement struct {
 	ReturnType string
 	Hooks      []AliasHook
 	Methods    []FunctionStatement
+	Body       []Statement
 }
 
 type AliasHook struct {
@@ -112,6 +113,7 @@ type TypeParameter struct {
 type Parameter struct {
 	Name    string
 	Type    string
+	Mutable bool
 	Default Expression
 }
 
@@ -280,6 +282,7 @@ type GroupExpression struct {
 }
 
 type LambdaExpression struct {
+	TypeParams []TypeParameter
 	Params     []Parameter
 	ReturnType string
 	Body       []Statement

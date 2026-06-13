@@ -93,6 +93,8 @@ const (
 	TokenTrait      // trait
 	TokenImpl       // impl
 	TokenMove       // move
+	TokenCopy       // copy
+	TokenClone      // clone
 	TokenLambdaFunc // fun
 	TokenGlobal     // global
 	TokenMut        // mut
@@ -146,6 +148,8 @@ var Keywords = map[string]TokenType{
 	"trait":          TokenTrait,
 	"impl":           TokenImpl,
 	"move":           TokenMove,
+	"copy":           TokenCopy,
+	"clone":          TokenClone,
 	"global":         TokenGlobal,
 	"fun":            TokenLambdaFunc,
 	"mut":            TokenMut,

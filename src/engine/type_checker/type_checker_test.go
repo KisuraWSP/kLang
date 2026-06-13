@@ -850,6 +850,64 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsRestrictedLambdaFunctionValues(t *testing.T) {
+	program := programFromSource(`
+function Run(value : Int, callback : Function[Int, Int]) : Int {
+    return callback(value);
+}
+
+function Main() : Int {
+    local Function[Int, Int] update = fun[T restrict[Int]](value : T) : T {
+        return 1;
+    };
+    return Run(1, update);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected restricted lambda program to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsImmutableParameterMutation(t *testing.T) {
+	program := programFromSource(`
+function Mutate(value : Int) : Int {
+    value += 1;
+    return value;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "cannot mutate immutable variable")
+}
+
+func TestCheckProgramAcceptsMutableParameterMutation(t *testing.T) {
+	program := programFromSource(`
+function Mutate(mut value : Int) : Int {
+    value += 1;
+    return value;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected mutable parameter program to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramExposesArgsGlobal(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    return len(Args);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected Args program to type check, got %#v", report.Errors)
+	}
+}
+
 func TestCheckProgramAcceptsFunctionGroups(t *testing.T) {
 	program := programFromSource(`
 function function1_name(x : Int) : Int {
@@ -988,6 +1046,32 @@ function Main() : Int {
 	report := CheckProgram(program)
 	if !report.Passed() {
 		t.Fatalf("expected alias function and region program to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsTraitsInsideAliasFunctions(t *testing.T) {
+	program := programFromSource(`
+alias function Wrapped(value: int) -> type
+    trait AliasPrintable {
+        function Show(value : Int) : String;
+    }
+
+    impl AliasPrintable for Int {
+        function Show(value : Int) : String {
+            return value as String;
+        }
+    }
+end
+
+function Main() : Int {
+    local T wrapped = Wrapped(1);
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected alias-contained trait program to type check, got %#v", report.Errors)
 	}
 }
 

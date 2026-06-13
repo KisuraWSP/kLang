@@ -733,6 +733,32 @@ local Function[Int, Int] increment = fun(value : Int) : Int {
 	}
 }
 
+func TestParseRestrictedLambdaAndMutableParameter(t *testing.T) {
+	program, errors := Parse(`
+function Main() : Int {
+    local Function[Int, Int] update = fun[T restrict[Int]](mut value : T) : T {
+        value += 1;
+        return value;
+    };
+    return update(1);
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn := program.Statements[0].(FunctionStatement)
+	decl := fn.Body[0].(VariableStatement)
+	lambda, ok := decl.Expression.Node.(LambdaExpression)
+	if !ok {
+		t.Fatalf("expected lambda expression, got %#v", decl.Expression.Node)
+	}
+	if len(lambda.TypeParams) != 1 || lambda.TypeParams[0].Type != "T:Int" {
+		t.Fatalf("unexpected lambda type params: %#v", lambda.TypeParams)
+	}
+	if len(lambda.Params) != 1 || !lambda.Params[0].Mutable || lambda.Params[0].Type != "T:Int" {
+		t.Fatalf("unexpected lambda param: %#v", lambda.Params)
+	}
+}
+
 func TestParseFunctionGroup(t *testing.T) {
 	program, errors := Parse(`
 function_group Poly {

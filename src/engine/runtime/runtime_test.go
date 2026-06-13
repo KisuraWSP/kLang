@@ -41,6 +41,78 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExposesCommandLineArgs(t *testing.T) {
+	parsedProgram, errors := parser.Parse(`
+function Main() : Int {
+    return len(Args) + len(Args[0]);
+}
+`)
+	if len(errors) != 0 {
+		t.Fatalf("parse failed: %#v", errors)
+	}
+
+	result, err := NewWithArgs([]string{"abc", "def"}).Run(parser.ParsedProgram{
+		Name: "args",
+		Sources: []parser.ParsedSource{
+			{Path: "args.klang", Program: parsedProgram},
+		},
+	})
+	if err != nil {
+		t.Fatalf("runtime failed: %v", err)
+	}
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 5 {
+		t.Fatalf("expected Args program to return 5, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesCopyAndClone(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local mut List[Int] source = [1, 2];
+    local List[Int] copied = copy source;
+    local List[Int] cloned = clone source;
+    source[0] = 10;
+    return copied[0] + cloned[1] + source[0];
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 13 {
+		t.Fatalf("expected copy and clone program to return 13, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsImmutableParameterMutation(t *testing.T) {
+	_, err := runSourceWithError(`
+function Mutate(value : Int) : Int {
+    value += 1;
+    return value;
+}
+
+function Main() : Int {
+    return Mutate(1);
+}
+`)
+
+	assertRuntimeErrorContains(t, err, "cannot mutate immutable variable")
+}
+
+func TestRuntimeAllowsMutableParameterMutation(t *testing.T) {
+	result := runParsedSource(t, `
+function Mutate(mut value : Int) : Int {
+    value += 1;
+    return value;
+}
+
+function Main() : Int {
+    return Mutate(1);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 2 {
+		t.Fatalf("expected mutable parameter program to return 2, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesRangeLoopAndBreak(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {

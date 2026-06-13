@@ -3,6 +3,7 @@ package modulesystem
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"kLang/src/engine/file"
@@ -241,6 +242,50 @@ func TestResolverCachesImportsWithoutLeakingVisitedState(t *testing.T) {
 	}
 	if stats.ImportEntries != 3 {
 		t.Fatalf("expected import cache for two mains and one stdlib module, got %d", stats.ImportEntries)
+	}
+}
+
+func TestResolveProgramRawLangDisablesStdlibImports(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "mathg.klang", `function Sqrt(value : Int) : Int { return value; }`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `import "mathg";`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolver := NewResolver(stdlibRoot)
+	resolver.DisableStdlib = true
+	_, report := resolver.ResolveProgram(program)
+	if report.Passed() {
+		t.Fatal("expected raw-lang stdlib import to fail")
+	}
+	if !strings.Contains(report.Errors[0].Message, "raw-lang mode") {
+		t.Fatalf("expected raw-lang error, got %#v", report.Errors)
+	}
+}
+
+func TestResolveProgramRawLangStillAllowsLocalImports(t *testing.T) {
+	root := t.TempDir()
+	appRoot := filepath.Join(root, "app")
+	writeModuleTestFile(t, appRoot, "helper.klang", `function Helper() : Int { return 1; }`)
+	programPath := writeModuleTestFile(t, appRoot, "main.klang", `import "helper";`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolver := NewResolver(filepath.Join(root, "stdlib"))
+	resolver.DisableStdlib = true
+	resolved, report := resolver.ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected raw-lang local import to pass, got %#v", report.Errors)
+	}
+	if len(resolved.Files) != 2 {
+		t.Fatalf("expected local import to be loaded, got %d file(s)", len(resolved.Files))
 	}
 }
 

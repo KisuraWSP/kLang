@@ -4,15 +4,6 @@
     - Add time it takes to run and execute the project once the project is finished executing
     - Add The OS And System information each time the user does running of a project or program
 - data race condition prevention mechanics and atomic data handling
-- traits and other features must be able to used in function aliases
-- new keywords "copy" & "clone" for copy semantics and cloning protocols in variables, functions or scopes of any type
-- language should be able to read commandline arguments via an os Level List called Args which should be built in to the language just like how Golang does it
-    - and also provide a way for the programmer to be able to access such an array
-- caching system for improvement of langauge speed
-- restrict on lambda functions
-- immutable arguments/parameters on functions (to make a parameter/argument mutable use the "mut" keyword)
-- workspaces <treat a program(if its a standalone script)/project as if its a seperate workspace>
-- add "raw-lang" flag to tell langauge runtime to not allow any stdlib modules/files to be able to used
 
 # LATER <once todo is done>
 - make the runtime be able to work on users browser by compiling to wasm code <done after first>

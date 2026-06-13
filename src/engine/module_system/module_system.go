@@ -48,10 +48,11 @@ type CacheStats struct {
 }
 
 type Resolver struct {
-	StdlibRoot string
-	exists     map[string]bool
-	programs   map[string]file.Program
-	imports    map[string][]parser.ImportStatement
+	StdlibRoot    string
+	DisableStdlib bool
+	exists        map[string]bool
+	programs      map[string]file.Program
+	imports       map[string][]parser.ImportStatement
 }
 
 type resolutionState struct {
@@ -174,22 +175,27 @@ func (resolver *Resolver) resolveImport(importedBy string, importPath string) (f
 		}
 	}
 
-	candidates = resolver.stdlibCandidates(importPath)
-	for _, candidate := range candidates {
-		if resolver.pathExists(candidate) {
-			program, err := resolver.loadProgram(candidate)
-			if err != nil {
-				return file.Program{}, Module{}, err
+	if !resolver.DisableStdlib {
+		candidates = resolver.stdlibCandidates(importPath)
+		for _, candidate := range candidates {
+			if resolver.pathExists(candidate) {
+				program, err := resolver.loadProgram(candidate)
+				if err != nil {
+					return file.Program{}, Module{}, err
+				}
+				return program, Module{
+					Name:       importPath,
+					Path:       candidate,
+					Kind:       ImportStdlib,
+					ImportedBy: importedBy,
+				}, nil
 			}
-			return program, Module{
-				Name:       importPath,
-				Path:       candidate,
-				Kind:       ImportStdlib,
-				ImportedBy: importedBy,
-			}, nil
 		}
 	}
 
+	if resolver.DisableStdlib {
+		return file.Program{}, Module{}, fmt.Errorf("could not resolve import %q in raw-lang mode", importPath)
+	}
 	return file.Program{}, Module{}, fmt.Errorf("could not resolve import %q", importPath)
 }
 
@@ -286,6 +292,11 @@ func collectImports(statements []parser.Statement) []parser.ImportStatement {
 			imports = append(imports, collectImports(current.Body)...)
 		case parser.FunctionStatement:
 			imports = append(imports, collectImports(current.Body)...)
+		case parser.AliasFunctionStatement:
+			imports = append(imports, collectImports(current.Body)...)
+			for _, method := range current.Methods {
+				imports = append(imports, collectImports(method.Body)...)
+			}
 		case parser.ImplStatement:
 			for _, method := range current.Methods {
 				imports = append(imports, collectImports(method.Body)...)
@@ -298,6 +309,10 @@ func collectImports(statements []parser.Statement) []parser.ImportStatement {
 			}
 		case parser.LoopStatement:
 			imports = append(imports, collectImports(current.Body)...)
+		case parser.MatchStatement:
+			for _, matchCase := range current.Cases {
+				imports = append(imports, collectImports(matchCase.Body)...)
+			}
 		}
 	}
 	return imports

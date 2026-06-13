@@ -222,6 +222,22 @@ func (parser *Parser) parseAliasFunction() Statement {
 			stmt.Hooks = append(stmt.Hooks, AliasHook{Name: directive.Literal, Body: parser.collectUntilMatchingEnd()})
 			continue
 		}
+		if parser.check(lexer.TokenTrait) {
+			if trait, ok := parser.parseTrait().(TraitStatement); ok {
+				stmt.Body = append(stmt.Body, trait)
+			}
+			continue
+		}
+		if parser.check(lexer.TokenImpl) {
+			if impl, ok := parser.parseImpl().(ImplStatement); ok {
+				stmt.Body = append(stmt.Body, impl)
+			}
+			continue
+		}
+		if parser.check(lexer.TokenAlias) {
+			stmt.Body = append(stmt.Body, parser.parseAlias())
+			continue
+		}
 		parser.advance()
 	}
 	parser.consume(lexer.TokenEnd, "expected end after alias function")
@@ -234,6 +250,7 @@ func (parser *Parser) parseAliasParameters() []Parameter {
 		return params
 	}
 	for {
+		mutable := parser.match(lexer.TokenMut)
 		name := parser.consume(lexer.TokenIdentifier, "expected alias parameter name")
 		typeName := "T"
 		if parser.match(lexer.TokenInferReturn) {
@@ -243,7 +260,7 @@ func (parser *Parser) parseAliasParameters() []Parameter {
 		if parser.match(lexer.TokenAssign) {
 			defaultExpr = parser.parseExpressionUntil(lexer.TokenComma, lexer.TokenRightBrace)
 		}
-		params = append(params, Parameter{Name: name.Literal, Type: typeName, Default: defaultExpr})
+		params = append(params, Parameter{Name: name.Literal, Type: typeName, Mutable: mutable, Default: defaultExpr})
 		if !parser.match(lexer.TokenComma) {
 			break
 		}
@@ -669,6 +686,7 @@ func (parser *Parser) parseParameters() []Parameter {
 	}
 
 	for {
+		mutable := parser.match(lexer.TokenMut)
 		name := parser.consume(lexer.TokenIdentifier, "expected parameter name")
 		parser.consume(lexer.TokenInferReturn, "expected ':' after parameter name")
 		typeName := parser.parseType()
@@ -676,7 +694,7 @@ func (parser *Parser) parseParameters() []Parameter {
 		if parser.match(lexer.TokenAssign) {
 			defaultExpr = parser.parseExpressionUntil(lexer.TokenComma, lexer.TokenRightBrace)
 		}
-		params = append(params, Parameter{Name: name.Literal, Type: typeName, Default: defaultExpr})
+		params = append(params, Parameter{Name: name.Literal, Type: typeName, Mutable: mutable, Default: defaultExpr})
 
 		if !parser.match(lexer.TokenComma) {
 			break

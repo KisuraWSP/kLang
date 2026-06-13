@@ -45,7 +45,7 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 		case parser.RegionStatement:
 			continue
 		case parser.AliasFunctionStatement:
-			continue
+			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		case parser.TraitStatement:
 			continue
 		case parser.ImplStatement:
@@ -306,7 +306,7 @@ func (checker *TypeChecker) checkFunctionScope(fn parser.FunctionStatement, pare
 		if param.Default.Node != nil {
 			checker.checkScopeExpression(param.Default.Node, functionScope, namespace, source, fn.Pos.Line)
 		}
-		if !functionScope.define(variableSymbol{Name: param.Name, Type: normalizeType(param.Type), File: source, Line: fn.Pos.Line}) {
+		if !functionScope.define(variableSymbol{Name: param.Name, Type: normalizeType(param.Type), Mutable: param.Mutable, File: source, Line: fn.Pos.Line}) {
 			checker.addError(source, fn.Pos.Line, fmt.Sprintf("parameter %q is already defined", param.Name))
 		}
 	}
@@ -314,11 +314,12 @@ func (checker *TypeChecker) checkFunctionScope(fn parser.FunctionStatement, pare
 }
 
 func (checker *TypeChecker) checkAliasFunctionScope(alias parser.AliasFunctionStatement, parent *lexicalScope, namespace string, source string) {
+	checker.checkScopeStatements(alias.Body, newLexicalScope(parent), namespace, source, false, false)
 	for _, method := range alias.Methods {
 		methodScope := newLexicalScope(parent)
 		methodScope.define(variableSymbol{Name: "this", Type: alias.Name, File: source, Line: method.Pos.Line})
 		for _, param := range method.Params {
-			if !methodScope.define(variableSymbol{Name: param.Name, Type: normalizeType(param.Type), File: source, Line: method.Pos.Line}) {
+			if !methodScope.define(variableSymbol{Name: param.Name, Type: normalizeType(param.Type), Mutable: param.Mutable, File: source, Line: method.Pos.Line}) {
 				checker.addError(source, method.Pos.Line, fmt.Sprintf("parameter %q is already defined", param.Name))
 			}
 		}
@@ -466,7 +467,7 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 			if param.Default.Node != nil {
 				checker.checkScopeExpression(param.Default.Node, lambdaScope, namespace, source, line)
 			}
-			if !lambdaScope.define(variableSymbol{Name: param.Name, Type: normalizeType(param.Type), File: source, Line: line}) {
+			if !lambdaScope.define(variableSymbol{Name: param.Name, Type: normalizeType(param.Type), Mutable: param.Mutable, File: source, Line: line}) {
 				checker.addError(source, line, fmt.Sprintf("parameter %q is already defined", param.Name))
 			}
 		}
