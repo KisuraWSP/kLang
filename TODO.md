@@ -46,6 +46,25 @@ function Print2() : (mut String, Int) {
     return "", 0;
 }
 ```
+- introduce 3 new keywords to simplify the code which are "let, var, val"
+    - these keywords do strict type checking and type inference to variables
+```lua
+-- infers the type Option[Int] but this variable represents the below
+-- local Option[Int] x = Some(69420);
+let x = Some(69420);
+
+-- infers the type Option[Int] but this variable represents the below
+-- local mut Option[Int] x = Some(69420);
+let mut x = Some(69420);
+
+-- infers the type Option[Int] but this variable represents the below
+-- global Option[Int] x = Some(69420);
+val x = Some(69420);
+
+-- infers the type Option[Int] but this variable represents the below
+-- global mut Option[Int] x = Some(69420);
+var x = Some(69420);
+```
 
 
 # TODO When All Previous todos are done (End Goal)
