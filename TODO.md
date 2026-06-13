@@ -128,11 +128,12 @@ function create_workspace(name : String, workspace := UserDefinedWorkspace()) {
 }
 ```
 -- add support for the below on restrict on T 
-    - T must allow to be restricted to any builtin data type in the system
+    - T must allow to be restricted to any builtin data type/function alias in the system
 ```lua
 T restrict[Option[DefaultWorkspace], Option[UserDefinedWorkspace]]
 ```
 - vim and emacs plugin for the langauge
+- add Any type but this is like T except u cannot restrict it, its literally allows you to write a variable or function argument/parameter and u can pass whatever respective type and the program wont error
 
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project within 10 seconds
