@@ -33,7 +33,7 @@ if x == {
 - add "raw-lang" flag to tell langauge runtime to not allow any stdlib modules/files to be able to used
 
 # LATER <once todo is done>
-- make the runtime be able to work on users native os <done after first>
+- make the runtime be able to work on users browser by compiling to wasm code <done after first>
 - multi threaded interpretter runtime <done first >
 
 
