@@ -77,6 +77,7 @@ let size intSize = Int.sizeof;
 ```lua
 const x = Int.sizeof;
 ```
+- a compact build system (Like if u want to package the project u can do that with the languages source code)
 
 
 # TODO When All Previous todos are done (End Goal)
