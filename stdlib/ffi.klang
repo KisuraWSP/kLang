@@ -1,0 +1,405 @@
+-- foreign function interface for javascript apis bindings for kLang
+
+namespace ffi {
+-- convert these lines to an equivalent to what our programming language does
+Classes
+JS
+An annotation on a JavaScript interop declaration.
+JSExport
+Annotation to allow Dart classes to be wrapped with a JS object using dart:js_interops createJSInteropWrapper.
+Extension Types
+
+ExternalDartReference
+An opaque reference to a Dart object that can be passed to JavaScript.
+JSAny
+A non-nullish JavaScript value.
+JSArray
+A JavaScript Array.
+JSArrayBuffer
+A JavaScript ArrayBuffer.
+JSBigInt
+A JavaScript BigInt.
+JSBoolean
+A JavaScript boolean.
+JSBoxedDartObject
+A Dart object that is wrapped with a JavaScript object so that it can be passed to JavaScript safely.
+JSDataView
+A JavaScript DataView.
+JSExportedDartFunction
+A JavaScript callable function created from a Dart function.
+JSFloat32Array
+A JavaScript Float32Array.
+JSFloat64Array
+A JavaScript Float64Array.
+JSFunction
+A JavaScript Function value.
+JSInt16Array
+A JavaScript Int16Array.
+JSInt32Array
+A JavaScript Int32Array.
+JSInt8Array
+A JavaScript Int8Array.
+JSIterable
+A JSIterableProtocol whose iterator is a JSIterator.
+JSIterableProtocol
+The synchronous JS iterable protocol.
+JSIterator
+A proper JS iterator.
+JSIteratorProtocol
+The synchronous JS iterator protocol.
+JSIteratorResult
+A synchronous JS IteratorResult.
+JSNumber
+A JavaScript number.
+JSObject
+A JavaScript Object.
+JSPromise
+A JavaScript Promise or a promise-like object.
+JSString
+A JavaScript string.
+JSSymbol
+A JavaScript Symbol.
+JSTypedArray
+Abstract supertype of all JavaScript typed arrays.
+JSUint16Array
+A JavaScript Uint16Array.
+JSUint32Array
+A JavaScript Uint32Array.
+JSUint8Array
+A JavaScript Uint8Array.
+JSUint8ClampedArray
+A JavaScript Uint8ClampedArray.
+Extensions
+
+BoolToJSBoolean on bool
+Conversions from bool to JSBoolean.
+ByteBufferToJSArrayBuffer on ByteBuffer
+Conversions from ByteBuffer to JSArrayBuffer.
+ByteDataToJSDataView on ByteData
+Conversions from ByteData to JSDataView.
+DoubleToJSNumber on double
+Conversions from double to JSNumber.
+ExternalDartReferenceToObject on ExternalDartReference<T>
+Conversions from ExternalDartReference to the value of type T.
+Float32ListToJSFloat32Array on Float32List
+Conversions from Float32List to JSFloat32Array.
+Float64ListToJSFloat64Array on Float64List
+Conversions from Float64List to JSFloat64Array.
+FunctionToJSExportedDartFunction on Function
+Conversions from Function to JSExportedDartFunction.
+FutureOfJSAnyToJSPromise on Future<T>
+Conversions from Future to JSPromise where the Future returns a value.
+FutureOfVoidToJSPromise on Future<void>
+Conversions from Future to JSPromise where the Future does not return a value.
+Int16ListToJSInt16Array on Int16List
+Conversions from Int16List to JSInt16Array.
+Int32ListToJSInt32Array on Int32List
+Conversions from Int32List to JSInt32Array.
+Int8ListToJSInt8Array on Int8List
+Conversions from Int8List to JSInt8Array.
+IterableToJSIterable on Iterable<T>
+Conversion from Iterable to JSIterable.
+IteratorToJSIterator on Iterator<T>
+Conversion from Iterator to JSIterator.
+JSAnyOperatorExtension on JSAny?
+General-purpose JavaScript operators.
+JSAnyUtilityExtension on JSAny?
+Common utility functions that are useful for any JavaScript value.
+JSArrayBufferToByteBuffer on JSArrayBuffer
+Conversions from JSArrayBuffer to ByteBuffer.
+JSArrayToList on JSArray<T>
+Conversions from JSArray to List.
+JSBooleanToBool on JSBoolean
+Conversions from JSBoolean to bool.
+JSBoxedDartObjectToObject on JSBoxedDartObject
+Conversions from JSBoxedDartObject to Object.
+JSDataViewToByteData on JSDataView
+Conversions from JSDataView to ByteData.
+JSExportedDartFunctionToFunction on JSExportedDartFunction
+Conversions from JSExportedDartFunction to Function.
+JSFloat32ArrayToFloat32List on JSFloat32Array
+Conversions from JSFloat32Array to Float32List.
+JSFloat64ArrayToFloat64List on JSFloat64Array
+Conversions from JSFloat64Array to Float64List.
+JSFunctionUtilExtension on JSFunction
+Utility extensions for JSFunction.
+JSInt16ArrayToInt16List on JSInt16Array
+Conversions from JSInt16Array to Int16List.
+JSInt32ArrayToInt32List on JSInt32Array
+Conversions from JSInt32Array to Int32List.
+JSInt8ArrayToInt8List on JSInt8Array
+Conversions from JSInt8Array to Int8List.
+JSIterableToIterable on JSIterable<T>
+Conversion from JSIterable to Iterable.
+JSIteratorToIterator on JSIterator<T>
+Conversion from JSIterator to Iterator.
+JSNumberToNumber on JSNumber
+Conversions from JSNumber to double or int.
+JSPromiseToFuture on JSPromise<T>
+Conversions from JSPromise to Future.
+JSStringToString on JSString
+Conversions from JSString to String.
+JSUint16ArrayToUint16List on JSUint16Array
+Conversions from JSUint16Array to Uint16List.
+JSUint32ArrayToUint32List on JSUint32Array
+Conversions from JSUint32Array to Uint32List.
+JSUint8ArrayToUint8List on JSUint8Array
+Conversions from JSUint8Array to Uint8List.
+JSUint8ClampedArrayToUint8ClampedList on JSUint8ClampedArray
+Conversions from JSUint8ClampedArray to Uint8ClampedList.
+ListToJSArray on List<T>
+Conversions from List to JSArray.
+NullableObjectUtilExtension on Object?
+Common utility functions for Object?s.
+NullableUndefineableJSAnyExtension on JSAny?
+Helper members to determine if a value is JavaScript undefined or null.
+NumToJSExtension on num
+Conversions from num to JSNumber.
+ObjectToExternalDartReference on T
+Conversions from a value of type T to ExternalDartReference.
+ObjectToJSBoxedDartObject on Object
+Conversions from Object to JSBoxedDartObject.
+StringToJSString on String
+Conversions from String to JSString.
+Uint16ListToJSUint16Array on Uint16List
+Conversions from Uint16List to JSUint16Array.
+Uint32ListToJSUint32Array on Uint32List
+Conversions from Uint32List to JSUint32Array.
+Uint8ClampedListToJSUint8ClampedArray on Uint8ClampedList
+Conversions from Uint8ClampedList to JSUint8ClampedArray.
+Uint8ListToJSUint8Array on Uint8List
+Conversions from Uint8List to JSUint8Array.
+Constants
+
+anonymous → const _Anonymous
+An annotation that indicates a JS annotated class is structural and does not have a known JavaScript prototype.
+staticInterop → const _StaticInterop
+staticInterop enables the JS annotated class to be treated as a "static" interop class.
+Properties
+
+globalContext → JSObject
+The global scope that is used to find user-declared interop members.
+no setter
+Functions
+
+createJSInteropWrapper<T extends Object>(T dartObject, [JSObject? proto = null]) → JSObject
+Given a instance of a Dart class that contains an @JSExport annotation, creates a JavaScript object that wraps the given Dart object.
+importModule(JSAny moduleName) → JSPromise<JSObject>
+Dynamically imports a JavaScript module with the given moduleName using the JavaScript import() syntax.
+jsIdentical(Object? a, Object? b) → bool
+Returns true if the underlying JavaScript values of a and b are identical.
+Typedefs
+
+JSVoid = JSVoidType
+JS type equivalent for undefined for interop member return types.
+Exceptions / Errors
+
+NullRejectionException
+Exception for when a JSPromise that is converted via JSPromiseToFuture.toDart is rejected with a null or undefined value.
+
+Classes
+
+Abi
+An application binary interface (ABI).
+AbiSpecificInteger
+The supertype of all Abi-specific integer types.
+AbiSpecificIntegerMapping
+Mapping for a subtype of AbiSpecificInteger.
+Allocator
+Manages memory on the native heap.
+Array<T extends NativeType>
+A fixed-sized array of Ts.
+Bool
+Represents a native bool in C.
+Char
+The C char type.
+Dart_CObject
+Opaque, not exposing its members.
+DartRepresentationOf
+DefaultAsset
+Annotation specifying the default asset ID for the current library.
+Double
+Represents a native 64 bit double in C.
+DynamicLibrary
+A dynamically loaded native library.
+Finalizable
+Marker interface for objects which should not be finalized too soon.
+Float
+Represents a native 32 bit float in C.
+Handle
+Represents Dart_Handle from dart_api.h in C.
+Int
+The C int type.
+Int16
+Represents a native signed 16 bit integer in C.
+Int32
+Represents a native signed 32 bit integer in C.
+Int64
+Represents a native signed 64 bit integer in C.
+Int8
+Represents a native signed 8 bit integer in C.
+IntPtr
+The C intptr_t type.
+Long
+The C long int, aka. long, type.
+LongLong
+The C long long type.
+Native<T>
+Annotation binding an external declaration to its native implementation.
+NativeApi
+Utilities for accessing the Dart VM API from Dart code or from C code via dart_api_dl.h.
+NativeCallable<T extends Function>
+A native callable which listens for calls to a native function.
+NativeFinalizer
+A native finalizer which can be attached to Dart objects.
+NativeFunction<T extends Function>
+Represents a function type in C.
+NativeType
+NativeType's subtypes represent a native type in C.
+Opaque
+Opaque's subtypes represent opaque types in C.
+Packed
+Annotation to specify on Struct subtypes to indicate that its members need to be packed.
+Pointer<T extends NativeType>
+Represents a pointer into the native C memory. Cannot be extended.
+Short
+The C short type.
+SignedChar
+The C signed char type.
+Size
+The C size_t type.
+SizedNativeType
+A NativeType with a known size.
+Struct
+The supertype of all FFI struct types.
+Uint16
+Represents a native unsigned 16 bit integer in C.
+Uint32
+Represents a native unsigned 32 bit integer in C.
+Uint64
+Represents a native unsigned 64 bit integer in C.
+Uint8
+Represents a native unsigned 8 bit integer in C.
+UintPtr
+The C uintptr_t type.
+Union
+The supertype of all FFI union types.
+UnsignedChar
+The C unsigned char type.
+UnsignedInt
+The C unsigned int type.
+UnsignedLong
+The C unsigned long int, aka. unsigned long, type.
+UnsignedLongLong
+The C unsigned long long type.
+UnsignedShort
+The C unsigned short type.
+VarArgs<T extends Record>
+The types of variadic arguments passed in C.
+Void
+Represents a void type in C.
+WChar
+The C wchar_t type.
+Extensions
+
+AbiSpecificIntegerArray on Array<T>
+Bounds checking indexing methods on Arrays of AbiSpecificInteger.
+AbiSpecificIntegerPointer on Pointer<T>
+Extension on Pointer specialized for the type argument AbiSpecificInteger.
+AllocatorAlloc on Allocator
+Extension on Allocator to provide allocation with NativeType.
+ArrayAddress on Array<T>
+ArrayArray on Array<Array<T>>
+Bounds checking indexing methods on Arrays of Array.
+BoolAddress on bool
+BoolArray on Array<Bool>
+Bounds checking indexing methods on Arrays of Bool.
+BoolPointer on Pointer<Bool>
+Extension on Pointer specialized for the type argument Bool.
+DoubleAddress on double
+DoubleArray on Array<Double>
+Bounds checking indexing methods on Arrays of Double.
+DoublePointer on Pointer<Double>
+Extension on Pointer specialized for the type argument Double.
+DynamicLibraryExtension on DynamicLibrary
+Method which must not be invoked dynamically.
+Float32ListAddress on Float32List
+Float64ListAddress on Float64List
+FloatArray on Array<Float>
+Bounds checking indexing methods on Arrays of Float.
+FloatPointer on Pointer<Float>
+Extension on Pointer specialized for the type argument Float.
+Int16Array on Array<Int16>
+Bounds checking indexing methods on Arrays of Int16.
+Int16ListAddress on Int16List
+Int16Pointer on Pointer<Int16>
+Extension on Pointer specialized for the type argument Int16.
+Int32Array on Array<Int32>
+Bounds checking indexing methods on Arrays of Int32.
+Int32ListAddress on Int32List
+Int32Pointer on Pointer<Int32>
+Extension on Pointer specialized for the type argument Int32.
+Int64Array on Array<Int64>
+Bounds checking indexing methods on Arrays of Int64.
+Int64ListAddress on Int64List
+Int64Pointer on Pointer<Int64>
+Extension on Pointer specialized for the type argument Int64.
+Int8Array on Array<Int8>
+Bounds checking indexing methods on Arrays of Int8.
+Int8ListAddress on Int8List
+Int8Pointer on Pointer<Int8>
+Extension on Pointer specialized for the type argument Int8.
+IntAddress on int
+NativeFunctionPointer on Pointer<NativeFunction<NF>>
+Extension on Pointer specialized for the type argument NativeFunction.
+NativePort on SendPort
+Extension to retrieve the native Dart_Port from a SendPort.
+PointerArray on Array<Pointer<T>>
+Bounds checking indexing methods on Arrays of Pointer.
+PointerPointer on Pointer<Pointer<T>>
+Extension on Pointer specialized for the type argument Pointer.
+StructAddress on T
+StructArray on Array<T>
+Bounds checking indexing methods on Arrays of Struct.
+StructPointer on Pointer<T>
+Extension on Pointer specialized for the type argument Struct.
+Uint16Array on Array<Uint16>
+Bounds checking indexing methods on Arrays of Uint16.
+Uint16ListAddress on Uint16List
+Uint16Pointer on Pointer<Uint16>
+Extension on Pointer specialized for the type argument Uint16.
+Uint32Array on Array<Uint32>
+Bounds checking indexing methods on Arrays of Uint32.
+Uint32ListAddress on Uint32List
+Uint32Pointer on Pointer<Uint32>
+Extension on Pointer specialized for the type argument Uint32.
+Uint64Array on Array<Uint64>
+Bounds checking indexing methods on Arrays of Uint64.
+Uint64ListAddress on Uint64List
+Uint64Pointer on Pointer<Uint64>
+Extension on Pointer specialized for the type argument Uint64.
+Uint8Array on Array<Uint8>
+Bounds checking indexing methods on Arrays of Uint8.
+Uint8ListAddress on Uint8List
+Uint8Pointer on Pointer<Uint8>
+Extension on Pointer specialized for the type argument Uint8.
+UnionAddress on T
+UnionArray on Array<T>
+Bounds checking indexing methods on Arrays of Union.
+UnionPointer on Pointer<T>
+Extension on Pointer specialized for the type argument Union.
+Properties
+
+nullptr → Pointer<Never>
+Represents a pointer into the native C memory corresponding to 'NULL', e.g. a pointer with address 0.
+final
+Functions
+
+sizeOf<T extends SizedNativeType>() → int
+Number of bytes used by native type T.
+Typedefs
+
+Dart_NativeMessageHandler = Void Function(Int64, Pointer<Dart_CObject>)
+NativeFinalizerFunction = NativeFunction<Void Function(Pointer<Void> token)>
+The native function type for NativeFinalizers.
+}

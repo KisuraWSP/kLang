@@ -1,5 +1,0 @@
--- Raylib bindings for kLang
-
-namespace raylib {
-    -- will might have to use foreign functions to call the C library directly, but for now, let's define some basic types and functions
-}
