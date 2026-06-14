@@ -1,125 +1,85 @@
--- Sorting helpers inspired by Go's sort package.
+-- Sorting helpers.
 
 namespace sort {
+    function Ints(values : List[Int]) : List[Int] {
+        local mut List[Int] result = clone values;
+        local mut Int i = 0;
+        while i < len(result) {
+            local mut Int j = i + 1;
+            while j < len(result) {
+                if result[j] < result[i] {
+                    local Int temp = result[i];
+                    result[i] = result[j];
+                    result[j] = temp;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        return result;
+    }
+
+    function Floats(values : List[Float]) : List[Float] {
+        local mut List[Float] result = clone values;
+        local mut Int i = 0;
+        while i < len(result) {
+            local mut Int j = i + 1;
+            while j < len(result) {
+                if result[j] < result[i] {
+                    local Float temp = result[i];
+                    result[i] = result[j];
+                    result[j] = temp;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        return result;
+    }
+
+    function Strings(values : List[String]) : List[String] {
+        local mut List[String] result = clone values;
+        local mut Int i = 0;
+        while i < len(result) {
+            local mut Int j = i + 1;
+            while j < len(result) {
+                if result[j] < result[i] {
+                    local String temp = result[i];
+                    result[i] = result[j];
+                    result[j] = temp;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        return result;
+    }
+
     function IsSortedInt(values : List[Int]) : Bool {
-        local Int count = len(values);
-        if count < 2 { return True; }
         local mut Int index = 1;
-        while index < count {
-            if values[index - 1] > values[index] { return False; }
+        while index < len(values) {
+            if values[index] < values[index - 1] { return False; }
             index += 1;
         }
         return True;
     }
 
-    function SortInt(values : List[Int]) : List[Int] {
-        local mut List[Int] result = values;
-        local Int count = len(result);
-        local mut Int outer = 0;
-        while outer < count {
-            local mut Int inner = 1;
-            while inner < count {
-                if result[inner - 1] > result[inner] {
-                    local Int temp = result[inner - 1];
-                    result[inner - 1] = result[inner];
-                    result[inner] = temp;
-                }
-                inner += 1;
-            }
-            outer += 1;
+    function Reverse(values : List[T]) : List[T] {
+        local mut List[T] result;
+        local mut Int index = len(values) - 1;
+        while index >= 0 {
+            result[len(result)] = values[index];
+            index -= 1;
         }
         return result;
     }
 
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
-    func Find(n int, cmp func(int) int) (i int, found bool)
-    func Float64s(x []float64)
-    func Float64sAreSorted(x []float64) bool
-    func Ints(x []int)
-    func IntsAreSorted(x []int) bool
-    func IsSorted(data Interface) bool
-    func Search(n int, f func(int) bool) int
-    func SearchFloat64s(a []float64, x float64) int
-    func SearchInts(a []int, x int) int
-    func SearchStrings(a []string, x string) int
-    func Slice(x any, less func(i, j int) bool)
-    func SliceIsSorted(x any, less func(i, j int) bool) bool
-    func SliceStable(x any, less func(i, j int) bool)
-    func Sort(data Interface)
-    func Stable(data Interface)
-    func Strings(x []string)
-    func StringsAreSorted(x []string) bool
-    func (x Float64Slice) Len() int
-    func (x Float64Slice) Less(i, j int) bool
-    func (p Float64Slice) Search(x float64) int
-    func (x Float64Slice) Sort()
-    func (x Float64Slice) Swap(i, j int)
-    func (x IntSlice) Len() int
-    func (x IntSlice) Less(i, j int) bool
-    func (p IntSlice) Search(x int) int
-    func (x IntSlice) Sort()
-    func (x IntSlice) Swap(i, j int)
-    func Reverse(data Interface) Interface
-    func (x StringSlice) Len() int
-    func (x StringSlice) Less(i, j int) bool
-    func (p StringSlice) Search(x string) int
-    func (x StringSlice) Sort()
-    func (x StringSlice) Swap(i, j int)
-
-    namespace file {
-        file_name()
-        file_names()
-        format()
-        format_fun()
-        header_length()
-        i_command()
-        i_reply()
-        infun()
-        input()
-        input_reply()
-        key_pos()
-        no_files()
-        o_command()
-        o_reply()
-        object()
-        option()
-        options()
-        order()
-        order_fun()
-        outfun()
-        output()
-        output_reply()
-        reason()
-        size()
-        tmp_directory()
-        value()
-        check(FileName)
-        Equivalent to check([FileName], []).
-        check(FileNames, Options)
-        Checks files for sortedness. If a file is not sorted, the first out-of-order element is returned. The first term on a file has position 1.
-        keycheck(KeyPos, FileName)
-        Equivalent to keycheck(KeyPos, [Filename], []).
-        keycheck(KeyPos, FileNames, Options)
-        Checks files for sortedness. If a file is not sorted, the first out-of-order element is returned. The first term on a file has position 1.
-        keymerge(KeyPos, FileNames, Output)
-        Equivalent to keymerge(KeyPos, FileNames, Output, []).
-        keymerge(KeyPos, FileNames, Output, Options)
-        Merges tuples on files. Each input file is assumed to be sorted on key(s).
-        keysort(KeyPos, FileName)
-        Sorts tuples on files.
-        keysort(KeyPos, Input, Output)
-        Equivalent to keysort(KeyPos, Input, Output, []).
-        keysort(KeyPos, Input, Output, Options)
-        Sorts tuples on files. The sort is performed on the element(s) mentioned in KeyPos. If two tuples compare equal (==) on one element, the next element according to KeyPos is compared. The sort is stable.
-        merge(FileNames, Output)
-        Equivalent to merge(FileNames, Output, []).
-        merge(FileNames, Output, Options)
-        Merges terms on files. Each input file is assumed to be sorted.
-        sort(FileName)
-        Sorts terms on files.
-        sort(Input, Output)
-        Equivalent to sort(Input, Output, []).
-        sort(Input, Output, Options)
-        Sorts terms on files.
+    function Search(values : List[Int], target : Int) : Option[Int] {
+        local mut Int index = 0;
+        while index < len(values) {
+            if values[index] == target { return Some(index); }
+            index += 1;
+        }
+        return None();
     }
 }

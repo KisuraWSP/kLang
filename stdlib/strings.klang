@@ -17,8 +17,64 @@ namespace strings {
         return left == right;
     }
 
+    function Compare(left : String, right : String) : Int {
+        if left < right { return 0 - 1; }
+        if left > right { return 1; }
+        return 0;
+    }
+
     function Concat(left : String, right : String) : String {
         return left + right;
+    }
+
+    function Clone(value : String) : String {
+        return clone value;
+    }
+
+    function Contains(value : String, part : String) : Bool {
+        return Index(value, part) >= 0;
+    }
+
+    function Count(value : String, part : String) : Int {
+        if len(part) == 0 { return 0; }
+        local mut Int total = 0;
+        local mut Int index = 0;
+        while index < len(value) {
+            if Slice(value, index, len(part)) == part {
+                total += 1;
+            }
+            index += 1;
+        }
+        return total;
+    }
+
+    function HasPrefix(value : String, prefix : String) : Bool {
+        return Slice(value, 0, len(prefix)) == prefix;
+    }
+
+    function HasSuffix(value : String, suffix : String) : Bool {
+        if len(suffix) > len(value) { return False; }
+        return Slice(value, len(value) - len(suffix), len(suffix)) == suffix;
+    }
+
+    function Index(value : String, part : String) : Int {
+        if len(part) == 0 { return 0; }
+        local mut Int index = 0;
+        while index < len(value) {
+            if Slice(value, index, len(part)) == part { return index; }
+            index += 1;
+        }
+        return 0 - 1;
+    }
+
+    function Join(values : List[String], sep : String) : String {
+        local mut String result = "";
+        local mut Int index = 0;
+        while index < len(values) {
+            if index == 0 { result = values[index]; } else { result = result + sep + values[index]; }
+            index += 1;
+        }
+        return result;
     }
 
     function Repeat(value : String, count : Int) : String {
@@ -31,88 +87,61 @@ namespace strings {
         return result;
     }
 
+    function ReplaceAll(value : String, old : String, next : String) : String {
+        local mut String result = "";
+        local mut Int index = 0;
+        while index < len(value) {
+            if len(old) > 0 and Slice(value, index, len(old)) == old {
+                result += next;
+                index += len(old);
+            } else {
+                result += value[index] as String;
+                index += 1;
+            }
+        }
+        return result;
+    }
+
+    function Split(value : String, sep : String) : List[String] {
+        local mut List[String] result;
+        local mut String current = "";
+        local mut Int index = 0;
+        while index < len(value) {
+            if len(sep) > 0 and Slice(value, index, len(sep)) == sep {
+                result[len(result)] = current;
+                current = "";
+                index += len(sep);
+            } else {
+                current += value[index] as String;
+                index += 1;
+            }
+        }
+        result[len(result)] = current;
+        return result;
+    }
+
+    function Slice(value : String, start : Int, count : Int) : String {
+        local mut String result = "";
+        local mut Int index = start;
+        local Int stop = start + count;
+        while index < stop and index < len(value) {
+            result += value[index] as String;
+            index += 1;
+        }
+        return result;
+    }
+
+    function TrimPrefix(value : String, prefix : String) : String {
+        if HasPrefix(value, prefix) { return Slice(value, len(prefix), len(value) - len(prefix)); }
+        return value;
+    }
+
+    function TrimSuffix(value : String, suffix : String) : String {
+        if HasSuffix(value, suffix) { return Slice(value, 0, len(value) - len(suffix)); }
+        return value;
+    }
+
     function DefaultIfEmpty(value : String, fallback : String) : String {
         if len(value) == 0 { return fallback; } else { return value; }
     }
-
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
-    func Clone(s string) string
-    func Compare(a, b string) int
-    func Contains(s, substr string) bool
-    func ContainsAny(s, chars string) bool
-    func ContainsFunc(s string, f func(rune) bool) bool
-    func ContainsRune(s string, r rune) bool
-    func Count(s, substr string) int
-    func Cut(s, sep string) (before, after string, found bool)
-    func CutPrefix(s, prefix string) (after string, found bool)
-    func CutSuffix(s, suffix string) (before string, found bool)
-    func EqualFold(s, t string) bool
-    func Fields(s string) []string
-    func FieldsFunc(s string, f func(rune) bool) []string
-    func FieldsFuncSeq(s string, f func(rune) bool) iter.Seq[string]
-    func FieldsSeq(s string) iter.Seq[string]
-    func HasPrefix(s, prefix string) bool
-    func HasSuffix(s, suffix string) bool
-    func Index(s, substr string) int
-    func IndexAny(s, chars string) int
-    func IndexByte(s string, c byte) int
-    func IndexFunc(s string, f func(rune) bool) int
-    func IndexRune(s string, r rune) int
-    func Join(elems []string, sep string) string
-    func LastIndex(s, substr string) int
-    func LastIndexAny(s, chars string) int
-    func LastIndexByte(s string, c byte) int
-    func LastIndexFunc(s string, f func(rune) bool) int
-    func Lines(s string) iter.Seq[string]
-    func Map(mapping func(rune) rune, s string) string
-    func Repeat(s string, count int) string
-    func Replace(s, old, new string, n int) string
-    func ReplaceAll(s, old, new string) string
-    func Split(s, sep string) []string
-    func SplitAfter(s, sep string) []string
-    func SplitAfterN(s, sep string, n int) []string
-    func SplitAfterSeq(s, sep string) iter.Seq[string]
-    func SplitN(s, sep string, n int) []string
-    func SplitSeq(s, sep string) iter.Seq[string]
-    func Title(s string) stringDEPRECATED
-    func ToLower(s string) string
-    func ToLowerSpecial(c unicode.SpecialCase, s string) string
-    func ToTitle(s string) string
-    func ToTitleSpecial(c unicode.SpecialCase, s string) string
-    func ToUpper(s string) string
-    func ToUpperSpecial(c unicode.SpecialCase, s string) string
-    func ToValidUTF8(s, replacement string) string
-    func Trim(s, cutset string) string
-    func TrimFunc(s string, f func(rune) bool) string
-    func TrimLeft(s, cutset string) string
-    func TrimLeftFunc(s string, f func(rune) bool) string
-    func TrimPrefix(s, prefix string) string
-    func TrimRight(s, cutset string) string
-    func TrimRightFunc(s string, f func(rune) bool) string
-    func TrimSpace(s string) string
-    func TrimSuffix(s, suffix string) string
-    func (b *Builder) Cap() int
-    func (b *Builder) Grow(n int)
-    func (b *Builder) Len() int
-    func (b *Builder) Reset()
-    func (b *Builder) String() string
-    func (b *Builder) Write(p []byte) (int, error)
-    func (b *Builder) WriteByte(c byte) error
-    func (b *Builder) WriteRune(r rune) (int, error)
-    func (b *Builder) WriteString(s string) (int, error)
-    func NewReader(s string) *Reader
-    func (r *Reader) Len() int
-    func (r *Reader) Read(b []byte) (n int, err error)
-    func (r *Reader) ReadAt(b []byte, off int64) (n int, err error)
-    func (r *Reader) ReadByte() (byte, error)
-    func (r *Reader) ReadRune() (ch rune, size int, err error)
-    func (r *Reader) Reset(s string)
-    func (r *Reader) Seek(offset int64, whence int) (int64, error)
-    func (r *Reader) Size() int64
-    func (r *Reader) UnreadByte() error
-    func (r *Reader) UnreadRune() error
-    func (r *Reader) WriteTo(w io.Writer) (n int64, err error)
-    func NewReplacer(oldnew ...string) *Replacer
-    func (r *Replacer) Replace(s string) string
-    func (r *Replacer) WriteString(w io.Writer, s string) (n int, err error)
 }

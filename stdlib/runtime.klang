@@ -1,187 +1,72 @@
--- OS capability helpers. Direct filesystem/process access needs host bindings.
+-- Runtime helpers around debugger, concurrency, atomic, and workspace builtins.
 
 namespace runtime {
-    function PathSeparator() : String {
-        return "/";
+    function TypeOf(value : Any) : String {
+        return debug_type(value);
     }
 
-    function ArgsCount() : Int {
+    function Debug(value : T) : T {
+        return debug(value);
+    }
+
+    function Stack() : List[String] {
+        return debug_stack();
+    }
+
+    function Breakpoint(label : String = "breakpoint") : Int {
+        breakpoint(label);
         return 0;
     }
 
-    function IsHostAccessAvailable() : Bool {
-        return False;
+    function Spawn(worker : Function[T, U], value : T) : Thread[U] {
+        return spawn(worker, [value]);
     }
 
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
-    func Chdir(dir string) error
-    func Chmod(name string, mode FileMode) error
-    func Chown(name string, uid, gid int) error
-    func Chtimes(name string, atime time.Time, mtime time.Time) error
-    func Clearenv()
-    func CopyFS(dir string, fsys fs.FS) error
-    func DirFS(dir string) fs.FS
-    func Environ() []string
-    func Executable() (string, error)
-    func Exit(code int)
-    func Expand(s string, mapping func(string) string) string
-    func ExpandEnv(s string) string
-    func Getegid() int
-    func Getenv(key string) string
-    func Geteuid() int
-    func Getgid() int
-    func Getgroups() ([]int, error)
-    func Getpagesize() int
-    func Getpid() int
-    func Getppid() int
-    func Getuid() int
-    func Getwd() (dir string, err error)
-    func Hostname() (name string, err error)
-    func IsExist(err error) bool
-    func IsNotExist(err error) bool
-    func IsPathSeparator(c uint8) bool
-    func IsPermission(err error) bool
-    func IsTimeout(err error) bool
-    func Lchown(name string, uid, gid int) error
-    func Link(oldname, newname string) error
-    func LookupEnv(key string) (string, bool)
-    func Mkdir(name string, perm FileMode) error
-    func MkdirAll(path string, perm FileMode) error
-    func MkdirTemp(dir, pattern string) (string, error)
-    func NewSyscallError(syscall string, err error) error
-    func Pipe() (r *File, w *File, err error)
-    func ReadFile(name string) ([]byte, error)
-    func Readlink(name string) (string, error)
-    func Remove(name string) error
-    func RemoveAll(path string) error
-    func Rename(oldpath, newpath string) error
-    func SameFile(fi1, fi2 FileInfo) bool
-    func Setenv(key, value string) error
-    func Symlink(oldname, newname string) error
-    func TempDir() string
-    func Truncate(name string, size int64) error
-    func Unsetenv(key string) error
-    func UserCacheDir() (string, error)
-    func UserConfigDir() (string, error)
-    func UserHomeDir() (string, error)
-    func WriteFile(name string, data []byte, perm FileMode) error
-    func ReadDir(name string) ([]DirEntry, error)
-    func Create(name string) (*File, error)
-    func CreateTemp(dir, pattern string) (*File, error)
-    func NewFile(fd uintptr, name string) *File
-    func Open(name string) (*File, error)
-    func OpenFile(name string, flag int, perm FileMode) (*File, error)
-    func OpenInRoot(dir, name string) (*File, error)
-    func (f *File) Chdir() error
-    func (f *File) Chmod(mode FileMode) error
-    func (f *File) Chown(uid, gid int) error
-    func (f *File) Close() error
-    func (f *File) Fd() uintptr
-    func (f *File) Name() string
-    func (f *File) Read(b []byte) (n int, err error)
-    func (f *File) ReadAt(b []byte, off int64) (n int, err error)
-    func (f *File) ReadDir(n int) ([]DirEntry, error)
-    func (f *File) ReadFrom(r io.Reader) (n int64, err error)
-    func (f *File) Readdir(n int) ([]FileInfo, error)
-    func (f *File) Readdirnames(n int) (names []string, err error)
-    func (f *File) Seek(offset int64, whence int) (ret int64, err error)
-    func (f *File) SetDeadline(t time.Time) error
-    func (f *File) SetReadDeadline(t time.Time) error
-    func (f *File) SetWriteDeadline(t time.Time) error
-    func (f *File) Stat() (FileInfo, error)
-    func (f *File) Sync() error
-    func (f *File) SyscallConn() (syscall.RawConn, error)
-    func (f *File) Truncate(size int64) error
-    func (f *File) Write(b []byte) (n int, err error)
-    func (f *File) WriteAt(b []byte, off int64) (n int, err error)
-    func (f *File) WriteString(s string) (n int, err error)
-    func (f *File) WriteTo(w io.Writer) (n int64, err error)
-    func Lstat(name string) (FileInfo, error)
-    func Stat(name string) (FileInfo, error)
-    func (e *LinkError) Error() string
-    func (e *LinkError) Unwrap() error
-    func FindProcess(pid int) (*Process, error)
-    func StartProcess(name string, argv []string, attr *ProcAttr) (*Process, error)
-    func (p *Process) Kill() error
-    func (p *Process) Release() error
-    func (p *Process) Signal(sig Signal) error
-    func (p *Process) Wait() (*ProcessState, error)
-    func (p *Process) WithHandle(f func(handle uintptr)) error
-    func (p *ProcessState) ExitCode() int
-    func (p *ProcessState) Exited() bool
-    func (p *ProcessState) Pid() int
-    func (p *ProcessState) String() string
-    func (p *ProcessState) Success() bool
-    func (p *ProcessState) Sys() any
-    func (p *ProcessState) SysUsage() any
-    func (p *ProcessState) SystemTime() time.Duration
-    func (p *ProcessState) UserTime() time.Duration
-    func OpenRoot(name string) (*Root, error)
-    func (r *Root) Chmod(name string, mode FileMode) error
-    func (r *Root) Chown(name string, uid, gid int) error
-    func (r *Root) Chtimes(name string, atime time.Time, mtime time.Time) error
-    func (r *Root) Close() error
-    func (r *Root) Create(name string) (*File, error)
-    func (r *Root) FS() fs.FS
-    func (r *Root) Lchown(name string, uid, gid int) error
-    func (r *Root) Link(oldname, newname string) error
-    func (r *Root) Lstat(name string) (FileInfo, error)
-    func (r *Root) Mkdir(name string, perm FileMode) error
-    func (r *Root) MkdirAll(name string, perm FileMode) error
-    func (r *Root) Name() string
-    func (r *Root) Open(name string) (*File, error)
-    func (r *Root) OpenFile(name string, flag int, perm FileMode) (*File, error)
-    func (r *Root) OpenRoot(name string) (*Root, error)
-    func (r *Root) ReadFile(name string) ([]byte, error)
-    func (r *Root) Readlink(name string) (string, error)
-    func (r *Root) Remove(name string) error
-    func (r *Root) RemoveAll(name string) error
-    func (r *Root) Rename(oldname, newname string) error
-    func (r *Root) Stat(name string) (FileInfo, error)
-    func (r *Root) Symlink(oldname, newname string) error
-    func (r *Root) WriteFile(name string, data []byte, perm FileMode) error
-    func (e *SyscallError) Error() string
-    func (e *SyscallError) Timeout() bool
-    func (e *SyscallError) Unwrap() error
-
-    namespace exec {
-        func LookPath(file string) (string, error)
-        func Command(name string, arg ...string) *Cmd
-        func CommandContext(ctx context.Context, name string, arg ...string) *Cmd
-        func (c *Cmd) CombinedOutput() ([]byte, error)
-        func (c *Cmd) Environ() []string
-        func (c *Cmd) Output() ([]byte, error)
-        func (c *Cmd) Run() error
-        func (c *Cmd) Start() error
-        func (c *Cmd) StderrPipe() (io.ReadCloser, error)
-        func (c *Cmd) StdinPipe() (io.WriteCloser, error)
-        func (c *Cmd) StdoutPipe() (io.ReadCloser, error)
-        func (c *Cmd) String() string
-        func (c *Cmd) Wait() error
-        func (e *Error) Error() string
-        func (e *Error) Unwrap() error
-        func (e *ExitError) Error() string
+    function Join(worker : Thread[T]) : T {
+        return join(worker);
     }
 
-    namespace signal {
-        func Ignore(sig ...os.Signal)
-        func Ignored(sig os.Signal) bool
-        func Notify(c chan<- os.Signal, sig ...os.Signal)
-        func NotifyContext(parent context.Context, signals ...os.Signal) (ctx context.Context, stop context.CancelFunc)
-        func Reset(sig ...os.Signal)
-        func Stop(c chan<- os.Signal)
+    function Status(worker : Thread[T]) : String {
+        return thread_status(worker);
     }
 
-    namespace user {
-        func LookupGroup(name string) (*Group, error)
-        func LookupGroupId(gid string) (*Group, error)
-        func (e UnknownGroupError) Error() string
-        func (e UnknownGroupIdError) Error() string
-        func (e UnknownUserError) Error() string
-        func (e UnknownUserIdError) Error() string
-        func Current() (*User, error)
-        func Lookup(username string) (*User, error)
-        func LookupId(uid string) (*User, error)
-        func (u *User) GroupIds() ([]string, error)
+    function AtomicValue(value : T) : Atomic[T] {
+        return Atomic(value);
+    }
+
+    function AtomicLoadValue(value : Atomic[T]) : T {
+        return atomic_load(value);
+    }
+
+    function AtomicStoreValue(value : Atomic[T], next : T) : Atomic[T] {
+        return atomic_store(value, next);
+    }
+
+    function AtomicAddInt(value : Atomic[Int], amount : Int) : Int {
+        return atomic_add(value, amount);
+    }
+
+    function ProgramDescriptor(modules : List[String]) : Program {
+        return Program(modules);
+    }
+
+    function BuildDescriptor(name : String, files : List[String], backend : String = "Standalone") : BuildSystem {
+        return BuildSystem(name, len(files), files, backend);
+    }
+
+    function Workspace(program : Program, build : BuildSystem) : WorkSpace {
+        return WorkSpace(program, build);
+    }
+
+    function WorkspaceBackend(workspace : WorkSpace) : String {
+        return workspace_backend(workspace);
+    }
+
+    function WorkspaceFiles(workspace : WorkSpace) : List[String] {
+        return workspace_files(workspace);
+    }
+
+    function WorkspaceManifest(workspace : WorkSpace) : String {
+        return workspace_manifest(workspace);
     }
 }

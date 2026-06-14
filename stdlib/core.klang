@@ -1,4 +1,4 @@
--- Core conversion and comparison helpers.
+-- Core conversion, container, and service helpers.
 
 namespace core {
     function BoolToInt(value : Bool) : Int {
@@ -18,7 +18,7 @@ namespace core {
     }
 
     function CompareInt(left : Int, right : Int) : Int {
-        if left < right { return -1; } else if left > right { return 1; } else { return 0; }
+        if left < right { return 0 - 1; } else if left > right { return 1; } else { return 0; }
     }
 
     function MaxInt(left : Int, right : Int) : Int {
@@ -29,610 +29,137 @@ namespace core {
         if left < right { return left; } else { return right; }
     }
 
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
+    function Identity(value : T) : T {
+        return value;
+    }
+
+    function TypeName(value : Any) : String {
+        return debug_type(value);
+    }
+
     namespace argparse {
-        arg_map()
-        Arguments map is the map of argument names to the values extracted from the command line. It is passed to the matching command handler. If an argument is omitted, but has the default value is specified, it is added to the map. When no default value specified, and argument is not present in the command line, corresponding key is not present in the resulting map.
-        arg_type()
-        Defines type conversion applied to the string retrieved from the user input. If the conversion is successful, resulting value is validated using optional Choices, or minimums and maximums (for integer and floating point values only). Strings and binary values may be validated using regular expressions. Its possible to define custom type conversion function, accepting a string and returning Erlang term. If this function raises error with badarg reason, argument is treated as invalid.
-        args()
-        List of command line arguments to be parsed.
-        argument()
-        Argument specification. Defines a single named argument that is returned in the argument map. The only required field is name, all other fields have defaults.
-        argument_help()
-        User-defined help template to print in the command usage. First element of a tuple must be a string. It is printed as a part of the usage header. Second element of the tuple can be either a list containing strings, type and default atoms, or a user-defined function that must return a string. A plain string should be wrapped as a list such as ["string is nested"].
-        argument_name()
-        Argument name is used to populate argument map.
-        cmd_path()
-        Path to the nested command. First element is always the progname, subsequent elements are nested command names.
-        command()
-        Command specification. May contain nested commands, forming a hierarchy.
-        command_help()
-        User-defined help template. Use this option to mix custom and predefined usage text. Help template may contain unicode strings, and following atoms
-        handler()
-        Command handler specification. Called by run/3 upon successful parser return.
-        parse_result()
-        Returned from parse/2,3. Contains arguments extracted from the command line, path to the nested command (if any), and a (potentially nested) command specification that was considered when the parser finished successfully. It is expected that the command contains a handler definition, that will be called passing the argument map.
-        parser_error()
-        Returned from parse/2,3 when the user input cannot be parsed according to the command specification.
-        parser_options()
-        Options changing parser behaviour.
-        format_error(Reason)
-        Generates human-readable text for parser error. Does not include help/usage information, and does not provide localisation.
-        help(Command)
-        Equivalent to help/2.
-        help(Command, Options)
-        Generates help/usage information text for the command supplied, or any nested command when command option is specified. Arguments are displayed in the same order as specified in Command. Does not provide localisation. Expects progname to be set, otherwise defaults to return value of init:get_argument(progname).
-        parse(Args, Command)
-        Equivalent to parse/3.
-        parse(Args, Command, Options)
-        Parses command line arguments according to the command specification. Raises an exception if the command specification is not valid. Use erl_error:format_exception/3,4 to see a friendlier message. Invalid command line input does not raise an exception, but makes parse/2,3 to return a tuple {error, parser_error()}.
-        run(Args, Command, Options)
-        Parses command line arguments and calls the matching command handler. Prints human-readable error, help/usage information for the discovered command, and halts the emulator with code 1 if there is any error in the command specification or user-provided command line input.
+        function Argument(name : String, defaultValue : String = "", required : Bool = False) : Table {
+            return {"name": name, "default": defaultValue, "required": required};
+        }
+
+        function Command(name : String, args : List[Table]) : Table {
+            return {"name": name, "arguments": args};
+        }
+
+        function Parse(args : List[String], command : Table) : Result[Table, String] {
+            local Table parsed = {"args": args, "command": command, "count": len(args)};
+            return Ok(parsed);
+        }
+
+        function FormatError(reason : String) : String {
+            return "argument error: " + reason;
+        }
+
+        function Help(command : Table) : String {
+            return "usage: " + (command["name"] as String);
+        }
     }
 
     namespace array {
-        array()
-        array(Type)
-        A functional, extendible array.
-        array_indx()
-        array_opt()
-        array_opts()
-        indx_pair(Type)
-        indx_pairs(Type)
-        append(Value, Array)
-        Append a single value to the right side of the array.
-        concat(Arrays)
-        Concatenates a nonempty list of arrays.
-        concat(A, B)
-        Concatenates two arrays.
-        default(Array)
-        Gets the value used for uninitialized entries.
-        fix(Array)
-        Fixes the array size to prevent it from growing automatically upon insertion.
-        foldl(Function, InitialAcc, Array)
-        Folds the array elements using the specified function and initial accumulator value.
-        foldl(Low, High, Function, InitialAcc, Array)
-        Folds the array elements from Low to High using the specified function and initial accumulator value.
-        foldr(Function, InitialAcc, Array)
-        Folds the array elements right-to-left using the specified function and initial accumulator value.
-        foldr(Low, High, Function, InitialAcc, Array)
-        Folds the array elements from High to Low using the specified function and initial accumulator value.
-        from(Function, State)
-        Equivalent to from(Fun, State, undefined).
-        from(Function, State, Default)
-        Creates an extendible array with values obtained with Function(State).
-        from_list(List)
-        Equivalent to from_list(List, undefined).
-        from_list(List, Default)
-        Converts a list to an extendible array.
-        from_orddict(Orddict)
-        Equivalent to from_orddict(Orddict, undefined).
-        from_orddict(Orddict, Default)
-        Converts an ordered list of pairs {Index, Value} to a corresponding extendible array.
-        get(I, Array)
-        Gets the value of entry I.
-        is_array(X)
-        Returns true if X is an array, otherwise false.
-        is_fix(Array)
-        Checks if the array has fixed size.
-        map(Function, Array)
-        Maps the specified function onto each array element.
-        mapfoldl(Function, InitialAcc, Array)
-        Combined map and fold over the array elements using the specified function and initial accumulator value.
-        mapfoldl(Low, High, Function, InitialAcc, Array)
-        Combined map and fold over the array elements from Low to High using the specified function and initial accumulator value.
-        mapfoldr(Function, InitialAcc, Array)
-        Combined map and fold over the array elements using the specified function and initial accumulator value.
-        mapfoldr(Low, High, Function, InitialAcc, Array)
-        Combined map and fold over the array elements from Low to High using the specified function and initial accumulator value.
-        new()
-        Creates a new, extendible array with initial size zero.
-        new(Options)
-        Creates a new array according to the specified options.
-        new(Size, Options)
-        Creates a new array according to the specified size and options.
-        prepend(Value, Array)
-        Prepend a single value to the left side of the array.
-        relax(Array)
-        Makes the array extendible, reversing the effects of fix/1.
-        reset(I, Array)
-        Resets entry I to the default value for the array.
-        resize(Array)
-        Changes the array size to that reported by sparse_size/1.
-        resize(Size, Array)
-        Change the array size.
-        set(I, Value, Array)
-        Sets entry I of the array to Value.
-        shift(Steps, Array)
-        Shift the array a number of steps to the left, or to the right if the number is negative.
-        size(Array)
-        Gets the number of entries in the array.
-        slice(I, Length, Array)
-        Extract a slice of the array.
-        sparse_foldl(Function, InitialAcc, Array)
-        Folds the array elements using the specified function and initial accumulator value, skipping default-valued entries.
-        sparse_foldl(Low, High, Function, InitialAcc, Array)
-        Folds the array elements from Low to High using the specified function and initial accumulator value, skipping default-valued entries.
-        sparse_foldr(Function, InitialAcc, Array)
-        Folds the array elements right-to-left using the specified function and initial accumulator value, skipping default-valued entries.
-        sparse_foldr(Low, High, Function, InitialAcc, Array)
-        Folds the array elements from High to Low using the specified function and initial accumulator value, skipping default-valued entries.
-        sparse_map(Function, Array)
-        Maps the specified function onto each array element, skipping default-valued entries.
-        sparse_mapfoldl(Function, InitialAcc, Array)
-        Like mapfoldl/3 but skips default-valued entries.
-        sparse_mapfoldl(Low, High, Function, InitialAcc, Array)
-        Like mapfoldl/5 but skips default-valued entries.
-        sparse_mapfoldr(Function, InitialAcc, Array)
-        Like mapfoldr/3 but skips default-valued entries.
-        sparse_mapfoldr(Low, High, Function, InitialAcc, Array)
-        Like mapfoldr/5 but skips default-valued entries.
-        sparse_size(Array)
-        Gets the number of entries in the array up until the last non-default-valued entry.
-        sparse_to_list(Array)
-        Converts the array to a list, skipping default-valued entries.
-        sparse_to_orddict(Array)
-        Converts the array to an ordered list of pairs {Index, Value}, skipping default-valued entries.
-        to_list(Array)
-        Converts the array to a list.
-        to_orddict(Array)
-        Converts the array to an ordered list of pairs {Index, Value}.
+        function New(defaultValue : T) : Table {
+            return {"items": [], "default": defaultValue, "fixed": False};
+        }
+
+        function FromList(values : List[T], defaultValue : T) : Table {
+            return {"items": values, "default": defaultValue, "fixed": False};
+        }
+
+        function Append(value : T, array : Table) : Table {
+            local mut List[T] items = array["items"];
+            items[len(items)] = value;
+            return {"items": items, "default": array["default"], "fixed": array["fixed"]};
+        }
+
+        function Prepend(value : T, array : Table) : Table {
+            local mut List[T] items;
+            items[len(items)] = value;
+            local List[T] old = array["items"];
+            local mut Int index = 0;
+            while index < len(old) {
+                items[len(items)] = old[index];
+                index += 1;
+            }
+            return {"items": items, "default": array["default"], "fixed": array["fixed"]};
+        }
+
+        function Get(index : Int, array : Table) : T {
+            local List[T] items = array["items"];
+            if index < 0 or index >= len(items) {
+                return array["default"];
+            }
+            return items[index];
+        }
+
+        function Set(index : Int, value : T, array : Table) : Table {
+            local mut List[T] items = array["items"];
+            items[index] = value;
+            return {"items": items, "default": array["default"], "fixed": array["fixed"]};
+        }
+
+        function Size(array : Table) : Int {
+            local List[T] items = array["items"];
+            return len(items);
+        }
+
+        function ToList(array : Table) : List[T] {
+            return array["items"];
+        }
+
+        function Fix(array : Table) : Table {
+            return {"items": array["items"], "default": array["default"], "fixed": True};
+        }
+
+        function Relax(array : Table) : Table {
+            return {"items": array["items"], "default": array["default"], "fixed": False};
+        }
+
+        function Map(array : Table, mapper : Function[T, U]) : List[U] {
+            local List[T] items = array["items"];
+            local mut List[U] result;
+            local mut Int index = 0;
+            while index < len(items) {
+                result[len(result)] = mapper(items[index]);
+                index += 1;
+            }
+            return result;
+        }
+
+        function Fold(array : Table, initial : U, reducer : Function[U, T, U]) : U {
+            local List[T] items = array["items"];
+            local mut U acc = initial;
+            local mut Int index = 0;
+            while index < len(items) {
+                acc = reducer(acc, items[index]);
+                index += 1;
+            }
+            return acc;
+        }
     }
 
     namespace genserver {
-        action()
-        Callback and server loop action.
-        enter_loop_opt()
-        Server start options for the start or enter_loop functions.
-        format_status()
-        A map that describes the gen_server status.
-        from()
-        A calls reply destination.
-        reply_tag()
-        A handle that associates a reply to the corresponding request.
-        request_id()
-        An opaque request identifier. See send_request/2 for details.
-        request_id_collection()
-        An opaque collection of request identifiers (request_id/0).
-        response_timeout()
-        Response time-out for an asynchronous call.
-        server_name()
-        Server name specification: local, global, or via registered.
-        server_ref()
-        Server specification: pid/0 or registered server_name/0.
-        start_mon_ret()
-        Return value from the start_monitor/3,4 functions.
-        start_opt()
-        Server start options for the start functions.
-        start_ret()
-        Return value from the start/3,4 and start_link/3,4 functions.
-        timeout_option()
-        Time-out timer start option, to select absolute time of expiry.
+        function Start(name : String, state : T) : Table {
+            return {"name": name, "state": state, "running": True, "messages": []};
+        }
 
-        code_change(OldVsn, State, Extra)
-        Update the server state after code change.
-        format_status(Status)
-        Format/limit the status value.
-        format_status(Opt, StatusData)
-        Format/limit the status value.
-        handle_call(Request, From, State)
-        Handle a call.
-        handle_cast(Request, State)
-        Handle a cast message.
-        handle_continue(Info, State)
-        Handle a callback continuation.
-        handle_info(Info, State)
-        Handle an info message (regular process message).
-        init(Args)
-        Initialize the server.
-        terminate(Reason, State)
-        Handle server termination.
+        function Stop(server : Table) : Table {
+            return {"name": server["name"], "state": server["state"], "running": False, "messages": server["messages"]};
+        }
 
-        abcast(Name, Request)
-        Cast a request to multiple nodes.
-        abcast(Nodes, Name, Request)
-        Cast a request to multiple nodes.
-        call(ServerRef, Request)
-        Equivalent to call(ServerRef, Request, 5000).
-        call(ServerRef, Request, Timeout)
-        Call a server: send request and wait for response.
-        cast(ServerRef, Request)
-        Cast a request to a server.
-        check_response(Msg, ReqId)
-        Check if a received message is a request response.
-        check_response(Msg, ReqIdCollection, Delete)
-        Check if a received message is a request response in a collection.
-        enter_loop(Module, Options, State)
-        Equivalent to enter_loop(Mod, Options, State, self()).
-        enter_loop/4
-        Make the calling process become a gen_server process.
-        enter_loop(Module, Options, State, ServerName, Action)
-        Make the calling process become a gen_server process.
-        multi_call(Name, Request)
-        Call servers on multiple nodes in parallel.
-        multi_call(Nodes, Name, Request)
-        Equivalent to multi_call(Nodes, Name, Request, infinity).
-        multi_call(Nodes, Name, Request, Timeout)
-        Call servers on multiple nodes in parallel.
-        receive_response(ReqId, Timeout)
-        Receive a request response.
-        receive_response(ReqIdCollection, Timeout, Delete)
-        Receive a request response in a collection.
-        reply(Client, Reply)
-        Send a reply to a client.
-        reqids_add(ReqId, Label, ReqIdCollection)
-        Store a request identifier in a colletion.
-        reqids_new()
-        Create an empty request identifier collection.
-        reqids_size(ReqIdCollection)
-        Returns the number of request identifiers in ReqIdCollection.
-        reqids_to_list(ReqIdCollection)
-        Convert a request identifier collection to a list.
-        send_request(ServerRef, Request)
-        Send an asynchronous call request.
-        send_request(ServerRef, Request, Label, ReqIdCollection)
-        Send an asynchronous call request and add it to a request identifier collection.
-        start(Module, Args, Options)
-        Start a server, neither linked nor registered.
-        start(ServerName, Module, Args, Options)
-        Start a server, registered but not linked.
-        start_link(Module, Args, Options)
-        Start a server, linked but not registered.
-        start_link(ServerName, Module, Args, Options)
-        Start a server, linked and registered.
-        start_monitor(Module, Args, Options)
-        Start a server, monitored but neither linked nor registered.
-        start_monitor(ServerName, Module, Args, Options)
-        Start a server, monitored and registered, but not linked.
-        stop(ServerRef)
-        Equivalent to stop(ServerRef, normal, infinity).
-        stop(ServerRef, Reason, Timeout)
-        Stop a server.
-        wait_response(ReqId, WaitTime)
-        Wait for a request response.
-        wait_response(ReqIdCollection, WaitTime, Delete)
-        Wait for any request response in a collection.
-    }
+        function Call(server : Table, request : T, handler : Function[T, Any, Any]) : Table {
+            return {"server": server["name"], "reply": handler(request, server["state"])};
+        }
 
-    namespace genstatem {
-        action()
-        Actions for a state transition, or when starting the server.
-        callback_mode()
-        One function per state or one common event handler.
-        callback_mode_result()
-        Return value from Module:callback_mode/0.
-        data()
-        Generic state data for the server.
-        enter_action()
-        Actions for any callback: hibernate, time-outs or replies.
-        enter_loop_opt()
-        Server start options for the enter_loop/4,5,6, start/3,4, start_link/3,4, and start_monitor/3,4, functions.
-        event_content()
-        Event payload from the events origin, delivered to the state callback.
-        event_handler_result(StateType)
-        event_handler_result(StateType, DataType)
-        Return value from a state callback after handling an event.
-        event_timeout()
-        How long to wait for an event.
-        event_type()
-        All event types: external, time-out, or internal.
-        external_event_type()
-        Event from a call, cast, or regular process message; "info".
-        format_status()
-        A map that describes the servers status.
-        from()
-        A call events reply destination.
-        generic_timeout()
-        How long to wait for a named time-out event.
-        hibernate()
-        Hibernate the server process.
-        init_result(StateType)
-        init_result(StateType, DataType)
-        The return value from Module:init/1.
-        postpone()
-        Postpone an event to handle it later.
-        reply_action()
-        Reply to a call/2,3.
-        reply_tag()
-        A handle that associates a reply to the corresponding request.
-        request_id()
-        An opaque request identifier. See send_request/2 for details.
-        request_id_collection()
-        An opaque collection of request identifiers (request_id/0).
-        response_timeout()
-        Response time-out for an asynchronous call.
-        server_name()
-        Server name specification: local, global, or via registered.
-        server_ref()
-        Server specification: pid/0 or registered server_name/0.
-        start_mon_ret()
-        Return value from the start_monitor/3,4 functions.
-        start_opt()
-        Server start options for the start/3,4, start_link/3,4, and start_monitor/3,4 functions.
-        start_ret()
-        Return value from the start/3,4 and start_link/3,4 functions.
-        state()
-        State name or state term.
-        state_callback_result(ActionType, DataType)
-        Return value from any state callback.
-        state_enter()
-        Callback mode modifier for state enter calls: the atom state_enter.
-        state_enter_result(State)
-        state_enter_result(State, DataType)
-        Return value from a state callback after a state enter call.
-        state_name()
-        State name in callback mode state_functions.
-        state_timeout()
-        How long to wait in the current state.
-        timeout_action()
-        Event time-out, generic time-outs or state time-out.
-        timeout_cancel_action()
-        Clearer way to cancel a time-out than the original setting it to 'infinity'.
-        timeout_event_type()
-        Event time-out, generic time-out, or state time-out.
-        timeout_option()
-        Time-out timer start option, to select absolute time of expiry.
-        timeout_update_action()
-        Update the EventContent without affecting the time of expiry.
-        transition_option()
-        State transition options set by actions.
+        function Cast(server : Table, message : T) : Table {
+            return {"server": server["name"], "message": message, "mode": "cast"};
+        }
 
-        callback_mode()
-        Select the callback mode and possibly state enter calls.
-        code_change(OldVsn, OldState, OldData, Extra)
-        Update the state and data after code change.
-        format_status(Status)
-        Format/limit the status value.
-        format_status/2
-        Format/limit the status value.
-        handle_event/4
-        State callback in callback mode handle_event_function.
-        init(Args)
-        Initialize the state machine.
-        'StateName'/3
-        State callback in callback mode state_functions.
-        terminate/3
-        Handle state machine termination.
-
-        call(ServerRef, Request)
-        Equivalent to call(ServerRef, Request, infinity).
-        call(ServerRef, Request, Timeout)
-        Call a server: send request and wait for response.
-        cast(ServerRef, Msg)
-        Cast an event to a server.
-        check_response(Msg, ReqId)
-        Check if a received message is a request response.
-        check_response(Msg, ReqIdCollection, Delete)
-        Check if a received message is a request response in a collection.
-        enter_loop(Module, Opts, State, Data)
-        Equivalent to enter_loop(Module, Opts, State, Data, self(), []).
-        enter_loop(Module, Opts, State, Data, Server_or_Actions)
-        Make the calling process become a gen_statem server.
-        enter_loop(Module, Opts, State, Data, Server, Actions)
-        Make the calling process become a gen_statem server.
-        receive_response(ReqId)
-        Equivalent to receive_response(ReqId, infinity).
-        receive_response(ReqId, Timeout)
-        Receive a request response.
-        receive_response(ReqIdCollection, Timeout, Delete)
-        Receive a request response in a collection.
-        reply(Replies)
-        Send one or multiple call replies.
-        reply(From, Reply)
-        Send a call Reply to From.
-        reqids_add(ReqId, Label, ReqIdCollection)
-        Store a request identifier in a colletion.
-        reqids_new()
-        Create an empty request identifier collection.
-        reqids_size(ReqIdCollection)
-        Return the number of request identifiers in ReqIdCollection.
-        reqids_to_list(ReqIdCollection)
-        Convert a request identifier collection to a list.
-        send_request(ServerRef, Request)
-        Send an asynchronous call request.
-        send_request(ServerRef, Request, Label, ReqIdCollection)
-        Send an asynchronous call request and add it to a request identifier collection.
-        start(Module, Args, Opts)
-        Start a server, neither linked nor registered.
-        start(ServerName, Module, Args, Opts)
-        Start a server, registered but not linked.
-        start_link(Module, Args, Opts)
-        Start a server, linked but not registered.
-        start_link(ServerName, Module, Args, Opts)
-        Start a server, linked and registered.
-        start_monitor(Module, Args, Opts)
-        Start a server, monitored but neither linked nor registered.
-        start_monitor(ServerName, Module, Args, Opts)
-        Start a server, monitored and registered, but not linked.
-        stop(ServerRef)
-        Equivalent to stop(ServerRef, normal, infinity).
-        stop(ServerRef, Reason, Timeout)
-        Stop a server.
-        wait_response(ReqId)
-        Equivalent to wait_response(ReqId, infinity).
-        wait_response(ReqId, WaitTime)
-        Wait for a request response.
-        wait_response(ReqIdCollection, WaitTime, Delete)
-        Wait for any request response in a collection.
-    } 
-
-    namespace genfsm {
-        enter_loop_opt()
-        Start options for the enter_loop/4,5,6, start/3,4, and start_link/3,4 functions.
-        from()
-        Reply destination. See reply/2
-        fsm_name()
-        FSM name specification: local, global, or via registered.
-        fsm_ref()
-        FSM reference pid/0 or registered fsm_name/0.
-        start_opt()
-        Start options for the start/3,4, and start_link/3,4 functions.
-
-        code_change(OldVsn, StateName, StateData, Extra)
-        Update the internal state data during upgrade/downgrade.
-        format_status/2
-        Optional function for providing a term describing the current gen_fsm process status.
-        handle_event(Event, StateName, StateData)
-        Handle an asynchronous event.
-        handle_info(Info, StateName, StateData)
-        Handle an incoming message
-        handle_sync_event(Event, From, StateName, StateData)
-        Handle a synchronous event.
-        init(Args)
-        Initialize process and internal state name and state data.
-        'StateName'(Event, StateData)
-        Handle an asynchronous event.
-        'StateName'(Event, From, StateData)
-        Handle a synchronous event.
-        terminate(Reason, StateName, StateData)
-        Clean up before termination.
-
-        cancel_timer(Ref)
-        Cancel an internal timer in a generic FSM.
-        enter_loop(Module, Options, StateName, StateData)
-        Enter the gen_fsm receive loop.
-        enter_loop/5
-        Enter the gen_fsm receive loop.
-        enter_loop(Module, Options, StateName, StateData, FsmName, Timeout)
-        Enter the gen_fsm receive loop.
-        reply(Caller, Reply)
-        Send a reply to a caller.
-        send_all_state_event(FsmRef, Event)
-        Send an event asynchronously to a generic FSM.
-        send_event(FsmRef, Event)
-        Send an event asynchronously to a generic FSM.
-        send_event_after(Time, Event)
-        Send a delayed event internally in a generic FSM.
-        start(Module, Args, Options)
-        Create a standalone gen_fsm process, not registered.
-        start(FsmName, Module, Args, Options)
-        Create a standalone gen_fsm process.
-        start_link(Module, Args, Options)
-        Create a gen_fsm process in a supervision tree, not registered.
-        start_link(FsmName, Module, Args, Options)
-        Create a gen_fsm process in a supervision tree.
-        start_timer(Time, Msg)
-        Send a time-out event internally in a generic FSM.
-        stop(FsmRef)
-        Equivalent to stop(FsmRef, normal, infinity).
-        stop(FsmRef, Reason, Timeout)
-        Synchronously stop a generic FSM.
-        sync_send_all_state_event(FsmRef, Event)
-        Equivalent to sync_send_all_state_event(FsmRef, Event, 5000).
-        sync_send_all_state_event(FsmRef, Event, Timeout)
-        Send an event synchronously to a generic FSM.
-        sync_send_event(FsmRef, Event)
-        Equivalent to sync_send_event(FsmRef, Event, 5000).
-        sync_send_event(FsmRef, Event, Timeout)
-        Send an event synchronously to a generic FSM.
-    }
-
-    namespace genevent {
-        add_handler_ret()
-        debug_flag()
-        del_handler_ret()
-        emgr_name()
-        Event manager name specification: local, global, or via registered.
-        emgr_ref()
-        A reference used to locate an event manager.
-        format_status()
-        A map that describes the gen_event process status.
-        handler()
-        handler_args()
-        options()
-        Options that can be used to configure an event handler when it is started.
-        request_id()
-        An opaque request identifier. See send_request/3 for details.
-        request_id_collection()
-        An opaque collection of request identifiers (request_id/0).
-        response_timeout()
-        Response time-out for an asynchronous call.
-        start_mon_ret()
-        start_ret()
-
-        code_change(OldVsn, State, Extra)
-        Update the event handler state after code change.
-        format_status(Status)
-        Format/limit the status value.
-        format_status(Opt, StatusData) deprecated
-        Format/limit the status value.
-        handle_call(Request, State)
-        Handle a call.
-        handle_event(Event, State)
-        Handle an event.
-        handle_info(Info, State)
-        Handle an info message (regular process message).
-        init(InitArgs)
-        Initialize the event handler.
-        terminate(Args, State)
-        Handle event handler termination.
-
-        add_handler(EventMgrRef, Handler, Args)
-        Add a new event handler to an event manager.
-        add_sup_handler(EventMgrRef, Handler, Args)
-        Add a new event handler to an event manager, supervised.
-        call(EventMgrRef, Handler, Request)
-        Equivalent to call(EventMgrRef, Handler, Request, 5000).
-        call(EventMgrRef, Handler, Request, Timeout)
-        Make a synchronous call to an event handler.
-        check_response(Msg, ReqId)
-        Check if a received message is a request response.
-        check_response(Msg, ReqIdCollection, Delete)
-        Check if a received message is a request response in a collection.
-        delete_handler(EventMgrRef, Handler, Args)
-        Deletes an event handler from an event manager.
-        notify(EventMgrRef, Event)
-        Send an asynchronous event notification to an event manager.
-        receive_response(ReqId, Timeout)
-        Receive a request response.
-        receive_response(ReqIdCollection, Timeout, Delete)
-        Receive a request response in a collection.
-        reqids_add(ReqId, Label, ReqIdCollection)
-        Store a request identifier in a colletion.
-        reqids_new()
-        Create an empty request identifier collection.
-        reqids_size(ReqIdCollection)
-        Returns the number of request identifiers in ReqIdCollection.
-        reqids_to_list(ReqIdCollection)
-        Convert a request identifier collection to a list.
-        send_request(EventMgrRef, Handler, Request)
-        Send an asynchronous call request to an event handler.
-        send_request(EventMgrRef, Handler, Request, Label, ReqIdCollection)
-        Send an asynchronous call request to an event handler, storing it in a request identifier collection.
-        start()
-        Equivalent to start([]).
-        start/1
-        Create a stand-alone event manager process, possibly nameless.
-        start(EventMgrName, Options)
-        Create a stand-alone event manager process.
-        start_link()
-        Equivalent to start_link([]).
-        start_link/1
-        Create an event manager process as part of a supervision tree, possibly nameless.
-        start_link(EventMgrName, Options)
-        Create an event manager process as part of a supervision tree.
-        start_monitor()
-        Equivalent to start_monitor([]).
-        start_monitor(EventMgrNameOrOptions)
-        Creates a stand-alone event manager process, monitored, possibly nameless.
-        start_monitor(EventMgtName, Options)
-        Creates a stand-alone event manager process, monitored.
-        stop(EventMgrRef)
-        Equivalent to stop(EventMgrRef, normal, infinity).
-        stop(EventMgrRef, Reason, Timeout)
-        Stop an event manager.
-        swap_handler(EventMgrRef, OldHandler, NewHandler)
-        Replace an event handler.
-        swap_sup_handler(EventMgrRef, OldHandler, NewHandler)
-        Replace an event handler, and supervise it.
-        sync_notify(EventMgrRef, Event)
-        Send a synchronous event notification to an event manager.
-        wait_response(ReqId, WaitTime)
-        Wait for a request resonse.
-        wait_response(ReqIdCollection, WaitTime, Delete)
-        Wait for any request response in a collection.
-        which_handlers(EventMgrRef)
-        Return all event handlers in an event manager.
+        function FormatStatus(server : Table) : Table {
+            return {"name": server["name"], "running": server["running"], "state_type": debug_type(server["state"])};
+        }
     }
 }

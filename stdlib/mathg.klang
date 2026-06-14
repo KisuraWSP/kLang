@@ -1,30 +1,31 @@
--- Mathematical helpers inspired by Go's math, math/rand, and math/bits.
--- This is pure Klang code, so random values use a deterministic LCG seed.
-
-global mut Int mathgSeed = 12345;
+-- Deterministic math helpers.
 
 namespace mathg {
-    function AbsInt(value : Int) : Int {
-        if value < 0 { return value * -1; } else { return value; }
+    global mut Int mathgSeed = 1;
+
+    function Abs(value : Int) : Int {
+        if value < 0 { return 0 - value; } else { return value; }
     }
 
-    function MaxInt(left : Int, right : Int) : Int {
+    function AbsFloat(value : Float) : Float {
+        if value < 0.0 { return 0.0 - value; } else { return value; }
+    }
+
+    function Clamp(value : Int, low : Int, high : Int) : Int {
+        if value < low { return low; }
+        if value > high { return high; }
+        return value;
+    }
+
+    function Max(left : Int, right : Int) : Int {
         if left > right { return left; } else { return right; }
     }
 
-    function MinInt(left : Int, right : Int) : Int {
+    function Min(left : Int, right : Int) : Int {
         if left < right { return left; } else { return right; }
     }
 
-    function ClampInt(value : Int, minimum : Int, maximum : Int) : Int {
-        if value < minimum { return minimum; } else if value > maximum { return maximum; } else { return value; }
-    }
-
-    function ModInt(value : Int, divisor : Int) : Int {
-        if divisor == 0 { return 0; } else { return value % divisor; }
-    }
-
-    function PowInt(base : Int, exponent : Int) : Int {
+    function Pow(base : Int, exponent : Int) : Int {
         local mut Int result = 1;
         local mut Int remaining = exponent;
         while remaining > 0 {
@@ -34,70 +35,37 @@ namespace mathg {
         return result;
     }
 
-    function Rand() : Int {
-        mathgSeed = (mathgSeed * 1664525) + 1013904223;
-        if mathgSeed < 0 { mathgSeed = mathgSeed * -1; } else { mathgSeed = mathgSeed + 0; }
+    function Sum(values : List[Int]) : Int {
+        local mut Int total = 0;
+        local mut Int index = 0;
+        while index < len(values) {
+            total += values[index];
+            index += 1;
+        }
+        return total;
+    }
+
+    function Average(values : List[Int]) : Int {
+        if len(values) == 0 { return 0; }
+        return Sum(values) / len(values);
+    }
+
+    function Seed(value : Int) : Int {
+        mathgSeed = Abs(value);
         return mathgSeed;
     }
 
-    function RandRange(minimum : Int, maximum : Int) : Int {
-        local mut Int width = maximum - minimum;
-        if width <= 0 { return minimum; }
-        local Int next = Rand();
-        return minimum + ModInt(next, width);
+    function RandomInt(max : Int) : Int {
+        mathgSeed = Abs((mathgSeed * 1103515245) + 12345);
+        if max <= 0 { return mathgSeed; }
+        return mathgSeed % max;
     }
 
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
-    acos(X)
-    Returns the arc cosine of X in radians.
-    acosh(X)
-    Returns the inverse hyperbolic cosine of X.
-    asin(X)
-    Returns the arc sine of X in radians.
-    asinh(X)
-    Returns the inverse hyperbolic sine of X.
-    atan2(Y, X)
-    Returns the arc tangent of Y/X in radians, using the signs of both arguments to determine the quadrant of the return value.
-    atan(X)
-    Returns the arc tangent of X in radians.
-    atanh(X)
-    Returns the inverse hyperbolic tangent of X.
-    ceil(X)
-    Returns the ceiling of X.
-    cos(X)
-    Returns the cosine of X in radians.
-    cosh(X)
-    Returns the hyperbolic cosine of X.
-    erf(X)
-    Returns the error function of X.
-    erfc(X)
-    Returns 1.0 - erf(X), computed using methods that avoid cancellation for large X.
-    exp(X)
-    Returns e raised to the power of X.
-    floor(X)
-    Returns the floor of X.
-    fmod(X, Y)
-    Returns the floating point remainder X divided by Y.
-    log2(X)
-    Returns logarithm of X to base 2.
-    log10(X)
-    Returns logarithm of X to base 10.
-    log(X)
-    Returns the natural logarithm of X.
-    pi()
-    Returns the ratio of the circumference of a circle to its diameter.
-    pow(X, N)
-    Raise X to the power N.
-    sin(X)
-    Returns the sine of X in radians.
-    sinh(X)
-    Returns the hyperbolic sine of X.
-    sqrt(X)
-    Returns the non-negative square root of X.
-    tan(X)
-    Returns the tangent of X in radians.
-    tanh(X)
-    Returns the hyperbolic tangent of X.
-    tau()
-    Returns the ratio of the circumference of a circle to its radius.
+    function ComplexValue(realPart : Int, imaginaryPart : Int) : Complex {
+        return Complex(realPart, imaginaryPart);
+    }
+
+    function SIMDValue(values : List[Int]) : SIMD[Int] {
+        return SIMD(values);
+    }
 }

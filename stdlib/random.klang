@@ -1,22 +1,47 @@
-namespace random {
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
-    ran()
-    The state.
+-- Deterministic pseudo-random helpers.
 
-    seed0()
-    Returns the default state.
-    seed()
-    Seeds random number generation with default (fixed) values in the process dictionary and returns the old state.
-    seed(SValue)
-    seed({A1, A2, A3}) is equivalent to seed(A1, A2, A3).
-    seed(A1, A2, A3)
-    Seeds random number generation with integer values in the process dictionary and returns the old state.
-    uniform()
-    Returns a random float uniformly distributed between 0.0 and 1.0, updating the state in the process dictionary.
-    uniform(N)
-    Returns, for a specified integer N >= 1, a random integer uniformly distributed between 1 and N, updating the state in the process dictionary.
-    uniform_s(State0)
-    Returns, for a specified state, a random float uniformly distributed between 0.0 and 1.0, and a new state.
-    uniform_s(N, State0)
-    Returns, for a specified integer N >= 1 and a state, a random integer uniformly distributed between 1 and N, and a new state.
+namespace random {
+    global mut Int seedValue = 1;
+
+    function Seed(value : Int) : Int {
+        if value < 0 { seedValue = 0 - value; } else { seedValue = value; }
+        return seedValue;
+    }
+
+    function Next() : Int {
+        seedValue = ((seedValue * 1103515245) + 12345);
+        if seedValue < 0 { seedValue = 0 - seedValue; }
+        return seedValue;
+    }
+
+    function Intn(max : Int) : Int {
+        if max <= 0 { return Next(); }
+        return Next() % max;
+    }
+
+    function Bool() : Bool {
+        return Intn(2) == 1;
+    }
+
+    function Float() : Float {
+        return (Intn(1000000) as Float) / 1000000.0;
+    }
+
+    function Pick(values : List[T]) : Option[T] {
+        if len(values) == 0 { return None(); }
+        return Some(values[Intn(len(values))]);
+    }
+
+    function Shuffle(values : List[T]) : List[T] {
+        local mut List[T] result = clone values;
+        local mut Int index = 0;
+        while index < len(result) {
+            local Int swapIndex = Intn(len(result));
+            local T temp = result[index];
+            result[index] = result[swapIndex];
+            result[swapIndex] = temp;
+            index += 1;
+        }
+        return result;
+    }
 }
