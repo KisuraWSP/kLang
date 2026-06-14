@@ -1,40 +1,76 @@
 -- String helpers inspired by Go's strings package.
 
 namespace strings {
+    --- Signature: function Len(value : String) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib len operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Len(value : String) : Int {
         return len(value);
     }
 
+    --- Signature: function IsEmpty(value : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is empty is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsEmpty(value : String) : Bool {
         return len(value) == 0;
     }
 
+    --- Signature: function NotEmpty(value : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether not empty is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function NotEmpty(value : String) : Bool {
         return len(value) != 0;
     }
 
+    --- Signature: function Equal(left : String, right : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether equal is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Equal(left : String, right : String) : Bool {
         return left == right;
     }
 
+    --- Signature: function Compare(left : String, right : String) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib compare operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Compare(left : String, right : String) : Int {
         if left < right { return 0 - 1; }
         if left > right { return 1; }
         return 0;
     }
 
+    --- Signature: function Concat(left : String, right : String) : String
+    --- Returns: String.
+    --- Summary: Combines or extends Klang value(s) for the concat operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Concat(left : String, right : String) : String {
         return left + right;
     }
 
+    --- Signature: function Clone(value : String) : String
+    --- Returns: String.
+    --- Summary: Models the clone memory or ownership operation for the runtime.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Clone(value : String) : String {
         return clone value;
     }
 
+    --- Signature: function Contains(value : String, part : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether contains is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Contains(value : String, part : String) : Bool {
         return Index(value, part) >= 0;
     }
 
+    --- Signature: function Count(value : String, part : String) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib count operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Count(value : String, part : String) : Int {
         if len(part) == 0 { return 0; }
         local mut Int total = 0;
@@ -48,15 +84,27 @@ namespace strings {
         return total;
     }
 
+    --- Signature: function HasPrefix(value : String, prefix : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether has prefix is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function HasPrefix(value : String, prefix : String) : Bool {
         return Slice(value, 0, len(prefix)) == prefix;
     }
 
+    --- Signature: function HasSuffix(value : String, suffix : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether has suffix is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function HasSuffix(value : String, suffix : String) : Bool {
         if len(suffix) > len(value) { return False; }
         return Slice(value, len(value) - len(suffix), len(suffix)) == suffix;
     }
 
+    --- Signature: function Index(value : String, part : String) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib index operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Index(value : String, part : String) : Int {
         if len(part) == 0 { return 0; }
         local mut Int index = 0;
@@ -67,6 +115,10 @@ namespace strings {
         return 0 - 1;
     }
 
+    --- Signature: function Join(values : List[String], sep : String) : String
+    --- Returns: String.
+    --- Summary: Combines or extends Klang value(s) for the join operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Join(values : List[String], sep : String) : String {
         local mut String result = "";
         local mut Int index = 0;
@@ -77,6 +129,10 @@ namespace strings {
         return result;
     }
 
+    --- Signature: function Repeat(value : String, count : Int) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib repeat operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Repeat(value : String, count : Int) : String {
         local mut String result = "";
         local mut Int remaining = count;
@@ -87,6 +143,10 @@ namespace strings {
         return result;
     }
 
+    --- Signature: function ReplaceAll(value : String, old : String, next : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib replace all operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ReplaceAll(value : String, old : String, next : String) : String {
         local mut String result = "";
         local mut Int index = 0;
@@ -102,6 +162,10 @@ namespace strings {
         return result;
     }
 
+    --- Signature: function Split(value : String, sep : String) : List[String]
+    --- Returns: List[String].
+    --- Summary: Provides the stdlib split operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Split(value : String, sep : String) : List[String] {
         local mut List[String] result;
         local mut String current = "";
@@ -120,6 +184,10 @@ namespace strings {
         return result;
     }
 
+    --- Signature: function Slice(value : String, start : Int, count : Int) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib slice operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Slice(value : String, start : Int, count : Int) : String {
         local mut String result = "";
         local mut Int index = start;
@@ -131,16 +199,28 @@ namespace strings {
         return result;
     }
 
+    --- Signature: function TrimPrefix(value : String, prefix : String) : String
+    --- Returns: String.
+    --- Summary: Removes or normalizes Klang value(s) for the trim prefix operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TrimPrefix(value : String, prefix : String) : String {
         if HasPrefix(value, prefix) { return Slice(value, len(prefix), len(value) - len(prefix)); }
         return value;
     }
 
+    --- Signature: function TrimSuffix(value : String, suffix : String) : String
+    --- Returns: String.
+    --- Summary: Removes or normalizes Klang value(s) for the trim suffix operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TrimSuffix(value : String, suffix : String) : String {
         if HasSuffix(value, suffix) { return Slice(value, 0, len(value) - len(suffix)); }
         return value;
     }
 
+    --- Signature: function DefaultIfEmpty(value : String, fallback : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib default if empty operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function DefaultIfEmpty(value : String, fallback : String) : String {
         if len(value) == 0 { return fallback; } else { return value; }
     }

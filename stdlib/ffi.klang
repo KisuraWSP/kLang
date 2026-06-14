@@ -1,87 +1,171 @@
 -- Filesystem-only JavaScript FFI descriptors.
 
 namespace ffi {
+    --- Signature: function JS(name : String) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib js operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JS(name : String) : Table {
         return {"annotation": "JS", "name": name};
     }
 
+    --- Signature: function JSExport(name : String) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib jsexport operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JSExport(name : String) : Table {
         return {"annotation": "JSExport", "name": name};
     }
 
+    --- Signature: function JSValue(kind : String, value : Any) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib jsvalue operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JSValue(kind : String, value : Any) : Table {
         return {"kind": kind, "value": value};
     }
 
+    --- Signature: function JSString(value : String) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib jsstring operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JSString(value : String) : Table {
         return JSValue("JSString", value);
     }
 
+    --- Signature: function JSNumber(value : Float) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib jsnumber operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JSNumber(value : Float) : Table {
         return JSValue("JSNumber", value);
     }
 
+    --- Signature: function JSInt(value : Int) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib jsint operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JSInt(value : Int) : Table {
         return JSValue("JSNumber", value);
     }
 
+    --- Signature: function JSBoolean(value : Bool) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib jsboolean operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JSBoolean(value : Bool) : Table {
         return JSValue("JSBoolean", value);
     }
 
+    --- Signature: function JSArray(values : List[T]) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib jsarray operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JSArray(values : List[T]) : Table {
         return {"kind": "JSArray", "values": values, "length": len(values)};
     }
 
+    --- Signature: function JSObject(fields : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib jsobject operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JSObject(fields : Table) : Table {
         return {"kind": "JSObject", "fields": fields};
     }
 
+    --- Signature: function JSPromise(value : T) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib jspromise operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JSPromise(value : T) : Table {
         return {"kind": "JSPromise", "value": value, "resolved": True};
     }
 
+    --- Signature: function importModule(moduleName : String) : JSModule
+    --- Returns: JSModule.
+    --- Summary: Provides the stdlib import module operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function importModule(moduleName : String) : JSModule {
         return js_import(moduleName);
     }
 
+    --- Signature: function moduleSource(module : JSModule) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib module source operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function moduleSource(module : JSModule) : String {
         return js_source(module);
     }
 
+    --- Signature: function moduleExports(module : JSModule) : List[String]
+    --- Returns: List[String].
+    --- Summary: Provides the stdlib module exports operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function moduleExports(module : JSModule) : List[String] {
         return js_exports(module);
     }
 
+    --- Signature: function Call(module : JSModule, api : String, args : List[T]) : JSCall
+    --- Returns: JSCall.
+    --- Summary: Provides the stdlib call operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Call(module : JSModule, api : String, args : List[T]) : JSCall {
         return js_call(module, api, args);
     }
 
+    --- Signature: function jsIdentical(left : Any, right : Any) : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib js identical operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function jsIdentical(left : Any, right : Any) : Bool {
         return debug_type(left) == debug_type(right);
     }
 
+    --- Signature: function createJSInteropWrapper(value : Any, proto : Table) : Table
+    --- Returns: Table.
+    --- Summary: Creates or initializes create jsinterop wrapper with the supplied Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function createJSInteropWrapper(value : Any, proto : Table) : Table {
         return {"kind": "JSObject", "value_type": debug_type(value), "proto": proto};
     }
 
+    --- Signature: function NullRejectionException() : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib null rejection exception operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function NullRejectionException() : String {
         return "JSPromise rejected with null or undefined";
     }
 
     namespace native {
+        --- Signature: function Abi(name : String) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib abi operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Abi(name : String) : Table {
             return {"abi": name};
         }
 
+        --- Signature: function Allocator(name : String = "native") : Table
+        --- Returns: Table.
+        --- Summary: Models the allocator memory or ownership operation for the runtime.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Allocator(name : String = "native") : Table {
             return {"allocator": name, "heap": HeapAllocator()};
         }
 
+        --- Signature: function Array(values : List[T]) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib array operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Array(values : List[T]) : Table {
             return {"kind": "NativeArray", "values": values, "length": len(values)};
         }
 
+        --- Signature: function Pointer(value : T) : Box
+        --- Returns: Box.
+        --- Summary: Provides the stdlib pointer operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Pointer(value : T) : Box {
             return Box(value);
         }

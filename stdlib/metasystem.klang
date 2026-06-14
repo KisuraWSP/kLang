@@ -5,46 +5,86 @@
 
 namespace metasystem {
     namespace workspace {
+        --- Signature: function DefaultProgram() : Program
+        --- Returns: Program.
+        --- Summary: Provides the stdlib default program operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function DefaultProgram() : Program {
             return Program(["app"]);
         }
 
+        --- Signature: function UserProgram(modules : List[String]) : Program
+        --- Returns: Program.
+        --- Summary: Provides the stdlib user program operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function UserProgram(modules : List[String]) : Program {
             return Program(modules);
         }
 
+        --- Signature: function DefaultBuildSystem(name : String, files : List[String]) : BuildSystem
+        --- Returns: BuildSystem.
+        --- Summary: Provides the stdlib default build system operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function DefaultBuildSystem(name : String, files : List[String]) : BuildSystem {
             return BuildSystem(name, len(files), files, "Standalone");
         }
 
+        --- Signature: function WasmBuildSystem(name : String, files : List[String]) : BuildSystem
+        --- Returns: BuildSystem.
+        --- Summary: Provides the stdlib wasm build system operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function WasmBuildSystem(name : String, files : List[String]) : BuildSystem {
             return BuildSystem(name, len(files), files, "WASM");
         }
 
+        --- Signature: function JavaScriptBuildSystem(name : String, files : List[String]) : BuildSystem
+        --- Returns: BuildSystem.
+        --- Summary: Provides the stdlib java script build system operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function JavaScriptBuildSystem(name : String, files : List[String]) : BuildSystem {
             return BuildSystem(name, len(files), files, "JS");
         }
 
+        --- Signature: function DefaultWorkspace() : WorkSpace
+        --- Returns: WorkSpace.
+        --- Summary: Provides the stdlib default workspace operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function DefaultWorkspace() : WorkSpace {
             local Program program = DefaultProgram();
             local BuildSystem build = DefaultBuildSystem("default-workspace", ["first.klang"]);
             return WorkSpace(program, build);
         }
 
+        --- Signature: function UserDefinedWorkspace(name : String, modules : List[String], files : List[String], backend : String = "Standalone") : WorkSpace
+        --- Returns: WorkSpace.
+        --- Summary: Provides the stdlib user defined workspace operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function UserDefinedWorkspace(name : String, modules : List[String], files : List[String], backend : String = "Standalone") : WorkSpace {
             local Program program = Program(modules);
             local BuildSystem build = BuildSystem(name, len(files), files, backend);
             return WorkSpace(program, build);
         }
 
+        --- Signature: function create_workspace(name : String, workspace := DefaultWorkspace()) : WorkSpace
+        --- Returns: WorkSpace.
+        --- Summary: Creates or initializes create workspace with the supplied Klang value(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function create_workspace(name : String, workspace := DefaultWorkspace()) : WorkSpace {
             return workspace;
         }
 
+        --- Signature: function build_workspace(name : String, workspace := DefaultWorkspace()) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib build workspace operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function build_workspace(name : String, workspace := DefaultWorkspace()) : String {
             return workspace_manifest(workspace);
         }
 
+        --- Signature: function edit_workspace(name : String, workspace : Option[WorkSpace]) : Option[WorkSpace]
+        --- Returns: Option[WorkSpace].
+        --- Summary: Provides the stdlib edit workspace operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function edit_workspace(name : String, workspace : Option[WorkSpace]) : Option[WorkSpace] {
             if workspace.some {
                 return workspace;
@@ -53,20 +93,36 @@ namespace metasystem {
             return Some(DefaultWorkspace());
         }
 
+        --- Signature: function backend(workspace : WorkSpace) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib backend operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function backend(workspace : WorkSpace) : String {
             return workspace_backend(workspace);
         }
 
+        --- Signature: function files(workspace : WorkSpace) : List[String]
+        --- Returns: List[String].
+        --- Summary: Provides the stdlib files operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function files(workspace : WorkSpace) : List[String] {
             return workspace_files(workspace);
         }
 
+        --- Signature: function manifest(workspace : WorkSpace) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib manifest operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function manifest(workspace : WorkSpace) : String {
             return workspace_manifest(workspace);
         }
     }
 
     namespace build {
+        --- Signature: function System(workspace : Option[WorkSpace]) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib system operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function System(workspace : Option[WorkSpace]) : Table {
             return {
                 "workspace": workspace,
@@ -75,6 +131,10 @@ namespace metasystem {
             };
         }
 
+        --- Signature: function begin_intercept(workspace : WorkSpace, flags : List[String]) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib begin intercept operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function begin_intercept(workspace : WorkSpace, flags : List[String]) : Table {
             return {
                 "workspace": workspace,
@@ -84,6 +144,10 @@ namespace metasystem {
             };
         }
 
+        --- Signature: function end_intercept(workspace : WorkSpace) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib end intercept operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function end_intercept(workspace : WorkSpace) : Table {
             return {
                 "workspace": workspace,
@@ -93,6 +157,10 @@ namespace metasystem {
             };
         }
 
+        --- Signature: function RuntimeMessage(kind : String, payload : Any) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib runtime message operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function RuntimeMessage(kind : String, payload : Any) : Table {
             return {
                 "kind": kind,
@@ -101,6 +169,10 @@ namespace metasystem {
             };
         }
 
+        --- Signature: function message_loop(workspace : WorkSpace, messages : List[Table]) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib message loop operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function message_loop(workspace : WorkSpace, messages : List[Table]) : Table {
             local mut Int index = 0;
             local mut Bool complete = False;
@@ -120,6 +192,10 @@ namespace metasystem {
             };
         }
 
+        --- Signature: function poll_message_and_return_ast_of_said_item(message : Table) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib poll message and return ast of said item operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function poll_message_and_return_ast_of_said_item(message : Table) : Table {
             return {
                 "message": message,
@@ -128,6 +204,10 @@ namespace metasystem {
             };
         }
 
+        --- Signature: function intercept_message_by_runtime(message : Table) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib intercept message by runtime operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function intercept_message_by_runtime(message : Table) : Table {
             return {
                 "intercepted": True,
@@ -136,6 +216,10 @@ namespace metasystem {
             };
         }
 
+        --- Signature: function provide_api_to_system_of_user_defined_program(system : Table, apiName : String, api : Any) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib provide api to system of user defined program operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function provide_api_to_system_of_user_defined_program(system : Table, apiName : String, api : Any) : Table {
             return {
                 "system": system,
@@ -145,6 +229,10 @@ namespace metasystem {
             };
         }
 
+        --- Signature: function get_system_api_of_user_defined_program(workspace : WorkSpace) : Table
+        --- Returns: Table.
+        --- Summary: Reads, locates, or decodes get system api of user defined program from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function get_system_api_of_user_defined_program(workspace : WorkSpace) : Table {
             return {
                 "workspace": workspace,
@@ -155,6 +243,10 @@ namespace metasystem {
             };
         }
 
+        --- Signature: function get_system_api_of_default_program() : Table
+        --- Returns: Table.
+        --- Summary: Reads, locates, or decodes get system api of default program from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function get_system_api_of_default_program() : Table {
             local WorkSpace workspace = metasystem.workspace.DefaultWorkspace();
             return {
@@ -166,6 +258,10 @@ namespace metasystem {
             };
         }
 
+        --- Signature: function override_default_program(system : Table, workspaceSet : List[WorkSpace]) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib override default program operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function override_default_program(system : Table, workspaceSet : List[WorkSpace]) : Table {
             return {
                 "system": system,

@@ -1,6 +1,10 @@
 -- Sorting helpers.
 
 namespace sort {
+    --- Signature: function Ints(values : List[Int]) : List[Int]
+    --- Returns: List[Int].
+    --- Summary: Provides the stdlib ints operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Ints(values : List[Int]) : List[Int] {
         local mut List[Int] result = clone values;
         local mut Int i = 0;
@@ -19,6 +23,10 @@ namespace sort {
         return result;
     }
 
+    --- Signature: function Floats(values : List[Float]) : List[Float]
+    --- Returns: List[Float].
+    --- Summary: Provides the stdlib floats operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Floats(values : List[Float]) : List[Float] {
         local mut List[Float] result = clone values;
         local mut Int i = 0;
@@ -37,6 +45,10 @@ namespace sort {
         return result;
     }
 
+    --- Signature: function Strings(values : List[String]) : List[String]
+    --- Returns: List[String].
+    --- Summary: Provides the stdlib strings operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Strings(values : List[String]) : List[String] {
         local mut List[String] result = clone values;
         local mut Int i = 0;
@@ -55,6 +67,10 @@ namespace sort {
         return result;
     }
 
+    --- Signature: function IsSortedInt(values : List[Int]) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is sorted int is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsSortedInt(values : List[Int]) : Bool {
         local mut Int index = 1;
         while index < len(values) {
@@ -64,6 +80,10 @@ namespace sort {
         return True;
     }
 
+    --- Signature: function Reverse(values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Provides the stdlib reverse operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Reverse(values : List[T]) : List[T] {
         local mut List[T] result;
         local mut Int index = len(values) - 1;
@@ -74,6 +94,10 @@ namespace sort {
         return result;
     }
 
+    --- Signature: function Search(values : List[Int], target : Int) : Option[Int]
+    --- Returns: Option[Int].
+    --- Summary: Provides the stdlib search operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Search(values : List[Int], target : Int) : Option[Int] {
         local mut Int index = 0;
         while index < len(values) {

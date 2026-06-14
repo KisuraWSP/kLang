@@ -3,28 +3,52 @@
 namespace mathg {
     global mut Int mathgSeed = 1;
 
+    --- Signature: function Abs(value : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib abs operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Abs(value : Int) : Int {
         if value < 0 { return 0 - value; } else { return value; }
     }
 
+    --- Signature: function AbsFloat(value : Float) : Float
+    --- Returns: Float.
+    --- Summary: Provides the stdlib abs float operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AbsFloat(value : Float) : Float {
         if value < 0.0 { return 0.0 - value; } else { return value; }
     }
 
+    --- Signature: function Clamp(value : Int, low : Int, high : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib clamp operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Clamp(value : Int, low : Int, high : Int) : Int {
         if value < low { return low; }
         if value > high { return high; }
         return value;
     }
 
+    --- Signature: function Max(left : Int, right : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib max operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Max(left : Int, right : Int) : Int {
         if left > right { return left; } else { return right; }
     }
 
+    --- Signature: function Min(left : Int, right : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib min operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Min(left : Int, right : Int) : Int {
         if left < right { return left; } else { return right; }
     }
 
+    --- Signature: function Pow(base : Int, exponent : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib pow operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Pow(base : Int, exponent : Int) : Int {
         local mut Int result = 1;
         local mut Int remaining = exponent;
@@ -35,6 +59,10 @@ namespace mathg {
         return result;
     }
 
+    --- Signature: function Sum(values : List[Int]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib sum operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Sum(values : List[Int]) : Int {
         local mut Int total = 0;
         local mut Int index = 0;
@@ -45,26 +73,46 @@ namespace mathg {
         return total;
     }
 
+    --- Signature: function Average(values : List[Int]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib average operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Average(values : List[Int]) : Int {
         if len(values) == 0 { return 0; }
         return Sum(values) / len(values);
     }
 
+    --- Signature: function Seed(value : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib seed operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Seed(value : Int) : Int {
         mathgSeed = Abs(value);
         return mathgSeed;
     }
 
+    --- Signature: function RandomInt(max : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib random int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function RandomInt(max : Int) : Int {
         mathgSeed = Abs((mathgSeed * 1103515245) + 12345);
         if max <= 0 { return mathgSeed; }
         return mathgSeed % max;
     }
 
+    --- Signature: function ComplexValue(realPart : Int, imaginaryPart : Int) : Complex
+    --- Returns: Complex.
+    --- Summary: Provides the stdlib complex value operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ComplexValue(realPart : Int, imaginaryPart : Int) : Complex {
         return Complex(realPart, imaginaryPart);
     }
 
+    --- Signature: function SIMDValue(values : List[Int]) : SIMD[Int]
+    --- Returns: SIMD[Int].
+    --- Summary: Provides the stdlib simdvalue operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function SIMDValue(values : List[Int]) : SIMD[Int] {
         return SIMD(values);
     }

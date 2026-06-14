@@ -1,71 +1,139 @@
 -- Runtime helpers around debugger, concurrency, atomic, and workspace builtins.
 
 namespace runtime {
+    --- Signature: function TypeOf(value : Any) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib type of operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TypeOf(value : Any) : String {
         return debug_type(value);
     }
 
+    --- Signature: function Debug(value : T) : T
+    --- Returns: T.
+    --- Summary: Provides the stdlib debug operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Debug(value : T) : T {
         return debug(value);
     }
 
+    --- Signature: function Stack() : List[String]
+    --- Returns: List[String].
+    --- Summary: Provides the stdlib stack operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Stack() : List[String] {
         return debug_stack();
     }
 
+    --- Signature: function Breakpoint(label : String = "breakpoint") : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib breakpoint operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Breakpoint(label : String = "breakpoint") : Int {
         breakpoint(label);
         return 0;
     }
 
+    --- Signature: function Spawn(worker : Function[T, U], value : T) : Thread[U]
+    --- Returns: Thread[U].
+    --- Summary: Provides the stdlib spawn operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Spawn(worker : Function[T, U], value : T) : Thread[U] {
         return spawn(worker, [value]);
     }
 
+    --- Signature: function Join(worker : Thread[T]) : T
+    --- Returns: T.
+    --- Summary: Combines or extends Klang value(s) for the join operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Join(worker : Thread[T]) : T {
         return join(worker);
     }
 
+    --- Signature: function Status(worker : Thread[T]) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib status operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Status(worker : Thread[T]) : String {
         return thread_status(worker);
     }
 
+    --- Signature: function AtomicValue(value : T) : Atomic[T]
+    --- Returns: Atomic[T].
+    --- Summary: Provides the stdlib atomic value operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AtomicValue(value : T) : Atomic[T] {
         return Atomic(value);
     }
 
+    --- Signature: function AtomicLoadValue(value : Atomic[T]) : T
+    --- Returns: T.
+    --- Summary: Provides the stdlib atomic load value operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AtomicLoadValue(value : Atomic[T]) : T {
         return atomic_load(value);
     }
 
+    --- Signature: function AtomicStoreValue(value : Atomic[T], next : T) : Atomic[T]
+    --- Returns: Atomic[T].
+    --- Summary: Provides the stdlib atomic store value operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AtomicStoreValue(value : Atomic[T], next : T) : Atomic[T] {
         return atomic_store(value, next);
     }
 
+    --- Signature: function AtomicAddInt(value : Atomic[Int], amount : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib atomic add int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AtomicAddInt(value : Atomic[Int], amount : Int) : Int {
         return atomic_add(value, amount);
     }
 
+    --- Signature: function ProgramDescriptor(modules : List[String]) : Program
+    --- Returns: Program.
+    --- Summary: Provides the stdlib program descriptor operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ProgramDescriptor(modules : List[String]) : Program {
         return Program(modules);
     }
 
+    --- Signature: function BuildDescriptor(name : String, files : List[String], backend : String = "Standalone") : BuildSystem
+    --- Returns: BuildSystem.
+    --- Summary: Provides the stdlib build descriptor operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function BuildDescriptor(name : String, files : List[String], backend : String = "Standalone") : BuildSystem {
         return BuildSystem(name, len(files), files, backend);
     }
 
+    --- Signature: function Workspace(program : Program, build : BuildSystem) : WorkSpace
+    --- Returns: WorkSpace.
+    --- Summary: Provides the stdlib workspace operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Workspace(program : Program, build : BuildSystem) : WorkSpace {
         return WorkSpace(program, build);
     }
 
+    --- Signature: function WorkspaceBackend(workspace : WorkSpace) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib workspace backend operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function WorkspaceBackend(workspace : WorkSpace) : String {
         return workspace_backend(workspace);
     }
 
+    --- Signature: function WorkspaceFiles(workspace : WorkSpace) : List[String]
+    --- Returns: List[String].
+    --- Summary: Provides the stdlib workspace files operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function WorkspaceFiles(workspace : WorkSpace) : List[String] {
         return workspace_files(workspace);
     }
 
+    --- Signature: function WorkspaceManifest(workspace : WorkSpace) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib workspace manifest operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function WorkspaceManifest(workspace : WorkSpace) : String {
         return workspace_manifest(workspace);
     }

@@ -4,10 +4,18 @@
 -- as Tables with strongly typed helper functions around them.
 
 namespace datetime {
+    --- Signature: function UnixEpoch() : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib unix epoch operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function UnixEpoch() : Int {
         return 0;
     }
 
+    --- Signature: function Duration(seconds : Int) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib duration operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Duration(seconds : Int) : Table {
         return {
             "seconds": seconds,
@@ -15,6 +23,10 @@ namespace datetime {
         };
     }
 
+    --- Signature: function Time(unixSeconds : Int, location : String = "UTC") : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib time operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Time(unixSeconds : Int, location : String = "UTC") : Table {
         return {
             "unix": unixSeconds,
@@ -23,6 +35,10 @@ namespace datetime {
         };
     }
 
+    --- Signature: function Location(name : String, offset : Int = 0) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib location operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Location(name : String, offset : Int = 0) : Table {
         return {
             "name": name,
@@ -30,6 +46,10 @@ namespace datetime {
         };
     }
 
+    --- Signature: function ParseDuration(value : String) : Result[Table, String]
+    --- Returns: Result[Table, String].
+    --- Summary: Reads, locates, or decodes parse duration from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ParseDuration(value : String) : Result[Table, String] {
         if len(value) == 0 {
             return Err("duration string cannot be empty");
@@ -38,14 +58,26 @@ namespace datetime {
         return Ok(Duration(value as Int));
     }
 
+    --- Signature: function Since(time : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib since operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Since(time : Table) : Table {
         return Duration(UnixEpoch() - (time["unix"] as Int));
     }
 
+    --- Signature: function Until(time : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib until operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Until(time : Table) : Table {
         return Duration((time["unix"] as Int) - UnixEpoch());
     }
 
+    --- Signature: function Abs(duration : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib abs operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Abs(duration : Table) : Table {
         local Int seconds = duration["seconds"] as Int;
         if seconds < 0 {
@@ -55,26 +87,50 @@ namespace datetime {
         return duration;
     }
 
+    --- Signature: function Hours(duration : Table) : Float
+    --- Returns: Float.
+    --- Summary: Provides the stdlib hours operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Hours(duration : Table) : Float {
         return (duration["seconds"] as Float) / 3600.0;
     }
 
+    --- Signature: function Microseconds(duration : Table) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib microseconds operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Microseconds(duration : Table) : Int {
         return (duration["seconds"] as Int) * 1000000;
     }
 
+    --- Signature: function Milliseconds(duration : Table) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib milliseconds operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Milliseconds(duration : Table) : Int {
         return (duration["seconds"] as Int) * 1000;
     }
 
+    --- Signature: function Minutes(duration : Table) : Float
+    --- Returns: Float.
+    --- Summary: Provides the stdlib minutes operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Minutes(duration : Table) : Float {
         return (duration["seconds"] as Float) / 60.0;
     }
 
+    --- Signature: function Nanoseconds(duration : Table) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib nanoseconds operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Nanoseconds(duration : Table) : Int {
         return duration["nanoseconds"] as Int;
     }
 
+    --- Signature: function Round(duration : Table, multiple : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib round operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Round(duration : Table, multiple : Table) : Table {
         local Int value = duration["seconds"] as Int;
         local Int step = multiple["seconds"] as Int;
@@ -85,22 +141,42 @@ namespace datetime {
         return Duration((value / step) * step);
     }
 
+    --- Signature: function Seconds(duration : Table) : Float
+    --- Returns: Float.
+    --- Summary: Provides the stdlib seconds operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Seconds(duration : Table) : Float {
         return duration["seconds"] as Float;
     }
 
+    --- Signature: function DurationString(duration : Table) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib duration string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function DurationString(duration : Table) : String {
         return (duration["seconds"] as String) + "s";
     }
 
+    --- Signature: function Truncate(duration : Table, multiple : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib truncate operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Truncate(duration : Table, multiple : Table) : Table {
         return Round(duration, multiple);
     }
 
+    --- Signature: function FixedZone(name : String, offset : Int) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib fixed zone operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function FixedZone(name : String, offset : Int) : Table {
         return Location(name, offset);
     }
 
+    --- Signature: function LoadLocation(name : String) : Result[Table, String]
+    --- Returns: Result[Table, String].
+    --- Summary: Reads, locates, or decodes load location from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LoadLocation(name : String) : Result[Table, String] {
         if len(name) == 0 {
             return Err("location name cannot be empty");
@@ -109,6 +185,10 @@ namespace datetime {
         return Ok(Location(name, 0));
     }
 
+    --- Signature: function LoadLocationFromTZData(name : String, data : List[Int]) : Result[Table, String]
+    --- Returns: Result[Table, String].
+    --- Summary: Reads, locates, or decodes load location from tzdata from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LoadLocationFromTZData(name : String, data : List[Int]) : Result[Table, String] {
         if len(data) == 0 {
             return Err("tzdata cannot be empty");
@@ -117,10 +197,18 @@ namespace datetime {
         return Ok(Location(name, len(data)));
     }
 
+    --- Signature: function LocationString(location : Table) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib location string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LocationString(location : Table) : String {
         return location["name"] as String;
     }
 
+    --- Signature: function MonthString(month : Int) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib month string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function MonthString(month : Int) : String {
         local List[String] months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
         if month < 1 or month > 12 {
@@ -130,6 +218,10 @@ namespace datetime {
         return months[month - 1];
     }
 
+    --- Signature: function ParseError(message : String, layout : String = "", value : String = "") : Table
+    --- Returns: Table.
+    --- Summary: Reads, locates, or decodes parse error from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ParseError(message : String, layout : String = "", value : String = "") : Table {
         return {
             "message": message,
@@ -138,10 +230,18 @@ namespace datetime {
         };
     }
 
+    --- Signature: function ParseErrorString(err : Table) : String
+    --- Returns: String.
+    --- Summary: Reads, locates, or decodes parse error string from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ParseErrorString(err : Table) : String {
         return err["message"] as String;
     }
 
+    --- Signature: function NewTicker(duration : Table) : Table
+    --- Returns: Table.
+    --- Summary: Creates or initializes new ticker with the supplied Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function NewTicker(duration : Table) : Table {
         return {
             "duration": duration,
@@ -149,6 +249,10 @@ namespace datetime {
         };
     }
 
+    --- Signature: function TickerReset(ticker : Table, duration : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib ticker reset operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TickerReset(ticker : Table, duration : Table) : Table {
         return {
             "duration": duration,
@@ -156,6 +260,10 @@ namespace datetime {
         };
     }
 
+    --- Signature: function TickerStop(ticker : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib ticker stop operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TickerStop(ticker : Table) : Table {
         return {
             "duration": ticker["duration"],
@@ -163,6 +271,10 @@ namespace datetime {
         };
     }
 
+    --- Signature: function Date(year : Int, month : Int, day : Int, hour : Int, minute : Int, second : Int, nsec : Int, location : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib date operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Date(year : Int, month : Int, day : Int, hour : Int, minute : Int, second : Int, nsec : Int, location : Table) : Table {
         return {
             "year": year,
@@ -177,10 +289,18 @@ namespace datetime {
         };
     }
 
+    --- Signature: function Now() : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib now operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Now() : Table {
         return Time(UnixEpoch(), "UTC");
     }
 
+    --- Signature: function Parse(layout : String, value : String) : Result[Table, String]
+    --- Returns: Result[Table, String].
+    --- Summary: Reads, locates, or decodes parse from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Parse(layout : String, value : String) : Result[Table, String] {
         if len(value) == 0 {
             return Err("time value cannot be empty");
@@ -189,6 +309,10 @@ namespace datetime {
         return Ok(Time(value as Int, "UTC"));
     }
 
+    --- Signature: function ParseInLocation(layout : String, value : String, location : Table) : Result[Table, String]
+    --- Returns: Result[Table, String].
+    --- Summary: Reads, locates, or decodes parse in location from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ParseInLocation(layout : String, value : String, location : Table) : Result[Table, String] {
         if len(value) == 0 {
             return Err("time value cannot be empty");
@@ -197,6 +321,10 @@ namespace datetime {
         return Ok(Time(value as Int, location["name"] as String));
     }
 
+    --- Signature: function Unix(sec : Int, nsec : Int = 0) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib unix operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Unix(sec : Int, nsec : Int = 0) : Table {
         return {
             "unix": sec,
@@ -205,30 +333,58 @@ namespace datetime {
         };
     }
 
+    --- Signature: function UnixMicro(usec : Int) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib unix micro operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function UnixMicro(usec : Int) : Table {
         return Unix(usec / 1000000, (usec % 1000000) * 1000);
     }
 
+    --- Signature: function UnixMilli(msec : Int) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib unix milli operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function UnixMilli(msec : Int) : Table {
         return Unix(msec / 1000, (msec % 1000) * 1000000);
     }
 
+    --- Signature: function Add(time : Table, duration : Table) : Table
+    --- Returns: Table.
+    --- Summary: Combines or extends Klang value(s) for the add operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Add(time : Table, duration : Table) : Table {
         return Unix((time["unix"] as Int) + (duration["seconds"] as Int), time["nsec"] as Int);
     }
 
+    --- Signature: function AddDate(time : Table, years : Int, months : Int, days : Int) : Table
+    --- Returns: Table.
+    --- Summary: Combines or extends Klang value(s) for the add date operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AddDate(time : Table, years : Int, months : Int, days : Int) : Table {
         return Add(time, Duration((years * 31536000) + (months * 2592000) + (days * 86400)));
     }
 
+    --- Signature: function After(time : Table, other : Table) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether after is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function After(time : Table, other : Table) : Bool {
         return (time["unix"] as Int) > (other["unix"] as Int);
     }
 
+    --- Signature: function Before(time : Table, other : Table) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether before is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Before(time : Table, other : Table) : Bool {
         return (time["unix"] as Int) < (other["unix"] as Int);
     }
 
+    --- Signature: function Clock(time : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib clock operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Clock(time : Table) : Table {
         local Int unix = time["unix"] as Int;
         return {
@@ -238,6 +394,10 @@ namespace datetime {
         };
     }
 
+    --- Signature: function Compare(time : Table, other : Table) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib compare operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Compare(time : Table, other : Table) : Int {
         if Before(time, other) {
             return 0 - 1;
@@ -249,42 +409,82 @@ namespace datetime {
         return 0;
     }
 
+    --- Signature: function Equal(time : Table, other : Table) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether equal is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Equal(time : Table, other : Table) : Bool {
         return Compare(time, other) == 0;
     }
 
+    --- Signature: function Format(time : Table, layout : String = "unix") : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats format using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Format(time : Table, layout : String = "unix") : String {
         return (time["unix"] as String) + "@" + (time["location"] as String);
     }
 
+    --- Signature: function IsZero(time : Table) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is zero is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsZero(time : Table) : Bool {
         return (time["unix"] as Int) == 0;
     }
 
+    --- Signature: function Sub(time : Table, other : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib sub operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Sub(time : Table, other : Table) : Table {
         return Duration((time["unix"] as Int) - (other["unix"] as Int));
     }
 
+    --- Signature: function UTC(time : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib utc operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function UTC(time : Table) : Table {
         return Unix(time["unix"] as Int, time["nsec"] as Int);
     }
 
+    --- Signature: function UnixSeconds(time : Table) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib unix seconds operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function UnixSeconds(time : Table) : Int {
         return time["unix"] as Int;
     }
 
+    --- Signature: function UnixMicroseconds(time : Table) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib unix microseconds operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function UnixMicroseconds(time : Table) : Int {
         return (time["unix"] as Int) * 1000000;
     }
 
+    --- Signature: function UnixMilliseconds(time : Table) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib unix milliseconds operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function UnixMilliseconds(time : Table) : Int {
         return (time["unix"] as Int) * 1000;
     }
 
+    --- Signature: function UnixNanoseconds(time : Table) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib unix nanoseconds operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function UnixNanoseconds(time : Table) : Int {
         return ((time["unix"] as Int) * 1000000000) + (time["nsec"] as Int);
     }
 
+    --- Signature: function WeekdayString(day : Int) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib weekday string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function WeekdayString(day : Int) : String {
         local List[String] days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
         if day < 0 or day > 6 {
@@ -294,6 +494,10 @@ namespace datetime {
         return days[day];
     }
 
+    --- Signature: function Year(time : Table) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib year operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Year(time : Table) : Int {
         if time["year"]? {
             return time["year"] as Int;
@@ -302,10 +506,18 @@ namespace datetime {
         return 1970;
     }
 
+    --- Signature: function YearDay(time : Table) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib year day operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function YearDay(time : Table) : Int {
         return ((time["unix"] as Int) / 86400) + 1;
     }
 
+    --- Signature: function Zone(time : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib zone operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Zone(time : Table) : Table {
         return {
             "name": time["location"],
@@ -313,6 +525,10 @@ namespace datetime {
         };
     }
 
+    --- Signature: function AfterFunc(duration : Table, callback : Function[Int]) : Table
+    --- Returns: Table.
+    --- Summary: Checks whether after func is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AfterFunc(duration : Table, callback : Function[Int]) : Table {
         return {
             "duration": duration,
@@ -321,6 +537,10 @@ namespace datetime {
         };
     }
 
+    --- Signature: function NewTimer(duration : Table) : Table
+    --- Returns: Table.
+    --- Summary: Creates or initializes new timer with the supplied Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function NewTimer(duration : Table) : Table {
         return {
             "duration": duration,
@@ -328,6 +548,10 @@ namespace datetime {
         };
     }
 
+    --- Signature: function TimerReset(timer : Table, duration : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib timer reset operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TimerReset(timer : Table, duration : Table) : Table {
         return {
             "duration": duration,
@@ -335,10 +559,18 @@ namespace datetime {
         };
     }
 
+    --- Signature: function TimerStop(timer : Table) : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib timer stop operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TimerStop(timer : Table) : Bool {
         return timer["running"]?;
     }
 
+    --- Signature: function UnixFromParts(year : Int, month : Int, day : Int, hour : Int, minute : Int, second : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib unix from parts operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function UnixFromParts(year : Int, month : Int, day : Int, hour : Int, minute : Int, second : Int) : Int {
         return ((year - 1970) * 31536000) + ((month - 1) * 2592000) + ((day - 1) * 86400) + (hour * 3600) + (minute * 60) + second;
     }

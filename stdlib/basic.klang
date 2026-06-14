@@ -4,115 +4,223 @@
 -- iterators, threads, atomics, and runtime builtins.
 
 namespace basic {
+    --- Signature: function Print(value : T) : Int
+    --- Returns: Int.
+    --- Summary: Performs the print control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Print(value : T) : Int {
         print(value);
         return 0;
     }
 
+    --- Signature: function PrintLine(value : T) : Int
+    --- Returns: Int.
+    --- Summary: Performs the print line control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function PrintLine(value : T) : Int {
         print(value);
         return 0;
     }
 
+    --- Signature: function PrintString(value : String) : Int
+    --- Returns: Int.
+    --- Summary: Performs the print string control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function PrintString(value : String) : Int {
         print(value);
         return 0;
     }
 
+    --- Signature: function PrintInt(value : Int) : Int
+    --- Returns: Int.
+    --- Summary: Performs the print int control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function PrintInt(value : Int) : Int {
         print(value);
         return 0;
     }
 
+    --- Signature: function PrintBool(value : Bool) : Int
+    --- Returns: Int.
+    --- Summary: Performs the print bool control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function PrintBool(value : Bool) : Int {
         print(value);
         return 0;
     }
 
+    --- Signature: function Input(prompt : String) : String
+    --- Returns: String.
+    --- Summary: Performs the input control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Input(prompt : String) : String {
         return input(prompt);
     }
 
+    --- Signature: function Echo(value : T) : T
+    --- Returns: T.
+    --- Summary: Provides the stdlib echo operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Echo(value : T) : T {
         return value;
     }
 
+    --- Signature: function EchoString(value : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib echo string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function EchoString(value : String) : String {
         return value;
     }
 
+    --- Signature: function EchoInt(value : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib echo int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function EchoInt(value : Int) : Int {
         return value;
     }
 
+    --- Signature: function ChooseString(condition : Bool, whenTrue : String, whenFalse : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib choose string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ChooseString(condition : Bool, whenTrue : String, whenFalse : String) : String {
         if condition { return whenTrue; } else { return whenFalse; }
     }
 
+    --- Signature: function ChooseInt(condition : Bool, whenTrue : Int, whenFalse : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib choose int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ChooseInt(condition : Bool, whenTrue : Int, whenFalse : Int) : Int {
         if condition { return whenTrue; } else { return whenFalse; }
     }
 
+    --- Signature: function ChooseBool(condition : Bool, whenTrue : Bool, whenFalse : Bool) : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib choose bool operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ChooseBool(condition : Bool, whenTrue : Bool, whenFalse : Bool) : Bool {
         if condition { return whenTrue; } else { return whenFalse; }
     }
 
+    --- Signature: function IsNull(value : T) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is null is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsNull(value : T) : Bool {
         return not value?;
     }
 
+    --- Signature: function IsPresent(value : T) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is present is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsPresent(value : T) : Bool {
         return value?;
     }
 
+    --- Signature: function TypeOf(value : T) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib type of operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TypeOf(value : T) : String {
         return debug_type(value);
     }
 
+    --- Signature: function Repr(value : T) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib repr operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Repr(value : T) : String {
         return value as String;
     }
 
+    --- Signature: function Str(value : T) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib str operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Str(value : T) : String {
         return value as String;
     }
 
+    --- Signature: function IntFromString(value : String) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib int from string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IntFromString(value : String) : Int {
         return value as Int;
     }
 
+    --- Signature: function IntFromFloat(value : Float) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib int from float operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IntFromFloat(value : Float) : Int {
         return value as Int;
     }
 
+    --- Signature: function IntFromBool(value : Bool) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib int from bool operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IntFromBool(value : Bool) : Int {
         return value as Int;
     }
 
+    --- Signature: function FloatFromInt(value : Int) : Float
+    --- Returns: Float.
+    --- Summary: Provides the stdlib float from int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function FloatFromInt(value : Int) : Float {
         return value as Float;
     }
 
+    --- Signature: function FloatFromString(value : String) : Float
+    --- Returns: Float.
+    --- Summary: Provides the stdlib float from string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function FloatFromString(value : String) : Float {
         return value as Float;
     }
 
+    --- Signature: function BoolFromString(value : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib bool from string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function BoolFromString(value : String) : Bool {
         return value as Bool;
     }
 
+    --- Signature: function BoolFromInt(value : Int) : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib bool from int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function BoolFromInt(value : Int) : Bool {
         return value as Bool;
     }
 
+    --- Signature: function Abs(value : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib abs operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Abs(value : Int) : Int {
         if value < 0 { return 0 - value; } else { return value; }
     }
 
+    --- Signature: function AbsFloat(value : Float) : Float
+    --- Returns: Float.
+    --- Summary: Provides the stdlib abs float operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AbsFloat(value : Float) : Float {
         if value < 0.0 { return 0.0 - value; } else { return value; }
     }
 
+    --- Signature: function PowInt(value : Int, exponent : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib pow int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function PowInt(value : Int, exponent : Int) : Int {
         if exponent < 0 {
             return 0;
@@ -126,10 +234,18 @@ namespace basic {
         return result;
     }
 
+    --- Signature: function DivMod(left : Int, right : Int) : List[Int]
+    --- Returns: List[Int].
+    --- Summary: Provides the stdlib div mod operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function DivMod(left : Int, right : Int) : List[Int] {
         return [left / right, left % right];
     }
 
+    --- Signature: function RoundFloat(value : Float) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib round float operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function RoundFloat(value : Float) : Int {
         local Int whole = value as Int;
         local Float fraction = value - (whole as Float);
@@ -142,42 +258,82 @@ namespace basic {
         return whole;
     }
 
+    --- Signature: function LenString(value : String) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib len string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LenString(value : String) : Int {
         return len(value);
     }
 
+    --- Signature: function LenIntList(value : List[Int]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib len int list operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LenIntList(value : List[Int]) : Int {
         return len(value);
     }
 
+    --- Signature: function LenStringList(value : List[String]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib len string list operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LenStringList(value : List[String]) : Int {
         return len(value);
     }
 
+    --- Signature: function LenBoolList(value : List[Bool]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib len bool list operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LenBoolList(value : List[Bool]) : Int {
         return len(value);
     }
 
+    --- Signature: function LenTable(value : Table) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib len table operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LenTable(value : Table) : Int {
         return len(value);
     }
 
+    --- Signature: function IsEmptyString(value : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is empty string is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsEmptyString(value : String) : Bool {
         return len(value) == 0;
     }
 
+    --- Signature: function IsEmptyIntList(value : List[Int]) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is empty int list is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsEmptyIntList(value : List[Int]) : Bool {
         return len(value) == 0;
     }
 
+    --- Signature: function Range(count : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib range operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Range(count : Int) : Int {
         return range(count);
     }
 
+    --- Signature: function Indexes(count : Int) : List[Int]
+    --- Returns: List[Int].
+    --- Summary: Provides the stdlib indexes operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Indexes(count : Int) : List[Int] {
         return [index for index in range(count)];
     }
 
+    --- Signature: function All(values : List[Bool]) : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib all operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function All(values : List[Bool]) : Bool {
         local mut Int index = 0;
         while index < len(values) {
@@ -189,6 +345,10 @@ namespace basic {
         return True;
     }
 
+    --- Signature: function Any(values : List[Bool]) : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib any operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Any(values : List[Bool]) : Bool {
         local mut Int index = 0;
         while index < len(values) {
@@ -200,6 +360,10 @@ namespace basic {
         return False;
     }
 
+    --- Signature: function SumInt(values : List[Int]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib sum int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function SumInt(values : List[Int]) : Int {
         local mut Int total = 0;
         local mut Int index = 0;
@@ -210,6 +374,10 @@ namespace basic {
         return total;
     }
 
+    --- Signature: function SumFloat(values : List[Float]) : Float
+    --- Returns: Float.
+    --- Summary: Provides the stdlib sum float operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function SumFloat(values : List[Float]) : Float {
         local mut Float total = 0.0;
         local mut Int index = 0;
@@ -220,6 +388,10 @@ namespace basic {
         return total;
     }
 
+    --- Signature: function MinInt(values : List[Int]) : Option[Int]
+    --- Returns: Option[Int].
+    --- Summary: Provides the stdlib min int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function MinInt(values : List[Int]) : Option[Int] {
         if len(values) == 0 {
             return None();
@@ -235,6 +407,10 @@ namespace basic {
         return Some(best);
     }
 
+    --- Signature: function MaxInt(values : List[Int]) : Option[Int]
+    --- Returns: Option[Int].
+    --- Summary: Provides the stdlib max int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function MaxInt(values : List[Int]) : Option[Int] {
         if len(values) == 0 {
             return None();
@@ -250,6 +426,10 @@ namespace basic {
         return Some(best);
     }
 
+    --- Signature: function ReversedInt(values : List[Int]) : List[Int]
+    --- Returns: List[Int].
+    --- Summary: Provides the stdlib reversed int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ReversedInt(values : List[Int]) : List[Int] {
         local mut List[Int] result;
         local mut Int index = len(values) - 1;
@@ -260,14 +440,26 @@ namespace basic {
         return result;
     }
 
+    --- Signature: function CopyIntList(values : List[Int]) : List[Int]
+    --- Returns: List[Int].
+    --- Summary: Models the copy int list memory or ownership operation for the runtime.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function CopyIntList(values : List[Int]) : List[Int] {
         return clone values;
     }
 
+    --- Signature: function CopyStringList(values : List[String]) : List[String]
+    --- Returns: List[String].
+    --- Summary: Models the copy string list memory or ownership operation for the runtime.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function CopyStringList(values : List[String]) : List[String] {
         return clone values;
     }
 
+    --- Signature: function ContainsInt(values : List[Int], target : Int) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether contains int is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ContainsInt(values : List[Int], target : Int) : Bool {
         local mut Int index = 0;
         while index < len(values) {
@@ -279,6 +471,10 @@ namespace basic {
         return False;
     }
 
+    --- Signature: function ContainsString(values : List[String], target : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether contains string is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ContainsString(values : List[String], target : String) : Bool {
         local mut Int index = 0;
         while index < len(values) {
@@ -290,6 +486,10 @@ namespace basic {
         return False;
     }
 
+    --- Signature: function MapInt(values : List[Int], mapper : Function[Int, Int]) : List[Int]
+    --- Returns: List[Int].
+    --- Summary: Provides the stdlib map int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function MapInt(values : List[Int], mapper : Function[Int, Int]) : List[Int] {
         local mut List[Int] result;
         local mut Int index = 0;
@@ -300,6 +500,10 @@ namespace basic {
         return result;
     }
 
+    --- Signature: function FilterInt(values : List[Int], predicate : Function[Int, Bool]) : List[Int]
+    --- Returns: List[Int].
+    --- Summary: Provides the stdlib filter int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function FilterInt(values : List[Int], predicate : Function[Int, Bool]) : List[Int] {
         local mut List[Int] result;
         local mut Int index = 0;
@@ -313,6 +517,10 @@ namespace basic {
         return result;
     }
 
+    --- Signature: function ReduceInt(values : List[Int], initial : Int, reducer : Function[Int, Int, Int]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib reduce int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ReduceInt(values : List[Int], initial : Int, reducer : Function[Int, Int, Int]) : Int {
         local mut Int total = initial;
         local mut Int index = 0;
@@ -323,6 +531,10 @@ namespace basic {
         return total;
     }
 
+    --- Signature: function EnumerateInt(values : List[Int]) : List[Table]
+    --- Returns: List[Table].
+    --- Summary: Provides the stdlib enumerate int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function EnumerateInt(values : List[Int]) : List[Table] {
         local mut List[Table] result;
         local mut Int index = 0;
@@ -333,6 +545,10 @@ namespace basic {
         return result;
     }
 
+    --- Signature: function EnumerateString(values : List[String]) : List[Table]
+    --- Returns: List[Table].
+    --- Summary: Provides the stdlib enumerate string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function EnumerateString(values : List[String]) : List[Table] {
         local mut List[Table] result;
         local mut Int index = 0;
@@ -343,6 +559,10 @@ namespace basic {
         return result;
     }
 
+    --- Signature: function ZipInt(left : List[Int], right : List[Int]) : List[Table]
+    --- Returns: List[Table].
+    --- Summary: Provides the stdlib zip int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ZipInt(left : List[Int], right : List[Int]) : List[Table] {
         local mut List[Table] result;
         local mut Int index = 0;
@@ -354,26 +574,50 @@ namespace basic {
         return result;
     }
 
+    --- Signature: function MinCount(left : Int, right : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib min count operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function MinCount(left : Int, right : Int) : Int {
         if left < right { return left; } else { return right; }
     }
 
+    --- Signature: function MaxCount(left : Int, right : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib max count operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function MaxCount(left : Int, right : Int) : Int {
         if left > right { return left; } else { return right; }
     }
 
+    --- Signature: function TableNew() : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib table new operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TableNew() : Table {
         return {};
     }
 
+    --- Signature: function TableFromName(name : String) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib table from name operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TableFromName(name : String) : Table {
         return {"name": name};
     }
 
+    --- Signature: function TableHas(value : Table, key : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib table has operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TableHas(value : Table, key : String) : Bool {
         return value[key]?;
     }
 
+    --- Signature: function TableGet(value : Table, key : String) : Option[T]
+    --- Returns: Option[T].
+    --- Summary: Provides the stdlib table get operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TableGet(value : Table, key : String) : Option[T] {
         if value[key]? {
             return Some(value[key]);
@@ -381,75 +625,147 @@ namespace basic {
         return None();
     }
 
+    --- Signature: function TableSet(mut value : Table, key : String, next : T) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib table set operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TableSet(mut value : Table, key : String, next : T) : Table {
         value[key] = next;
         return value;
     }
 
+    --- Signature: function SomeValue(value : T) : Option[T]
+    --- Returns: Option[T].
+    --- Summary: Provides the stdlib some value operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function SomeValue(value : T) : Option[T] {
         return Some(value);
     }
 
+    --- Signature: function NoneValue() : Option[T]
+    --- Returns: Option[T].
+    --- Summary: Provides the stdlib none value operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function NoneValue() : Option[T] {
         return None();
     }
 
+    --- Signature: function OkValue(value : T) : Result[T, String]
+    --- Returns: Result[T, String].
+    --- Summary: Provides the stdlib ok value operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function OkValue(value : T) : Result[T, String] {
         return Ok(value);
     }
 
+    --- Signature: function ErrString(message : String) : Result[T, String]
+    --- Returns: Result[T, String].
+    --- Summary: Provides the stdlib err string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ErrString(message : String) : Result[T, String] {
         return Err(message);
     }
 
+    --- Signature: function IsSome(value : Option[T]) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is some is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsSome(value : Option[T]) : Bool {
         return value.some;
     }
 
+    --- Signature: function IsOk(value : Result[T, String]) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is ok is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsOk(value : Result[T, String]) : Bool {
         return value?;
     }
 
+    --- Signature: function IteratorFromIntList(values : List[Int]) : Iterator[Int]
+    --- Returns: Iterator[Int].
+    --- Summary: Provides the stdlib iterator from int list operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IteratorFromIntList(values : List[Int]) : Iterator[Int] {
         return iter(values);
     }
 
+    --- Signature: function IteratorNextInt(iterator : Iterator[Int]) : Option[Int]
+    --- Returns: Option[Int].
+    --- Summary: Provides the stdlib iterator next int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IteratorNextInt(iterator : Iterator[Int]) : Option[Int] {
         return next(iterator);
     }
 
+    --- Signature: function SpawnInt(worker : Function[Int, Int], value : Int) : Thread[Int]
+    --- Returns: Thread[Int].
+    --- Summary: Provides the stdlib spawn int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function SpawnInt(worker : Function[Int, Int], value : Int) : Thread[Int] {
         return spawn(worker, [value]);
     }
 
+    --- Signature: function JoinInt(worker : Thread[Int]) : Int
+    --- Returns: Int.
+    --- Summary: Combines or extends Klang value(s) for the join int operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JoinInt(worker : Thread[Int]) : Int {
         return join(worker);
     }
 
+    --- Signature: function ThreadStatus(worker : Thread[Int]) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib thread status operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ThreadStatus(worker : Thread[Int]) : String {
         return thread_status(worker);
     }
 
+    --- Signature: function AtomicInt(value : Int) : Atomic[Int]
+    --- Returns: Atomic[Int].
+    --- Summary: Provides the stdlib atomic int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AtomicInt(value : Int) : Atomic[Int] {
         return Atomic(value);
     }
 
+    --- Signature: function AtomicLoadInt(value : Atomic[Int]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib atomic load int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AtomicLoadInt(value : Atomic[Int]) : Int {
         return atomic_load(value);
     }
 
+    --- Signature: function AtomicStoreInt(value : Atomic[Int], next : Int) : Atomic[Int]
+    --- Returns: Atomic[Int].
+    --- Summary: Provides the stdlib atomic store int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AtomicStoreInt(value : Atomic[Int], next : Int) : Atomic[Int] {
         return atomic_store(value, next);
     }
 
+    --- Signature: function AtomicAddInt(value : Atomic[Int], amount : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib atomic add int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function AtomicAddInt(value : Atomic[Int], amount : Int) : Int {
         return atomic_add(value, amount);
     }
 
+    --- Signature: function Debug(value : T) : T
+    --- Returns: T.
+    --- Summary: Provides the stdlib debug operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Debug(value : T) : T {
         return debug(value);
     }
 
+    --- Signature: function Breakpoint(label : String) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib breakpoint operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Breakpoint(label : String) : Int {
         breakpoint(label);
         return 0;

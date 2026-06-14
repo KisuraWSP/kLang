@@ -1,16 +1,28 @@
 -- IO helpers around currently available runtime input/output.
 
 namespace io {
+    --- Signature: function Print(value : T) : Int
+    --- Returns: Int.
+    --- Summary: Performs the print control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Print(value : T) : Int {
         print(value);
         return 0;
     }
 
+    --- Signature: function Println(value : T) : Int
+    --- Returns: Int.
+    --- Summary: Performs the println control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Println(value : T) : Int {
         print(value);
         return 0;
     }
 
+    --- Signature: function PrintMany(values : List[String]) : Int
+    --- Returns: Int.
+    --- Summary: Performs the print many control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function PrintMany(values : List[String]) : Int {
         local mut Int index = 0;
         while index < len(values) {
@@ -20,38 +32,74 @@ namespace io {
         return len(values);
     }
 
+    --- Signature: function Input(prompt : String = "") : String
+    --- Returns: String.
+    --- Summary: Performs the input control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Input(prompt : String = "") : String {
         return input(prompt);
     }
 
+    --- Signature: function Reader(data : String) : Table
+    --- Returns: Table.
+    --- Summary: Reads, locates, or decodes reader from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Reader(data : String) : Table {
         return {"data": data, "offset": 0};
     }
 
+    --- Signature: function Writer() : Table
+    --- Returns: Table.
+    --- Summary: Builds, writes, or formats writer using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Writer() : Table {
         return {"buffer": ""};
     }
 
+    --- Signature: function ReadAll(reader : Table) : String
+    --- Returns: String.
+    --- Summary: Reads, locates, or decodes read all from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ReadAll(reader : Table) : String {
         return reader["data"] as String;
     }
 
+    --- Signature: function WriteString(writer : Table, value : String) : Table
+    --- Returns: Table.
+    --- Summary: Builds, writes, or formats write string using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function WriteString(writer : Table, value : String) : Table {
         return {"buffer": (writer["buffer"] as String) + value};
     }
 
+    --- Signature: function BufferString(writer : Table) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib buffer string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function BufferString(writer : Table) : String {
         return writer["buffer"] as String;
     }
 
+    --- Signature: function File(path : String, mode : String = "read") : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib file operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function File(path : String, mode : String = "read") : Table {
         return {"path": path, "mode": mode, "open": True, "data": ""};
     }
 
+    --- Signature: function Close(file : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib close operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Close(file : Table) : Table {
         return {"path": file["path"], "mode": file["mode"], "open": False, "data": file["data"]};
     }
 
+    --- Signature: function Unsupported(operation : String) : Result[String, String]
+    --- Returns: Result[String, String].
+    --- Summary: Provides the stdlib unsupported operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Unsupported(operation : String) : Result[String, String] {
         return Err("io operation requires host binding: " + operation);
     }

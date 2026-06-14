@@ -4,14 +4,26 @@
 -- hash primitives, but they let stdlib users build and pass hash-like values.
 
 namespace hash {
+    --- Signature: function DefaultSeed() : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib default seed operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function DefaultSeed() : Int {
         return 2166136261;
     }
 
+    --- Signature: function DefaultPrime() : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib default prime operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function DefaultPrime() : Int {
         return 16777619;
     }
 
+    --- Signature: function Normalize(value : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib normalize operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Normalize(value : Int) : Int {
         if value < 0 {
             return 0 - value;
@@ -20,22 +32,38 @@ namespace hash {
         return value;
     }
 
+    --- Signature: function Int(value : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Int(value : Int) : Int {
         local mut Int result = value * 1103515245;
         result += 12345;
         return Normalize(result);
     }
 
+    --- Signature: function Mix(seed : Int, value : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib mix operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Mix(seed : Int, value : Int) : Int {
         local mut Int result = seed + value;
         result *= DefaultPrime();
         return Normalize(result);
     }
 
+    --- Signature: function Combine(left : Int, right : Int) : Int
+    --- Returns: Int.
+    --- Summary: Combines or extends Klang value(s) for the combine operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Combine(left : Int, right : Int) : Int {
         return Int(left + (right * 31));
     }
 
+    --- Signature: function CombineMany(values : List[Int], seed : Int = 2166136261) : Int
+    --- Returns: Int.
+    --- Summary: Combines or extends Klang value(s) for the combine many operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function CombineMany(values : List[Int], seed : Int = 2166136261) : Int {
         local mut Int result = seed;
         local mut Int index = 0;
@@ -48,10 +76,18 @@ namespace hash {
         return result;
     }
 
+    --- Signature: function StringLengthHash(value : String) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib string length hash operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function StringLengthHash(value : String) : Int {
         return Int(len(value));
     }
 
+    --- Signature: function StringHash(value : String, seed : Int = 2166136261) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib string hash operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function StringHash(value : String, seed : Int = 2166136261) : Int {
         local List[Char] chars = [char for char in value];
         local mut Int result = seed;
@@ -65,6 +101,10 @@ namespace hash {
         return Mix(result, len(value));
     }
 
+    --- Signature: function BoolHash(value : Bool) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib bool hash operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function BoolHash(value : Bool) : Int {
         if value {
             return Int(1);
@@ -73,6 +113,10 @@ namespace hash {
         return Int(0);
     }
 
+    --- Signature: function Stable[T restrict[String, Int, Bool]](value : T) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib stable operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Stable[T restrict[String, Int, Bool]](value : T) : Int {
         if debug_type(value) == "String" {
             return StringHash(value as String);
@@ -85,6 +129,10 @@ namespace hash {
         return Int(value as Int);
     }
 
+    --- Signature: function Digest(algorithm : String, data : String, size : Int, usedforsecurity : Bool = True) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib digest operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Digest(algorithm : String, data : String, size : Int, usedforsecurity : Bool = True) : Table {
         local Int base = StringHash(data, DefaultSeed() + size);
         local Int digestValue = Mix(base, len(algorithm) + size);
@@ -99,6 +147,10 @@ namespace hash {
         };
     }
 
+    --- Signature: function DigestResult(algorithm : String, data : String, size : Int, usedforsecurity : Bool = True) : Result[Table, String]
+    --- Returns: Result[Table, String].
+    --- Summary: Provides the stdlib digest result operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function DigestResult(algorithm : String, data : String, size : Int, usedforsecurity : Bool = True) : Result[Table, String] {
         if len(algorithm) == 0 {
             return Err("hash algorithm name cannot be empty");
@@ -111,7 +163,15 @@ namespace hash {
         return Ok(Digest(algorithm, data, size, usedforsecurity));
     }
 
+    --- Signature: function Hasher(algorithm : String, size : Int, usedforsecurity : Bool = True) : Function[String, Table]
+    --- Returns: Function[String, Table].
+    --- Summary: Checks whether hasher is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Hasher(algorithm : String, size : Int, usedforsecurity : Bool = True) : Function[String, Table] {
+        --- Signature: function run(data : String) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib run operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function run(data : String) : Table {
             return Digest(algorithm, data, size, usedforsecurity);
         }
@@ -119,50 +179,98 @@ namespace hash {
         return run;
     }
 
+    --- Signature: function md5(data : String = "", usedforsecurity : Bool = True) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib md5 operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function md5(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("md5", data, 16, usedforsecurity);
     }
 
+    --- Signature: function sha1(data : String = "", usedforsecurity : Bool = True) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib sha1 operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function sha1(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha1", data, 20, usedforsecurity);
     }
 
+    --- Signature: function sha224(data : String = "", usedforsecurity : Bool = True) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib sha224 operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function sha224(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha224", data, 28, usedforsecurity);
     }
 
+    --- Signature: function sha256(data : String = "", usedforsecurity : Bool = True) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib sha256 operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function sha256(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha256", data, 32, usedforsecurity);
     }
 
+    --- Signature: function sha384(data : String = "", usedforsecurity : Bool = True) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib sha384 operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function sha384(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha384", data, 48, usedforsecurity);
     }
 
+    --- Signature: function sha512(data : String = "", usedforsecurity : Bool = True) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib sha512 operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function sha512(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha512", data, 64, usedforsecurity);
     }
 
+    --- Signature: function sha3_224(data : String = "", usedforsecurity : Bool = True) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib sha3 224 operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function sha3_224(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha3_224", data, 28, usedforsecurity);
     }
 
+    --- Signature: function sha3_256(data : String = "", usedforsecurity : Bool = True) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib sha3 256 operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function sha3_256(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha3_256", data, 32, usedforsecurity);
     }
 
+    --- Signature: function sha3_384(data : String = "", usedforsecurity : Bool = True) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib sha3 384 operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function sha3_384(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha3_384", data, 48, usedforsecurity);
     }
 
+    --- Signature: function sha3_512(data : String = "", usedforsecurity : Bool = True) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib sha3 512 operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function sha3_512(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha3_512", data, 64, usedforsecurity);
     }
 
+    --- Signature: function algorithms_available() : List[String]
+    --- Returns: List[String].
+    --- Summary: Provides the stdlib algorithms available operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function algorithms_available() : List[String] {
         return ["md5", "sha1", "sha224", "sha256", "sha384", "sha512", "sha3_224", "sha3_256", "sha3_384", "sha3_512"];
     }
 
+    --- Signature: function is_available(name : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is available is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function is_available(name : String) : Bool {
         local List[String] names = algorithms_available();
         local mut Int index = 0;
@@ -177,6 +285,10 @@ namespace hash {
         return False;
     }
 
+    --- Signature: function new(name : String, data : String = "", usedforsecurity : Bool = True) : Result[Table, String]
+    --- Returns: Result[Table, String].
+    --- Summary: Creates or initializes new with the supplied Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function new(name : String, data : String = "", usedforsecurity : Bool = True) : Result[Table, String] {
         if name == "md5" {
             return Ok(md5(data, usedforsecurity));

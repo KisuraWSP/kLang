@@ -3,35 +3,63 @@
 namespace random {
     global mut Int seedValue = 1;
 
+    --- Signature: function Seed(value : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib seed operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Seed(value : Int) : Int {
         if value < 0 { seedValue = 0 - value; } else { seedValue = value; }
         return seedValue;
     }
 
+    --- Signature: function Next() : Int
+    --- Returns: Int.
+    --- Summary: Reads, locates, or decodes next from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Next() : Int {
         seedValue = ((seedValue * 1103515245) + 12345);
         if seedValue < 0 { seedValue = 0 - seedValue; }
         return seedValue;
     }
 
+    --- Signature: function Intn(max : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib intn operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Intn(max : Int) : Int {
         if max <= 0 { return Next(); }
         return Next() % max;
     }
 
+    --- Signature: function Bool() : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib bool operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Bool() : Bool {
         return Intn(2) == 1;
     }
 
+    --- Signature: function Float() : Float
+    --- Returns: Float.
+    --- Summary: Provides the stdlib float operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Float() : Float {
         return (Intn(1000000) as Float) / 1000000.0;
     }
 
+    --- Signature: function Pick(values : List[T]) : Option[T]
+    --- Returns: Option[T].
+    --- Summary: Provides the stdlib pick operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Pick(values : List[T]) : Option[T] {
         if len(values) == 0 { return None(); }
         return Some(values[Intn(len(values))]);
     }
 
+    --- Signature: function Shuffle(values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Provides the stdlib shuffle operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Shuffle(values : List[T]) : List[T] {
         local mut List[T] result = clone values;
         local mut Int index = 0;

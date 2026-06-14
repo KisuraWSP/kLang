@@ -3,23 +3,43 @@
 -- Host IO encoders/decoders can be added later as runtime bindings.
 
 namespace encoding {
+    --- Signature: function EncodeString(value : String) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats encode string using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function EncodeString(value : String) : String {
         return value;
     }
 
+    --- Signature: function DecodeString(value : String) : String
+    --- Returns: String.
+    --- Summary: Reads, locates, or decodes decode string from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function DecodeString(value : String) : String {
         return value;
     }
 
+    --- Signature: function Quote(value : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib quote operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Quote(value : String) : String {
         return "\"" + value + "\"";
     }
 
+    --- Signature: function Bytes(value : String) : List[Char]
+    --- Returns: List[Char].
+    --- Summary: Provides the stdlib bytes operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Bytes(value : String) : List[Char] {
         return [char for char in value];
     }
 
     namespace ascii {
+        --- Signature: function Decode(dst : String, src : String, flush : Bool = True) : Table
+        --- Returns: Table.
+        --- Summary: Reads, locates, or decodes decode from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Decode(dst : String, src : String, flush : Bool = True) : Table {
             return {
                 "ndst": len(dst) + len(src),
@@ -30,15 +50,31 @@ namespace encoding {
             };
         }
 
+        --- Signature: function Encode(dst : String, src : String) : Int
+        --- Returns: Int.
+        --- Summary: Builds, writes, or formats encode using the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Encode(dst : String, src : String) : Int {
             return len(dst) + len(src);
         }
 
+        --- Signature: function MaxEncodedLen(count : Int) : Int
+        --- Returns: Int.
+        --- Summary: Provides the stdlib max encoded len operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function MaxEncodedLen(count : Int) : Int {
             return count;
         }
 
+        --- Signature: function NewDecoder(source : String) : Function[String, String]
+        --- Returns: Function[String, String].
+        --- Summary: Creates or initializes new decoder with the supplied Klang value(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function NewDecoder(source : String) : Function[String, String] {
+            --- Signature: function decode(value : String) : String
+            --- Returns: String.
+            --- Summary: Reads, locates, or decodes decode from the provided Klang input(s).
+            --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
             function decode(value : String) : String {
                 return value;
             }
@@ -46,7 +82,15 @@ namespace encoding {
             return decode;
         }
 
+        --- Signature: function NewEncoder(source : String) : Function[String, String]
+        --- Returns: Function[String, String].
+        --- Summary: Creates or initializes new encoder with the supplied Klang value(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function NewEncoder(source : String) : Function[String, String] {
+            --- Signature: function encode(value : String) : String
+            --- Returns: String.
+            --- Summary: Builds, writes, or formats encode using the provided Klang input(s).
+            --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
             function encode(value : String) : String {
                 return value;
             }
@@ -54,20 +98,36 @@ namespace encoding {
             return encode;
         }
 
+        --- Signature: function CorruptInputError(message : String) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib corrupt input error operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function CorruptInputError(message : String) : String {
             return "corrupt ascii input: " + message;
         }
     }
 
     namespace asn1 {
+        --- Signature: function Marshal(value : Any) : Result[String, String]
+        --- Returns: Result[String, String].
+        --- Summary: Provides the stdlib marshal operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Marshal(value : Any) : Result[String, String] {
             return Ok(debug_type(value));
         }
 
+        --- Signature: function MarshalWithParams(value : Any, params : String) : Result[String, String]
+        --- Returns: Result[String, String].
+        --- Summary: Provides the stdlib marshal with params operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function MarshalWithParams(value : Any, params : String) : Result[String, String] {
             return Ok(params + ":" + debug_type(value));
         }
 
+        --- Signature: function Unmarshal(data : String, value : Any) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib unmarshal operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Unmarshal(data : String, value : Any) : Table {
             return {
                 "rest": "",
@@ -77,6 +137,10 @@ namespace encoding {
             };
         }
 
+        --- Signature: function UnmarshalWithParams(data : String, value : Any, params : String) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib unmarshal with params operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function UnmarshalWithParams(data : String, value : Any, params : String) : Table {
             return {
                 "rest": "",
@@ -87,6 +151,10 @@ namespace encoding {
             };
         }
 
+        --- Signature: function BitAt(bits : List[Int], index : Int) : Int
+        --- Returns: Int.
+        --- Summary: Provides the stdlib bit at operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function BitAt(bits : List[Int], index : Int) : Int {
             if index < 0 or index >= len(bits) {
                 return 0;
@@ -95,10 +163,18 @@ namespace encoding {
             return bits[index];
         }
 
+        --- Signature: function RightAlign(bits : List[Int]) : List[Int]
+        --- Returns: List[Int].
+        --- Summary: Provides the stdlib right align operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function RightAlign(bits : List[Int]) : List[Int] {
             return clone bits;
         }
 
+        --- Signature: function ObjectIdentifierEqual(left : List[Int], right : List[Int]) : Bool
+        --- Returns: Bool.
+        --- Summary: Provides the stdlib object identifier equal operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function ObjectIdentifierEqual(left : List[Int], right : List[Int]) : Bool {
             if len(left) != len(right) {
                 return False;
@@ -115,6 +191,10 @@ namespace encoding {
             return True;
         }
 
+        --- Signature: function ObjectIdentifierString(parts : List[Int]) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib object identifier string operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function ObjectIdentifierString(parts : List[Int]) : String {
             local mut String result = "";
             local mut Int index = 0;
@@ -131,32 +211,60 @@ namespace encoding {
             return result;
         }
 
+        --- Signature: function StructuralError(message : String) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib structural error operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function StructuralError(message : String) : String {
             return "asn1 structural error: " + message;
         }
 
+        --- Signature: function SyntaxError(message : String) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib syntax error operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function SyntaxError(message : String) : String {
             return "asn1 syntax error: " + message;
         }
     }
 
     namespace base32 {
+        --- Signature: function NewEncoding(alphabet : String) : Table
+        --- Returns: Table.
+        --- Summary: Creates or initializes new encoding with the supplied Klang value(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function NewEncoding(alphabet : String) : Table {
             return {"name": "base32", "alphabet": alphabet, "padding": "="};
         }
 
+        --- Signature: function EncodedLen(count : Int) : Int
+        --- Returns: Int.
+        --- Summary: Builds, writes, or formats encoded len using the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function EncodedLen(count : Int) : Int {
             return ((count + 4) / 5) * 8;
         }
 
+        --- Signature: function DecodedLen(count : Int) : Int
+        --- Returns: Int.
+        --- Summary: Reads, locates, or decodes decoded len from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function DecodedLen(count : Int) : Int {
             return (count / 8) * 5;
         }
 
+        --- Signature: function EncodeToString(src : String) : String
+        --- Returns: String.
+        --- Summary: Builds, writes, or formats encode to string using the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function EncodeToString(src : String) : String {
             return "base32:" + src;
         }
 
+        --- Signature: function DecodeString(src : String) : Result[String, String]
+        --- Returns: Result[String, String].
+        --- Summary: Reads, locates, or decodes decode string from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function DecodeString(src : String) : Result[String, String] {
             if len(src) == 0 {
                 return Err("base32 input cannot be empty");
@@ -165,28 +273,52 @@ namespace encoding {
             return Ok(src);
         }
 
+        --- Signature: function WithPadding(encoding : Table, padding : String) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib with padding operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function WithPadding(encoding : Table, padding : String) : Table {
             return {"name": encoding["name"], "alphabet": encoding["alphabet"], "padding": padding};
         }
     }
 
     namespace base64 {
+        --- Signature: function NewEncoding(alphabet : String) : Table
+        --- Returns: Table.
+        --- Summary: Creates or initializes new encoding with the supplied Klang value(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function NewEncoding(alphabet : String) : Table {
             return {"name": "base64", "alphabet": alphabet, "padding": "="};
         }
 
+        --- Signature: function EncodedLen(count : Int) : Int
+        --- Returns: Int.
+        --- Summary: Builds, writes, or formats encoded len using the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function EncodedLen(count : Int) : Int {
             return ((count + 2) / 3) * 4;
         }
 
+        --- Signature: function DecodedLen(count : Int) : Int
+        --- Returns: Int.
+        --- Summary: Reads, locates, or decodes decoded len from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function DecodedLen(count : Int) : Int {
             return (count / 4) * 3;
         }
 
+        --- Signature: function EncodeToString(src : String) : String
+        --- Returns: String.
+        --- Summary: Builds, writes, or formats encode to string using the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function EncodeToString(src : String) : String {
             return "base64:" + src;
         }
 
+        --- Signature: function DecodeString(src : String) : Result[String, String]
+        --- Returns: Result[String, String].
+        --- Summary: Reads, locates, or decodes decode string from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function DecodeString(src : String) : Result[String, String] {
             if len(src) == 0 {
                 return Err("base64 input cannot be empty");
@@ -195,34 +327,62 @@ namespace encoding {
             return Ok(src);
         }
 
+        --- Signature: function Strict(encoding : Table) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib strict operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Strict(encoding : Table) : Table {
             return {"name": encoding["name"], "alphabet": encoding["alphabet"], "padding": encoding["padding"], "strict": True};
         }
 
+        --- Signature: function WithPadding(encoding : Table, padding : String) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib with padding operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function WithPadding(encoding : Table, padding : String) : Table {
             return {"name": encoding["name"], "alphabet": encoding["alphabet"], "padding": padding};
         }
     }
 
     namespace binary {
+        --- Signature: function Size(value : Any) : Int
+        --- Returns: Int.
+        --- Summary: Provides the stdlib size operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Size(value : Any) : Int {
             return len(debug_type(value));
         }
 
+        --- Signature: function Append(buffer : List[Int], value : Int) : List[Int]
+        --- Returns: List[Int].
+        --- Summary: Combines or extends Klang value(s) for the append operation.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Append(buffer : List[Int], value : Int) : List[Int] {
             local mut List[Int] result = clone buffer;
             result[len(result)] = value;
             return result;
         }
 
+        --- Signature: function PutUvarint(buffer : List[Int], value : Int) : Int
+        --- Returns: Int.
+        --- Summary: Provides the stdlib put uvarint operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function PutUvarint(buffer : List[Int], value : Int) : Int {
             return len(buffer) + 1;
         }
 
+        --- Signature: function PutVarint(buffer : List[Int], value : Int) : Int
+        --- Returns: Int.
+        --- Summary: Provides the stdlib put varint operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function PutVarint(buffer : List[Int], value : Int) : Int {
             return len(buffer) + 1;
         }
 
+        --- Signature: function Uvarint(buffer : List[Int]) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib uvarint operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Uvarint(buffer : List[Int]) : Table {
             if len(buffer) == 0 {
                 return {"value": 0, "count": 0};
@@ -231,28 +391,52 @@ namespace encoding {
             return {"value": buffer[0], "count": 1};
         }
 
+        --- Signature: function Varint(buffer : List[Int]) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib varint operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Varint(buffer : List[Int]) : Table {
             return Uvarint(buffer);
         }
     }
 
     namespace csv {
+        --- Signature: function ParseError(message : String, line : Int = 0, column : Int = 0) : Table
+        --- Returns: Table.
+        --- Summary: Reads, locates, or decodes parse error from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function ParseError(message : String, line : Int = 0, column : Int = 0) : Table {
             return {"message": message, "line": line, "column": column};
         }
 
+        --- Signature: function Error(err : Table) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib error operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Error(err : Table) : String {
             return (err["message"] as String) + " at " + (err["line"] as String) + ":" + (err["column"] as String);
         }
 
+        --- Signature: function FieldPos(field : Int) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib field pos operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function FieldPos(field : Int) : Table {
             return {"line": 1, "column": field + 1};
         }
 
+        --- Signature: function ReadLine(line : String) : List[String]
+        --- Returns: List[String].
+        --- Summary: Reads, locates, or decodes read line from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function ReadLine(line : String) : List[String] {
             return [line];
         }
 
+        --- Signature: function Write(record : List[String]) : String
+        --- Returns: String.
+        --- Summary: Builds, writes, or formats write using the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Write(record : List[String]) : String {
             local mut String result = "";
             local mut Int index = 0;
@@ -271,18 +455,34 @@ namespace encoding {
     }
 
     namespace hex {
+        --- Signature: function EncodedLen(count : Int) : Int
+        --- Returns: Int.
+        --- Summary: Builds, writes, or formats encoded len using the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function EncodedLen(count : Int) : Int {
             return count * 2;
         }
 
+        --- Signature: function DecodedLen(count : Int) : Int
+        --- Returns: Int.
+        --- Summary: Reads, locates, or decodes decoded len from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function DecodedLen(count : Int) : Int {
             return count / 2;
         }
 
+        --- Signature: function EncodeToString(src : String) : String
+        --- Returns: String.
+        --- Summary: Builds, writes, or formats encode to string using the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function EncodeToString(src : String) : String {
             return "hex:" + src;
         }
 
+        --- Signature: function DecodeString(src : String) : Result[String, String]
+        --- Returns: Result[String, String].
+        --- Summary: Reads, locates, or decodes decode string from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function DecodeString(src : String) : Result[String, String] {
             if len(src) == 0 {
                 return Err("hex input cannot be empty");
@@ -291,28 +491,52 @@ namespace encoding {
             return Ok(src);
         }
 
+        --- Signature: function Dump(data : String) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib dump operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Dump(data : String) : String {
             return EncodeToString(data);
         }
 
+        --- Signature: function InvalidByteError(value : String) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib invalid byte error operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function InvalidByteError(value : String) : String {
             return "invalid hex byte: " + value;
         }
     }
 
     namespace gob {
+        --- Signature: function Register(value : Any) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib register operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Register(value : Any) : Table {
             return {"name": debug_type(value), "value": value};
         }
 
+        --- Signature: function RegisterName(name : String, value : Any) : Table
+        --- Returns: Table.
+        --- Summary: Provides the stdlib register name operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function RegisterName(name : String, value : Any) : Table {
             return {"name": name, "value": value};
         }
 
+        --- Signature: function Encode(value : Any) : String
+        --- Returns: String.
+        --- Summary: Builds, writes, or formats encode using the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Encode(value : Any) : String {
             return debug_type(value);
         }
 
+        --- Signature: function Decode(value : String) : Result[String, String]
+        --- Returns: Result[String, String].
+        --- Summary: Reads, locates, or decodes decode from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Decode(value : String) : Result[String, String] {
             if len(value) == 0 {
                 return Err("gob input cannot be empty");

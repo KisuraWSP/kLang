@@ -1,38 +1,74 @@
 -- Reflection helpers built on debug_type and dynamic Table values.
 
 namespace reflect {
+    --- Signature: function TypeOf(value : Any) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib type of operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TypeOf(value : Any) : String {
         return debug_type(value);
     }
 
+    --- Signature: function ValueOf(value : Any) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib value of operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ValueOf(value : Any) : Table {
         return {"type": debug_type(value), "value": value};
     }
 
+    --- Signature: function Kind(value : Any) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib kind operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Kind(value : Any) : String {
         return debug_type(value);
     }
 
+    --- Signature: function IsZero(value : Any) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is zero is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsZero(value : Any) : Bool {
         return not value?;
     }
 
+    --- Signature: function IsType(value : Any, typeName : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is type is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsType(value : Any, typeName : String) : Bool {
         return debug_type(value) == typeName;
     }
 
+    --- Signature: function CanInt(value : Any) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether can int is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function CanInt(value : Any) : Bool {
         return debug_type(value) == "Int";
     }
 
+    --- Signature: function CanString(value : Any) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether can string is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function CanString(value : Any) : Bool {
         return debug_type(value) == "String";
     }
 
+    --- Signature: function CanBool(value : Any) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether can bool is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function CanBool(value : Any) : Bool {
         return debug_type(value) == "Bool";
     }
 
+    --- Signature: function Field(value : Table, name : String) : Option[Any]
+    --- Returns: Option[Any].
+    --- Summary: Provides the stdlib field operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Field(value : Table, name : String) : Option[Any] {
         if value[name]? {
             return Some(value[name]);
@@ -40,15 +76,27 @@ namespace reflect {
         return None();
     }
 
+    --- Signature: function Set(mut value : Table, name : String, next : Any) : Table
+    --- Returns: Table.
+    --- Summary: Builds, writes, or formats set using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Set(mut value : Table, name : String, next : Any) : Table {
         value[name] = next;
         return value;
     }
 
+    --- Signature: function Fields(value : Table) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib fields operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Fields(value : Table) : Table {
         return value;
     }
 
+    --- Signature: function DeepEqual(left : Any, right : Any) : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib deep equal operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function DeepEqual(left : Any, right : Any) : Bool {
         return debug_type(left) == debug_type(right);
     }

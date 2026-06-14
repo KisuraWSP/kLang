@@ -1,16 +1,28 @@
 -- Path string helpers.
 
 namespace path {
+    --- Signature: function Separator() : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib separator operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Separator() : String {
         return "/";
     }
 
+    --- Signature: function Join(left : String, right : String) : String
+    --- Returns: String.
+    --- Summary: Combines or extends Klang value(s) for the join operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Join(left : String, right : String) : String {
         if len(left) == 0 { return right; }
         if len(right) == 0 { return left; }
         return left + "/" + right;
     }
 
+    --- Signature: function JoinAll(parts : List[String]) : String
+    --- Returns: String.
+    --- Summary: Combines or extends Klang value(s) for the join all operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function JoinAll(parts : List[String]) : String {
         local mut String result = "";
         local mut Int index = 0;
@@ -25,6 +37,10 @@ namespace path {
         return result;
     }
 
+    --- Signature: function Ext(name : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib ext operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Ext(name : String) : String {
         local mut Int index = len(name) - 1;
         local mut String ext = "";
@@ -38,42 +54,78 @@ namespace path {
         return "";
     }
 
+    --- Signature: function IsAbs(name : String) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is abs is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsAbs(name : String) : Bool {
         return len(name) > 0 and name[0] == "/";
     }
 
+    --- Signature: function Clean(name : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib clean operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Clean(name : String) : String {
         if len(name) == 0 { return "."; }
         return name;
     }
 
+    --- Signature: function Base(name : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib base operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Base(name : String) : String {
         return name;
     }
 
+    --- Signature: function Dir(name : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib dir operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Dir(name : String) : String {
         if IsAbs(name) { return "/"; }
         return ".";
     }
 
+    --- Signature: function Split(name : String) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib split operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Split(name : String) : Table {
         return {"dir": Dir(name), "file": Base(name)};
     }
 
     namespace filepath {
+        --- Signature: function Abs(name : String) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib abs operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Abs(name : String) : String {
             if path.IsAbs(name) { return name; }
             return path.Join("/", name);
         }
 
+        --- Signature: function ToSlash(name : String) : String
+        --- Returns: String.
+        --- Summary: Converts the provided Klang value(s) into to slash.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function ToSlash(name : String) : String {
             return name;
         }
 
+        --- Signature: function FromSlash(name : String) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib from slash operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function FromSlash(name : String) : String {
             return name;
         }
 
+        --- Signature: function IsLocal(name : String) : Bool
+        --- Returns: Bool.
+        --- Summary: Checks whether is local is true for the provided Klang value(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function IsLocal(name : String) : Bool {
             return not path.IsAbs(name);
         }

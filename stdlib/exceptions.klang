@@ -5,18 +5,34 @@
 -- and stack-debugging constructs.
 
 namespace exceptions {
+    --- Signature: function Panic(message : String)
+    --- Returns: No explicit return value.
+    --- Summary: Performs the panic control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Panic(message : String) {
         throw message;
     }
 
+    --- Signature: function Throw(value : Any)
+    --- Returns: No explicit return value.
+    --- Summary: Performs the throw control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Throw(value : Any) {
         throw value;
     }
 
+    --- Signature: function Recover(message : String, fallback : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib recover operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Recover(message : String, fallback : String) : String {
         if len(message) == 0 { return fallback; } else { return message; }
     }
 
+    --- Signature: function TryString(action : Function[String], fallback : String) : String
+    --- Returns: String.
+    --- Summary: Performs the try string control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TryString(action : Function[String], fallback : String) : String {
         try {
             return action();
@@ -25,6 +41,10 @@ namespace exceptions {
         }
     }
 
+    --- Signature: function TryInt(action : Function[Int], fallback : Int) : Int
+    --- Returns: Int.
+    --- Summary: Performs the try int control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TryInt(action : Function[Int], fallback : Int) : Int {
         try {
             return action();
@@ -33,6 +53,10 @@ namespace exceptions {
         }
     }
 
+    --- Signature: function TryBool(action : Function[Bool], fallback : Bool) : Bool
+    --- Returns: Bool.
+    --- Summary: Performs the try bool control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TryBool(action : Function[Bool], fallback : Bool) : Bool {
         try {
             return action();
@@ -41,15 +65,31 @@ namespace exceptions {
         }
     }
 
+    --- Signature: function ResultToException(value : Result[T, String]) : T
+    --- Returns: T.
+    --- Summary: Provides the stdlib result to exception operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ResultToException(value : Result[T, String]) : T {
         return value!;
     }
 
+    --- Signature: function column() : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib column operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function column() : Int {
         return 1;
     }
 
+    --- Signature: function format_fun() : Function[Any, String]
+    --- Returns: Function[Any, String].
+    --- Summary: Builds, writes, or formats format fun using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_fun() : Function[Any, String] {
+        --- Signature: function default_format(value : Any) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib default format operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function default_format(value : Any) : String {
             return value as String;
         }
@@ -57,6 +97,10 @@ namespace exceptions {
         return default_format;
     }
 
+    --- Signature: function format_options() : Table
+    --- Returns: Table.
+    --- Summary: Builds, writes, or formats format options using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_options() : Table {
         return {
             "column": column(),
@@ -65,7 +109,15 @@ namespace exceptions {
         };
     }
 
+    --- Signature: function stack_trim_fun() : Function[String, String, Int, Bool]
+    --- Returns: Function[String, String, Int, Bool].
+    --- Summary: Provides the stdlib stack trim fun operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function stack_trim_fun() : Function[String, String, Int, Bool] {
+        --- Signature: function keep_stack_entry(module : String, functionName : String, arity : Int) : Bool
+        --- Returns: Bool.
+        --- Summary: Provides the stdlib keep stack entry operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function keep_stack_entry(module : String, functionName : String, arity : Int) : Bool {
             return False;
         }
@@ -73,6 +125,10 @@ namespace exceptions {
         return keep_stack_entry;
     }
 
+    --- Signature: function format_error(reason : Any, stackTrace : List[String]) : Table
+    --- Returns: Table.
+    --- Summary: Builds, writes, or formats format error using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_error(reason : Any, stackTrace : List[String]) : Table {
         local Function[Any, String] formatter = format_fun();
         return {
@@ -83,6 +139,10 @@ namespace exceptions {
         };
     }
 
+    --- Signature: function format_stack(stackTrace : List[String]) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats format stack using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_stack(stackTrace : List[String]) : String {
         local mut String rendered = "";
         local mut Int index = 0;
@@ -99,6 +159,10 @@ namespace exceptions {
         return rendered;
     }
 
+    --- Signature: function format_exception(errorClass : String, reason : Any, stackTrace : List[String], options : Table = format_options()) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats format exception using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_exception(errorClass : String, reason : Any, stackTrace : List[String], options : Table = format_options()) : String {
         local Table details = format_error(reason, stackTrace);
         local String reasonText = details.reason as String;
@@ -117,10 +181,18 @@ namespace exceptions {
         return message;
     }
 
+    --- Signature: function format_current_exception(errorClass : String, reason : Any) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats format current exception using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_current_exception(errorClass : String, reason : Any) : String {
         return format_exception(errorClass, reason, debug_stack(), format_options());
     }
 
+    --- Signature: function capture_error(errorClass : String, reason : Any) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib capture error operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function capture_error(errorClass : String, reason : Any) : Table {
         return {
             "class": errorClass,

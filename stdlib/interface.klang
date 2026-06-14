@@ -3,62 +3,122 @@
 -- structured Result/Table values that describe requested operations.
 
 namespace interface {
+    --- Signature: function IsAvailable() : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is available is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsAvailable() : Bool {
         return False;
     }
 
+    --- Signature: function Unsupported(message : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib unsupported operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Unsupported(message : String) : String {
         return "interface unsupported: " + message;
     }
 
+    --- Signature: function Operation(name : String, args : List[String]) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib operation operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Operation(name : String, args : List[String]) : Table {
         return {"name": name, "args": args, "available": IsAvailable()};
     }
 
+    --- Signature: function Access(path : String, mode : Int) : Result[Bool, String]
+    --- Returns: Result[Bool, String].
+    --- Summary: Provides the stdlib access operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Access(path : String, mode : Int) : Result[Bool, String] {
         return Err(Unsupported("access " + path));
     }
 
+    --- Signature: function Open(path : String, mode : Int, perm : Int = 0) : Result[Table, String]
+    --- Returns: Result[Table, String].
+    --- Summary: Creates or initializes open with the supplied Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Open(path : String, mode : Int, perm : Int = 0) : Result[Table, String] {
         return Err(Unsupported("open " + path));
     }
 
+    --- Signature: function Close(fd : Int) : Result[Int, String]
+    --- Returns: Result[Int, String].
+    --- Summary: Provides the stdlib close operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Close(fd : Int) : Result[Int, String] {
         return Err(Unsupported("close"));
     }
 
+    --- Signature: function Read(fd : Int, count : Int) : Result[String, String]
+    --- Returns: Result[String, String].
+    --- Summary: Reads, locates, or decodes read from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Read(fd : Int, count : Int) : Result[String, String] {
         return Err(Unsupported("read"));
     }
 
+    --- Signature: function Write(fd : Int, data : String) : Result[Int, String]
+    --- Returns: Result[Int, String].
+    --- Summary: Builds, writes, or formats write using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Write(fd : Int, data : String) : Result[Int, String] {
         return Err(Unsupported("write"));
     }
 
+    --- Signature: function Getenv(key : String) : Option[String]
+    --- Returns: Option[String].
+    --- Summary: Reads, locates, or decodes getenv from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Getenv(key : String) : Option[String] {
         return None();
     }
 
+    --- Signature: function Setenv(key : String, value : String) : Result[Int, String]
+    --- Returns: Result[Int, String].
+    --- Summary: Builds, writes, or formats setenv using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Setenv(key : String, value : String) : Result[Int, String] {
         return Err(Unsupported("setenv"));
     }
 
+    --- Signature: function Environ() : List[String]
+    --- Returns: List[String].
+    --- Summary: Provides the stdlib environ operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Environ() : List[String] {
         return [];
     }
 
+    --- Signature: function Getpid() : Int
+    --- Returns: Int.
+    --- Summary: Reads, locates, or decodes getpid from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Getpid() : Int {
         return 0;
     }
 
+    --- Signature: function Exit(code : Int) : Result[Int, String]
+    --- Returns: Result[Int, String].
+    --- Summary: Provides the stdlib exit operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Exit(code : Int) : Result[Int, String] {
         return Err(Unsupported("exit"));
     }
 
+    --- Signature: function Socket(domain : Int, typ : Int, proto : Int) : Result[Int, String]
+    --- Returns: Result[Int, String].
+    --- Summary: Provides the stdlib socket operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Socket(domain : Int, typ : Int, proto : Int) : Result[Int, String] {
         return Err(Unsupported("socket"));
     }
 
+    --- Signature: function Stat(path : String) : Result[Table, String]
+    --- Returns: Result[Table, String].
+    --- Summary: Provides the stdlib stat operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Stat(path : String) : Result[Table, String] {
         return Err(Unsupported("stat " + path));
     }

@@ -4,32 +4,60 @@
 -- operations typed stdlib names and practical helpers for common containers.
 
 namespace builtin {
+    --- Signature: function LenString(value : String) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib len string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LenString(value : String) : Int {
         return len(value);
     }
 
+    --- Signature: function LenIntList(value : List[Int]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib len int list operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LenIntList(value : List[Int]) : Int {
         return len(value);
     }
 
+    --- Signature: function LenStringList(value : List[String]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib len string list operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LenStringList(value : List[String]) : Int {
         return len(value);
     }
 
+    --- Signature: function LenStringIntMap(value : Map[String, Int]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib len string int map operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function LenStringIntMap(value : Map[String, Int]) : Int {
         return len(value);
     }
 
+    --- Signature: function RangeCount(count : Int) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib range count operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function RangeCount(count : Int) : Int {
         return range(count);
     }
 
+    --- Signature: function append(values : List[T], value : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Combines or extends Klang value(s) for the append operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function append(values : List[T], value : T) : List[T] {
         local mut List[T] result = clone values;
         result[len(result)] = value;
         return result;
     }
 
+    --- Signature: function append_all(left : List[T], right : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Combines or extends Klang value(s) for the append all operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function append_all(left : List[T], right : List[T]) : List[T] {
         local mut List[T] result = clone left;
         local mut Int index = 0;
@@ -42,48 +70,92 @@ namespace builtin {
         return result;
     }
 
+    --- Signature: function cap(values : List[T]) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib cap operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function cap(values : List[T]) : Int {
         return len(values);
     }
 
+    --- Signature: function clear(values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Removes or normalizes Klang value(s) for the clear operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function clear(values : List[T]) : List[T] {
         local List[T] empty;
         return empty;
     }
 
+    --- Signature: function clear_table(value : Table) : Table
+    --- Returns: Table.
+    --- Summary: Removes or normalizes Klang value(s) for the clear table operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function clear_table(value : Table) : Table {
         return {};
     }
 
+    --- Signature: function close(value : T) : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib close operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function close(value : T) : Bool {
         return value?;
     }
 
+    --- Signature: function complex(realPart : Float, imaginaryPart : Float) : Complex
+    --- Returns: Complex.
+    --- Summary: Provides the stdlib complex operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function complex(realPart : Float, imaginaryPart : Float) : Complex {
         return Complex(realPart, imaginaryPart);
     }
 
+    --- Signature: function complex_int(realPart : Int, imaginaryPart : Int) : Complex
+    --- Returns: Complex.
+    --- Summary: Provides the stdlib complex int operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function complex_int(realPart : Int, imaginaryPart : Int) : Complex {
         return Complex(realPart, imaginaryPart);
     }
 
+    --- Signature: function CopyList(values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Models the copy list memory or ownership operation for the runtime.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function CopyList(values : List[T]) : List[T] {
         return copy values;
     }
 
+    --- Signature: function CloneValue(value : T) : T
+    --- Returns: T.
+    --- Summary: Models the clone value memory or ownership operation for the runtime.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function CloneValue(value : T) : T {
         return clone value;
     }
 
+    --- Signature: function delete(mut value : Table, key : String) : Table
+    --- Returns: Table.
+    --- Summary: Removes or normalizes Klang value(s) for the delete operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function delete(mut value : Table, key : String) : Table {
         value[key] = "";
         return value;
     }
 
+    --- Signature: function imag(value : Complex) : Float
+    --- Returns: Float.
+    --- Summary: Provides the stdlib imag operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function imag(value : Complex) : Float {
         return 0.0;
     }
 
+    --- Signature: function len_value(value : T) : Int
+    --- Returns: Int.
+    --- Summary: Provides the stdlib len value operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function len_value(value : T) : Int {
         if debug_type(value) == "String" {
             return len(value as String);
@@ -92,6 +164,10 @@ namespace builtin {
         return 0;
     }
 
+    --- Signature: function make_int_list(size : Int, defaultValue : Int = 0) : List[Int]
+    --- Returns: List[Int].
+    --- Summary: Creates or initializes make int list with the supplied Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function make_int_list(size : Int, defaultValue : Int = 0) : List[Int] {
         local mut List[Int] result;
         local mut Int index = 0;
@@ -104,6 +180,10 @@ namespace builtin {
         return result;
     }
 
+    --- Signature: function make_string_list(size : Int, defaultValue : String = "") : List[String]
+    --- Returns: List[String].
+    --- Summary: Creates or initializes make string list with the supplied Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function make_string_list(size : Int, defaultValue : String = "") : List[String] {
         local mut List[String] result;
         local mut Int index = 0;
@@ -116,10 +196,18 @@ namespace builtin {
         return result;
     }
 
+    --- Signature: function make_table() : Table
+    --- Returns: Table.
+    --- Summary: Creates or initializes make table with the supplied Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function make_table() : Table {
         return {};
     }
 
+    --- Signature: function max[T restrict[Int, Float, String]](left : T, right : T) : T
+    --- Returns: T.
+    --- Summary: Provides the stdlib max operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function max[T restrict[Int, Float, String]](left : T, right : T) : T {
         if left > right {
             return left;
@@ -128,6 +216,10 @@ namespace builtin {
         return right;
     }
 
+    --- Signature: function min[T restrict[Int, Float, String]](left : T, right : T) : T
+    --- Returns: T.
+    --- Summary: Provides the stdlib min operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function min[T restrict[Int, Float, String]](left : T, right : T) : T {
         if left < right {
             return left;
@@ -136,32 +228,60 @@ namespace builtin {
         return right;
     }
 
+    --- Signature: function new(value : T) : Box
+    --- Returns: Box.
+    --- Summary: Creates or initializes new with the supplied Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function new(value : T) : Box {
         return Box(value);
     }
 
+    --- Signature: function panic(value : Any)
+    --- Returns: No explicit return value.
+    --- Summary: Performs the panic control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function panic(value : Any) {
         throw value;
     }
 
+    --- Signature: function print_value(value : T) : Int
+    --- Returns: Int.
+    --- Summary: Performs the print value control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function print_value(value : T) : Int {
         print(value);
         return 0;
     }
 
+    --- Signature: function println(value : T) : Int
+    --- Returns: Int.
+    --- Summary: Performs the println control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function println(value : T) : Int {
         print(value);
         return 0;
     }
 
+    --- Signature: function real(value : Complex) : Float
+    --- Returns: Float.
+    --- Summary: Provides the stdlib real operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function real(value : Complex) : Float {
         return 0.0;
     }
 
+    --- Signature: function recover(fallback : T) : T
+    --- Returns: T.
+    --- Summary: Provides the stdlib recover operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function recover(fallback : T) : T {
         return fallback;
     }
 
+    --- Signature: function try_or(action : Function[T], fallback : T) : T
+    --- Returns: T.
+    --- Summary: Performs the try or control-flow or runtime I/O operation.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function try_or(action : Function[T], fallback : T) : T {
         try {
             return action();
@@ -170,10 +290,18 @@ namespace builtin {
         }
     }
 
+    --- Signature: function type_of(value : T) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib type of operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function type_of(value : T) : String {
         return debug_type(value);
     }
 
+    --- Signature: function is_present(value : T) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is present is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function is_present(value : T) : Bool {
         return value?;
     }

@@ -3,27 +3,55 @@
 -- so this module provides practical encoders plus lightweight decoder state.
 
 namespace json {
+    --- Signature: function Null() : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib null operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Null() : String {
         return "null";
     }
 
+    --- Signature: function Bool(value : Bool) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib bool operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Bool(value : Bool) : String {
         if value { return "true"; } else { return "false"; }
     }
 
+    --- Signature: function String(value : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function String(value : String) : String {
         return encode_binary(value);
     }
 
+    --- Signature: function PairString(key : String, value : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib pair string operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function PairString(key : String, value : String) : String {
         return encode_binary(key) + ":" + encode_binary(value);
     }
 
+    --- Signature: function Object1(pair : String) : String
+    --- Returns: String.
+    --- Summary: Provides the stdlib object1 operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Object1(pair : String) : String {
         return "{" + pair + "}";
     }
 
+    --- Signature: function array_start_fun() : Function[String]
+    --- Returns: Function[String].
+    --- Summary: Provides the stdlib array start fun operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function array_start_fun() : Function[String] {
+        --- Signature: function start_array() : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib start array operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function start_array() : String {
             return "[";
         }
@@ -31,7 +59,15 @@ namespace json {
         return start_array;
     }
 
+    --- Signature: function array_push_fun() : Function[String, String, String]
+    --- Returns: Function[String, String, String].
+    --- Summary: Provides the stdlib array push fun operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function array_push_fun() : Function[String, String, String] {
+        --- Signature: function push_array_value(state : String, value : String) : String
+        --- Returns: String.
+        --- Summary: Combines or extends Klang value(s) for the push array value operation.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function push_array_value(state : String, value : String) : String {
             if state == "[" {
                 return state + value;
@@ -43,7 +79,15 @@ namespace json {
         return push_array_value;
     }
 
+    --- Signature: function array_finish_fun() : Function[String, String]
+    --- Returns: Function[String, String].
+    --- Summary: Provides the stdlib array finish fun operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function array_finish_fun() : Function[String, String] {
+        --- Signature: function finish_array(state : String) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib finish array operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function finish_array(state : String) : String {
             return state + "]";
         }
@@ -51,7 +95,15 @@ namespace json {
         return finish_array;
     }
 
+    --- Signature: function object_start_fun() : Function[String]
+    --- Returns: Function[String].
+    --- Summary: Provides the stdlib object start fun operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function object_start_fun() : Function[String] {
+        --- Signature: function start_object() : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib start object operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function start_object() : String {
             return "{";
         }
@@ -59,7 +111,15 @@ namespace json {
         return start_object;
     }
 
+    --- Signature: function object_push_fun() : Function[String, String, String, String]
+    --- Returns: Function[String, String, String, String].
+    --- Summary: Provides the stdlib object push fun operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function object_push_fun() : Function[String, String, String, String] {
+        --- Signature: function push_object_pair(state : String, key : String, value : String) : String
+        --- Returns: String.
+        --- Summary: Combines or extends Klang value(s) for the push object pair operation.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function push_object_pair(state : String, key : String, value : String) : String {
             local String pair = encode_binary(key) + ":" + value;
             if state == "{" {
@@ -72,7 +132,15 @@ namespace json {
         return push_object_pair;
     }
 
+    --- Signature: function object_finish_fun() : Function[String, String]
+    --- Returns: Function[String, String].
+    --- Summary: Provides the stdlib object finish fun operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function object_finish_fun() : Function[String, String] {
+        --- Signature: function finish_object(state : String) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib finish object operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function finish_object(state : String) : String {
             return state + "}";
         }
@@ -80,6 +148,10 @@ namespace json {
         return finish_object;
     }
 
+    --- Signature: function continuation_state(binary : String) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib continuation state operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function continuation_state(binary : String) : Table {
         return {
             "input": binary,
@@ -89,6 +161,10 @@ namespace json {
         };
     }
 
+    --- Signature: function decoders() : Table
+    --- Returns: Table.
+    --- Summary: Reads, locates, or decodes decoders from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function decoders() : Table {
         return {
             "from_binary": from_binary_fun(),
@@ -96,7 +172,15 @@ namespace json {
         };
     }
 
+    --- Signature: function encoder() : Function[T, String]
+    --- Returns: Function[T, String].
+    --- Summary: Builds, writes, or formats encoder using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encoder() : Function[T, String] {
+        --- Signature: function default_encoder(value : T) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib default encoder operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function default_encoder(value : T) : String {
             return value as String;
         }
@@ -104,7 +188,15 @@ namespace json {
         return default_encoder;
     }
 
+    --- Signature: function formatter() : Function[T, String]
+    --- Returns: Function[T, String].
+    --- Summary: Builds, writes, or formats formatter using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function formatter() : Function[T, String] {
+        --- Signature: function default_formatter(value : T) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib default formatter operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function default_formatter(value : T) : String {
             return format(value);
         }
@@ -112,7 +204,15 @@ namespace json {
         return default_formatter;
     }
 
+    --- Signature: function from_binary_fun() : Function[String, String]
+    --- Returns: Function[String, String].
+    --- Summary: Provides the stdlib from binary fun operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function from_binary_fun() : Function[String, String] {
+        --- Signature: function from_binary(binary : String) : String
+        --- Returns: String.
+        --- Summary: Provides the stdlib from binary operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function from_binary(binary : String) : String {
             return binary;
         }
@@ -120,6 +220,10 @@ namespace json {
         return from_binary;
     }
 
+    --- Signature: function decode_value(binary : String) : Result[String, String]
+    --- Returns: Result[String, String].
+    --- Summary: Reads, locates, or decodes decode value from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function decode_value(binary : String) : Result[String, String] {
         if len(binary) == 0 {
             return Err("json decode expected a value");
@@ -128,6 +232,10 @@ namespace json {
         return Ok(binary);
     }
 
+    --- Signature: function decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, String]
+    --- Returns: Result[String, String].
+    --- Summary: Reads, locates, or decodes decode from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, String] {
         local mut String input = acc0 + binary;
         if decoderTable["from_binary"]? {
@@ -138,6 +246,10 @@ namespace json {
         return decode_value(input);
     }
 
+    --- Signature: function decode_start(binary : String, acc : String = "", decoderTable : Table = decoders()) : Table
+    --- Returns: Table.
+    --- Summary: Reads, locates, or decodes decode start from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function decode_start(binary : String, acc : String = "", decoderTable : Table = decoders()) : Table {
         return {
             "input": acc + binary,
@@ -148,6 +260,10 @@ namespace json {
         };
     }
 
+    --- Signature: function decode_continue(state : Table, binary : String) : Table
+    --- Returns: Table.
+    --- Summary: Reads, locates, or decodes decode continue from the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function decode_continue(state : Table, binary : String) : Table {
         local String nextInput = (state["input"] as String) + binary;
         return {
@@ -159,30 +275,58 @@ namespace json {
         };
     }
 
+    --- Signature: function encode(value : T, encodeFn : Function[T, String] = encoder()) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats encode using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode(value : T, encodeFn : Function[T, String] = encoder()) : String {
         return encode_value(value, encodeFn);
     }
 
+    --- Signature: function encode_atom(value : Bool) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats encode atom using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_atom(value : Bool) : String {
         return Bool(value);
     }
 
+    --- Signature: function encode_binary(value : String) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats encode binary using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_binary(value : String) : String {
         return "\"" + value + "\"";
     }
 
+    --- Signature: function encode_binary_escape_all(value : String) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats encode binary escape all using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_binary_escape_all(value : String) : String {
         return encode_binary(value);
     }
 
+    --- Signature: function encode_float(value : Float) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats encode float using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_float(value : Float) : String {
         return value as String;
     }
 
+    --- Signature: function encode_integer(value : Int) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats encode integer using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_integer(value : Int) : String {
         return value as String;
     }
 
+    --- Signature: function encode_key_value_list(list : List[Table], encodeFn : Function[String, String] = encode_binary) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats encode key value list using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_key_value_list(list : List[Table], encodeFn : Function[String, String] = encode_binary) : String {
         local mut String state = "{";
         local mut Int index = 0;
@@ -204,6 +348,10 @@ namespace json {
         return state + "}";
     }
 
+    --- Signature: function encode_key_value_list_checked(list : List[Table], encodeFn : Function[String, String] = encode_binary) : Result[String, String]
+    --- Returns: Result[String, String].
+    --- Summary: Builds, writes, or formats encode key value list checked using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_key_value_list_checked(list : List[Table], encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
         local mut Int index = 0;
 
@@ -221,6 +369,10 @@ namespace json {
         return Ok(encode_key_value_list(list, encodeFn));
     }
 
+    --- Signature: function encode_list(list : List[String], encodeFn : Function[String, String] = encode_binary) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats encode list using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_list(list : List[String], encodeFn : Function[String, String] = encode_binary) : String {
         local mut String state = "[";
         local mut Int index = 0;
@@ -240,6 +392,10 @@ namespace json {
         return state + "]";
     }
 
+    --- Signature: function encode_map(value : Table, encodeFn : Function[String, String] = encode_binary) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats encode map using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_map(value : Table, encodeFn : Function[String, String] = encode_binary) : String {
         if value["key"]? and value["value"]? {
             return "{" + encode_binary(value["key"] as String) + ":" + encodeFn(value["value"] as String) + "}";
@@ -248,6 +404,10 @@ namespace json {
         return "{}";
     }
 
+    --- Signature: function encode_map_checked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, String]
+    --- Returns: Result[String, String].
+    --- Summary: Builds, writes, or formats encode map checked using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_map_checked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
         if value["key"]? and value["value"]? {
             return Ok(encode_map(value, encodeFn));
@@ -256,10 +416,18 @@ namespace json {
         return Err("json map requires key and value fields");
     }
 
+    --- Signature: function encode_value(value : T, encodeFn : Function[T, String]) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats encode value using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_value(value : T, encodeFn : Function[T, String]) : String {
         return encodeFn(value);
     }
 
+    --- Signature: function format_options(indent : String = "  ") : Table
+    --- Returns: Table.
+    --- Summary: Builds, writes, or formats format options using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_options(indent : String = "  ") : Table {
         return {
             "indent": indent,
@@ -267,14 +435,26 @@ namespace json {
         };
     }
 
+    --- Signature: function format(value : T, encodeFn : Function[T, String] = encoder(), options : Table = format_options()) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats format using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format(value : T, encodeFn : Function[T, String] = encoder(), options : Table = format_options()) : String {
         return format_value(value, encodeFn, options);
     }
 
+    --- Signature: function format_key_value_list(list : List[Table], encodeFn : Function[String, String], state : Table) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats format key value list using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_key_value_list(list : List[Table], encodeFn : Function[String, String], state : Table) : String {
         return format_key_value_list_checked(list, encodeFn, state)!;
     }
 
+    --- Signature: function format_key_value_list_checked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, String]
+    --- Returns: Result[String, String].
+    --- Summary: Builds, writes, or formats format key value list checked using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_key_value_list_checked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, String] {
         local Result[String, String] encoded = encode_key_value_list_checked(list, encodeFn);
         if not encoded? {
@@ -284,6 +464,10 @@ namespace json {
         return Ok(encoded!);
     }
 
+    --- Signature: function format_value(value : T, encodeFn : Function[T, String], state : Table) : String
+    --- Returns: String.
+    --- Summary: Builds, writes, or formats format value using the provided Klang input(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_value(value : T, encodeFn : Function[T, String], state : Table) : String {
         if state["indent"]? {
             return encodeFn(value);

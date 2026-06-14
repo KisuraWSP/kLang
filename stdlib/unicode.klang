@@ -3,34 +3,66 @@
 -- behavior and UTF descriptor helpers.
 
 namespace unicode {
+    --- Signature: function IsDigit(value : Char) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is digit is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsDigit(value : Char) : Bool {
         return value >= '0' and value <= '9';
     }
 
+    --- Signature: function IsLower(value : Char) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is lower is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsLower(value : Char) : Bool {
         return value >= 'a' and value <= 'z';
     }
 
+    --- Signature: function IsUpper(value : Char) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is upper is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsUpper(value : Char) : Bool {
         return value >= 'A' and value <= 'Z';
     }
 
+    --- Signature: function IsLetter(value : Char) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is letter is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsLetter(value : Char) : Bool {
         return IsLower(value) or IsUpper(value);
     }
 
+    --- Signature: function IsNumber(value : Char) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is number is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsNumber(value : Char) : Bool {
         return IsDigit(value);
     }
 
+    --- Signature: function IsSpace(value : Char) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is space is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsSpace(value : Char) : Bool {
         return value == ' ' or value == '\n' or value == '\t';
     }
 
+    --- Signature: function IsPrint(value : Char) : Bool
+    --- Returns: Bool.
+    --- Summary: Checks whether is print is true for the provided Klang value(s).
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function IsPrint(value : Char) : Bool {
         return not (value == '\n' or value == '\t');
     }
 
+    --- Signature: function In(value : Char, ranges : List[Table]) : Bool
+    --- Returns: Bool.
+    --- Summary: Provides the stdlib in operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function In(value : Char, ranges : List[Table]) : Bool {
         local mut Int index = 0;
         while index < len(ranges) {
@@ -43,41 +75,77 @@ namespace unicode {
         return False;
     }
 
+    --- Signature: function Range(low : Char, high : Char) : Table
+    --- Returns: Table.
+    --- Summary: Provides the stdlib range operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Range(low : Char, high : Char) : Table {
         return {"low": low, "high": high};
     }
 
+    --- Signature: function ToLower(value : Char) : Char
+    --- Returns: Char.
+    --- Summary: Converts the provided Klang value(s) into to lower.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ToLower(value : Char) : Char {
         return value;
     }
 
+    --- Signature: function ToUpper(value : Char) : Char
+    --- Returns: Char.
+    --- Summary: Converts the provided Klang value(s) into to upper.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ToUpper(value : Char) : Char {
         return value;
     }
 
+    --- Signature: function SimpleFold(value : Char) : Char
+    --- Returns: Char.
+    --- Summary: Provides the stdlib simple fold operation using current Klang data types and runtime helpers.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function SimpleFold(value : Char) : Char {
         return value;
     }
 
     namespace utf16 {
+        --- Signature: function AppendRune(values : List[Int], rune : Int) : List[Int]
+        --- Returns: List[Int].
+        --- Summary: Combines or extends Klang value(s) for the append rune operation.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function AppendRune(values : List[Int], rune : Int) : List[Int] {
             local mut List[Int] result = clone values;
             result[len(result)] = rune;
             return result;
         }
 
+        --- Signature: function Decode(values : List[Int]) : List[Int]
+        --- Returns: List[Int].
+        --- Summary: Reads, locates, or decodes decode from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Decode(values : List[Int]) : List[Int] {
             return clone values;
         }
 
+        --- Signature: function Encode(values : List[Int]) : List[Int]
+        --- Returns: List[Int].
+        --- Summary: Builds, writes, or formats encode using the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function Encode(values : List[Int]) : List[Int] {
             return clone values;
         }
 
+        --- Signature: function IsSurrogate(rune : Int) : Bool
+        --- Returns: Bool.
+        --- Summary: Checks whether is surrogate is true for the provided Klang value(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function IsSurrogate(rune : Int) : Bool {
             return rune >= 55296 and rune <= 57343;
         }
 
+        --- Signature: function RuneLen(rune : Int) : Int
+        --- Returns: Int.
+        --- Summary: Provides the stdlib rune len operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function RuneLen(rune : Int) : Int {
             if rune > 65535 { return 2; }
             return 1;
@@ -85,14 +153,26 @@ namespace unicode {
     }
 
     namespace utf8 {
+        --- Signature: function RuneCountInString(value : String) : Int
+        --- Returns: Int.
+        --- Summary: Provides the stdlib rune count in string operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function RuneCountInString(value : String) : Int {
             return len(value);
         }
 
+        --- Signature: function ValidString(value : String) : Bool
+        --- Returns: Bool.
+        --- Summary: Checks whether valid string is true for the provided Klang value(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function ValidString(value : String) : Bool {
             return value?;
         }
 
+        --- Signature: function RuneLen(rune : Int) : Int
+        --- Returns: Int.
+        --- Summary: Provides the stdlib rune len operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function RuneLen(rune : Int) : Int {
             if rune < 128 { return 1; }
             if rune < 2048 { return 2; }
@@ -100,6 +180,10 @@ namespace unicode {
             return 4;
         }
 
+        --- Signature: function DecodeRuneInString(value : String) : Table
+        --- Returns: Table.
+        --- Summary: Reads, locates, or decodes decode rune in string from the provided Klang input(s).
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function DecodeRuneInString(value : String) : Table {
             if len(value) == 0 {
                 return {"rune": 0, "size": 0};
@@ -107,6 +191,10 @@ namespace unicode {
             return {"rune": value[0], "size": 1};
         }
 
+        --- Signature: function FullRuneInString(value : String) : Bool
+        --- Returns: Bool.
+        --- Summary: Provides the stdlib full rune in string operation using current Klang data types and runtime helpers.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function FullRuneInString(value : String) : Bool {
             return len(value) > 0;
         }
