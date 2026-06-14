@@ -1714,6 +1714,159 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.addError(source, line, fmt.Sprintf("atomic_add expects numeric Atomic and value, got %s and %s", inner, valueType))
 		}
 		return numericResult(inner, valueType)
+	case "Program":
+		if len(args) != 1 {
+			checker.addError(source, line, "Program expects 1 argument")
+			return "Program"
+		}
+		moduleType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("List[String]", moduleType) {
+			checker.addError(source, line, fmt.Sprintf("Program module expects List[String], got %s", moduleType))
+		}
+		return "Program"
+	case "BuildSystem":
+		if len(args) != 4 {
+			checker.addError(source, line, "BuildSystem expects 4 arguments")
+			return "BuildSystem"
+		}
+		projectNameType := checker.inferExpression(args[0], locals, source, line)
+		numberOfFilesType := checker.inferExpression(args[1], locals, source, line)
+		filesType := checker.inferExpression(args[2], locals, source, line)
+		backendType := checker.inferExpression(args[3], locals, source, line)
+		if !isAssignable("String", projectNameType) {
+			checker.addError(source, line, fmt.Sprintf("BuildSystem project_name expects String, got %s", projectNameType))
+		}
+		if !isAssignable("Int", numberOfFilesType) {
+			checker.addError(source, line, fmt.Sprintf("BuildSystem number_of_files expects Int, got %s", numberOfFilesType))
+		}
+		if !isAssignable("List[String]", filesType) {
+			checker.addError(source, line, fmt.Sprintf("BuildSystem files expects List[String], got %s", filesType))
+		}
+		if !isAssignable("String", backendType) {
+			checker.addError(source, line, fmt.Sprintf("BuildSystem backend expects String, got %s", backendType))
+		}
+		if literalString, ok := quotedStringLiteral(args[3]); ok && !isBuildBackendName(literalString) {
+			checker.addError(source, line, "BuildSystem backend must be WASM, JS, or Standalone")
+		}
+		return "BuildSystem"
+	case "WorkSpace":
+		if len(args) != 2 {
+			checker.addError(source, line, "WorkSpace expects 2 arguments")
+			return "WorkSpace"
+		}
+		programType := checker.inferExpression(args[0], locals, source, line)
+		buildSystemType := checker.inferExpression(args[1], locals, source, line)
+		if !isAssignable("Program", programType) {
+			checker.addError(source, line, fmt.Sprintf("WorkSpace first argument expects Program, got %s", programType))
+		}
+		if !isAssignable("BuildSystem", buildSystemType) {
+			checker.addError(source, line, fmt.Sprintf("WorkSpace second argument expects BuildSystem, got %s", buildSystemType))
+		}
+		return "WorkSpace"
+	case "workspace_backend":
+		if len(args) != 1 {
+			checker.addError(source, line, "workspace_backend expects 1 argument")
+			return "String"
+		}
+		workspaceType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("WorkSpace", workspaceType) {
+			checker.addError(source, line, fmt.Sprintf("workspace_backend expects WorkSpace, got %s", workspaceType))
+		}
+		return "String"
+	case "workspace_files":
+		if len(args) != 1 {
+			checker.addError(source, line, "workspace_files expects 1 argument")
+			return "List[String]"
+		}
+		workspaceType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("WorkSpace", workspaceType) {
+			checker.addError(source, line, fmt.Sprintf("workspace_files expects WorkSpace, got %s", workspaceType))
+		}
+		return "List[String]"
+	case "workspace_manifest":
+		if len(args) != 1 {
+			checker.addError(source, line, "workspace_manifest expects 1 argument")
+			return "String"
+		}
+		workspaceType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("WorkSpace", workspaceType) {
+			checker.addError(source, line, fmt.Sprintf("workspace_manifest expects WorkSpace, got %s", workspaceType))
+		}
+		return "String"
+	case "debug":
+		if len(args) != 1 {
+			checker.addError(source, line, "debug expects 1 argument")
+			return anyType
+		}
+		return checker.inferExpression(args[0], locals, source, line)
+	case "debug_type":
+		if len(args) != 1 {
+			checker.addError(source, line, "debug_type expects 1 argument")
+			return "String"
+		}
+		checker.inferExpression(args[0], locals, source, line)
+		return "String"
+	case "debug_stack":
+		if len(args) != 0 {
+			checker.addError(source, line, "debug_stack expects 0 arguments")
+		}
+		return "List[String]"
+	case "breakpoint":
+		if len(args) > 1 {
+			checker.addError(source, line, "breakpoint expects 0 to 1 arguments")
+		}
+		if len(args) == 1 {
+			checker.inferExpression(args[0], locals, source, line)
+		}
+		return anyType
+	case "js_import":
+		if len(args) != 1 {
+			checker.addError(source, line, "js_import expects 1 argument")
+			return "JSModule"
+		}
+		pathType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("String", pathType) {
+			checker.addError(source, line, fmt.Sprintf("js_import expects String, got %s", pathType))
+		}
+		return "JSModule"
+	case "js_source":
+		if len(args) != 1 {
+			checker.addError(source, line, "js_source expects 1 argument")
+			return "String"
+		}
+		moduleType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("JSModule", moduleType) {
+			checker.addError(source, line, fmt.Sprintf("js_source expects JSModule, got %s", moduleType))
+		}
+		return "String"
+	case "js_exports":
+		if len(args) != 1 {
+			checker.addError(source, line, "js_exports expects 1 argument")
+			return "List[String]"
+		}
+		moduleType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("JSModule", moduleType) {
+			checker.addError(source, line, fmt.Sprintf("js_exports expects JSModule, got %s", moduleType))
+		}
+		return "List[String]"
+	case "js_call":
+		if len(args) != 3 {
+			checker.addError(source, line, "js_call expects 3 arguments")
+			return "JSCall"
+		}
+		moduleType := checker.inferExpression(args[0], locals, source, line)
+		apiType := checker.inferExpression(args[1], locals, source, line)
+		argsType := checker.inferExpression(args[2], locals, source, line)
+		if !isAssignable("JSModule", moduleType) {
+			checker.addError(source, line, fmt.Sprintf("js_call expects JSModule, got %s", moduleType))
+		}
+		if !isAssignable("String", apiType) {
+			checker.addError(source, line, fmt.Sprintf("js_call api expects String, got %s", apiType))
+		}
+		if !strings.HasPrefix(argsType, "List[") {
+			checker.addError(source, line, fmt.Sprintf("js_call args expects List[T], got %s", argsType))
+		}
+		return "JSCall"
 	case "Box", "Ref", "RefMut", "RefCell":
 		if len(args) != 1 {
 			checker.addError(source, line, fmt.Sprintf("%s expects 1 argument", name))
@@ -2351,7 +2504,8 @@ func isKnownType(typeName string) bool {
 	}
 	if typeName == anyType || typeName == dynamicAnyType || typeName == "Int" || typeName == "UInt" || typeName == "String" ||
 		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" ||
-		typeName == "Table" {
+		typeName == "Table" || typeName == "Program" || typeName == "BuildSystem" || typeName == "WorkSpace" ||
+		typeName == "JSModule" || typeName == "JSCall" {
 		return true
 	}
 	if isCustomTypeName(typeName) {
@@ -2532,6 +2686,23 @@ func atomicItemType(typeName string) (string, bool) {
 	}
 	inner := normalizeType(typeName[len("Atomic[") : len(typeName)-1])
 	return inner, inner != ""
+}
+
+func quotedStringLiteral(expr string) (string, bool) {
+	expr = strings.TrimSpace(expr)
+	if len(expr) < 2 || !strings.HasPrefix(expr, `"`) || !strings.HasSuffix(expr, `"`) {
+		return "", false
+	}
+	return strings.Trim(expr, `"`), true
+}
+
+func isBuildBackendName(value string) bool {
+	switch value {
+	case "WASM", "JS", "Standalone":
+		return true
+	default:
+		return false
+	}
 }
 
 func functionValueType(typeName string) ([]string, string, bool) {

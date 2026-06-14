@@ -108,6 +108,14 @@ Run without stdlib module resolution:
 go run . check examples/helloworld --raw-lang
 ```
 
+Package a checked project into a compact source bundle:
+
+```sh
+go run . package examples/helloworld --backend=Standalone
+```
+
+The package command writes a `klang-build.json` manifest plus source files under `dist/<project>-<backend>`. Valid backends are `Standalone`, `JS`, and `WASM`.
+
 Show import cache/details:
 
 ```sh

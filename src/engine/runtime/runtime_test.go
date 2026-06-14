@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -1216,6 +1217,48 @@ function Main() : Int {
 
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 4 {
 		t.Fatalf("expected atomic program to return 4, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesWorkspaceBuildAndDebuggerAPIs(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Program program = Program(["app", "mathg"]);
+    local BuildSystem build = BuildSystem("demo", 2, ["first.klang", "app.klang"], "Standalone");
+    local WorkSpace workspace = WorkSpace(program, build);
+    local List[String] files = workspace_files(workspace);
+    debug(workspace_manifest(workspace));
+    breakpoint("workspace-ready");
+    return len(workspace_backend(workspace)) + len(files) + len(debug_stack());
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 13 {
+		t.Fatalf("expected workspace program to return 13, got %#v", result.Value)
+	}
+	if len(result.Output) != 2 || !strings.Contains(result.Output[0], "[debug]") || !strings.Contains(result.Output[1], "[breakpoint]") {
+		t.Fatalf("expected debug and breakpoint output, got %#v", result.Output)
+	}
+}
+
+func TestRuntimeLoadsJSFilesystemModuleDescriptor(t *testing.T) {
+	jsPath := filepath.Join(t.TempDir(), "library.js")
+	if err := os.WriteFile(jsPath, []byte("export function init() {}\nexport const version = 1;\n"), 0644); err != nil {
+		t.Fatalf("write js fixture failed: %v", err)
+	}
+	source := strings.ReplaceAll(jsPath, `\`, `\\`)
+	result := runParsedSource(t, `
+function Main() : Int {
+    local JSModule module = js_import("`+source+`");
+    local List[String] exports = js_exports(module);
+    local String body = js_source(module);
+    local JSCall descriptor = js_call(module, "init", [body]);
+    return len(exports);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 2 {
+		t.Fatalf("expected two js exports, got %#v", result.Value)
 	}
 }
 

@@ -617,6 +617,8 @@ func isBuiltinFunctionName(name string) bool {
 	switch name {
 	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
 		"Table", "iter", "next", "coroutine", "resume", "Atomic", "atomic_load", "atomic_store", "atomic_add",
+		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",
+		"debug", "debug_type", "debug_stack", "breakpoint", "js_import", "js_source", "js_exports", "js_call",
 		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true
 	default:

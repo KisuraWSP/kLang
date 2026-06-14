@@ -7,7 +7,7 @@ scope: source.klang
 
 variables:
   identifier: '[A-Za-z_][A-Za-z0-9_]*'
-  builtin_type: '(?:Int|UInt|String|Float|Bool|Char|Map|List|Table|Option|Result|Complex|SIMD|Function|Awaitable|Iterator|Coroutine|Any|T|Args|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)'
+  builtin_type: '(?:Int|UInt|String|Float|Bool|Char|Map|List|Table|Option|Result|Complex|SIMD|Function|Awaitable|Iterator|Coroutine|Atomic|Any|T|Args|Program|BuildSystem|WorkSpace|JSModule|JSCall|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)'
 
 contexts:
   main:

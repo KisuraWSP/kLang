@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,6 +30,11 @@ type commandOptions struct {
 type entrySpec struct {
 	Name string
 	Type string
+}
+
+type packageOptions struct {
+	Backend string
+	Out     string
 }
 
 func main() {
@@ -87,6 +93,19 @@ func runCLI(args []string) error {
 			return err
 		}
 		return executePrograms([]file.Program{program}, commandOptions{Run: false, Verbose: options.Verbose, RawLang: options.RawLang})
+	case "package", "build":
+		if len(values) != 1 {
+			return fmt.Errorf("%s %s expects a .klang file or project folder", cliName, command)
+		}
+		program, err := file.LoadProgram(values[0])
+		if err != nil {
+			return err
+		}
+		packageOptions, err := parsePackageOptions(rest)
+		if err != nil {
+			return err
+		}
+		return packageProgram(program, packageOptions, commandOptions{Verbose: options.Verbose, RawLang: options.RawLang})
 	case "test", "tests":
 		if len(values) != 1 {
 			return fmt.Errorf("%s test expects a folder containing .klang tests", cliName)
@@ -177,6 +196,86 @@ func createProject(projectPath string, entry entrySpec) error {
 	fmt.Printf("\nnext steps:\n")
 	fmt.Printf("  go run . run %s\n", cleanPath)
 	fmt.Printf("  go run . check %s\n", cleanPath)
+	return nil
+}
+
+func packageProgram(program file.Program, packageOptions packageOptions, options commandOptions) error {
+	backend := packageOptions.Backend
+	if backend == "" {
+		backend = "Standalone"
+	}
+	if !isBuildBackend(backend) {
+		return fmt.Errorf("backend must be one of WASM, JS, Standalone")
+	}
+	outRoot := packageOptions.Out
+	if outRoot == "" {
+		outRoot = filepath.Join(program.Root, "dist")
+	}
+
+	resolver := modulesystem.NewResolver("")
+	resolver.DisableStdlib = options.RawLang
+	resolvedProgram, moduleReport := resolver.ResolveProgram(program)
+	if !moduleReport.Passed() {
+		printModuleErrors(resolvedProgram, moduleReport)
+		return fmt.Errorf("module resolution failed")
+	}
+	typeReport := typechecker.CheckProgram(resolvedProgram)
+	if !typeReport.Passed() {
+		printTypeErrors(resolvedProgram, typeReport)
+		return fmt.Errorf("type check failed")
+	}
+	parsedProgram := parser.ParseLoadedProgram(resolvedProgram)
+	if !parsedProgram.Passed() {
+		return fmt.Errorf("parse failed: %v", parsedProgram.Errors())
+	}
+
+	bundleDir := filepath.Join(outRoot, program.Name+"-"+strings.ToLower(backend))
+	sourceDir := filepath.Join(bundleDir, "src")
+	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+		return err
+	}
+
+	manifestFiles := make([]string, 0, len(resolvedProgram.Files))
+	for _, source := range resolvedProgram.Files {
+		relativePath, err := filepath.Rel(resolvedProgram.Root, source.Path)
+		if err != nil || strings.HasPrefix(relativePath, "..") {
+			relativePath = filepath.Base(source.Path)
+		}
+		targetPath := filepath.Join(sourceDir, filepath.Clean(relativePath))
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return err
+		}
+		contents := strings.Join(source.Lines, "\n")
+		if len(source.Lines) != 0 {
+			contents += "\n"
+		}
+		if err := os.WriteFile(targetPath, []byte(contents), 0644); err != nil {
+			return err
+		}
+		manifestFiles = append(manifestFiles, filepath.ToSlash(filepath.Join("src", filepath.Clean(relativePath))))
+	}
+
+	manifest := map[string]any{
+		"project_name":    resolvedProgram.Name,
+		"backend":         backend,
+		"entry":           filepath.ToSlash(resolvedProgram.EntryPoint),
+		"number_of_files": len(resolvedProgram.Files),
+		"files":           manifestFiles,
+		"raw_lang":        options.RawLang,
+	}
+	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(bundleDir, "klang-build.json"), append(manifestBytes, '\n'), 0644); err != nil {
+		return err
+	}
+
+	fmt.Printf("packaged Klang project %s\n", resolvedProgram.Name)
+	fmt.Printf("  backend: %s\n", backend)
+	fmt.Printf("  files: %d\n", len(resolvedProgram.Files))
+	fmt.Printf("  bundle: %s\n", bundleDir)
+	fmt.Printf("  manifest: %s\n", filepath.Join(bundleDir, "klang-build.json"))
 	return nil
 }
 
@@ -491,6 +590,38 @@ func parseEntrySpec(value string) (entrySpec, error) {
 	return entrySpec{}, fmt.Errorf("--entry expects a function name or [name,type]")
 }
 
+func parsePackageOptions(args []string) (packageOptions, error) {
+	options := packageOptions{Backend: "Standalone"}
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		switch {
+		case strings.HasPrefix(arg, "--backend="):
+			options.Backend = strings.TrimSpace(strings.TrimPrefix(arg, "--backend="))
+		case arg == "--backend" && index+1 < len(args):
+			index++
+			options.Backend = strings.TrimSpace(args[index])
+		case strings.HasPrefix(arg, "--out="):
+			options.Out = strings.TrimSpace(strings.TrimPrefix(arg, "--out="))
+		case arg == "--out" && index+1 < len(args):
+			index++
+			options.Out = strings.TrimSpace(args[index])
+		}
+	}
+	if !isBuildBackend(options.Backend) {
+		return packageOptions{}, fmt.Errorf("backend must be one of WASM, JS, Standalone")
+	}
+	return options, nil
+}
+
+func isBuildBackend(value string) bool {
+	switch value {
+	case "WASM", "JS", "Standalone":
+		return true
+	default:
+		return false
+	}
+}
+
 func projectNameFromPath(path string) string {
 	name := filepath.Base(path)
 	name = strings.TrimSpace(name)
@@ -510,6 +641,10 @@ func positionalArgs(args []string) []string {
 	for index := 0; index < len(args); index++ {
 		arg := args[index]
 		if arg == "--entry" {
+			index++
+			continue
+		}
+		if arg == "--backend" || arg == "--out" {
 			index++
 			continue
 		}
@@ -542,6 +677,7 @@ Usage:
   kLang new <project-path> --entry=[Name,Int] Create a project with a custom entry point
   kLang run <file-or-folder>                  Check, parse, and execute a Klang program
   kLang check <file-or-folder>                Resolve modules, type check, and parse
+  kLang package <file-or-folder>              Package checked source into a compact bundle
   kLang test <tests-folder>                   Check every Klang program in a folder
   kLang test <tests-folder> --run             Check and run every discovered program
   kLang file <file.klang>                     Print a Klang source file with line labels
@@ -549,6 +685,8 @@ Usage:
 Options:
   --run                           Run programs after checks, for test mode
   --entry=[Name,Type]              Set generated project entry point for new projects
+  --backend=Standalone|JS|WASM      Select package backend metadata
+  --out=<folder>                    Select package output folder
   --raw-lang                      Disable stdlib imports while resolving modules
   --verbose, -v                   Print import details
   --help, -h                      Show this help

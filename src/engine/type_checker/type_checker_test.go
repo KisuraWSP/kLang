@@ -1157,6 +1157,43 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsWorkspaceBuildDebuggerAndJSFFIAPIs(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Program program = Program(["app", "mathg"]);
+    local BuildSystem build = BuildSystem("demo", 2, ["first.klang", "app.klang"], "Standalone");
+    local WorkSpace workspace = WorkSpace(program, build);
+    local String backend = workspace_backend(workspace);
+    local List[String] files = workspace_files(workspace);
+    local String manifest = workspace_manifest(workspace);
+    local String valueType = debug_type(files);
+    local List[String] stack = debug_stack();
+    breakpoint("before js");
+    local JSModule module = js_import("library.js");
+    local List[String] exports = js_exports(module);
+    local String source = js_source(module);
+    local JSCall descriptor = js_call(module, "init", [manifest, valueType, source]);
+    return len(backend) + len(files) + len(exports) + len(stack);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected workspace/debug/js ffi program to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsInvalidBuildBackendLiteral(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local BuildSystem build = BuildSystem("demo", 1, ["first.klang"], "Native");
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "BuildSystem backend must be WASM, JS, or Standalone")
+}
+
 func TestCheckProgramAcceptsTraitsInsideAliasFunctions(t *testing.T) {
 	program := programFromSource(`
 alias function Wrapped(value: int) -> type

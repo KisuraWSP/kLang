@@ -59,3 +59,29 @@ func TestCreateProjectUsesCustomEntryPoint(t *testing.T) {
 		t.Fatalf("expected custom entry point in generated app, got:\n%s", text)
 	}
 }
+
+func TestRunCLIPackagesProjectWithManifest(t *testing.T) {
+	root := t.TempDir()
+	projectPath := filepath.Join(root, "packaged")
+	outPath := filepath.Join(root, "out")
+	if err := createProject(projectPath, entrySpec{}); err != nil {
+		t.Fatalf("create project failed: %v", err)
+	}
+
+	if err := runCLI([]string{"package", projectPath, "--backend=Standalone", "--out", outPath}); err != nil {
+		t.Fatalf("package command failed: %v", err)
+	}
+
+	manifestPath := filepath.Join(outPath, "packaged-standalone", "klang-build.json")
+	manifest, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read manifest failed: %v", err)
+	}
+	text := string(manifest)
+	if !strings.Contains(text, `"backend": "Standalone"`) || !strings.Contains(text, `"number_of_files": 2`) {
+		t.Fatalf("unexpected package manifest:\n%s", text)
+	}
+	if _, err := os.Stat(filepath.Join(outPath, "packaged-standalone", "src", "first.klang")); err != nil {
+		t.Fatalf("expected bundled first.klang: %v", err)
+	}
+}

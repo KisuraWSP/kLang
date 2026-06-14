@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -1837,6 +1839,164 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 		}
 		atomic.Value = next
 		return cloneValue(atomic.Value), nil
+	case "Program":
+		if len(args) != 1 || args[0].Kind != ValueList {
+			return NullValue(), Error{Message: "Program expects module: List[String]"}
+		}
+		modules, err := stringList(args[0])
+		if err != nil {
+			return NullValue(), Error{Message: "Program module expects List[String]"}
+		}
+		return objectValue("Program", map[string]Value{
+			"module":  listFromStrings(modules),
+			"modules": listFromStrings(modules),
+		}), nil
+	case "BuildSystem":
+		if len(args) != 4 {
+			return NullValue(), Error{Message: "BuildSystem expects project_name, number_of_files, files, backend"}
+		}
+		projectName, ok := stringData(args[0])
+		if !ok {
+			return NullValue(), Error{Message: "BuildSystem project_name expects String"}
+		}
+		numberOfFiles, err := asInt(args[1])
+		if err != nil {
+			return NullValue(), Error{Message: "BuildSystem number_of_files expects Int"}
+		}
+		files, err := stringList(args[2])
+		if err != nil {
+			return NullValue(), Error{Message: "BuildSystem files expects List[String]"}
+		}
+		backend, ok := stringData(args[3])
+		if !ok || !isBuildBackendName(backend) {
+			return NullValue(), Error{Message: "BuildSystem backend must be WASM, JS, or Standalone"}
+		}
+		if numberOfFiles != len(files) {
+			return NullValue(), Error{Message: fmt.Sprintf("BuildSystem number_of_files is %d but files has %d item(s)", numberOfFiles, len(files))}
+		}
+		return objectValue("BuildSystem", map[string]Value{
+			"project_name":    StringValue(projectName),
+			"number_of_files": IntValue(numberOfFiles),
+			"files":           listFromStrings(files),
+			"backend":         StringValue(backend),
+		}), nil
+	case "WorkSpace":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "WorkSpace expects Program and BuildSystem"}
+		}
+		if !isObjectType(args[0], "Program") {
+			return NullValue(), Error{Message: "WorkSpace first argument expects Program"}
+		}
+		if !isObjectType(args[1], "BuildSystem") {
+			return NullValue(), Error{Message: "WorkSpace second argument expects BuildSystem"}
+		}
+		return objectValue("WorkSpace", map[string]Value{
+			"Program":      args[0],
+			"BuildSystem":  args[1],
+			"program":      args[0],
+			"build_system": args[1],
+		}), nil
+	case "workspace_backend":
+		workspace, err := requireObject(args, "WorkSpace", "workspace_backend")
+		if err != nil {
+			return NullValue(), err
+		}
+		buildSystem := workspace.Fields["build_system"].Data.(ObjectData)
+		return buildSystem.Fields["backend"], nil
+	case "workspace_files":
+		workspace, err := requireObject(args, "WorkSpace", "workspace_files")
+		if err != nil {
+			return NullValue(), err
+		}
+		buildSystem := workspace.Fields["build_system"].Data.(ObjectData)
+		return buildSystem.Fields["files"], nil
+	case "workspace_manifest":
+		workspace, err := requireObject(args, "WorkSpace", "workspace_manifest")
+		if err != nil {
+			return NullValue(), err
+		}
+		buildSystem := workspace.Fields["build_system"].Data.(ObjectData)
+		program := workspace.Fields["program"].Data.(ObjectData)
+		files := buildSystem.Fields["files"].Data.([]Value)
+		modules := program.Fields["modules"].Data.([]Value)
+		return StringValue(fmt.Sprintf("workspace %s backend=%s files=%d modules=%d",
+			valueString(buildSystem.Fields["project_name"]),
+			valueString(buildSystem.Fields["backend"]),
+			len(files),
+			len(modules),
+		)), nil
+	case "debug":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "debug expects one value"}
+		}
+		runtime.output = append(runtime.output, fmt.Sprintf("[debug] %s = %s", runtimeTypeName(args[0]), valueString(args[0])))
+		return args[0], nil
+	case "debug_type":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "debug_type expects one value"}
+		}
+		return StringValue(runtimeTypeName(args[0])), nil
+	case "debug_stack":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: "debug_stack expects no arguments"}
+		}
+		return listFromStrings(runtime.callStack), nil
+	case "breakpoint":
+		if len(args) > 1 {
+			return NullValue(), Error{Message: "breakpoint expects zero or one label"}
+		}
+		label := "breakpoint"
+		if len(args) == 1 {
+			label = valueString(args[0])
+		}
+		runtime.output = append(runtime.output, fmt.Sprintf("[breakpoint] %s stack=%s", label, strings.Join(runtime.callStack, " -> ")))
+		return NullValue(), nil
+	case "js_import":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "js_import expects one .js file path"}
+		}
+		path, ok := stringData(args[0])
+		if !ok || filepath.Ext(path) != ".js" {
+			return NullValue(), Error{Message: "js_import expects a String path ending in .js"}
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return NullValue(), Error{Message: fmt.Sprintf("js_import failed: %v", err)}
+		}
+		source := string(contents)
+		exports := jsExports(source)
+		return objectValue("JSModule", map[string]Value{
+			"path":    StringValue(path),
+			"source":  StringValue(source),
+			"exports": listFromStrings(exports),
+		}), nil
+	case "js_source":
+		module, err := requireObject(args, "JSModule", "js_source")
+		if err != nil {
+			return NullValue(), err
+		}
+		return module.Fields["source"], nil
+	case "js_exports":
+		module, err := requireObject(args, "JSModule", "js_exports")
+		if err != nil {
+			return NullValue(), err
+		}
+		return module.Fields["exports"], nil
+	case "js_call":
+		if len(args) != 3 || !isObjectType(args[0], "JSModule") {
+			return NullValue(), Error{Message: "js_call expects JSModule, api name, and List arguments"}
+		}
+		apiName, ok := stringData(args[1])
+		if !ok || args[2].Kind != ValueList {
+			return NullValue(), Error{Message: "js_call expects JSModule, String, List"}
+		}
+		module := args[0].Data.(ObjectData)
+		return objectValue("JSCall", map[string]Value{
+			"module": module.Fields["path"],
+			"api":    StringValue(apiName),
+			"args":   args[2],
+			"status": StringValue("filesystem-only"),
+		}), nil
 	case "Box", "Ref", "RefMut", "RefCell":
 		if len(args) != 1 {
 			return NullValue(), Error{Message: fmt.Sprintf("%s expects one value", name)}
@@ -1972,11 +2132,90 @@ func (runtime *Runtime) namedReturnValue(function parser.FunctionStatement, env 
 }
 
 func allocatorObject(kind string, fields map[string]Value) Value {
+	return objectValue(kind, fields)
+}
+
+func objectValue(kind string, fields map[string]Value) Value {
 	copied := map[string]Value{"kind": StringValue(kind)}
 	for key, value := range fields {
 		copied[key] = value
 	}
 	return Value{Kind: ValueObject, Data: ObjectData{Type: kind, Fields: copied}}
+}
+
+func isObjectType(value Value, typeName string) bool {
+	if value.Kind != ValueObject {
+		return false
+	}
+	return value.Data.(ObjectData).Type == typeName
+}
+
+func requireObject(args []Value, typeName string, functionName string) (ObjectData, error) {
+	if len(args) != 1 || !isObjectType(args[0], typeName) {
+		return ObjectData{}, Error{Message: fmt.Sprintf("%s expects %s", functionName, typeName)}
+	}
+	return args[0].Data.(ObjectData), nil
+}
+
+func stringData(value Value) (string, bool) {
+	if value.Kind != ValueString && value.Kind != ValueChar {
+		return "", false
+	}
+	return value.Data.(string), true
+}
+
+func stringList(value Value) ([]string, error) {
+	if value.Kind != ValueList {
+		return nil, fmt.Errorf("expected List[String]")
+	}
+	items := value.Data.([]Value)
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		text, ok := stringData(item)
+		if !ok {
+			return nil, fmt.Errorf("expected List[String]")
+		}
+		result = append(result, text)
+	}
+	return result, nil
+}
+
+func listFromStrings(items []string) Value {
+	values := make([]Value, 0, len(items))
+	for _, item := range items {
+		values = append(values, StringValue(item))
+	}
+	return Value{Kind: ValueList, Data: values}
+}
+
+func isBuildBackendName(value string) bool {
+	switch value {
+	case "WASM", "JS", "Standalone":
+		return true
+	default:
+		return false
+	}
+}
+
+func jsExports(source string) []string {
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`export\s+function\s+([A-Za-z_][A-Za-z0-9_]*)`),
+		regexp.MustCompile(`export\s+const\s+([A-Za-z_][A-Za-z0-9_]*)`),
+		regexp.MustCompile(`export\s+let\s+([A-Za-z_][A-Za-z0-9_]*)`),
+		regexp.MustCompile(`export\s+var\s+([A-Za-z_][A-Za-z0-9_]*)`),
+	}
+	seen := map[string]bool{}
+	var exports []string
+	for _, pattern := range patterns {
+		for _, match := range pattern.FindAllStringSubmatch(source, -1) {
+			if len(match) < 2 || seen[match[1]] {
+				continue
+			}
+			seen[match[1]] = true
+			exports = append(exports, match[1])
+		}
+	}
+	return exports
 }
 
 func preferredMemoryRegion(value Value) MemoryRegion {
@@ -2205,6 +2444,8 @@ func isBuiltinFunction(name string) bool {
 	switch name {
 	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
 		"Table", "iter", "next", "coroutine", "resume", "Atomic", "atomic_load", "atomic_store", "atomic_add",
+		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",
+		"debug", "debug_type", "debug_stack", "breakpoint", "js_import", "js_source", "js_exports", "js_call",
 		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true
 	default:

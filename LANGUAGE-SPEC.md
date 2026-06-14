@@ -25,6 +25,9 @@
 25. Alias functions use block syntax with `: type`, hook blocks such as `[new] { ... }`, and `#extend { ... }`.
 26. `#set_entry_point_to_here` marks the following function as the runtime entry point.
 27. `Atomic[T]` plus `Atomic`, `atomic_load`, `atomic_store`, and `atomic_add` provide race-safe runtime cells.
+28. `Program`, `BuildSystem`, and `WorkSpace` are builtin meta-programming values for describing custom workspaces and compact build plans.
+29. `debug`, `debug_type`, `debug_stack`, and `breakpoint` are builtin debugger helpers.
+30. JavaScript FFI is filesystem-only through `JSModule` and `JSCall` descriptors loaded from `.js` files.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -49,3 +52,6 @@ Rules
 - Each standalone script or project is resolved as its own workspace. Resolver caches speed repeated imports without sharing visited-state between workspaces.
 - Alias functions may contain trait and impl declarations in addition to hooks and extension methods.
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.
+- CLI `package` checks a program and writes a compact source bundle with `klang-build.json`.
+- `BuildSystem` backend is restricted to `WASM`, `JS`, or `Standalone`; `Standalone` means the packaged program runs through the interpreter engine.
+- JavaScript FFI can load and describe local `.js` files, expose discovered exports, and create call descriptors without executing JavaScript inside the interpreter.

@@ -406,6 +406,28 @@ atomic_add(counter, 2);
 atomic_store(counter, atomic_load(counter) + 1);
 local Int counterValue = atomic_load(counter);
 
+-- compact build/workspace meta-programming
+-- BuildSystem backend must be "WASM", "JS", or "Standalone".
+local Program program = Program(["app", "mathg"]);
+local BuildSystem build = BuildSystem("demo", 2, ["first.klang", "app.klang"], "Standalone");
+local WorkSpace workspace = WorkSpace(program, build);
+local String backend = workspace_backend(workspace);
+local List[String] packageFiles = workspace_files(workspace);
+local String manifest = workspace_manifest(workspace);
+
+-- debugger helpers
+debug(manifest);
+local String manifestType = debug_type(manifest);
+local List[String] stack = debug_stack();
+breakpoint("after manifest");
+
+-- JavaScript filesystem-only FFI
+-- js_import reads a local .js file and returns a descriptor.
+local JSModule js = js_import("vendor/library.js");
+local List[String] jsExports = js_exports(js);
+local String jsSource = js_source(js);
+local JSCall pendingJSCall = js_call(js, "init", [manifest]);
+
 -- variadic print and input
 print("count", 1, True);
 local String name = input("name: ");
