@@ -426,6 +426,7 @@ local Int counterValue = atomic_load(counter);
 
 -- compact build/workspace meta-programming
 -- BuildSystem backend must be "WASM", "JS", or "Standalone".
+-- WASM packages run the interpreter/runtime in the browser as WebAssembly.
 local Program program = Program(["app", "mathg"]);
 local BuildSystem build = BuildSystem("demo", 2, ["first.klang", "app.klang"], "Standalone");
 local WorkSpace workspace = WorkSpace(program, build);

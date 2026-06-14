@@ -117,6 +117,16 @@ go run . package examples/helloworld --backend=Standalone
 
 The package command writes a `klang-build.json` manifest plus source files under `dist/<project>-<backend>`. Valid backends are `Standalone`, `JS`, and `WASM`.
 
+Build a browser-ready WASM bundle:
+
+```sh
+go run . package examples/helloworld --backend=WASM
+cd examples/helloworld/dist/helloworld-wasm
+python3 -m http.server 8080
+```
+
+Then open `http://localhost:8080`. The WASM backend compiles the Go-based kLang interpreter/runtime to `klang.wasm`, copies Go's `wasm_exec.js`, and loads the resolved `.klang` sources through `klang_browser.js`. Browser code can call `KlangBrowser.runProject()` or `KlangBrowser.runSource(source, args)`.
+
 Show import cache/details:
 
 ```sh

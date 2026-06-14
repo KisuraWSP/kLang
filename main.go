@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	stdruntime "runtime"
@@ -236,11 +238,9 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 	}
 
 	manifestFiles := make([]string, 0, len(resolvedProgram.Files))
+	entry := ""
 	for _, source := range resolvedProgram.Files {
-		relativePath, err := filepath.Rel(resolvedProgram.Root, source.Path)
-		if err != nil || strings.HasPrefix(relativePath, "..") {
-			relativePath = filepath.Base(source.Path)
-		}
+		relativePath := bundleSourcePath(resolvedProgram.Root, source.Path)
 		targetPath := filepath.Join(sourceDir, filepath.Clean(relativePath))
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 			return err
@@ -252,13 +252,20 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 		if err := os.WriteFile(targetPath, []byte(contents), 0644); err != nil {
 			return err
 		}
-		manifestFiles = append(manifestFiles, filepath.ToSlash(filepath.Join("src", filepath.Clean(relativePath))))
+		manifestPath := filepath.ToSlash(filepath.Join("src", filepath.Clean(relativePath)))
+		manifestFiles = append(manifestFiles, manifestPath)
+		if filepath.Clean(source.Path) == filepath.Clean(resolvedProgram.EntryPoint) {
+			entry = manifestPath
+		}
+	}
+	if entry == "" && len(manifestFiles) != 0 {
+		entry = manifestFiles[0]
 	}
 
 	manifest := map[string]any{
 		"project_name":    resolvedProgram.Name,
 		"backend":         backend,
-		"entry":           filepath.ToSlash(resolvedProgram.EntryPoint),
+		"entry":           entry,
 		"number_of_files": len(resolvedProgram.Files),
 		"files":           manifestFiles,
 		"raw_lang":        options.RawLang,
@@ -270,13 +277,209 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 	if err := os.WriteFile(filepath.Join(bundleDir, "klang-build.json"), append(manifestBytes, '\n'), 0644); err != nil {
 		return err
 	}
+	if backend == "WASM" {
+		if err := writeWASMBrowserBundle(bundleDir); err != nil {
+			return err
+		}
+	}
 
 	fmt.Printf("packaged Klang project %s\n", resolvedProgram.Name)
 	fmt.Printf("  backend: %s\n", backend)
 	fmt.Printf("  files: %d\n", len(resolvedProgram.Files))
 	fmt.Printf("  bundle: %s\n", bundleDir)
 	fmt.Printf("  manifest: %s\n", filepath.Join(bundleDir, "klang-build.json"))
+	if backend == "WASM" {
+		fmt.Printf("  wasm: %s\n", filepath.Join(bundleDir, "klang.wasm"))
+		fmt.Printf("  browser: %s\n", filepath.Join(bundleDir, "index.html"))
+	}
 	return nil
+}
+
+func bundleSourcePath(root string, sourcePath string) string {
+	relativePath, err := filepath.Rel(root, sourcePath)
+	if err != nil || strings.HasPrefix(relativePath, "..") || filepath.IsAbs(relativePath) {
+		return filepath.Base(sourcePath)
+	}
+	return filepath.Clean(relativePath)
+}
+
+func writeWASMBrowserBundle(bundleDir string) error {
+	wasmPath := filepath.Join(bundleDir, "klang.wasm")
+	if err := buildWASMRuntime(wasmPath); err != nil {
+		return err
+	}
+	if err := copyWASMExec(filepath.Join(bundleDir, "wasm_exec.js")); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(bundleDir, "klang_browser.js"), []byte(klangBrowserJS()), 0644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(bundleDir, "index.html"), []byte(klangBrowserHTML()), 0644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(bundleDir, "README.md"), []byte(klangWASMReadme()), 0644); err != nil {
+		return err
+	}
+	return nil
+}
+
+func buildWASMRuntime(outputPath string) error {
+	var stderr bytes.Buffer
+	cmd := exec.Command("go", "build", "-o", outputPath, "./cmd/klang-wasm")
+	cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm")
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("build WASM runtime failed: %w\n%s", err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+func copyWASMExec(targetPath string) error {
+	sourcePath, err := wasmExecPath()
+	if err != nil {
+		return err
+	}
+	contents, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(targetPath, contents, 0644)
+}
+
+func wasmExecPath() (string, error) {
+	candidates := []string{
+		filepath.Join(stdruntime.GOROOT(), "misc", "wasm", "wasm_exec.js"),
+		filepath.Join(stdruntime.GOROOT(), "lib", "wasm", "wasm_exec.js"),
+	}
+	for _, candidate := range candidates {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("could not find wasm_exec.js in Go installation")
+}
+
+func klangBrowserJS() string {
+	return `let klangGoRuntime = null;
+let klangWasmStarted = false;
+let klangProject = null;
+
+async function startKlangWASM() {
+  if (klangWasmStarted) return;
+  klangGoRuntime = new Go();
+  const response = await fetch("klang.wasm");
+  const bytes = await response.arrayBuffer();
+  const result = await WebAssembly.instantiate(bytes, klangGoRuntime.importObject);
+  klangWasmStarted = true;
+  klangGoRuntime.run(result.instance);
+  await Promise.resolve();
+}
+
+async function loadKlangProject() {
+  if (klangProject) return klangProject;
+  const manifest = await fetch("klang-build.json").then((response) => response.json());
+  const files = {};
+  for (const file of manifest.files) {
+    files[file] = await fetch(file).then((response) => response.text());
+  }
+  klangProject = {
+    name: manifest.project_name,
+    entry: manifest.entry,
+    files,
+  };
+  return klangProject;
+}
+
+async function runKlangProject(args = []) {
+  await startKlangWASM();
+  const project = await loadKlangProject();
+  return JSON.parse(globalThis.klangRunProject(project, args));
+}
+
+async function checkKlangProject() {
+  await startKlangWASM();
+  const project = await loadKlangProject();
+  return JSON.parse(globalThis.klangCheckProject(project));
+}
+
+async function runKlangSource(source, args = []) {
+  await startKlangWASM();
+  return JSON.parse(globalThis.klangRun(source, args));
+}
+
+globalThis.KlangBrowser = {
+  start: startKlangWASM,
+  loadProject: loadKlangProject,
+  runProject: runKlangProject,
+  checkProject: checkKlangProject,
+  runSource: runKlangSource,
+};
+`
+}
+
+func klangBrowserHTML() string {
+	return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Klang WASM Runtime</title>
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #111; color: #f3f3f3; }
+    main { max-width: 960px; margin: 0 auto; padding: 32px 20px; }
+    button { border: 0; border-radius: 6px; padding: 10px 14px; font: inherit; cursor: pointer; background: #00c2a8; color: #071614; }
+    pre { min-height: 260px; overflow: auto; padding: 16px; border-radius: 6px; background: #050505; border: 1px solid #333; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Klang WASM Runtime</h1>
+    <p>This page runs the packaged Klang project through the browser-hosted WASM runtime.</p>
+    <button id="run">Run Project</button>
+    <pre id="output">Ready.</pre>
+  </main>
+  <script src="wasm_exec.js"></script>
+  <script src="klang_browser.js"></script>
+  <script>
+    const output = document.getElementById("output");
+    document.getElementById("run").addEventListener("click", async () => {
+      output.textContent = "Running...";
+      try {
+        const result = await KlangBrowser.runProject([]);
+        output.textContent = JSON.stringify(result, null, 2);
+      } catch (error) {
+        output.textContent = String(error && error.stack ? error.stack : error);
+      }
+    });
+  </script>
+</body>
+</html>
+`
+}
+
+func klangWASMReadme() string {
+	return `# Klang WASM Bundle
+
+This bundle contains a browser-hosted Klang runtime.
+
+## Files
+
+- ` + "`klang.wasm`" + `: the Go interpreter/runtime compiled with ` + "`GOOS=js GOARCH=wasm`" + `.
+- ` + "`wasm_exec.js`" + `: Go's JavaScript support shim for WASM.
+- ` + "`klang_browser.js`" + `: browser loader exposing ` + "`KlangBrowser.runProject()`" + ` and ` + "`KlangBrowser.runSource(source, args)`" + `.
+- ` + "`klang-build.json`" + `: package manifest.
+- ` + "`src/`" + `: resolved Klang source files.
+
+## Run Locally
+
+Serve this folder through any static file server and open ` + "`index.html`" + `:
+
+` + "```sh" + `
+python3 -m http.server 8080
+` + "```" + `
+
+Then visit http://localhost:8080.
+`
 }
 
 func executePrograms(programs []file.Program, options commandOptions) error {

@@ -57,4 +57,5 @@ Rules
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.
 - CLI `package` checks a program and writes a compact source bundle with `klang-build.json`.
 - `BuildSystem` backend is restricted to `WASM`, `JS`, or `Standalone`; `Standalone` means the packaged program runs through the interpreter engine.
+- `WASM` packaging compiles the Go interpreter/runtime to browser WebAssembly, writes `klang.wasm`, `wasm_exec.js`, `klang_browser.js`, and loads resolved Klang source files from the package manifest.
 - JavaScript FFI can load and describe local `.js` files, expose discovered exports, and create call descriptors without executing JavaScript inside the interpreter.
