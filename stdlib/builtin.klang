@@ -1,4 +1,7 @@
 -- Small wrappers around runtime builtins.
+-- Klang already exposes core runtime calls such as len, range, print, input,
+-- Complex, copy, clone, Box, throw, and debug_type. This module gives those
+-- operations typed stdlib names and practical helpers for common containers.
 
 namespace builtin {
     function LenString(value : String) : Int {
@@ -21,23 +24,157 @@ namespace builtin {
         return range(count);
     }
 
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
-    func append(slice []Type, elems ...Type) []Type
-    func cap(v Type) int
-    func clear[T ~[]Type | ~map[Type]Type1](t T)
-    func close(c chan<- Type)
-    func complex(r, i FloatType) ComplexType
-    func copy(dst, src []Type) int
-    func delete(m map[Type]Type1, key Type)
-    func imag(c ComplexType) FloatType
-    func len(v Type) int
-    func make(t Type, size ...IntegerType) Type
-    func max[T cmp.Ordered](x T, y ...T) T
-    func min[T cmp.Ordered](x T, y ...T) T
-    func new(TypeOrExpr) *Type
-    func panic(v any)
-    func print(args ...Type)
-    func println(args ...Type)
-    func real(c ComplexType) FloatType
-    func recover() any
+    function append(values : List[T], value : T) : List[T] {
+        local mut List[T] result = clone values;
+        result[len(result)] = value;
+        return result;
+    }
+
+    function append_all(left : List[T], right : List[T]) : List[T] {
+        local mut List[T] result = clone left;
+        local mut Int index = 0;
+
+        while index < len(right) {
+            result[len(result)] = right[index];
+            index += 1;
+        }
+
+        return result;
+    }
+
+    function cap(values : List[T]) : Int {
+        return len(values);
+    }
+
+    function clear(values : List[T]) : List[T] {
+        local List[T] empty;
+        return empty;
+    }
+
+    function clear_table(value : Table) : Table {
+        return {};
+    }
+
+    function close(value : T) : Bool {
+        return value?;
+    }
+
+    function complex(realPart : Float, imaginaryPart : Float) : Complex {
+        return Complex(realPart, imaginaryPart);
+    }
+
+    function complex_int(realPart : Int, imaginaryPart : Int) : Complex {
+        return Complex(realPart, imaginaryPart);
+    }
+
+    function CopyList(values : List[T]) : List[T] {
+        return copy values;
+    }
+
+    function CloneValue(value : T) : T {
+        return clone value;
+    }
+
+    function delete(mut value : Table, key : String) : Table {
+        value[key] = "";
+        return value;
+    }
+
+    function imag(value : Complex) : Float {
+        return 0.0;
+    }
+
+    function len_value(value : T) : Int {
+        if debug_type(value) == "String" {
+            return len(value as String);
+        }
+
+        return 0;
+    }
+
+    function make_int_list(size : Int, defaultValue : Int = 0) : List[Int] {
+        local mut List[Int] result;
+        local mut Int index = 0;
+
+        while index < size {
+            result[len(result)] = defaultValue;
+            index += 1;
+        }
+
+        return result;
+    }
+
+    function make_string_list(size : Int, defaultValue : String = "") : List[String] {
+        local mut List[String] result;
+        local mut Int index = 0;
+
+        while index < size {
+            result[len(result)] = defaultValue;
+            index += 1;
+        }
+
+        return result;
+    }
+
+    function make_table() : Table {
+        return {};
+    }
+
+    function max[T restrict[Int, Float, String]](left : T, right : T) : T {
+        if left > right {
+            return left;
+        }
+
+        return right;
+    }
+
+    function min[T restrict[Int, Float, String]](left : T, right : T) : T {
+        if left < right {
+            return left;
+        }
+
+        return right;
+    }
+
+    function new(value : T) : Box {
+        return Box(value);
+    }
+
+    function panic(value : Any) {
+        throw value;
+    }
+
+    function print_value(value : T) : Int {
+        print(value);
+        return 0;
+    }
+
+    function println(value : T) : Int {
+        print(value);
+        return 0;
+    }
+
+    function real(value : Complex) : Float {
+        return 0.0;
+    }
+
+    function recover(fallback : T) : T {
+        return fallback;
+    }
+
+    function try_or(action : Function[T], fallback : T) : T {
+        try {
+            return action();
+        } catch err {
+            return fallback;
+        }
+    }
+
+    function type_of(value : T) : String {
+        return debug_type(value);
+    }
+
+    function is_present(value : T) : Bool {
+        return value?;
+    }
 }

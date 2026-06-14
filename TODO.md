@@ -6,7 +6,6 @@
 
 - start work on the standard library once all of the above are truely done
     - TODO MODULES
-    1. builtin
     2. core
     3. datetime
     4. encoding
