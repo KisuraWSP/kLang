@@ -178,13 +178,10 @@ func cloneValue(value Value) Value {
 		return Value{Kind: ValueResult, Data: result}
 	case ValueSIMD:
 		return SIMDValue(value.Data.(SIMDData).Lanes)
-	case ValueAwaitable, ValueIterator, ValueCoroutine:
+	case ValueAwaitable, ValueIterator, ValueCoroutine, ValueThread:
 		return value
 	case ValueAtomic:
-		atomic := value.Data.(*AtomicData)
-		atomic.Mutex.Lock()
-		defer atomic.Mutex.Unlock()
-		return Value{Kind: ValueAtomic, Data: &AtomicData{Value: cloneValue(atomic.Value)}}
+		return value
 	case ValueObject:
 		object := value.Data.(ObjectData)
 		fields := make(map[string]Value, len(object.Fields))
@@ -231,6 +228,8 @@ func runtimeTypeName(value Value) string {
 		return "Iterator[T]"
 	case ValueCoroutine:
 		return "Coroutine[T]"
+	case ValueThread:
+		return "Thread[T]"
 	case ValueAtomic:
 		return "Atomic[T]"
 	case ValueFunction:
@@ -740,6 +739,14 @@ func valueString(value Value) string {
 			return "Coroutine(done)"
 		}
 		return "Coroutine(" + data.Function + ")"
+	case ValueThread:
+		thread := value.Data.(*ThreadData)
+		select {
+		case <-thread.Done:
+			return "Thread(done)"
+		default:
+			return "Thread(running)"
+		}
 	case ValueObject:
 		object := value.Data.(ObjectData)
 		parts := make([]string, 0, len(object.Fields))
@@ -909,6 +916,10 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Kind == ValueIterator
 	case strings.HasPrefix(typeName, "Coroutine["):
 		return value.Kind == ValueCoroutine
+	case strings.HasPrefix(typeName, "Thread["):
+		return value.Kind == ValueThread
+	case typeName == "Thread":
+		return value.Kind == ValueThread
 	case strings.HasPrefix(typeName, "Atomic["):
 		return value.Kind == ValueAtomic
 	case strings.HasPrefix(typeName, "SIMD["):

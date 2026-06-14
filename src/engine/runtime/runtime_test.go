@@ -1262,6 +1262,32 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesSpawnJoinWithSharedAtomic(t *testing.T) {
+	result := runParsedSource(t, `
+function Worker(counter : Atomic[Int], mut amount : Int) : Int {
+    while amount > 0 {
+        atomic_add(counter, 1);
+        amount -= 1;
+    }
+    return atomic_load(counter);
+}
+
+function Main() : Int {
+    local Atomic[Int] counter = Atomic(0);
+    local Thread[Int] left = spawn(Worker, [counter, 25]);
+    local Thread[Int] right = spawn(Worker, [counter, 17]);
+    local String status = thread_status(left);
+    join(left);
+    join(right);
+    return atomic_load(counter) + len(status);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) < 46 || result.Value.Data.(int) > 49 {
+		t.Fatalf("expected atomic threaded program to include 42 plus status length, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesLambdaFunction(t *testing.T) {
 	result := runSource(t, `
 function Apply(value : Int, callback : Function[Int, Int]) : Int {

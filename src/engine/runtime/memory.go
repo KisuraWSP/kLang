@@ -1,6 +1,9 @@
 package runtime
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 type MemoryRegion string
 
@@ -10,6 +13,7 @@ const (
 )
 
 type Memory struct {
+	mu           sync.Mutex
 	nextID       int
 	objects      map[int]*Object
 	stackObjects int
@@ -43,6 +47,8 @@ func NewMemory() *Memory {
 }
 
 func (memory *Memory) Allocate(value Value, region MemoryRegion) int {
+	memory.mu.Lock()
+	defer memory.mu.Unlock()
 	if region == "" {
 		region = MemoryStack
 	}
@@ -55,6 +61,8 @@ func (memory *Memory) Allocate(value Value, region MemoryRegion) int {
 }
 
 func (memory *Memory) Store(id int, value Value) {
+	memory.mu.Lock()
+	defer memory.mu.Unlock()
 	if object, ok := memory.objects[id]; ok {
 		oldBytes := object.Bytes
 		object.Value = value
@@ -64,6 +72,8 @@ func (memory *Memory) Store(id int, value Value) {
 }
 
 func (memory *Memory) Stats() MemoryStats {
+	memory.mu.Lock()
+	defer memory.mu.Unlock()
 	return MemoryStats{
 		StackObjects: memory.stackObjects,
 		HeapObjects:  memory.heapObjects,
@@ -97,6 +107,8 @@ func (memory *Memory) addBytes(region MemoryRegion, bytes int) {
 }
 
 func (memory *Memory) BorrowImmutable(id int) error {
+	memory.mu.Lock()
+	defer memory.mu.Unlock()
 	object, ok := memory.objects[id]
 	if !ok {
 		return Error{Message: fmt.Sprintf("unknown memory object %d", id)}
@@ -109,12 +121,16 @@ func (memory *Memory) BorrowImmutable(id int) error {
 }
 
 func (memory *Memory) ReleaseImmutable(id int) {
+	memory.mu.Lock()
+	defer memory.mu.Unlock()
 	if object, ok := memory.objects[id]; ok && object.ImmutableBorrows > 0 {
 		object.ImmutableBorrows--
 	}
 }
 
 func (memory *Memory) BorrowMutable(id int) error {
+	memory.mu.Lock()
+	defer memory.mu.Unlock()
 	object, ok := memory.objects[id]
 	if !ok {
 		return Error{Message: fmt.Sprintf("unknown memory object %d", id)}
@@ -127,6 +143,8 @@ func (memory *Memory) BorrowMutable(id int) error {
 }
 
 func (memory *Memory) ReleaseMutable(id int) {
+	memory.mu.Lock()
+	defer memory.mu.Unlock()
 	if object, ok := memory.objects[id]; ok {
 		object.MutableBorrow = false
 	}

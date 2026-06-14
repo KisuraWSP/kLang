@@ -2,7 +2,7 @@
 
 kLang is a prototype programming language written in Go. It is built as a small interpreted language with a lexer, parser, module resolver, type checker, runtime, standard library folder, example projects, and editor extensions.
 
-The language is function-first, strongly checked, and experiments with ideas from Go, Rust, Lua, Python, Elm, and functional languages. It supports scoped variables, type inference, `Option`/`Result`, list comprehensions, traits, async/await, coroutines, pattern matching, alias functions, atomic values, allocator-style values, and human-friendly diagnostics.
+The language is function-first, strongly checked, and experiments with ideas from Go, Rust, Lua, Python, Elm, and functional languages. It supports scoped variables, type inference, `Option`/`Result`, list comprehensions, traits, async/await, coroutines, multi-threaded interpreter workers, pattern matching, alias functions, atomic values, allocator-style values, and human-friendly diagnostics.
 
 ## Project Layout
 
@@ -57,6 +57,7 @@ Common language rules:
 - `let` is local immutable, `let mut` is local mutable, `val` is global immutable, and `var` is global mutable.
 - `const` is strictly immutable and must be resolved before runtime.
 - `Args` is a builtin immutable `List[String]` containing command-line arguments passed to the program.
+- `spawn`, `join`, and `thread_status` run functions on child interpreter workers; use `Atomic[T]` for shared mutable counters/state.
 - `Type.sizeof` returns the language runtime size for builtin types as an `Int`.
 - Tables are the dynamic Lua-style container; most other values are statically checked.
 

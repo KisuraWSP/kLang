@@ -38,7 +38,7 @@
 (defconst klang--types
   '("Int" "UInt" "String" "Float" "Bool" "Char" "Map" "List" "Table"
     "Option" "Result" "Complex" "SIMD" "Function" "Awaitable" "Iterator"
-    "Coroutine" "Atomic" "Any" "T" "Args" "Program" "BuildSystem"
+    "Coroutine" "Thread" "Atomic" "Any" "T" "Args" "Program" "BuildSystem"
     "WorkSpace" "JSModule" "JSCall" "Box" "Ref" "RefMut" "RefCell"
     "HeapAllocator" "RegionAllocator" "BumpAllocator" "ArenaAllocator"))
 
@@ -47,7 +47,7 @@
 
 (defconst klang--builtins
   '("print" "input" "len" "range" "iter" "next" "coroutine" "resume"
-    "Atomic" "atomic_load" "atomic_store" "atomic_add" "Program" "BuildSystem"
+    "spawn" "join" "thread_status" "Atomic" "atomic_load" "atomic_store" "atomic_add" "Program" "BuildSystem"
     "WorkSpace" "workspace_backend" "workspace_files" "workspace_manifest"
     "debug" "debug_type" "debug_stack" "breakpoint"
     "js_import" "js_source" "js_exports" "js_call"

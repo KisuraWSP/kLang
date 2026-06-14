@@ -35,6 +35,7 @@ const (
 	ValueAwaitable   ValueKind = "Awaitable"
 	ValueIterator    ValueKind = "Iterator"
 	ValueCoroutine   ValueKind = "Coroutine"
+	ValueThread      ValueKind = "Thread"
 	ValueAtomic      ValueKind = "Atomic"
 	ValueFunction    ValueKind = "Function"
 	ValueObject      ValueKind = "Object"
@@ -82,6 +83,13 @@ type CoroutineData struct {
 	Function string
 	Done     bool
 	Value    Value
+}
+
+type ThreadData struct {
+	Mutex sync.Mutex
+	Done  chan struct{}
+	Value Value
+	Err   error
 }
 
 type AtomicData struct {
@@ -157,6 +165,7 @@ func thrownValue(err error) (Value, bool) {
 }
 
 type Runtime struct {
+	mu             sync.Mutex
 	memory         *Memory
 	global         *Environment
 	functions      map[string]parser.FunctionStatement
@@ -165,13 +174,18 @@ type Runtime struct {
 	groups         map[string][]string
 	closures       map[string]*Environment
 	aliases        map[string]string
-	output         []string
+	output         *RuntimeOutput
 	callDepth      int
 	maxDepth       int
 	callStack      []string
 	nextFunc       int
 	innerSets      []map[string]Value
 	args           []string
+}
+
+type RuntimeOutput struct {
+	Mutex sync.Mutex
+	Lines []string
 }
 
 const defaultMaxCallDepth = 1024
@@ -186,6 +200,7 @@ func New() *Runtime {
 		groups:         map[string][]string{},
 		closures:       map[string]*Environment{},
 		aliases:        map[string]string{},
+		output:         &RuntimeOutput{},
 		maxDepth:       defaultMaxCallDepth,
 	}
 }
@@ -253,14 +268,91 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 		return Result{}, err
 	}
 	if mainName == "" {
-		return Result{Value: NullValue(), Output: runtime.output, Memory: runtime.memory.Stats()}, nil
+		return Result{Value: NullValue(), Output: runtime.outputLines(), Memory: runtime.memory.Stats()}, nil
 	}
 
 	value, err := runtime.callFunction(mainName, nil)
 	if err != nil {
 		return Result{}, err
 	}
-	return Result{Value: value, Output: runtime.output, Memory: runtime.memory.Stats()}, nil
+	return Result{Value: value, Output: runtime.outputLines(), Memory: runtime.memory.Stats()}, nil
+}
+
+func (runtime *Runtime) appendOutput(line string) {
+	runtime.output.Mutex.Lock()
+	runtime.output.Lines = append(runtime.output.Lines, line)
+	runtime.output.Mutex.Unlock()
+}
+
+func (runtime *Runtime) outputLines() []string {
+	runtime.output.Mutex.Lock()
+	defer runtime.output.Mutex.Unlock()
+	return append([]string(nil), runtime.output.Lines...)
+}
+
+func (runtime *Runtime) childRuntime() *Runtime {
+	child := &Runtime{
+		memory:         runtime.memory,
+		global:         runtime.global,
+		functions:      cloneFunctionMap(runtime.functions),
+		aliasFunctions: cloneAliasFunctionMap(runtime.aliasFunctions),
+		regions:        cloneRegionMap(runtime.regions),
+		groups:         cloneGroupMap(runtime.groups),
+		closures:       cloneClosureMap(runtime.closures),
+		aliases:        cloneStringMap(runtime.aliases),
+		output:         runtime.output,
+		maxDepth:       runtime.maxDepth,
+		args:           append([]string(nil), runtime.args...),
+	}
+	return child
+}
+
+func cloneFunctionMap(items map[string]parser.FunctionStatement) map[string]parser.FunctionStatement {
+	copied := make(map[string]parser.FunctionStatement, len(items))
+	for key, value := range items {
+		copied[key] = value
+	}
+	return copied
+}
+
+func cloneAliasFunctionMap(items map[string]parser.AliasFunctionStatement) map[string]parser.AliasFunctionStatement {
+	copied := make(map[string]parser.AliasFunctionStatement, len(items))
+	for key, value := range items {
+		copied[key] = value
+	}
+	return copied
+}
+
+func cloneRegionMap(items map[string]RegionData) map[string]RegionData {
+	copied := make(map[string]RegionData, len(items))
+	for key, value := range items {
+		copied[key] = value
+	}
+	return copied
+}
+
+func cloneGroupMap(items map[string][]string) map[string][]string {
+	copied := make(map[string][]string, len(items))
+	for key, value := range items {
+		copied[key] = append([]string(nil), value...)
+	}
+	return copied
+}
+
+func cloneClosureMap(items map[string]*Environment) map[string]*Environment {
+	copied := make(map[string]*Environment, len(items))
+	for key, value := range items {
+		copied[key] = value
+	}
+	return copied
+}
+
+func cloneStringMap(items map[string]string) map[string]string {
+	copied := make(map[string]string, len(items))
+	for key, value := range items {
+		copied[key] = value
+	}
+	return copied
 }
 
 func (runtime *Runtime) defineArgs() error {
@@ -863,7 +955,7 @@ func typeSizeof(typeName string) (int, bool) {
 		return 1, true
 	case "Int", "UInt", "Float", "Complex":
 		return 8, true
-	case "String", "List", "Map", "Table", "T", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine":
+	case "String", "List", "Map", "Table", "T", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic":
 		return 16, true
 	default:
 		return 0, false
@@ -888,12 +980,20 @@ func (runtime *Runtime) defineValueInRegion(env *Environment, name string, mutab
 }
 
 func (runtime *Runtime) storeBindingValue(binding *Binding, value Value) {
+	binding.mu.Lock()
+	defer binding.mu.Unlock()
+	runtime.storeBindingValueLocked(binding, value)
+}
+
+func (runtime *Runtime) storeBindingValueLocked(binding *Binding, value Value) {
 	snapshot := cloneValue(value)
 	binding.Value = snapshot
 	runtime.memory.Store(binding.ObjectID, snapshot)
 }
 
 func (runtime *Runtime) defineLocalFunction(fn parser.FunctionStatement, env *Environment) (string, error) {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
 	runtime.nextFunc++
 	name := fmt.Sprintf("<local:%s:%d>", fn.Name, runtime.nextFunc)
 	if _, exists := runtime.functions[name]; exists {
@@ -914,13 +1014,14 @@ func functionTypeName(fn parser.FunctionStatement) string {
 }
 
 func (runtime *Runtime) forceBindingValue(binding *Binding) (Value, error) {
-	value, err := runtime.forceValue(binding.Value)
+	snapshot := binding.Snapshot()
+	value, err := runtime.forceValue(snapshot.Value)
 	if err != nil {
 		return NullValue(), err
 	}
-	if binding.Value.Kind == ValueThunk {
-		if !valueMatchesType(value, binding.Type) {
-			return NullValue(), Error{Message: fmt.Sprintf("lazy value expects %s, got %s", binding.Type, value.Kind)}
+	if snapshot.Value.Kind == ValueThunk {
+		if !valueMatchesType(value, snapshot.Type) {
+			return NullValue(), Error{Message: fmt.Sprintf("lazy value expects %s, got %s", snapshot.Type, value.Kind)}
 		}
 	}
 	return value, nil
@@ -1031,22 +1132,24 @@ func (runtime *Runtime) executeAssignment(stmt parser.AssignmentStatement, env *
 	if !ok {
 		return Error{Message: fmt.Sprintf("unknown variable %q", identifier.Name)}
 	}
-	if err := runtime.memory.EnsureWritable(binding.ObjectID); err != nil {
-		return err
-	}
-	if !binding.Mutable {
-		return Error{Message: fmt.Sprintf("cannot mutate immutable variable %q", identifier.Name)}
-	}
+	return binding.WithLock(func() error {
+		if err := runtime.memory.EnsureWritable(binding.ObjectID); err != nil {
+			return err
+		}
+		if !binding.Mutable {
+			return Error{Message: fmt.Sprintf("cannot mutate immutable variable %q", identifier.Name)}
+		}
 
-	next, err := applyAssignmentOperator(binding.Value, stmt.Operator, value)
-	if err != nil {
-		return err
-	}
-	if !valueMatchesType(next, binding.Type) {
-		return Error{Message: fmt.Sprintf("cannot assign %s to %s variable %q", next.Kind, binding.Type, identifier.Name)}
-	}
-	runtime.storeBindingValue(binding, next)
-	return nil
+		next, err := applyAssignmentOperator(binding.Value, stmt.Operator, value)
+		if err != nil {
+			return err
+		}
+		if !valueMatchesType(next, binding.Type) {
+			return Error{Message: fmt.Sprintf("cannot assign %s to %s variable %q", next.Kind, binding.Type, identifier.Name)}
+		}
+		runtime.storeBindingValueLocked(binding, next)
+		return nil
+	})
 }
 
 func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator string, value Value, env *Environment) error {
@@ -1058,75 +1161,77 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 	if !ok {
 		return Error{Message: fmt.Sprintf("unknown variable %q", targetIdentifier.Name)}
 	}
-	if !binding.Mutable {
-		return Error{Message: fmt.Sprintf("cannot mutate immutable variable %q", targetIdentifier.Name)}
-	}
-	if err := runtime.memory.EnsureWritable(binding.ObjectID); err != nil {
-		return err
-	}
 
 	index, err := runtime.evalExpression(indexExpr.Index, env)
 	if err != nil {
 		return err
 	}
 
-	switch binding.Value.Kind {
-	case ValueList:
-		elementType, hasElementType := listElementType(binding.Type)
-		if !hasElementType {
-			elementType, hasElementType = arrayElementRuntimeType(binding.Type)
+	return binding.WithLock(func() error {
+		if !binding.Mutable {
+			return Error{Message: fmt.Sprintf("cannot mutate immutable variable %q", targetIdentifier.Name)}
 		}
-		items := append([]Value(nil), binding.Value.Data.([]Value)...)
-		position, err := asIndex(index)
-		if err != nil {
+		if err := runtime.memory.EnsureWritable(binding.ObjectID); err != nil {
 			return err
 		}
-		if position < 0 {
-			return Error{Message: fmt.Sprintf("list index %d is out of bounds", position)}
+		switch binding.Value.Kind {
+		case ValueList:
+			elementType, hasElementType := listElementType(binding.Type)
+			if !hasElementType {
+				elementType, hasElementType = arrayElementRuntimeType(binding.Type)
+			}
+			items := append([]Value(nil), binding.Value.Data.([]Value)...)
+			position, err := asIndex(index)
+			if err != nil {
+				return err
+			}
+			if position < 0 {
+				return Error{Message: fmt.Sprintf("list index %d is out of bounds", position)}
+			}
+			if capacity, ok := runtime.regionArrayCapacity(binding.Type); ok && position >= capacity {
+				return Error{Message: fmt.Sprintf("array index %d exceeds region %s capacity %d", position, regionNameFromRuntimeArrayType(binding.Type), capacity)}
+			}
+			for len(items) <= position {
+				items = append(items, NullValue())
+			}
+			current := items[position]
+			next, err := applyAssignmentOperator(current, operator, value)
+			if err != nil {
+				return err
+			}
+			if hasElementType && !valueMatchesType(next, elementType) {
+				return Error{Message: fmt.Sprintf("cannot assign %s to list element type %s", next.Kind, elementType)}
+			}
+			items[position] = next
+			runtime.storeBindingValueLocked(binding, Value{Kind: ValueList, Data: items})
+		case ValueMap, ValueTable:
+			keyType, valueType, hasMapTypes := mapTypes(binding.Type)
+			items := make(map[string]Value, len(binding.Value.Data.(map[string]Value)))
+			for existingKey, existingValue := range binding.Value.Data.(map[string]Value) {
+				items[existingKey] = cloneValue(existingValue)
+			}
+			if binding.Value.Kind == ValueMap && hasMapTypes && !valueMatchesType(index, keyType) {
+				return Error{Message: fmt.Sprintf("cannot use %s as map key type %s", index.Kind, keyType)}
+			}
+			key, err := mapKey(index)
+			if err != nil {
+				return err
+			}
+			current := items[key]
+			next, err := applyAssignmentOperator(current, operator, value)
+			if err != nil {
+				return err
+			}
+			if binding.Value.Kind == ValueMap && hasMapTypes && !valueMatchesType(next, valueType) {
+				return Error{Message: fmt.Sprintf("cannot assign %s to map value type %s", next.Kind, valueType)}
+			}
+			items[key] = next
+			runtime.storeBindingValueLocked(binding, Value{Kind: binding.Value.Kind, Data: items})
+		default:
+			return Error{Message: fmt.Sprintf("%s is not index-assignable", binding.Value.Kind)}
 		}
-		if capacity, ok := runtime.regionArrayCapacity(binding.Type); ok && position >= capacity {
-			return Error{Message: fmt.Sprintf("array index %d exceeds region %s capacity %d", position, regionNameFromRuntimeArrayType(binding.Type), capacity)}
-		}
-		for len(items) <= position {
-			items = append(items, NullValue())
-		}
-		current := items[position]
-		next, err := applyAssignmentOperator(current, operator, value)
-		if err != nil {
-			return err
-		}
-		if hasElementType && !valueMatchesType(next, elementType) {
-			return Error{Message: fmt.Sprintf("cannot assign %s to list element type %s", next.Kind, elementType)}
-		}
-		items[position] = next
-		runtime.storeBindingValue(binding, Value{Kind: ValueList, Data: items})
-	case ValueMap, ValueTable:
-		keyType, valueType, hasMapTypes := mapTypes(binding.Type)
-		items := make(map[string]Value, len(binding.Value.Data.(map[string]Value)))
-		for existingKey, existingValue := range binding.Value.Data.(map[string]Value) {
-			items[existingKey] = cloneValue(existingValue)
-		}
-		if binding.Value.Kind == ValueMap && hasMapTypes && !valueMatchesType(index, keyType) {
-			return Error{Message: fmt.Sprintf("cannot use %s as map key type %s", index.Kind, keyType)}
-		}
-		key, err := mapKey(index)
-		if err != nil {
-			return err
-		}
-		current := items[key]
-		next, err := applyAssignmentOperator(current, operator, value)
-		if err != nil {
-			return err
-		}
-		if binding.Value.Kind == ValueMap && hasMapTypes && !valueMatchesType(next, valueType) {
-			return Error{Message: fmt.Sprintf("cannot assign %s to map value type %s", next.Kind, valueType)}
-		}
-		items[key] = next
-		runtime.storeBindingValue(binding, Value{Kind: binding.Value.Kind, Data: items})
-	default:
-		return Error{Message: fmt.Sprintf("%s is not index-assignable", binding.Value.Kind)}
-	}
-	return nil
+		return nil
+	})
 }
 
 func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environment) (Value, error) {
@@ -1136,13 +1241,14 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 	case parser.IdentifierExpression:
 		binding, ok := env.Get(current.Name)
 		if ok {
-			if binding.Moved {
+			snapshot := binding.Snapshot()
+			if snapshot.Moved {
 				return NullValue(), Error{Message: fmt.Sprintf("variable %q was moved", current.Name)}
 			}
-			if err := runtime.memory.BorrowImmutable(binding.ObjectID); err != nil {
+			if err := runtime.memory.BorrowImmutable(snapshot.ObjectID); err != nil {
 				return NullValue(), err
 			}
-			runtime.memory.ReleaseImmutable(binding.ObjectID)
+			runtime.memory.ReleaseImmutable(snapshot.ObjectID)
 			return runtime.forceBindingValue(binding)
 		}
 		if isBuiltinFunction(current.Name) {
@@ -1444,17 +1550,25 @@ func (runtime *Runtime) evalMove(expr parser.ExpressionNode, env *Environment) (
 	if !ok {
 		return NullValue(), Error{Message: fmt.Sprintf("unknown variable %q", identifier.Name)}
 	}
-	if binding.Moved {
-		return NullValue(), Error{Message: fmt.Sprintf("variable %q was moved", identifier.Name)}
-	}
-	value, err := runtime.forceBindingValue(binding)
+	var moved Value
+	err := binding.WithLock(func() error {
+		if binding.Moved {
+			return Error{Message: fmt.Sprintf("variable %q was moved", identifier.Name)}
+		}
+		value, err := runtime.forceValue(binding.Value)
+		if err != nil {
+			return err
+		}
+		moved = value
+		binding.Moved = true
+		binding.Value = NullValue()
+		runtime.memory.Store(binding.ObjectID, NullValue())
+		return nil
+	})
 	if err != nil {
 		return NullValue(), err
 	}
-	binding.Moved = true
-	binding.Value = NullValue()
-	runtime.memory.Store(binding.ObjectID, NullValue())
-	return value, nil
+	return moved, nil
 }
 
 func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environment) (Value, error) {
@@ -1662,7 +1776,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 			}
 			values = append(values, valueString(value))
 		}
-		runtime.output = append(runtime.output, strings.Join(values, " "))
+		runtime.appendOutput(strings.Join(values, " "))
 		return NullValue(), nil
 	case "input":
 		if len(args) > 1 {
@@ -1673,7 +1787,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 			if err != nil {
 				return NullValue(), err
 			}
-			runtime.output = append(runtime.output, valueString(value))
+			runtime.appendOutput(valueString(value))
 		}
 		reader := bufio.NewReader(os.Stdin)
 		text, err := reader.ReadString('\n')
@@ -1804,6 +1918,52 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 		coroutine.Done = true
 		coroutine.Value = value
 		return OptionSomeValue(value), nil
+	case "spawn":
+		if len(args) < 1 || len(args) > 2 || args[0].Kind != ValueFunction {
+			return NullValue(), Error{Message: "spawn expects Function and optional List arguments"}
+		}
+		threadArgs := []Value{}
+		if len(args) == 2 {
+			if args[1].Kind != ValueList {
+				return NullValue(), Error{Message: "spawn arguments must be a List"}
+			}
+			threadArgs = append([]Value(nil), args[1].Data.([]Value)...)
+		}
+		thread := &ThreadData{Done: make(chan struct{})}
+		functionName := args[0].Data.(string)
+		child := runtime.childRuntime()
+		go func() {
+			value, err := child.callFunctionMode(functionName, threadArgs, false)
+			thread.Mutex.Lock()
+			thread.Value = cloneValue(value)
+			thread.Err = err
+			thread.Mutex.Unlock()
+			close(thread.Done)
+		}()
+		return Value{Kind: ValueThread, Data: thread}, nil
+	case "join":
+		if len(args) != 1 || args[0].Kind != ValueThread {
+			return NullValue(), Error{Message: "join expects one Thread"}
+		}
+		thread := args[0].Data.(*ThreadData)
+		<-thread.Done
+		thread.Mutex.Lock()
+		defer thread.Mutex.Unlock()
+		if thread.Err != nil {
+			return NullValue(), thread.Err
+		}
+		return cloneValue(thread.Value), nil
+	case "thread_status":
+		if len(args) != 1 || args[0].Kind != ValueThread {
+			return NullValue(), Error{Message: "thread_status expects one Thread"}
+		}
+		thread := args[0].Data.(*ThreadData)
+		select {
+		case <-thread.Done:
+			return StringValue("done"), nil
+		default:
+			return StringValue("running"), nil
+		}
 	case "Atomic":
 		if len(args) != 1 {
 			return NullValue(), Error{Message: "Atomic expects one value"}
@@ -1929,7 +2089,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 		if len(args) != 1 {
 			return NullValue(), Error{Message: "debug expects one value"}
 		}
-		runtime.output = append(runtime.output, fmt.Sprintf("[debug] %s = %s", runtimeTypeName(args[0]), valueString(args[0])))
+		runtime.appendOutput(fmt.Sprintf("[debug] %s = %s", runtimeTypeName(args[0]), valueString(args[0])))
 		return args[0], nil
 	case "debug_type":
 		if len(args) != 1 {
@@ -1949,7 +2109,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 		if len(args) == 1 {
 			label = valueString(args[0])
 		}
-		runtime.output = append(runtime.output, fmt.Sprintf("[breakpoint] %s stack=%s", label, strings.Join(runtime.callStack, " -> ")))
+		runtime.appendOutput(fmt.Sprintf("[breakpoint] %s stack=%s", label, strings.Join(runtime.callStack, " -> ")))
 		return NullValue(), nil
 	case "js_import":
 		if len(args) != 1 {
@@ -2126,7 +2286,7 @@ func (runtime *Runtime) namedReturnValue(function parser.FunctionStatement, env 
 		if !ok {
 			return NullValue(), false, Error{Message: fmt.Sprintf("named return value %q is not defined", returnValue.Name)}
 		}
-		items = append(items, binding.Value)
+		items = append(items, binding.Snapshot().Value)
 	}
 	return Value{Kind: ValueList, Data: items}, true, nil
 }
@@ -2443,7 +2603,8 @@ func (runtime *Runtime) resolveAliasPath(name string) string {
 func isBuiltinFunction(name string) bool {
 	switch name {
 	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
-		"Table", "iter", "next", "coroutine", "resume", "Atomic", "atomic_load", "atomic_store", "atomic_add",
+		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
+		"Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",
 		"debug", "debug_type", "debug_stack", "breakpoint", "js_import", "js_source", "js_exports", "js_call",
 		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":

@@ -1194,6 +1194,48 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "BuildSystem backend must be WASM, JS, or Standalone")
 }
 
+func TestCheckProgramAcceptsThreadSpawnJoinAndStatus(t *testing.T) {
+	program := programFromSource(`
+function Worker(counter : Atomic[Int], mut amount : Int) : Int {
+    while amount > 0 {
+        atomic_add(counter, 1);
+        amount -= 1;
+    }
+    return atomic_load(counter);
+}
+
+function Main() : Int {
+    local Atomic[Int] counter = Atomic(0);
+    local Thread[Int] left = spawn(Worker, [counter, 10]);
+    local Thread[Int] right = spawn(Worker, [counter, 20]);
+    local String status = thread_status(left);
+    local Int a = join(left);
+    local Int b = join(right);
+    return atomic_load(counter) + len(status);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected threaded program to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsSpawnArgumentMismatch(t *testing.T) {
+	program := programFromSource(`
+function Worker(value : Int) : Int {
+    return value;
+}
+
+function Main() : Int {
+    local Thread[Int] worker = spawn(Worker, ["bad"]);
+    return join(worker);
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "spawn argument 1 expects Int, got String")
+}
+
 func TestCheckProgramAcceptsTraitsInsideAliasFunctions(t *testing.T) {
 	program := programFromSource(`
 alias function Wrapped(value: int) -> type

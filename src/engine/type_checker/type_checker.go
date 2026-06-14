@@ -1513,6 +1513,26 @@ func (checker *TypeChecker) inferListLiteral(expr string, locals map[string]vari
 	return "List[" + itemType + "]"
 }
 
+func (checker *TypeChecker) listLiteralArgumentTypes(expr string, locals map[string]variableSymbol, source string, line int) ([]string, bool) {
+	expr = strings.TrimSpace(expr)
+	if !strings.HasPrefix(expr, "[") || !strings.HasSuffix(expr, "]") {
+		return nil, false
+	}
+	inner := strings.TrimSpace(expr[1 : len(expr)-1])
+	if inner == "" {
+		return []string{}, true
+	}
+	if _, _, _, _, ok := splitListComprehensionLiteral(inner); ok {
+		return nil, false
+	}
+	items := splitTopLevel(inner, ',')
+	types := make([]string, 0, len(items))
+	for _, item := range items {
+		types = append(types, checker.inferExpression(item, locals, source, line))
+	}
+	return types, true
+}
+
 func (checker *TypeChecker) inferListComprehension(valueExpr string, iterator string, iterableExpr string, conditionExpr string, locals map[string]variableSymbol, source string, line int) string {
 	iterableType := checker.inferExpression(iterableExpr, locals, source, line)
 	itemType, ok := iterableItemType(iterableType)
@@ -1667,6 +1687,56 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			itemType = anyType
 		}
 		return "Option[" + itemType + "]"
+	case "spawn":
+		if len(args) < 1 || len(args) > 2 {
+			checker.addError(source, line, "spawn expects Function and optional List arguments")
+			return "Thread[T]"
+		}
+		functionType := checker.inferExpression(args[0], locals, source, line)
+		paramTypes, returnType, ok := functionValueType(functionType)
+		if !ok {
+			checker.addError(source, line, fmt.Sprintf("spawn expects Function, got %s", functionType))
+			return "Thread[T]"
+		}
+		if len(args) == 2 {
+			argsType := checker.inferExpression(args[1], locals, source, line)
+			if !strings.HasPrefix(argsType, "List[") {
+				checker.addError(source, line, fmt.Sprintf("spawn arguments expect List[T], got %s", argsType))
+			}
+			if listItems, ok := checker.listLiteralArgumentTypes(args[1], locals, source, line); ok {
+				if len(listItems) != len(paramTypes) {
+					checker.addError(source, line, fmt.Sprintf("spawn function expects %d argument(s), got %d", len(paramTypes), len(listItems)))
+				}
+				for index := 0; index < len(listItems) && index < len(paramTypes); index++ {
+					if !isAssignable(paramTypes[index], listItems[index]) {
+						checker.addError(source, line, fmt.Sprintf("spawn argument %d expects %s, got %s", index+1, paramTypes[index], listItems[index]))
+					}
+				}
+			}
+		} else if len(paramTypes) != 0 {
+			checker.addError(source, line, fmt.Sprintf("spawn function expects %d argument(s), got 0", len(paramTypes)))
+		}
+		return "Thread[" + returnType + "]"
+	case "join":
+		if len(args) != 1 {
+			checker.addError(source, line, "join expects 1 argument")
+			return anyType
+		}
+		itemType, ok := threadItemType(checker.inferExpression(args[0], locals, source, line))
+		if !ok {
+			checker.addError(source, line, "join expects Thread[T]")
+			return anyType
+		}
+		return itemType
+	case "thread_status":
+		if len(args) != 1 {
+			checker.addError(source, line, "thread_status expects 1 argument")
+			return "String"
+		}
+		if _, ok := threadItemType(checker.inferExpression(args[0], locals, source, line)); !ok {
+			checker.addError(source, line, "thread_status expects Thread[T]")
+		}
+		return "String"
 	case "Atomic":
 		if len(args) != 1 {
 			checker.addError(source, line, "Atomic expects 1 argument")
@@ -2544,6 +2614,9 @@ func isKnownType(typeName string) bool {
 	if strings.HasPrefix(typeName, "Coroutine[") && strings.HasSuffix(typeName, "]") {
 		return isKnownType(typeName[len("Coroutine[") : len(typeName)-1])
 	}
+	if strings.HasPrefix(typeName, "Thread[") && strings.HasSuffix(typeName, "]") {
+		return isKnownType(typeName[len("Thread[") : len(typeName)-1])
+	}
 	if strings.HasPrefix(typeName, "Atomic[") && strings.HasSuffix(typeName, "]") {
 		return isKnownType(typeName[len("Atomic[") : len(typeName)-1])
 	}
@@ -2585,7 +2658,8 @@ func isArrayTypeName(typeName string) bool {
 		!strings.HasPrefix(typeName, "Option[") && !strings.HasPrefix(typeName, "Result[") &&
 		!strings.HasPrefix(typeName, "SIMD[") && !strings.HasPrefix(typeName, "Function[") &&
 		!strings.HasPrefix(typeName, "Awaitable[") && !strings.HasPrefix(typeName, "Iterator[") &&
-		!strings.HasPrefix(typeName, "Coroutine[") && !strings.HasPrefix(typeName, "Atomic[")
+		!strings.HasPrefix(typeName, "Coroutine[") && !strings.HasPrefix(typeName, "Thread[") &&
+		!strings.HasPrefix(typeName, "Atomic[")
 }
 
 func arrayElementType(typeName string) (string, bool) {
@@ -2676,6 +2750,15 @@ func coroutineItemType(typeName string) (string, bool) {
 		return "", false
 	}
 	inner := normalizeType(typeName[len("Coroutine[") : len(typeName)-1])
+	return inner, inner != ""
+}
+
+func threadItemType(typeName string) (string, bool) {
+	typeName = normalizeType(typeName)
+	if !strings.HasPrefix(typeName, "Thread[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	inner := normalizeType(typeName[len("Thread[") : len(typeName)-1])
 	return inner, inner != ""
 }
 

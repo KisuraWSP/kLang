@@ -238,7 +238,7 @@
       "patterns": [
         {
           "name": "meta.type.sizeof.klang",
-          "match": "\\b(Int|UInt|String|Float|Bool|Char|Map|List|Table|Option|Result|Complex|SIMD|Function|Awaitable|Iterator|Coroutine|Atomic|Any|T|Args|Program|BuildSystem|WorkSpace|JSModule|JSCall|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)(\\.)(sizeof)\\b",
+          "match": "\\b(Int|UInt|String|Float|Bool|Char|Map|List|Table|Option|Result|Complex|SIMD|Function|Awaitable|Iterator|Coroutine|Thread|Atomic|Any|T|Args|Program|BuildSystem|WorkSpace|JSModule|JSCall|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)(\\.)(sizeof)\\b",
           "captures": {
             "1": { "name": "storage.type.primitive.klang" },
             "2": { "name": "punctuation.accessor.klang" },
@@ -247,7 +247,7 @@
         },
         {
           "name": "storage.type.primitive.klang",
-          "match": "\\b(Int|UInt|String|Float|Bool|Char|Map|List|Table|Option|Result|Complex|SIMD|Function|Awaitable|Iterator|Coroutine|Atomic|Any|T|Args|Program|BuildSystem|WorkSpace|JSModule|JSCall|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)\\b"
+          "match": "\\b(Int|UInt|String|Float|Bool|Char|Map|List|Table|Option|Result|Complex|SIMD|Function|Awaitable|Iterator|Coroutine|Thread|Atomic|Any|T|Args|Program|BuildSystem|WorkSpace|JSModule|JSCall|Box|Ref|RefMut|RefCell|HeapAllocator|RegionAllocator|BumpAllocator|ArenaAllocator)\\b"
         }
       ]
     },

@@ -8,9 +8,9 @@ syn keyword klangKeyword if then else unless for while do do_while end return br
 syn keyword klangKeyword await defer private inline lazy async inner
 syn keyword klangOperator and or xor not is as in move copy clone
 syn keyword klangStorage global local let var val const mut export
-syn keyword klangType Int UInt String Float Bool Char Map List Table Option Result Complex SIMD Function Awaitable Iterator Coroutine Atomic Any T Args Program BuildSystem WorkSpace JSModule JSCall Box Ref RefMut RefCell HeapAllocator RegionAllocator BumpAllocator ArenaAllocator
+syn keyword klangType Int UInt String Float Bool Char Map List Table Option Result Complex SIMD Function Awaitable Iterator Coroutine Thread Atomic Any T Args Program BuildSystem WorkSpace JSModule JSCall Box Ref RefMut RefCell HeapAllocator RegionAllocator BumpAllocator ArenaAllocator
 syn keyword klangConstant True False None Some Ok Err Result DEFAULT
-syn keyword klangBuiltin print input len range iter next coroutine resume awaitable Async Atomic atomic_load atomic_store atomic_add Program BuildSystem WorkSpace workspace_backend workspace_files workspace_manifest debug debug_type debug_stack breakpoint js_import js_source js_exports js_call sizeof get_default_procces_allocator free_all_allocator
+syn keyword klangBuiltin print input len range iter next coroutine resume spawn join thread_status awaitable Async Atomic atomic_load atomic_store atomic_add Program BuildSystem WorkSpace workspace_backend workspace_files workspace_manifest debug debug_type debug_stack breakpoint js_import js_source js_exports js_call sizeof get_default_procces_allocator free_all_allocator
 
 syn match klangComment '--.*$'
 syn match klangNumber '\v<\d+(\.\d+)?>'

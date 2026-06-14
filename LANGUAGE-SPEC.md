@@ -10,24 +10,25 @@
 10. Table is a builtin Lua-style dynamic data type and is the only dynamically typed container.
 11. Async functions return Awaitable values, and await unwraps the completed value.
 12. Iterators and coroutines are builtin first-class runtime values.
-13. `Args` is a builtin immutable `List[String]` containing the command line arguments for the current workspace.
-14. `copy` and `clone` create cloned values without moving from the source binding.
-15. Function and lambda parameters are immutable by default; use `mut` before the parameter name to allow mutation.
-16. `--raw-lang` disables stdlib module resolution while preserving local workspace imports.
-17. `let`, `val`, `var`, and `const` are inferred declaration keywords with strict type checking.
-18. Builtin type names expose `.sizeof`, which returns an `Int` size value.
-19. Functions may return multiple values through tuple-style return signatures.
-20. `private` hides functions and namespaces from other files where the checker can enforce file ownership.
-21. Here strings use `//` delimiters in expression-start positions and produce multiline `String` values.
-22. `Any` is a fully dynamic wildcard type and cannot be restricted.
-23. `defer` schedules statements or blocks to run at the end of the current runtime block.
-24. `inline` marks functions and alias functions as eager inline candidates for compiler/runtime optimization.
-25. Alias functions use block syntax with `: type`, hook blocks such as `[new] { ... }`, and `#extend { ... }`.
-26. `#set_entry_point_to_here` marks the following function as the runtime entry point.
-27. `Atomic[T]` plus `Atomic`, `atomic_load`, `atomic_store`, and `atomic_add` provide race-safe runtime cells.
-28. `Program`, `BuildSystem`, and `WorkSpace` are builtin meta-programming values for describing custom workspaces and compact build plans.
-29. `debug`, `debug_type`, `debug_stack`, and `breakpoint` are builtin debugger helpers.
-30. JavaScript FFI is filesystem-only through `JSModule` and `JSCall` descriptors loaded from `.js` files.
+13. `spawn`, `join`, and `thread_status` provide multi-threaded interpreter workers represented by `Thread[T]`.
+14. `Args` is a builtin immutable `List[String]` containing the command line arguments for the current workspace.
+15. `copy` and `clone` create cloned values without moving from the source binding.
+16. Function and lambda parameters are immutable by default; use `mut` before the parameter name to allow mutation.
+17. `--raw-lang` disables stdlib module resolution while preserving local workspace imports.
+18. `let`, `val`, `var`, and `const` are inferred declaration keywords with strict type checking.
+19. Builtin type names expose `.sizeof`, which returns an `Int` size value.
+20. Functions may return multiple values through tuple-style return signatures.
+21. `private` hides functions and namespaces from other files where the checker can enforce file ownership.
+22. Here strings use `//` delimiters in expression-start positions and produce multiline `String` values.
+23. `Any` is a fully dynamic wildcard type and cannot be restricted.
+24. `defer` schedules statements or blocks to run at the end of the current runtime block.
+25. `inline` marks functions and alias functions as eager inline candidates for compiler/runtime optimization.
+26. Alias functions use block syntax with `: type`, hook blocks such as `[new] { ... }`, and `#extend { ... }`.
+27. `#set_entry_point_to_here` marks the following function as the runtime entry point.
+28. `Atomic[T]` plus `Atomic`, `atomic_load`, `atomic_store`, and `atomic_add` provide race-safe runtime cells.
+29. `Program`, `BuildSystem`, and `WorkSpace` are builtin meta-programming values for describing custom workspaces and compact build plans.
+30. `debug`, `debug_type`, `debug_stack`, and `breakpoint` are builtin debugger helpers.
+31. JavaScript FFI is filesystem-only through `JSModule` and `JSCall` descriptors loaded from `.js` files.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -49,6 +50,8 @@ Rules
 - Table values allow mixed primitive keys and mixed value types.
 - `next(iterator)` returns Option[T], with None when the iterator is exhausted.
 - `resume(coroutine)` returns Option[T], with None after the coroutine has completed.
+- `spawn(functionValue, [args...])` starts a child interpreter worker and returns `Thread[T]`; `join(thread)` waits and returns `T`.
+- Threaded workers share loaded functions, globals, memory tracking, and output. Use `Atomic[T]` for shared mutable values that need safe read-modify-write behavior.
 - Each standalone script or project is resolved as its own workspace. Resolver caches speed repeated imports without sharing visited-state between workspaces.
 - Alias functions may contain trait and impl declarations in addition to hooks and extension methods.
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.

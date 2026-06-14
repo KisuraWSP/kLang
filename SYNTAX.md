@@ -400,6 +400,24 @@ function BuildCount() : Int {
 local Coroutine[Int] buildCount = coroutine(BuildCount);
 local Option[Int] resumedCount = resume(buildCount);
 
+-- multi-threaded interpreter workers
+-- spawn starts a child interpreter worker. join waits for its result.
+function CountWorker(counter : Atomic[Int], mut amount : Int) : Int {
+    while amount > 0 {
+        atomic_add(counter, 1);
+        amount -= 1;
+    }
+    return atomic_load(counter);
+}
+
+local Atomic[Int] sharedCounter = Atomic(0);
+local Thread[Int] workerA = spawn(CountWorker, [sharedCounter, 25]);
+local Thread[Int] workerB = spawn(CountWorker, [sharedCounter, 17]);
+local String workerStatus = thread_status(workerA);
+local Int workerAResult = join(workerA);
+local Int workerBResult = join(workerB);
+local Int threadedTotal = atomic_load(sharedCounter);
+
 -- atomic race-safe cells
 local Atomic[Int] counter = Atomic(1);
 atomic_add(counter, 2);
