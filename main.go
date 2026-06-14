@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,6 +39,10 @@ type entrySpec struct {
 type packageOptions struct {
 	Backend string
 	Out     string
+	Serve   bool
+	Host    string
+	Port    int
+	PortSet bool
 }
 
 func main() {
@@ -106,6 +112,32 @@ func runCLI(args []string) error {
 		packageOptions, err := parsePackageOptions(rest)
 		if err != nil {
 			return err
+		}
+		return packageProgram(program, packageOptions, commandOptions{Verbose: options.Verbose, RawLang: options.RawLang})
+	case "serve", "web":
+		if len(values) != 1 {
+			return fmt.Errorf("%s %s expects a .klang file or project folder", cliName, command)
+		}
+		program, err := file.LoadProgram(values[0])
+		if err != nil {
+			return err
+		}
+		packageOptions, err := parsePackageOptions(rest)
+		if err != nil {
+			return err
+		}
+		packageOptions.Backend = "WASM"
+		packageOptions.Serve = true
+		if !packageOptions.PortSet {
+			packageOptions.Port = 8080
+			packageOptions.PortSet = true
+		}
+		if packageOptions.Out == "" {
+			tempRoot, err := os.MkdirTemp("", "klang-wasm-serve-*")
+			if err != nil {
+				return err
+			}
+			packageOptions.Out = tempRoot
 		}
 		return packageProgram(program, packageOptions, commandOptions{Verbose: options.Verbose, RawLang: options.RawLang})
 	case "test", "tests":
@@ -206,6 +238,13 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 	if backend == "" {
 		backend = "Standalone"
 	}
+	if packageOptions.Serve {
+		backend = "WASM"
+		if !packageOptions.PortSet {
+			packageOptions.Port = 8080
+			packageOptions.PortSet = true
+		}
+	}
 	if !isBuildBackend(backend) {
 		return fmt.Errorf("backend must be one of WASM, JS, Standalone")
 	}
@@ -292,7 +331,48 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 		fmt.Printf("  wasm: %s\n", filepath.Join(bundleDir, "klang.wasm"))
 		fmt.Printf("  browser: %s\n", filepath.Join(bundleDir, "index.html"))
 	}
+	if packageOptions.Serve {
+		return serveBundle(bundleDir, packageOptions)
+	}
 	return nil
+}
+
+func serveBundle(bundleDir string, options packageOptions) error {
+	host := strings.TrimSpace(options.Host)
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	port := options.Port
+	if port < 0 || port > 65535 {
+		return fmt.Errorf("port must be between 0 and 65535")
+	}
+
+	address := fmt.Sprintf("%s:%d", host, port)
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+
+	actualAddress := listener.Addr().String()
+	urlHost, urlPort, err := net.SplitHostPort(actualAddress)
+	if err != nil {
+		urlHost = host
+		urlPort = strconv.Itoa(port)
+	}
+	if urlHost == "::" || urlHost == "0.0.0.0" || urlHost == "" {
+		urlHost = "127.0.0.1"
+	}
+
+	fmt.Printf("\nserving Klang browser runtime\n")
+	fmt.Printf("  bundle: %s\n", bundleDir)
+	fmt.Printf("  url: http://%s:%s\n", urlHost, urlPort)
+	fmt.Printf("  stop: Ctrl+C\n")
+
+	server := &http.Server{
+		Handler: http.FileServer(http.Dir(bundleDir)),
+	}
+	return server.Serve(listener)
 }
 
 func bundleSourcePath(root string, sourcePath string) string {
@@ -808,6 +888,28 @@ func parsePackageOptions(args []string) (packageOptions, error) {
 		case arg == "--out" && index+1 < len(args):
 			index++
 			options.Out = strings.TrimSpace(args[index])
+		case arg == "--serve":
+			options.Serve = true
+		case strings.HasPrefix(arg, "--host="):
+			options.Host = strings.TrimSpace(strings.TrimPrefix(arg, "--host="))
+		case arg == "--host" && index+1 < len(args):
+			index++
+			options.Host = strings.TrimSpace(args[index])
+		case strings.HasPrefix(arg, "--port="):
+			port, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(arg, "--port=")))
+			if err != nil {
+				return packageOptions{}, fmt.Errorf("--port expects a number")
+			}
+			options.Port = port
+			options.PortSet = true
+		case arg == "--port" && index+1 < len(args):
+			index++
+			port, err := strconv.Atoi(strings.TrimSpace(args[index]))
+			if err != nil {
+				return packageOptions{}, fmt.Errorf("--port expects a number")
+			}
+			options.Port = port
+			options.PortSet = true
 		}
 	}
 	if !isBuildBackend(options.Backend) {
@@ -851,6 +953,10 @@ func positionalArgs(args []string) []string {
 			index++
 			continue
 		}
+		if arg == "--host" || arg == "--port" {
+			index++
+			continue
+		}
 		if strings.HasPrefix(arg, "-") {
 			continue
 		}
@@ -881,6 +987,7 @@ Usage:
   kLang run <file-or-folder>                  Check, parse, and execute a Klang program
   kLang check <file-or-folder>                Resolve modules, type check, and parse
   kLang package <file-or-folder>              Package checked source into a compact bundle
+  kLang serve <file-or-folder>                Package and serve a browser WASM runtime bundle
   kLang test <tests-folder>                   Check every Klang program in a folder
   kLang test <tests-folder> --run             Check and run every discovered program
   kLang file <file.klang>                     Print a Klang source file with line labels
@@ -890,6 +997,9 @@ Options:
   --entry=[Name,Type]              Set generated project entry point for new projects
   --backend=Standalone|JS|WASM      Select package backend metadata
   --out=<folder>                    Select package output folder
+  --serve                         Serve a WASM browser bundle after packaging
+  --host=<host>                    Host for the built-in web server, default 127.0.0.1
+  --port=<port>                    Port for the built-in web server, default 8080
   --raw-lang                      Disable stdlib imports while resolving modules
   --verbose, -v                   Print import details
   --help, -h                      Show this help

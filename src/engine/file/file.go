@@ -12,6 +12,7 @@ import (
 
 const KlangExtension = ".klang"
 const KlangEntryPoint = "first.klang"
+const KlangDistDir = "dist"
 
 type SourceFile struct {
 	Path  string
@@ -139,7 +140,13 @@ func readDirectoryProgram(programDir string) (Program, error) {
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() || filepath.Ext(entry.Name()) != KlangExtension {
+		if entry.IsDir() {
+			if path != programDir && entry.Name() == KlangDistDir {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(entry.Name()) != KlangExtension {
 			return nil
 		}
 		paths = append(paths, path)

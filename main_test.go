@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"kLang/src/engine/file"
 )
 
 func TestRuntimeErrorPartsExtractsLineColumnAndMessage(t *testing.T) {
@@ -84,4 +86,46 @@ func TestRunCLIPackagesProjectWithManifest(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(outPath, "packaged-standalone", "src", "first.klang")); err != nil {
 		t.Fatalf("expected bundled first.klang: %v", err)
 	}
+}
+
+func TestParsePackageOptionsAcceptsServeHostAndPort(t *testing.T) {
+	options, err := parsePackageOptions([]string{"--backend=WASM", "--serve", "--host", "0.0.0.0", "--port=9090"})
+	if err != nil {
+		t.Fatalf("parse package options failed: %v", err)
+	}
+	if !options.Serve || options.Host != "0.0.0.0" || options.Port != 9090 || !options.PortSet || options.Backend != "WASM" {
+		t.Fatalf("unexpected package options: %#v", options)
+	}
+}
+
+func TestPackageServeForcesWASMBackend(t *testing.T) {
+	root := t.TempDir()
+	projectPath := filepath.Join(root, "served")
+	outPath := filepath.Join(root, "out")
+	if err := createProject(projectPath, entrySpec{}); err != nil {
+		t.Fatalf("create project failed: %v", err)
+	}
+
+	options := packageOptions{Backend: "Standalone", Out: outPath, Serve: true, Port: -1, PortSet: true}
+	err := packageProgram(mustLoadProgram(t, projectPath), options, commandOptions{})
+	if err == nil || !strings.Contains(err.Error(), "port must be between") {
+		t.Fatalf("expected invalid port after WASM package generation, got %v", err)
+	}
+
+	manifest, readErr := os.ReadFile(filepath.Join(outPath, "served-wasm", "klang-build.json"))
+	if readErr != nil {
+		t.Fatalf("read wasm manifest failed: %v", readErr)
+	}
+	if !strings.Contains(string(manifest), `"backend": "WASM"`) {
+		t.Fatalf("expected serve package to force WASM backend, got:\n%s", manifest)
+	}
+}
+
+func mustLoadProgram(t *testing.T, path string) file.Program {
+	t.Helper()
+	program, err := file.LoadProgram(path)
+	if err != nil {
+		t.Fatalf("load program failed: %v", err)
+	}
+	return program
 }

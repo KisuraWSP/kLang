@@ -127,6 +127,18 @@ python3 -m http.server 8080
 
 Then open `http://localhost:8080`. The WASM backend compiles the Go-based kLang interpreter/runtime to `klang.wasm`, copies Go's `wasm_exec.js`, and loads the resolved `.klang` sources through `klang_browser.js`. Browser code can call `KlangBrowser.runProject()` or `KlangBrowser.runSource(source, args)`.
 
+Start the built-in browser server without manually preparing the bundle:
+
+```sh
+go run . serve examples/helloworld --port=8080
+```
+
+This creates a temporary WASM browser bundle, hosts it with kLang's built-in static web server, and prints the local URL. You can also keep the bundle and serve it in one step:
+
+```sh
+go run . package examples/helloworld --backend=WASM --serve --out dist
+```
+
 Show import cache/details:
 
 ```sh

@@ -1,6 +1,4 @@
 # TODO
-- add a flag to start a simple web server that is built into the language that will package our entire languages runtime if the user doesnt want to build wasm and ship it <done third>
-
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
 - little by little polish every existing feature in this system until we can do like 

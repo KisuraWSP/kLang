@@ -1,0 +1,8 @@
+namespace App {
+    function Start() : Int {
+        local String name = "Klang";
+        local Table message = {"kind": "hello", "target": name, "version": 1};
+        print("Hello", message.target, "from", message.kind, "example", message.version);
+        return len(name);
+    }
+}

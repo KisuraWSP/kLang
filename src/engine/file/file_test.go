@@ -71,6 +71,23 @@ func TestLoadProgramReadsFolderWithFirstEntryPoint(t *testing.T) {
 	}
 }
 
+func TestLoadProgramIgnoresGeneratedDistFolder(t *testing.T) {
+	root := t.TempDir()
+	programDir := filepath.Join(root, "web")
+	writeTestFile(t, programDir, "first.klang", "function Main() : Int { return 0; }")
+	writeTestFile(t, programDir, "app.klang", "namespace App {}")
+	writeTestFile(t, programDir, filepath.Join("dist", "web-wasm", "src", "first.klang"), "function Main() : Int { return 1; }")
+	writeTestFile(t, programDir, filepath.Join("dist", "web-wasm", "src", "app.klang"), "namespace App { function Start() : Int { return 1; } }")
+
+	program, err := LoadProgram(programDir)
+	if err != nil {
+		t.Fatalf("LoadProgram returned an error: %v", err)
+	}
+	if len(program.Files) != 2 {
+		t.Fatalf("expected generated dist sources to be ignored, got %d file(s): %#v", len(program.Files), program.Files)
+	}
+}
+
 func TestLoadProgramRejectsFolderWithoutFirstEntryPoint(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, filepath.Join("not-a-program", "helper.klang"), "function Helper() : Int { return 0; }")
