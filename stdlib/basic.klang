@@ -1,9 +1,15 @@
--- Basic user-facing helpers inspired by simple IO functions.
--- Klang currently exposes print as a runtime builtin, so this module wraps it
--- with small typed functions that return status values.
+-- Basic user-facing helpers inspired by common builtin functions.
+-- This module only uses constructs currently supported by the language:
+-- typed functions, generics, lists, tables, Option/Result, callbacks,
+-- iterators, threads, atomics, and runtime builtins.
 
 namespace basic {
     function Print(value : T) : Int {
+        print(value);
+        return 0;
+    }
+
+    function PrintLine(value : T) : Int {
         print(value);
         return 0;
     }
@@ -23,6 +29,14 @@ namespace basic {
         return 0;
     }
 
+    function Input(prompt : String) : String {
+        return input(prompt);
+    }
+
+    function Echo(value : T) : T {
+        return value;
+    }
+
     function EchoString(value : String) : String {
         return value;
     }
@@ -39,117 +53,405 @@ namespace basic {
         if condition { return whenTrue; } else { return whenFalse; }
     }
 
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
-    A
-    abs()
-    aiter()
-    all()
-    anext()
-    any()
-    ascii()
+    function ChooseBool(condition : Bool, whenTrue : Bool, whenFalse : Bool) : Bool {
+        if condition { return whenTrue; } else { return whenFalse; }
+    }
 
-    B
-    bin()
-    bool()
-    breakpoint()
-    bytearray()
-    bytes()
+    function IsNull(value : T) : Bool {
+        return not value?;
+    }
 
-    C
-    callable()
-    chr()
-    classmethod()
-    compile()
-    complex()
+    function IsPresent(value : T) : Bool {
+        return value?;
+    }
 
-    D
-    delattr()
-    dict()
-    dir()
-    divmod()
+    function TypeOf(value : T) : String {
+        return debug_type(value);
+    }
 
-    E
-    enumerate()
-    eval()
-    exec()
+    function Repr(value : T) : String {
+        return value as String;
+    }
 
-    F
-    filter()
-    float()
-    format()
-    frozenset()
+    function Str(value : T) : String {
+        return value as String;
+    }
 
-    G
-    getattr()
-    globals()
+    function IntFromString(value : String) : Int {
+        return value as Int;
+    }
 
-    H
-    hasattr()
-    hash()
-    help()
-    hex()
+    function IntFromFloat(value : Float) : Int {
+        return value as Int;
+    }
 
-    I
-    id()
-    input()
-    int()
-    isinstance()
-    issubclass()
-    iter()
-    L
-    len()
-    list()
-    locals()
+    function IntFromBool(value : Bool) : Int {
+        return value as Int;
+    }
 
-    M
-    map()
-    max()
-    memoryview()
-    min()
+    function FloatFromInt(value : Int) : Float {
+        return value as Float;
+    }
 
-    N
-    next()
+    function FloatFromString(value : String) : Float {
+        return value as Float;
+    }
 
-    O
-    object()
-    oct()
-    open()
-    ord()
+    function BoolFromString(value : String) : Bool {
+        return value as Bool;
+    }
 
-    P
-    pow()
-    print()
-    property()
+    function BoolFromInt(value : Int) : Bool {
+        return value as Bool;
+    }
 
+    function Abs(value : Int) : Int {
+        if value < 0 { return 0 - value; } else { return value; }
+    }
 
+    function AbsFloat(value : Float) : Float {
+        if value < 0.0 { return 0.0 - value; } else { return value; }
+    }
 
+    function PowInt(value : Int, exponent : Int) : Int {
+        if exponent < 0 {
+            return 0;
+        }
+        local mut Int result = 1;
+        local mut Int remaining = exponent;
+        while remaining > 0 {
+            result *= value;
+            remaining -= 1;
+        }
+        return result;
+    }
 
-    R
-    range()
-    repr()
-    reversed()
-    round()
+    function DivMod(left : Int, right : Int) : List[Int] {
+        return [left / right, left % right];
+    }
 
-    S
-    set()
-    setattr()
-    slice()
-    sorted()
-    staticmethod()
-    str()
-    sum()
-    super()
+    function RoundFloat(value : Float) : Int {
+        local Int whole = value as Int;
+        local Float fraction = value - (whole as Float);
+        if fraction >= 0.5 {
+            return whole + 1;
+        }
+        if fraction <= -0.5 {
+            return whole - 1;
+        }
+        return whole;
+    }
 
-    T
-    tuple()
-    type()
+    function LenString(value : String) : Int {
+        return len(value);
+    }
 
-    V
-    vars()
+    function LenIntList(value : List[Int]) : Int {
+        return len(value);
+    }
 
-    Z
-    zip()
+    function LenStringList(value : List[String]) : Int {
+        return len(value);
+    }
 
-    _
-    __import__()
+    function LenBoolList(value : List[Bool]) : Int {
+        return len(value);
+    }
+
+    function LenTable(value : Table) : Int {
+        return len(value);
+    }
+
+    function IsEmptyString(value : String) : Bool {
+        return len(value) == 0;
+    }
+
+    function IsEmptyIntList(value : List[Int]) : Bool {
+        return len(value) == 0;
+    }
+
+    function Range(count : Int) : Int {
+        return range(count);
+    }
+
+    function Indexes(count : Int) : List[Int] {
+        return [index for index in range(count)];
+    }
+
+    function All(values : List[Bool]) : Bool {
+        local mut Int index = 0;
+        while index < len(values) {
+            if not values[index] {
+                return False;
+            }
+            index += 1;
+        }
+        return True;
+    }
+
+    function Any(values : List[Bool]) : Bool {
+        local mut Int index = 0;
+        while index < len(values) {
+            if values[index] {
+                return True;
+            }
+            index += 1;
+        }
+        return False;
+    }
+
+    function SumInt(values : List[Int]) : Int {
+        local mut Int total = 0;
+        local mut Int index = 0;
+        while index < len(values) {
+            total += values[index];
+            index += 1;
+        }
+        return total;
+    }
+
+    function SumFloat(values : List[Float]) : Float {
+        local mut Float total = 0.0;
+        local mut Int index = 0;
+        while index < len(values) {
+            total += values[index];
+            index += 1;
+        }
+        return total;
+    }
+
+    function MinInt(values : List[Int]) : Option[Int] {
+        if len(values) == 0 {
+            return None();
+        }
+        local mut Int best = values[0];
+        local mut Int index = 1;
+        while index < len(values) {
+            if values[index] < best {
+                best = values[index];
+            }
+            index += 1;
+        }
+        return Some(best);
+    }
+
+    function MaxInt(values : List[Int]) : Option[Int] {
+        if len(values) == 0 {
+            return None();
+        }
+        local mut Int best = values[0];
+        local mut Int index = 1;
+        while index < len(values) {
+            if values[index] > best {
+                best = values[index];
+            }
+            index += 1;
+        }
+        return Some(best);
+    }
+
+    function ReversedInt(values : List[Int]) : List[Int] {
+        local mut List[Int] result;
+        local mut Int index = len(values) - 1;
+        while index >= 0 {
+            result[len(result)] = values[index];
+            index -= 1;
+        }
+        return result;
+    }
+
+    function CopyIntList(values : List[Int]) : List[Int] {
+        return clone values;
+    }
+
+    function CopyStringList(values : List[String]) : List[String] {
+        return clone values;
+    }
+
+    function ContainsInt(values : List[Int], target : Int) : Bool {
+        local mut Int index = 0;
+        while index < len(values) {
+            if values[index] == target {
+                return True;
+            }
+            index += 1;
+        }
+        return False;
+    }
+
+    function ContainsString(values : List[String], target : String) : Bool {
+        local mut Int index = 0;
+        while index < len(values) {
+            if values[index] == target {
+                return True;
+            }
+            index += 1;
+        }
+        return False;
+    }
+
+    function MapInt(values : List[Int], mapper : Function[Int, Int]) : List[Int] {
+        local mut List[Int] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            result[len(result)] = mapper(values[index]);
+            index += 1;
+        }
+        return result;
+    }
+
+    function FilterInt(values : List[Int], predicate : Function[Int, Bool]) : List[Int] {
+        local mut List[Int] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            local Int value = values[index];
+            if predicate(value) {
+                result[len(result)] = value;
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    function ReduceInt(values : List[Int], initial : Int, reducer : Function[Int, Int, Int]) : Int {
+        local mut Int total = initial;
+        local mut Int index = 0;
+        while index < len(values) {
+            total = reducer(total, values[index]);
+            index += 1;
+        }
+        return total;
+    }
+
+    function EnumerateInt(values : List[Int]) : List[Table] {
+        local mut List[Table] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            result[len(result)] = {"index": index, "value": values[index]};
+            index += 1;
+        }
+        return result;
+    }
+
+    function EnumerateString(values : List[String]) : List[Table] {
+        local mut List[Table] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            result[len(result)] = {"index": index, "value": values[index]};
+            index += 1;
+        }
+        return result;
+    }
+
+    function ZipInt(left : List[Int], right : List[Int]) : List[Table] {
+        local mut List[Table] result;
+        local mut Int index = 0;
+        local Int count = MinCount(len(left), len(right));
+        while index < count {
+            result[len(result)] = {"left": left[index], "right": right[index]};
+            index += 1;
+        }
+        return result;
+    }
+
+    function MinCount(left : Int, right : Int) : Int {
+        if left < right { return left; } else { return right; }
+    }
+
+    function MaxCount(left : Int, right : Int) : Int {
+        if left > right { return left; } else { return right; }
+    }
+
+    function TableNew() : Table {
+        return {};
+    }
+
+    function TableFromName(name : String) : Table {
+        return {"name": name};
+    }
+
+    function TableHas(value : Table, key : String) : Bool {
+        return value[key]?;
+    }
+
+    function TableGet(value : Table, key : String) : Option[T] {
+        if value[key]? {
+            return Some(value[key]);
+        }
+        return None();
+    }
+
+    function TableSet(mut value : Table, key : String, next : T) : Table {
+        value[key] = next;
+        return value;
+    }
+
+    function SomeValue(value : T) : Option[T] {
+        return Some(value);
+    }
+
+    function NoneValue() : Option[T] {
+        return None();
+    }
+
+    function OkValue(value : T) : Result[T, String] {
+        return Ok(value);
+    }
+
+    function ErrString(message : String) : Result[T, String] {
+        return Err(message);
+    }
+
+    function IsSome(value : Option[T]) : Bool {
+        return value.some;
+    }
+
+    function IsOk(value : Result[T, String]) : Bool {
+        return value?;
+    }
+
+    function IteratorFromIntList(values : List[Int]) : Iterator[Int] {
+        return iter(values);
+    }
+
+    function IteratorNextInt(iterator : Iterator[Int]) : Option[Int] {
+        return next(iterator);
+    }
+
+    function SpawnInt(worker : Function[Int, Int], value : Int) : Thread[Int] {
+        return spawn(worker, [value]);
+    }
+
+    function JoinInt(worker : Thread[Int]) : Int {
+        return join(worker);
+    }
+
+    function ThreadStatus(worker : Thread[Int]) : String {
+        return thread_status(worker);
+    }
+
+    function AtomicInt(value : Int) : Atomic[Int] {
+        return Atomic(value);
+    }
+
+    function AtomicLoadInt(value : Atomic[Int]) : Int {
+        return atomic_load(value);
+    }
+
+    function AtomicStoreInt(value : Atomic[Int], next : Int) : Atomic[Int] {
+        return atomic_store(value, next);
+    }
+
+    function AtomicAddInt(value : Atomic[Int], amount : Int) : Int {
+        return atomic_add(value, amount);
+    }
+
+    function Debug(value : T) : T {
+        return debug(value);
+    }
+
+    function Breakpoint(label : String) : Int {
+        breakpoint(label);
+        return 0;
+    }
 }
