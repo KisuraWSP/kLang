@@ -7,9 +7,6 @@
 - start work on the standard library once all of the above are truely done
     - TODO MODULES
     2. core
-    3. datetime
-    4. encoding
-    5. enum
     6. ffi
     7. io
     8. mathg

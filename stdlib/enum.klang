@@ -1,190 +1,396 @@
--- write an equivalent of this code but for our programming langauge syntax and features
+-- Enumerable helpers inspired by Elixir's Enum module.
+-- Klang has typed lists, callbacks, Option, Result, Table, and iterators, so
+-- this module implements a useful core for List[T] values.
+
 namespace enum {
-    Types
-    acc()
-    default()
-    element()
-    index()
-    Zero-based index. It can also be a negative integer.
-    t()
+    function acc(value : T) : T {
+        return value;
+    }
 
+    function default(value : T) : T {
+        return value;
+    }
 
-    Functions
-    all?(enumerable)
-    Returns true if all elements in enumerable are truthy.
-    all?(enumerable, fun)
-    Returns true if fun.(element) is truthy for all elements in enumerable.
-    any?(enumerable)
-    Returns true if at least one element in enumerable is truthy.
-    any?(enumerable, fun)
-    Returns true if fun.(element) is truthy for at least one element in enumerable.
-    at(enumerable, index, default \\ nil)
-    Finds the element at the given index (zero-based).
-    chunk_by(enumerable, fun)
-    Splits enumerable on every element for which fun returns a new value.
-    chunk_every(enumerable, count)
-    Shortcut to chunk_every(enumerable, count, count).
-    chunk_every(enumerable, count, step, leftover \\ [])
-    Returns list of lists containing count elements each, where each new chunk starts step elements into the enumerable.
-    chunk_while(enumerable, acc, chunk_fun, after_fun)
-    Chunks the enumerable with fine grained control when every chunk is emitted.
-    concat(enumerables)
-    Given an enumerable of enumerables, concatenates the enumerables into a single list.
-    concat(left, right)
-    Concatenates the enumerable on the right with the enumerable on the left.
-    count(enumerable)
-    Returns the size of the enumerable.
-    count(enumerable, fun)
-    Returns the count of elements in the enumerable for which fun returns a truthy value.
-    count_until(enumerable, limit)
-    Counts the enumerable stopping at limit.
-    count_until(enumerable, fun, limit)
-    Counts the elements in the enumerable for which fun returns a truthy value, stopping at limit.
-    dedup(enumerable)
-    Enumerates the enumerable, returning a list where all consecutive duplicate elements are collapsed to a single element.
-    dedup_by(enumerable, fun)
-    Enumerates the enumerable, returning a list where all consecutive duplicate elements are collapsed to a single element.
-    drop(enumerable, amount)
-    Drops the amount of elements from the enumerable.
-    drop_every(enumerable, nth)
-    Returns a list of every nth element in the enumerable dropped, starting with the first element.
-    drop_while(enumerable, fun)
-    Drops elements at the beginning of the enumerable while fun returns a truthy value.
-    each(enumerable, fun)
-    Invokes the given fun for each element in the enumerable.
-    empty?(enumerable)
-    Determines if the enumerable is empty.
-    fetch(enumerable, index)
-    Finds the element at the given index (zero-based).
-    fetch!(enumerable, index)
-    Finds the element at the given index (zero-based).
-    filter(enumerable, fun)
-    Filters the enumerable, i.e. returns only those elements for which fun returns a truthy value.
-    find(enumerable, default \\ nil, fun)
-    Returns the first element for which fun returns a truthy value. If no such element is found, returns default.
-    find_index(enumerable, fun)
-    Similar to find/3, but returns the index (zero-based) of the element instead of the element itself.
-    find_value(enumerable, default \\ nil, fun)
-    Similar to find/3, but returns the value of the function invocation instead of the element itself.
-    flat_map(enumerable, fun)
-    Maps the given fun over enumerable and flattens the result only one level deep.
-    flat_map_reduce(enumerable, acc, fun)
-    Maps and reduces an enumerable, flattening the results only one level deep.
-    frequencies(enumerable)
-    Returns a map with keys as unique elements of enumerable and values as the count of every element.
-    frequencies_by(enumerable, key_fun)
-    Returns a map with keys as unique elements given by key_fun and values as the count of every element.
-    group_by(enumerable, key_fun, value_fun \\ fn x -> x end)
-    Splits the enumerable into groups based on key_fun.
-    intersperse(enumerable, separator)
-    Intersperses separator between each element of the enumeration.
-    into(enumerable, collectable)
-    Inserts the given enumerable into a collectable.
-    into(enumerable, collectable, transform)
-    Inserts the given enumerable into a collectable according to the transformation function.
-    join(enumerable, joiner \\ "")
-    Joins the given enumerable into a string using joiner as a separator.
-    map(enumerable, fun)
-    Returns a list where each element is the result of invoking fun on each corresponding element of enumerable.
-    map_every(enumerable, nth, fun)
-    Returns a list of results of invoking fun on every nth element of enumerable, starting with the first element.
-    map_intersperse(enumerable, separator, mapper)
-    Maps and intersperses the given enumerable in one pass.
-    map_join(enumerable, joiner \\ "", mapper)
-    Maps and joins the given enumerable in one pass.
-    map_reduce(enumerable, acc, fun)
-    Invokes the given function to each element in the enumerable to reduce it to a single element, while keeping an accumulator.
-    max(enumerable, sorter \\ &>=/2, empty_fallback \\ fn -> raise Enum.EmptyError end)
-    Returns the maximal element in the enumerable according to Erlangs term ordering.
-    max_by(enumerable, fun, sorter \\ &>=/2, empty_fallback \\ fn -> raise Enum.EmptyError end)
-    Returns the maximal element in the enumerable as calculated by the given fun.
-    member?(enumerable, element)
-    Checks if element exists within the enumerable.
-    min(enumerable, sorter \\ &<=/2, empty_fallback \\ fn -> raise Enum.EmptyError end)
-    Returns the minimal element in the enumerable according to Erlangs term ordering.
-    min_by(enumerable, fun, sorter \\ &<=/2, empty_fallback \\ fn -> raise Enum.EmptyError end)
-    Returns the minimal element in the enumerable as calculated by the given fun.
-    min_max(enumerable, sorter_or_empty_fallback \\ fn -> raise Enum.EmptyError end)
-    Returns a tuple with the minimal and the maximal elements in the enumerable.
-    min_max(enumerable, sorter, empty_fallback)
-    min_max_by(enumerable, fun, sorter_or_empty_fallback \\ &</2, empty_fallback \\ fn -> raise Enum.EmptyError end)
-    Returns a tuple with the minimal and the maximal elements in the enumerable as calculated by the given function.
-    product(enumerable)
-    Returns the product of all elements.
-    product_by(enumerable, mapper)
-    Maps and computes the product of the given enumerable in one pass.
-    random(enumerable)
-    Returns a random element of an enumerable.
-    reduce(enumerable, fun)
-    Invokes fun for each element in the enumerable with the accumulator.
-    reduce(enumerable, acc, fun)
-    Invokes fun for each element in the enumerable with the accumulator.
-    reduce_while(enumerable, acc, fun)
-    Reduces enumerable until fun returns {:halt, term}.
-    reject(enumerable, fun)
-    Returns a list of elements in enumerable excluding those for which the function fun returns a truthy value.
-    reverse(enumerable)
-    Returns a list of elements in enumerable in reverse order.
-    reverse(enumerable, tail)
-    Reverses the elements in enumerable, appends the tail, and returns it as a list.
-    reverse_slice(enumerable, start_index, count)
-    Reverses the enumerable in the range from initial start_index through count elements.
-    scan(enumerable, fun)
-    Passes each element from enumerable to the fun as the first argument, stores the fun result in a list and passes the result as the second argument for the next computation.
-    scan(enumerable, acc, fun)
-    Passes each element from enumerable to the fun as the first argument, stores the fun result in a list and passes the result as the second argument for the next computation.
-    shuffle(enumerable)
-    Returns a list with the elements of enumerable shuffled.
-    slice(enumerable, index_range)
-    Returns a subset list of the given enumerable by index_range.
-    slice(enumerable, start_index, amount)
-    Returns a subset list of the given enumerable, from start_index (zero-based) with amount number of elements if available.
-    slide(enumerable, range_or_single_index, insertion_index)
-    Slides a single or multiple elements given by range_or_single_index from enumerable to insertion_index.
-    sort(enumerable)
-    Sorts the enumerable according to Erlangs term ordering.
-    sort(enumerable, sorter)
-    Sorts the enumerable by the given function.
-    sort_by(enumerable, mapper, sorter \\ :asc)
-    Sorts the mapped results of the enumerable according to the provided sorter function.
-    split(enumerable, count)
-    Splits the enumerable into two enumerables, leaving count elements in the first one.
-    split_while(enumerable, fun)
-    Splits enumerable in two at the position of the element for which fun returns a falsy value (false or nil) for the first time.
-    split_with(enumerable, fun)
-    Splits the enumerable in two lists according to the given function fun.
-    sum(enumerable)
-    Returns the sum of all elements.
-    sum_by(enumerable, mapper)
-    Maps and sums the given enumerable in one pass.
-    take(enumerable, amount)
-    Takes an amount of elements from the beginning or the end of the enumerable.
-    take_every(enumerable, nth)
-    Returns a list of every nth element in the enumerable, starting with the first element.
-    take_random(enumerable, count)
-    Takes count random elements from enumerable.
-    take_while(enumerable, fun)
-    Takes the elements from the beginning of the enumerable while fun returns a truthy value.
-    to_list(enumerable)
-    Converts enumerable to a list.
-    uniq(enumerable)
-    Enumerates the enumerable, removing all duplicate elements.
-    uniq_by(enumerable, fun)
-    Enumerates the enumerable, by removing the elements for which function fun returned duplicate elements.
-    unzip(enumerable)
-    Opposite of zip/2. Extracts two-element tuples from the given enumerable and groups them together.
-    with_index(enumerable, fun_or_offset \\ 0)
-    Returns the enumerable with each element wrapped in a tuple alongside its index or according to a given function.
-    zip(enumerables)
-    Zips corresponding elements from a finite collection of enumerables into a list of tuples.
-    zip(enumerable1, enumerable2)
-    Zips corresponding elements from two enumerables into a list of tuples.
-    zip_reduce(enumerables, acc, reducer)
-    Reduces over all of the given enumerables, halting as soon as any enumerable is empty.
-    zip_reduce(left, right, acc, reducer)
-    Reduces over two enumerables halting as soon as either enumerable is empty.
-    zip_with(enumerables, zip_fun)
-    Zips corresponding elements from a finite collection of enumerables into list, transforming them with the zip_fun function as it goes.
-    zip_with(enumerable1, enumerable2, zip_fun)
-    Zips corresponding elements from two enumerables into a list, transforming them with the zip_fun function as it goes.
+    function element(values : List[T], index : Int) : Option[T] {
+        return fetch(values, index);
+    }
+
+    function index(value : Int) : Int {
+        return value;
+    }
+
+    function t(values : List[T]) : List[T] {
+        return values;
+    }
+
+    function all(values : List[Bool]) : Bool {
+        local mut Int index = 0;
+        while index < len(values) {
+            if not values[index] {
+                return False;
+            }
+            index += 1;
+        }
+        return True;
+    }
+
+    function all_by(values : List[T], predicate : Function[T, Bool]) : Bool {
+        local mut Int index = 0;
+        while index < len(values) {
+            if not predicate(values[index]) {
+                return False;
+            }
+            index += 1;
+        }
+        return True;
+    }
+
+    function any(values : List[Bool]) : Bool {
+        local mut Int index = 0;
+        while index < len(values) {
+            if values[index] {
+                return True;
+            }
+            index += 1;
+        }
+        return False;
+    }
+
+    function any_by(values : List[T], predicate : Function[T, Bool]) : Bool {
+        local mut Int index = 0;
+        while index < len(values) {
+            if predicate(values[index]) {
+                return True;
+            }
+            index += 1;
+        }
+        return False;
+    }
+
+    function at(values : List[T], position : Int, fallback : T) : T {
+        if position < 0 or position >= len(values) {
+            return fallback;
+        }
+        return values[position];
+    }
+
+    function fetch(values : List[T], position : Int) : Option[T] {
+        if position < 0 or position >= len(values) {
+            return None();
+        }
+        return Some(values[position]);
+    }
+
+    function fetch_bang(values : List[T], position : Int) : T {
+        local Option[T] found = fetch(values, position);
+        if found.some {
+            return found.value;
+        }
+
+        throw "enum fetch index is out of range";
+    }
+
+    function chunk_every(values : List[T], count : Int) : List[List[T]] {
+        local mut List[List[T]] chunks;
+        local mut Int index = 0;
+
+        while index < len(values) {
+            local mut List[T] chunk;
+            local mut Int innerIndex = 0;
+            while innerIndex < count and index + innerIndex < len(values) {
+                chunk[len(chunk)] = values[index + innerIndex];
+                innerIndex += 1;
+            }
+            chunks[len(chunks)] = chunk;
+            index += count;
+        }
+
+        return chunks;
+    }
+
+    function concat(left : List[T], right : List[T]) : List[T] {
+        local mut List[T] result = clone left;
+        local mut Int index = 0;
+        while index < len(right) {
+            result[len(result)] = right[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    function count(values : List[T]) : Int {
+        return len(values);
+    }
+
+    function count_by(values : List[T], predicate : Function[T, Bool]) : Int {
+        local mut Int total = 0;
+        local mut Int index = 0;
+        while index < len(values) {
+            if predicate(values[index]) {
+                total += 1;
+            }
+            index += 1;
+        }
+        return total;
+    }
+
+    function count_until(values : List[T], limit : Int) : Int {
+        if len(values) < limit {
+            return len(values);
+        }
+        return limit;
+    }
+
+    function drop(values : List[T], amount : Int) : List[T] {
+        local mut List[T] result;
+        local mut Int index = amount;
+        while index < len(values) {
+            result[len(result)] = values[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    function empty(values : List[T]) : Bool {
+        return len(values) == 0;
+    }
+
+    function filter(values : List[T], predicate : Function[T, Bool]) : List[T] {
+        local mut List[T] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            local T value = values[index];
+            if predicate(value) {
+                result[len(result)] = value;
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    function reject(values : List[T], predicate : Function[T, Bool]) : List[T] {
+        local mut List[T] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            local T value = values[index];
+            if not predicate(value) {
+                result[len(result)] = value;
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    function find(values : List[T], fallback : T, predicate : Function[T, Bool]) : T {
+        local mut Int index = 0;
+        while index < len(values) {
+            if predicate(values[index]) {
+                return values[index];
+            }
+            index += 1;
+        }
+        return fallback;
+    }
+
+    function find_index(values : List[T], predicate : Function[T, Bool]) : Option[Int] {
+        local mut Int index = 0;
+        while index < len(values) {
+            if predicate(values[index]) {
+                return Some(index);
+            }
+            index += 1;
+        }
+        return None();
+    }
+
+    function map(values : List[T], mapper : Function[T, U]) : List[U] {
+        local mut List[U] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            result[len(result)] = mapper(values[index]);
+            index += 1;
+        }
+        return result;
+    }
+
+    function flat_map(values : List[T], mapper : Function[T, List[U]]) : List[U] {
+        local mut List[U] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            local List[U] mapped = mapper(values[index]);
+            local mut Int innerIndex = 0;
+            while innerIndex < len(mapped) {
+                result[len(result)] = mapped[innerIndex];
+                innerIndex += 1;
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    function reduce(values : List[T], initial : U, reducer : Function[U, T, U]) : U {
+        local mut U acc = initial;
+        local mut Int index = 0;
+        while index < len(values) {
+            acc = reducer(acc, values[index]);
+            index += 1;
+        }
+        return acc;
+    }
+
+    function reverse(values : List[T]) : List[T] {
+        local mut List[T] result;
+        local mut Int index = len(values) - 1;
+        while index >= 0 {
+            result[len(result)] = values[index];
+            index -= 1;
+        }
+        return result;
+    }
+
+    function take(values : List[T], amount : Int) : List[T] {
+        local mut List[T] result;
+        local mut Int index = 0;
+        while index < amount and index < len(values) {
+            result[len(result)] = values[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    function take_every(values : List[T], nth : Int) : List[T] {
+        local mut List[T] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            if index % nth == 0 {
+                result[len(result)] = values[index];
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    function take_while(values : List[T], predicate : Function[T, Bool]) : List[T] {
+        local mut List[T] result;
+        local mut Int index = 0;
+        local mut Bool taking = True;
+        while index < len(values) and taking {
+            if predicate(values[index]) {
+                result[len(result)] = values[index];
+            } else {
+                taking = False;
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    function to_list(values : List[T]) : List[T] {
+        return clone values;
+    }
+
+    function sum(values : List[Int]) : Int {
+        local mut Int total = 0;
+        local mut Int index = 0;
+        while index < len(values) {
+            total += values[index];
+            index += 1;
+        }
+        return total;
+    }
+
+    function product(values : List[Int]) : Int {
+        local mut Int total = 1;
+        local mut Int index = 0;
+        while index < len(values) {
+            total *= values[index];
+            index += 1;
+        }
+        return total;
+    }
+
+    function member(values : List[T], value : T) : Bool {
+        local mut Int index = 0;
+        while index < len(values) {
+            if values[index] == value {
+                return True;
+            }
+            index += 1;
+        }
+        return False;
+    }
+
+    function min(values : List[T restrict[Int, Float, String]], fallback : T) : T {
+        if len(values) == 0 {
+            return fallback;
+        }
+        local mut T best = values[0];
+        local mut Int index = 1;
+        while index < len(values) {
+            if values[index] < best {
+                best = values[index];
+            }
+            index += 1;
+        }
+        return best;
+    }
+
+    function max(values : List[T restrict[Int, Float, String]], fallback : T) : T {
+        if len(values) == 0 {
+            return fallback;
+        }
+        local mut T best = values[0];
+        local mut Int index = 1;
+        while index < len(values) {
+            if values[index] > best {
+                best = values[index];
+            }
+            index += 1;
+        }
+        return best;
+    }
+
+    function join(values : List[String], joiner : String = "") : String {
+        local mut String result = "";
+        local mut Int index = 0;
+        while index < len(values) {
+            if index == 0 {
+                result = values[index];
+            } else {
+                result = result + joiner + values[index];
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    function with_index(values : List[T], offset : Int = 0) : List[Table] {
+        local mut List[Table] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            result[len(result)] = {"index": index + offset, "value": values[index]};
+            index += 1;
+        }
+        return result;
+    }
+
+    function zip(left : List[T], right : List[U]) : List[Table] {
+        local mut List[Table] result;
+        local mut Int index = 0;
+        while index < len(left) and index < len(right) {
+            result[len(result)] = {"left": left[index], "right": right[index]};
+            index += 1;
+        }
+        return result;
+    }
+
+    function zip_with(left : List[T], right : List[U], zipper : Function[T, U, V]) : List[V] {
+        local mut List[V] result;
+        local mut Int index = 0;
+        while index < len(left) and index < len(right) {
+            result[len(result)] = zipper(left[index], right[index]);
+            index += 1;
+        }
+        return result;
+    }
 }

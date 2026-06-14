@@ -1,186 +1,345 @@
--- Deterministic date/time helpers. Real current time needs host bindings.
+-- Deterministic date/time helpers.
+-- Real current time and host time zones need runtime bindings. Until then,
+-- this module represents Duration, Location, Ticker, Timer, and Time values
+-- as Tables with strongly typed helper functions around them.
 
 namespace datetime {
     function UnixEpoch() : Int {
         return 0;
     }
 
-    function SecondsToMinutes(seconds : Int) : Int {
-        return seconds / 60;
+    function Duration(seconds : Int) : Table {
+        return {
+            "seconds": seconds,
+            "nanoseconds": seconds * 1000000000
+        };
     }
 
-    function MinutesToSeconds(minutes : Int) : Int {
-        return minutes * 60;
+    function Time(unixSeconds : Int, location : String = "UTC") : Table {
+        return {
+            "unix": unixSeconds,
+            "nsec": 0,
+            "location": location
+        };
     }
 
-    function HoursToSeconds(hours : Int) : Int {
-        return hours * 3600;
+    function Location(name : String, offset : Int = 0) : Table {
+        return {
+            "name": name,
+            "offset": offset
+        };
     }
 
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
-    func ParseDuration(s string) (Duration, error)
-    func Since(t Time) Duration
-    func Until(t Time) Duration
-    func (d Duration) Abs() Duration
-    func (d Duration) Hours() float64
-    func (d Duration) Microseconds() int64
-    func (d Duration) Milliseconds() int64
-    func (d Duration) Minutes() float64
-    func (d Duration) Nanoseconds() int64
-    func (d Duration) Round(m Duration) Duration
-    func (d Duration) Seconds() float64
-    func (d Duration) String() string
-    func (d Duration) Truncate(m Duration) Duration
-    func FixedZone(name string, offset int) *Location
-    func LoadLocation(name string) (*Location, error)
-    func LoadLocationFromTZData(name string, data []byte) (*Location, error)
-    func (l *Location) String() string
-    func (m Month) String() string
-    func (e *ParseError) Error() string
-    func NewTicker(d Duration) *Ticker
-    func (t *Ticker) Reset(d Duration)
-    func (t *Ticker) Stop()
-    func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location) Time
-    func Now() Time
-    func Parse(layout, value string) (Time, error)
-    func ParseInLocation(layout, value string, loc *Location) (Time, error)
-    func Unix(sec int64, nsec int64) Time
-    func UnixMicro(usec int64) Time
-    func UnixMilli(msec int64) Time
-    func (t Time) Add(d Duration) Time
-    func (t Time) AddDate(years int, months int, days int) Time
-    func (t Time) After(u Time) bool
-    func (t Time) AppendBinary(b []byte) ([]byte, error)
-    func (t Time) AppendFormat(b []byte, layout string) []byte
-    func (t Time) AppendText(b []byte) ([]byte, error)
-    func (t Time) Before(u Time) bool
-    func (t Time) Clock() (hour, min, sec int)
-    func (t Time) Compare(u Time) int
-    func (t Time) Date() (year int, month Month, day int)
-    func (t Time) Day() int
-    func (t Time) Equal(u Time) bool
-    func (t Time) Format(layout string) string
-    func (t Time) GoString() string
-    func (t *Time) GobDecode(data []byte) error
-    func (t Time) GobEncode() ([]byte, error)
-    func (t Time) Hour() int
-    func (t Time) ISOWeek() (year, week int)
-    func (t Time) In(loc *Location) Time
-    func (t Time) IsDST() bool
-    func (t Time) IsZero() bool
-    func (t Time) Local() Time
-    func (t Time) Location() *Location
-    func (t Time) MarshalBinary() ([]byte, error)
-    func (t Time) MarshalJSON() ([]byte, error)
-    func (t Time) MarshalText() ([]byte, error)
-    func (t Time) Minute() int
-    func (t Time) Month() Month
-    func (t Time) Nanosecond() int
-    func (t Time) Round(d Duration) Time
-    func (t Time) Second() int
-    func (t Time) String() string
-    func (t Time) Sub(u Time) Duration
-    func (t Time) Truncate(d Duration) Time
-    func (t Time) UTC() Time
-    func (t Time) Unix() int64
-    func (t Time) UnixMicro() int64
-    func (t Time) UnixMilli() int64
-    func (t Time) UnixNano() int64
-    func (t *Time) UnmarshalBinary(data []byte) error
-    func (t *Time) UnmarshalJSON(data []byte) error
-    func (t *Time) UnmarshalText(data []byte) error
-    func (t Time) Weekday() Weekday
-    func (t Time) Year() int
-    func (t Time) YearDay() int
-    func (t Time) Zone() (name string, offset int)
-    func (t Time) ZoneBounds() (start, end Time)
-    func AfterFunc(d Duration, f func()) *Timer
-    func NewTimer(d Duration) *Timer
-    func (t *Timer) Reset(d Duration) bool
-    func (t *Timer) Stop() bool
-    func (d Weekday) String() string
-
-    // registerLoadFromEmbeddedTZData is defined in package time.
-    //
-    //go:linkname registerLoadFromEmbeddedTZData time.registerLoadFromEmbeddedTZData
-    func registerLoadFromEmbeddedTZData(func(string) (string, error))
-
-    func init() {
-        registerLoadFromEmbeddedTZData(loadFromEmbeddedTZData)
-    }
-
-    // get4s returns the little-endian 32-bit value at the start of s.
-    func get4s(s string) int {
-        if len(s) < 4 {
-            return 0
-        }
-        return int(s[0]) | int(s[1])<<8 | int(s[2])<<16 | int(s[3])<<24
-    }
-
-    // get2s returns the little-endian 16-bit value at the start of s.
-    func get2s(s string) int {
-        if len(s) < 2 {
-            return 0
-        }
-        return int(s[0]) | int(s[1])<<8
-    }
-
-    // loadFromEmbeddedTZData returns the contents of the file with the given
-    // name in an uncompressed zip file, where the contents of the file can
-    // be found in embeddedTzdata.
-    // This is similar to time.loadTzinfoFromZip.
-    func loadFromEmbeddedTZData(name string) (string, error) {
-        const (
-            zecheader = 0x06054b50
-            zcheader  = 0x02014b50
-            ztailsize = 22
-
-            zheadersize = 30
-            zheader     = 0x04034b50
-        )
-
-        // zipdata is provided by zzipdata.go,
-        // which is generated by cmd/dist during make.bash.
-        z := zipdata
-
-        idx := len(z) - ztailsize
-        n := get2s(z[idx+10:])
-        idx = get4s(z[idx+16:])
-
-        for i := 0; i < n; i++ {
-            // See time.loadTzinfoFromZip for zip entry layout.
-            if get4s(z[idx:]) != zcheader {
-                break
-            }
-            meth := get2s(z[idx+10:])
-            size := get4s(z[idx+24:])
-            namelen := get2s(z[idx+28:])
-            xlen := get2s(z[idx+30:])
-            fclen := get2s(z[idx+32:])
-            off := get4s(z[idx+42:])
-            zname := z[idx+46 : idx+46+namelen]
-            idx += 46 + namelen + xlen + fclen
-            if zname != name {
-                continue
-            }
-            if meth != 0 {
-                return "", errors.New("unsupported compression for " + name + " in embedded tzdata")
-            }
-
-            // See time.loadTzinfoFromZip for zip per-file header layout.
-            idx = off
-            if get4s(z[idx:]) != zheader ||
-                get2s(z[idx+8:]) != meth ||
-                get2s(z[idx+26:]) != namelen ||
-                z[idx+30:idx+30+namelen] != name {
-                return "", errors.New("corrupt embedded tzdata")
-            }
-            xlen = get2s(z[idx+28:])
-            idx += 30 + namelen + xlen
-            return z[idx : idx+size], nil
+    function ParseDuration(value : String) : Result[Table, String] {
+        if len(value) == 0 {
+            return Err("duration string cannot be empty");
         }
 
-        return "", syscall.ENOENT
+        return Ok(Duration(value as Int));
     }
 
+    function Since(time : Table) : Table {
+        return Duration(UnixEpoch() - (time["unix"] as Int));
+    }
+
+    function Until(time : Table) : Table {
+        return Duration((time["unix"] as Int) - UnixEpoch());
+    }
+
+    function Abs(duration : Table) : Table {
+        local Int seconds = duration["seconds"] as Int;
+        if seconds < 0 {
+            return Duration(0 - seconds);
+        }
+
+        return duration;
+    }
+
+    function Hours(duration : Table) : Float {
+        return (duration["seconds"] as Float) / 3600.0;
+    }
+
+    function Microseconds(duration : Table) : Int {
+        return (duration["seconds"] as Int) * 1000000;
+    }
+
+    function Milliseconds(duration : Table) : Int {
+        return (duration["seconds"] as Int) * 1000;
+    }
+
+    function Minutes(duration : Table) : Float {
+        return (duration["seconds"] as Float) / 60.0;
+    }
+
+    function Nanoseconds(duration : Table) : Int {
+        return duration["nanoseconds"] as Int;
+    }
+
+    function Round(duration : Table, multiple : Table) : Table {
+        local Int value = duration["seconds"] as Int;
+        local Int step = multiple["seconds"] as Int;
+        if step == 0 {
+            return duration;
+        }
+
+        return Duration((value / step) * step);
+    }
+
+    function Seconds(duration : Table) : Float {
+        return duration["seconds"] as Float;
+    }
+
+    function DurationString(duration : Table) : String {
+        return (duration["seconds"] as String) + "s";
+    }
+
+    function Truncate(duration : Table, multiple : Table) : Table {
+        return Round(duration, multiple);
+    }
+
+    function FixedZone(name : String, offset : Int) : Table {
+        return Location(name, offset);
+    }
+
+    function LoadLocation(name : String) : Result[Table, String] {
+        if len(name) == 0 {
+            return Err("location name cannot be empty");
+        }
+
+        return Ok(Location(name, 0));
+    }
+
+    function LoadLocationFromTZData(name : String, data : List[Int]) : Result[Table, String] {
+        if len(data) == 0 {
+            return Err("tzdata cannot be empty");
+        }
+
+        return Ok(Location(name, len(data)));
+    }
+
+    function LocationString(location : Table) : String {
+        return location["name"] as String;
+    }
+
+    function MonthString(month : Int) : String {
+        local List[String] months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        if month < 1 or month > 12 {
+            return "Unknown";
+        }
+
+        return months[month - 1];
+    }
+
+    function ParseError(message : String, layout : String = "", value : String = "") : Table {
+        return {
+            "message": message,
+            "layout": layout,
+            "value": value
+        };
+    }
+
+    function ParseErrorString(err : Table) : String {
+        return err["message"] as String;
+    }
+
+    function NewTicker(duration : Table) : Table {
+        return {
+            "duration": duration,
+            "running": True
+        };
+    }
+
+    function TickerReset(ticker : Table, duration : Table) : Table {
+        return {
+            "duration": duration,
+            "running": True
+        };
+    }
+
+    function TickerStop(ticker : Table) : Table {
+        return {
+            "duration": ticker["duration"],
+            "running": False
+        };
+    }
+
+    function Date(year : Int, month : Int, day : Int, hour : Int, minute : Int, second : Int, nsec : Int, location : Table) : Table {
+        return {
+            "year": year,
+            "month": month,
+            "day": day,
+            "hour": hour,
+            "minute": minute,
+            "second": second,
+            "nsec": nsec,
+            "unix": UnixFromParts(year, month, day, hour, minute, second),
+            "location": location["name"]
+        };
+    }
+
+    function Now() : Table {
+        return Time(UnixEpoch(), "UTC");
+    }
+
+    function Parse(layout : String, value : String) : Result[Table, String] {
+        if len(value) == 0 {
+            return Err("time value cannot be empty");
+        }
+
+        return Ok(Time(value as Int, "UTC"));
+    }
+
+    function ParseInLocation(layout : String, value : String, location : Table) : Result[Table, String] {
+        if len(value) == 0 {
+            return Err("time value cannot be empty");
+        }
+
+        return Ok(Time(value as Int, location["name"] as String));
+    }
+
+    function Unix(sec : Int, nsec : Int = 0) : Table {
+        return {
+            "unix": sec,
+            "nsec": nsec,
+            "location": "UTC"
+        };
+    }
+
+    function UnixMicro(usec : Int) : Table {
+        return Unix(usec / 1000000, (usec % 1000000) * 1000);
+    }
+
+    function UnixMilli(msec : Int) : Table {
+        return Unix(msec / 1000, (msec % 1000) * 1000000);
+    }
+
+    function Add(time : Table, duration : Table) : Table {
+        return Unix((time["unix"] as Int) + (duration["seconds"] as Int), time["nsec"] as Int);
+    }
+
+    function AddDate(time : Table, years : Int, months : Int, days : Int) : Table {
+        return Add(time, Duration((years * 31536000) + (months * 2592000) + (days * 86400)));
+    }
+
+    function After(time : Table, other : Table) : Bool {
+        return (time["unix"] as Int) > (other["unix"] as Int);
+    }
+
+    function Before(time : Table, other : Table) : Bool {
+        return (time["unix"] as Int) < (other["unix"] as Int);
+    }
+
+    function Clock(time : Table) : Table {
+        local Int unix = time["unix"] as Int;
+        return {
+            "hour": (unix / 3600) % 24,
+            "minute": (unix / 60) % 60,
+            "second": unix % 60
+        };
+    }
+
+    function Compare(time : Table, other : Table) : Int {
+        if Before(time, other) {
+            return 0 - 1;
+        }
+        if After(time, other) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    function Equal(time : Table, other : Table) : Bool {
+        return Compare(time, other) == 0;
+    }
+
+    function Format(time : Table, layout : String = "unix") : String {
+        return (time["unix"] as String) + "@" + (time["location"] as String);
+    }
+
+    function IsZero(time : Table) : Bool {
+        return (time["unix"] as Int) == 0;
+    }
+
+    function Sub(time : Table, other : Table) : Table {
+        return Duration((time["unix"] as Int) - (other["unix"] as Int));
+    }
+
+    function UTC(time : Table) : Table {
+        return Unix(time["unix"] as Int, time["nsec"] as Int);
+    }
+
+    function UnixSeconds(time : Table) : Int {
+        return time["unix"] as Int;
+    }
+
+    function UnixMicroseconds(time : Table) : Int {
+        return (time["unix"] as Int) * 1000000;
+    }
+
+    function UnixMilliseconds(time : Table) : Int {
+        return (time["unix"] as Int) * 1000;
+    }
+
+    function UnixNanoseconds(time : Table) : Int {
+        return ((time["unix"] as Int) * 1000000000) + (time["nsec"] as Int);
+    }
+
+    function WeekdayString(day : Int) : String {
+        local List[String] days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        if day < 0 or day > 6 {
+            return "Unknown";
+        }
+
+        return days[day];
+    }
+
+    function Year(time : Table) : Int {
+        if time["year"]? {
+            return time["year"] as Int;
+        }
+
+        return 1970;
+    }
+
+    function YearDay(time : Table) : Int {
+        return ((time["unix"] as Int) / 86400) + 1;
+    }
+
+    function Zone(time : Table) : Table {
+        return {
+            "name": time["location"],
+            "offset": 0
+        };
+    }
+
+    function AfterFunc(duration : Table, callback : Function[Int]) : Table {
+        return {
+            "duration": duration,
+            "callback": callback,
+            "running": True
+        };
+    }
+
+    function NewTimer(duration : Table) : Table {
+        return {
+            "duration": duration,
+            "running": True
+        };
+    }
+
+    function TimerReset(timer : Table, duration : Table) : Table {
+        return {
+            "duration": duration,
+            "running": True
+        };
+    }
+
+    function TimerStop(timer : Table) : Bool {
+        return timer["running"]?;
+    }
+
+    function UnixFromParts(year : Int, month : Int, day : Int, hour : Int, minute : Int, second : Int) : Int {
+        return ((year - 1970) * 31536000) + ((month - 1) * 2592000) + ((day - 1) * 86400) + (hour * 3600) + (minute * 60) + second;
+    }
 }
