@@ -1,3 +1,4 @@
+import "basic";
 
 namespace App {
     async function LoadBatchSize() : Int {
@@ -9,6 +10,10 @@ namespace App {
     }
 
     function Start() : Int {
+        let mut test = Ok("Hallo");
+        print(basic.IsOk(test));
+        print(basic.OkValue("Hallo"));
+        -- print(basic.IteratorFromIntList([1, 3, 4 , 45, 4545]))
         const size = String.sizeof;
         const size2 = Int.sizeof;
         const size3 = UInt.sizeof;

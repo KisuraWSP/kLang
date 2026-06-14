@@ -1,6 +1,6 @@
 -- OS capability helpers. Direct filesystem/process access needs host bindings.
 
-namespace os {
+namespace runtime {
     function PathSeparator() : String {
         return "/";
     }

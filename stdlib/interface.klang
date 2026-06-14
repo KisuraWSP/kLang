@@ -1,6 +1,6 @@
 -- Syscall placeholders. Klang code cannot perform host syscalls yet.
 
-namespace syscall {
+namespace interface {
     function IsAvailable() : Bool {
         return False;
     }
