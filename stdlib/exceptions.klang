@@ -1,29 +1,132 @@
--- Exception-style helpers represented as string messages.
+-- Exception and error-formatting helpers.
+-- Klang exceptions are values propagated with throw/try/catch. This module
+-- keeps the Erlang-inspired formatting hooks from the original stdlib notes,
+-- but implements them with the language's current Result, Table, callback,
+-- and stack-debugging constructs.
 
 namespace exceptions {
-    function Panic(message : String) : String {
-        return message;
+    function Panic(message : String) {
+        throw message;
+    }
+
+    function Throw(value : Any) {
+        throw value;
     }
 
     function Recover(message : String, fallback : String) : String {
         if len(message) == 0 { return fallback; } else { return message; }
     }
 
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
-    column()
-    Start column number. Default is 1.
-    format_fun()
-    A fun used to format function arguments for BIF and function calls. By default the following fun will be used
-    format_options()
-    A map with formatting options.
-    stack_trim_fun()
-    A fun used to trim the end of the stacktrace. It is called with module, function, and arity from an entry from the stacktrace. The fun is to return true if the entry should be trimmed, and false otherwise. The default value is
+    function TryString(action : Function[String], fallback : String) : String {
+        try {
+            return action();
+        } catch err {
+            return fallback;
+        }
+    }
 
-    format_error(Reason, StackTrace)
-    This callback is called when format_exception/4 or similar functionality wants to provide extra information about an error. The Module:Function called is the one specificed by the error_info map.
+    function TryInt(action : Function[Int], fallback : Int) : Int {
+        try {
+            return action();
+        } catch err {
+            return fallback;
+        }
+    }
 
-    format_exception(Class, Reason, StackTrace)
-    Equivalent to format_exception/4.
-    format_exception(Class, Reason, StackTrace, Options)
-    Format the error reason and stack back-trace caught using try ... catch in the same style as the shell formats them.
+    function TryBool(action : Function[Bool], fallback : Bool) : Bool {
+        try {
+            return action();
+        } catch err {
+            return fallback;
+        }
+    }
+
+    function ResultToException(value : Result[T, String]) : T {
+        return value!;
+    }
+
+    function column() : Int {
+        return 1;
+    }
+
+    function format_fun() : Function[Any, String] {
+        function default_format(value : Any) : String {
+            return value as String;
+        }
+
+        return default_format;
+    }
+
+    function format_options() : Table {
+        return {
+            "column": column(),
+            "format_fun": format_fun(),
+            "stack_trim_fun": stack_trim_fun()
+        };
+    }
+
+    function stack_trim_fun() : Function[String, String, Int, Bool] {
+        function keep_stack_entry(module : String, functionName : String, arity : Int) : Bool {
+            return False;
+        }
+
+        return keep_stack_entry;
+    }
+
+    function format_error(reason : Any, stackTrace : List[String]) : Table {
+        local Function[Any, String] formatter = format_fun();
+        return {
+            "reason": formatter(reason),
+            "raw_reason": reason,
+            "stacktrace": stackTrace,
+            "stack_depth": len(stackTrace)
+        };
+    }
+
+    function format_stack(stackTrace : List[String]) : String {
+        local mut String rendered = "";
+        local mut Int index = 0;
+
+        while index < len(stackTrace) {
+            if index == 0 {
+                rendered = stackTrace[index];
+            } else {
+                rendered = rendered + "\n" + stackTrace[index];
+            }
+            index += 1;
+        }
+
+        return rendered;
+    }
+
+    function format_exception(errorClass : String, reason : Any, stackTrace : List[String], options : Table = format_options()) : String {
+        local Table details = format_error(reason, stackTrace);
+        local String reasonText = details.reason as String;
+        local String stackText = format_stack(stackTrace);
+        local mut Int startColumn = column();
+
+        if options["column"]? {
+            startColumn = options["column"] as Int;
+        }
+
+        local mut String message = errorClass + ": " + reasonText + " at column " + startColumn as String;
+        if len(stackText) > 0 {
+            message = message + "\n" + stackText;
+        }
+
+        return message;
+    }
+
+    function format_current_exception(errorClass : String, reason : Any) : String {
+        return format_exception(errorClass, reason, debug_stack(), format_options());
+    }
+
+    function capture_error(errorClass : String, reason : Any) : Table {
+        return {
+            "class": errorClass,
+            "reason": reason,
+            "message": format_current_exception(errorClass, reason),
+            "stacktrace": debug_stack()
+        };
+    }
 }

@@ -1,8 +1,39 @@
--- Error value helpers. Until Klang has sum types or exceptions, errors are strings.
+-- Error value helpers.
+-- Klang has Result[T,E], throw/try/catch, Any, and Table today, so this module
+-- models errors as either plain String messages or structured Table records.
 
 namespace errors {
     function New(message : String) : String {
         return message;
+    }
+
+    function Error(message : String) : Table {
+        return {
+            "message": message,
+            "cause": "",
+            "kind": "error"
+        };
+    }
+
+    function ErrorWithKind(kind : String, message : String) : Table {
+        return {
+            "message": message,
+            "cause": "",
+            "kind": kind
+        };
+    }
+
+    function Wrap(context : String, message : String) : String {
+        if len(message) == 0 { return context; }
+        return context + ": " + message;
+    }
+
+    function WrapError(context : String, err : Table) : Table {
+        return {
+            "message": Wrap(context, TableMessage(err)),
+            "cause": err,
+            "kind": TableKind(err)
+        };
     }
 
     function IsEmpty(message : String) : Bool {
@@ -13,16 +44,116 @@ namespace errors {
         return len(message) != 0;
     }
 
-    function Wrap(context : String, message : String) : String {
-        if len(message) == 0 { return context; }
-        return context + ": " + message;
+    function Message(message : String) : String {
+        return message;
     }
 
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
-    func As(err error, target any) bool
-    func AsType[E error](err error) (E, bool)
-    func Is(err, target error) bool
-    func Join(errs ...error) error
-    func New(text string) error
-    func Unwrap(err error) error
+    function TableMessage(err : Table) : String {
+        if err["message"]? {
+            return err["message"] as String;
+        }
+
+        return "";
+    }
+
+    function TableKind(err : Table) : String {
+        if err["kind"]? {
+            return err["kind"] as String;
+        }
+
+        return "error";
+    }
+
+    function As(err : Any, target : Any) : Bool {
+        if not err? {
+            return not target?;
+        }
+
+        if debug_type(err) == debug_type(target) {
+            return True;
+        }
+
+        return False;
+    }
+
+    function AsType(err : Any, targetType : String) : Table {
+        return {
+            "matched": debug_type(err) == targetType,
+            "value": err,
+            "type": debug_type(err)
+        };
+    }
+
+    function Is(err : Any, target : Any) : Bool {
+        if As(err, target) {
+            return True;
+        }
+
+        return False;
+    }
+
+    function IsMessage(err : String, target : String) : Bool {
+        return err == target;
+    }
+
+    function IsKind(err : Table, targetKind : String) : Bool {
+        return TableKind(err) == targetKind;
+    }
+
+    function Join(errs : List[String]) : String {
+        local mut String joined = "";
+        local mut Int index = 0;
+
+        while index < len(errs) {
+            if len(errs[index]) != 0 {
+                if len(joined) == 0 {
+                    joined = errs[index];
+                } else {
+                    joined = joined + "\n" + errs[index];
+                }
+            }
+
+            index += 1;
+        }
+
+        return joined;
+    }
+
+    function JoinTables(errs : List[Table]) : Table {
+        local mut List[String] messages;
+        local mut Int index = 0;
+
+        while index < len(errs) {
+            messages[len(messages)] = TableMessage(errs[index]);
+            index += 1;
+        }
+
+        return {
+            "message": Join(messages),
+            "cause": errs,
+            "kind": "joined"
+        };
+    }
+
+    function Unwrap(err : Table) : Any {
+        if err["cause"]? {
+            return err["cause"];
+        }
+
+        return "";
+    }
+
+    function ToResult(value : T, message : String) : Result[T, String] {
+        if len(message) == 0 {
+            return Ok(value);
+        }
+
+        return Err(message);
+    }
+
+    function ThrowIf(message : String) {
+        if len(message) != 0 {
+            throw message;
+        }
+    }
 }
