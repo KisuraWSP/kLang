@@ -1,29 +1,214 @@
 -- Small deterministic hash helpers.
+-- These functions provide stable Klang-level digests and algorithm descriptors.
+-- They are not cryptographic implementations until the runtime exposes native
+-- hash primitives, but they let stdlib users build and pass hash-like values.
 
 namespace hash {
+    function DefaultSeed() : Int {
+        return 2166136261;
+    }
+
+    function DefaultPrime() : Int {
+        return 16777619;
+    }
+
+    function Normalize(value : Int) : Int {
+        if value < 0 {
+            return 0 - value;
+        }
+
+        return value;
+    }
+
     function Int(value : Int) : Int {
         local mut Int result = value * 1103515245;
         result += 12345;
-        if result < 0 { result = result * -1; } else { result = result + 0; }
-        return result;
+        return Normalize(result);
+    }
+
+    function Mix(seed : Int, value : Int) : Int {
+        local mut Int result = seed + value;
+        result *= DefaultPrime();
+        return Normalize(result);
     }
 
     function Combine(left : Int, right : Int) : Int {
         return Int(left + (right * 31));
     }
 
+    function CombineMany(values : List[Int], seed : Int = 2166136261) : Int {
+        local mut Int result = seed;
+        local mut Int index = 0;
+
+        while index < len(values) {
+            result = Mix(result, values[index]);
+            index += 1;
+        }
+
+        return result;
+    }
+
     function StringLengthHash(value : String) : Int {
         return Int(len(value));
     }
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime. 
-    hashlib.md5([data, ]*, usedforsecurity=True)
-    hashlib.sha1([data, ]*, usedforsecurity=True)
-    hashlib.sha224([data, ]*, usedforsecurity=True)
-    hashlib.sha256([data, ]*, usedforsecurity=True)
-    hashlib.sha384([data, ]*, usedforsecurity=True)
-    hashlib.sha512([data, ]*, usedforsecurity=True)
-    hashlib.sha3_224([data, ]*, usedforsecurity=True)
-    hashlib.sha3_256([data, ]*, usedforsecurity=True)
-    hashlib.sha3_384([data, ]*, usedforsecurity=True)
-    hashlib.sha3_512([data, ]*, usedforsecurity=True)
+
+    function StringHash(value : String, seed : Int = 2166136261) : Int {
+        local List[Char] chars = [char for char in value];
+        local mut Int result = seed;
+        local mut Int index = 0;
+
+        while index < len(chars) {
+            result = Mix(result, index + 1);
+            index += 1;
+        }
+
+        return Mix(result, len(value));
+    }
+
+    function BoolHash(value : Bool) : Int {
+        if value {
+            return Int(1);
+        }
+
+        return Int(0);
+    }
+
+    function Stable[T restrict[String, Int, Bool]](value : T) : Int {
+        if debug_type(value) == "String" {
+            return StringHash(value as String);
+        }
+
+        if debug_type(value) == "Bool" {
+            return BoolHash(value as Bool);
+        }
+
+        return Int(value as Int);
+    }
+
+    function Digest(algorithm : String, data : String, size : Int, usedforsecurity : Bool = True) : Table {
+        local Int base = StringHash(data, DefaultSeed() + size);
+        local Int digestValue = Mix(base, len(algorithm) + size);
+
+        return {
+            "algorithm": algorithm,
+            "data": data,
+            "digest": digestValue,
+            "hex": digestValue as String,
+            "size": size,
+            "usedforsecurity": usedforsecurity
+        };
+    }
+
+    function DigestResult(algorithm : String, data : String, size : Int, usedforsecurity : Bool = True) : Result[Table, String] {
+        if len(algorithm) == 0 {
+            return Err("hash algorithm name cannot be empty");
+        }
+
+        if size <= 0 {
+            return Err("hash digest size must be positive");
+        }
+
+        return Ok(Digest(algorithm, data, size, usedforsecurity));
+    }
+
+    function Hasher(algorithm : String, size : Int, usedforsecurity : Bool = True) : Function[String, Table] {
+        function run(data : String) : Table {
+            return Digest(algorithm, data, size, usedforsecurity);
+        }
+
+        return run;
+    }
+
+    function md5(data : String = "", usedforsecurity : Bool = True) : Table {
+        return Digest("md5", data, 16, usedforsecurity);
+    }
+
+    function sha1(data : String = "", usedforsecurity : Bool = True) : Table {
+        return Digest("sha1", data, 20, usedforsecurity);
+    }
+
+    function sha224(data : String = "", usedforsecurity : Bool = True) : Table {
+        return Digest("sha224", data, 28, usedforsecurity);
+    }
+
+    function sha256(data : String = "", usedforsecurity : Bool = True) : Table {
+        return Digest("sha256", data, 32, usedforsecurity);
+    }
+
+    function sha384(data : String = "", usedforsecurity : Bool = True) : Table {
+        return Digest("sha384", data, 48, usedforsecurity);
+    }
+
+    function sha512(data : String = "", usedforsecurity : Bool = True) : Table {
+        return Digest("sha512", data, 64, usedforsecurity);
+    }
+
+    function sha3_224(data : String = "", usedforsecurity : Bool = True) : Table {
+        return Digest("sha3_224", data, 28, usedforsecurity);
+    }
+
+    function sha3_256(data : String = "", usedforsecurity : Bool = True) : Table {
+        return Digest("sha3_256", data, 32, usedforsecurity);
+    }
+
+    function sha3_384(data : String = "", usedforsecurity : Bool = True) : Table {
+        return Digest("sha3_384", data, 48, usedforsecurity);
+    }
+
+    function sha3_512(data : String = "", usedforsecurity : Bool = True) : Table {
+        return Digest("sha3_512", data, 64, usedforsecurity);
+    }
+
+    function algorithms_available() : List[String] {
+        return ["md5", "sha1", "sha224", "sha256", "sha384", "sha512", "sha3_224", "sha3_256", "sha3_384", "sha3_512"];
+    }
+
+    function is_available(name : String) : Bool {
+        local List[String] names = algorithms_available();
+        local mut Int index = 0;
+
+        while index < len(names) {
+            if names[index] == name {
+                return True;
+            }
+            index += 1;
+        }
+
+        return False;
+    }
+
+    function new(name : String, data : String = "", usedforsecurity : Bool = True) : Result[Table, String] {
+        if name == "md5" {
+            return Ok(md5(data, usedforsecurity));
+        }
+        if name == "sha1" {
+            return Ok(sha1(data, usedforsecurity));
+        }
+        if name == "sha224" {
+            return Ok(sha224(data, usedforsecurity));
+        }
+        if name == "sha256" {
+            return Ok(sha256(data, usedforsecurity));
+        }
+        if name == "sha384" {
+            return Ok(sha384(data, usedforsecurity));
+        }
+        if name == "sha512" {
+            return Ok(sha512(data, usedforsecurity));
+        }
+        if name == "sha3_224" {
+            return Ok(sha3_224(data, usedforsecurity));
+        }
+        if name == "sha3_256" {
+            return Ok(sha3_256(data, usedforsecurity));
+        }
+        if name == "sha3_384" {
+            return Ok(sha3_384(data, usedforsecurity));
+        }
+        if name == "sha3_512" {
+            return Ok(sha3_512(data, usedforsecurity));
+        }
+
+        return Err("unknown hash algorithm: " + name);
+    }
 }

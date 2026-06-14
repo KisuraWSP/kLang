@@ -1,5 +1,6 @@
--- JSON helpers inspired by Go's encoding/json package.
--- Full JSON parsing needs strings with indexing; these helpers build small values.
+-- JSON helpers inspired by Erlang's json module and Go's encoding/json.
+-- The current language has String/List/Table/Result and first-class functions,
+-- so this module provides practical encoders plus lightweight decoder state.
 
 namespace json {
     function Null() : String {
@@ -11,77 +12,283 @@ namespace json {
     }
 
     function String(value : String) : String {
-        return "\"" + value + "\"";
+        return encode_binary(value);
     }
 
     function PairString(key : String, value : String) : String {
-        return String(key) + ":" + String(value);
+        return encode_binary(key) + ":" + encode_binary(value);
     }
 
     function Object1(pair : String) : String {
         return "{" + pair + "}";
     }
 
-    -- to add to the standard library, we need to declare the function signatures here, and then implement them in the runtime.
-    array_finish_fun()
-    array_push_fun()
-    array_start_fun()
-    continuation_state()
-    decode_value()
-    decoders()
-    encode_map(Value)
-    encode_value()
-    Simple JSON value encodeable with json:encode/1.
-    encoder()
-    formatter()
-    from_binary_fun()
-    object_finish_fun()
-    object_push_fun()
-    object_start_fun()
-    decode(Binary)
-    Parses a JSON value from Binary.
-    decode(Binary, Acc0, Decoders)
-    Parses a JSON value from Binary.
-    decode_continue/2
-    Continue parsing a stream of bytes of a JSON value.
-    decode_start(Binary, Acc, Decoders)
-    Begin parsing a stream of bytes of a JSON value.
-    encode(Term)
-    Generates JSON corresponding to Term.
-    encode(Term, Encoder)
-    Generates JSON corresponding to Term.
-    encode_atom/2
-    Default encoder for atoms used by json:encode/1.
-    encode_binary(Bin)
-    Default encoder for binaries as JSON strings used by json:encode/1.
-    encode_binary_escape_all(Bin)
-    Encoder for binaries as JSON strings producing pure-ASCII JSON.
-    encode_float(Float)
-    Default encoder for floats as JSON numbers used by json:encode/1.
-    encode_integer(Integer)
-    Default encoder for integers as JSON numbers used by json:encode/1.
-    encode_key_value_list(List, Encode)
-    Encoder for lists of key-value pairs as JSON objects.
-    encode_key_value_list_checked(List, Encode)
-    Encoder for lists of key-value pairs as JSON objects.
-    encode_list(List, Encode)
-    Default encoder for lists as JSON arrays used by json:encode/1.
-    encode_map(Map, Encode)
-    Default encoder for maps as JSON objects used by json:encode/1.
-    encode_map_checked(Map, Encode)
-    Encoder for maps as JSON objects.
-    encode_value(Value, Encode)
-    Default encoder used by json:encode/1.
-    format(Term)
-    Generates formatted JSON corresponding to Term.
-    format/2
-    Generates formatted JSON corresponding to Term.
-    format(Term, Encoder, Options)
-    Generates formatted JSON corresponding to Term.
-    format_key_value_list/3
-    Format function for lists of key-value pairs as JSON objects.
-    format_key_value_list_checked(KVList, UserEnc, State)
-    Format function for lists of key-value pairs as JSON objects.
-    format_value(Value, Encode, State)
-    Default format function used by json:format/1.
+    function array_start_fun() : Function[String] {
+        function start_array() : String {
+            return "[";
+        }
+
+        return start_array;
+    }
+
+    function array_push_fun() : Function[String, String, String] {
+        function push_array_value(state : String, value : String) : String {
+            if state == "[" {
+                return state + value;
+            }
+
+            return state + "," + value;
+        }
+
+        return push_array_value;
+    }
+
+    function array_finish_fun() : Function[String, String] {
+        function finish_array(state : String) : String {
+            return state + "]";
+        }
+
+        return finish_array;
+    }
+
+    function object_start_fun() : Function[String] {
+        function start_object() : String {
+            return "{";
+        }
+
+        return start_object;
+    }
+
+    function object_push_fun() : Function[String, String, String, String] {
+        function push_object_pair(state : String, key : String, value : String) : String {
+            local String pair = encode_binary(key) + ":" + value;
+            if state == "{" {
+                return state + pair;
+            }
+
+            return state + "," + pair;
+        }
+
+        return push_object_pair;
+    }
+
+    function object_finish_fun() : Function[String, String] {
+        function finish_object(state : String) : String {
+            return state + "}";
+        }
+
+        return finish_object;
+    }
+
+    function continuation_state(binary : String) : Table {
+        return {
+            "input": binary,
+            "offset": 0,
+            "done": False,
+            "value": ""
+        };
+    }
+
+    function decoders() : Table {
+        return {
+            "from_binary": from_binary_fun(),
+            "decode_value": decode_value
+        };
+    }
+
+    function encoder() : Function[T, String] {
+        function default_encoder(value : T) : String {
+            return value as String;
+        }
+
+        return default_encoder;
+    }
+
+    function formatter() : Function[T, String] {
+        function default_formatter(value : T) : String {
+            return format(value);
+        }
+
+        return default_formatter;
+    }
+
+    function from_binary_fun() : Function[String, String] {
+        function from_binary(binary : String) : String {
+            return binary;
+        }
+
+        return from_binary;
+    }
+
+    function decode_value(binary : String) : Result[String, String] {
+        if len(binary) == 0 {
+            return Err("json decode expected a value");
+        }
+
+        return Ok(binary);
+    }
+
+    function decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, String] {
+        local mut String input = acc0 + binary;
+        if decoderTable["from_binary"]? {
+            local Function[String, String] fromBinary = decoderTable["from_binary"];
+            input = fromBinary(input);
+        }
+
+        return decode_value(input);
+    }
+
+    function decode_start(binary : String, acc : String = "", decoderTable : Table = decoders()) : Table {
+        return {
+            "input": acc + binary,
+            "offset": 0,
+            "done": len(binary) != 0,
+            "value": "",
+            "decoders": decoderTable
+        };
+    }
+
+    function decode_continue(state : Table, binary : String) : Table {
+        local String nextInput = (state["input"] as String) + binary;
+        return {
+            "input": nextInput,
+            "offset": state["offset"],
+            "done": len(nextInput) != 0,
+            "value": state["value"],
+            "decoders": state["decoders"]
+        };
+    }
+
+    function encode(value : T, encodeFn : Function[T, String] = encoder()) : String {
+        return encode_value(value, encodeFn);
+    }
+
+    function encode_atom(value : Bool) : String {
+        return Bool(value);
+    }
+
+    function encode_binary(value : String) : String {
+        return "\"" + value + "\"";
+    }
+
+    function encode_binary_escape_all(value : String) : String {
+        return encode_binary(value);
+    }
+
+    function encode_float(value : Float) : String {
+        return value as String;
+    }
+
+    function encode_integer(value : Int) : String {
+        return value as String;
+    }
+
+    function encode_key_value_list(list : List[Table], encodeFn : Function[String, String] = encode_binary) : String {
+        local mut String state = "{";
+        local mut Int index = 0;
+
+        while index < len(list) {
+            local Table pair = list[index];
+            local String key = pair["key"] as String;
+            local String value = encodeFn(pair["value"] as String);
+
+            if state == "{" {
+                state = state + encode_binary(key) + ":" + value;
+            } else {
+                state = state + "," + encode_binary(key) + ":" + value;
+            }
+
+            index += 1;
+        }
+
+        return state + "}";
+    }
+
+    function encode_key_value_list_checked(list : List[Table], encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
+        local mut Int index = 0;
+
+        while index < len(list) {
+            local Table pair = list[index];
+            if not pair["key"]? {
+                return Err("json object pair is missing key");
+            }
+            if not pair["value"]? {
+                return Err("json object pair is missing value");
+            }
+            index += 1;
+        }
+
+        return Ok(encode_key_value_list(list, encodeFn));
+    }
+
+    function encode_list(list : List[String], encodeFn : Function[String, String] = encode_binary) : String {
+        local mut String state = "[";
+        local mut Int index = 0;
+
+        while index < len(list) {
+            local String value = encodeFn(list[index]);
+
+            if state == "[" {
+                state = state + value;
+            } else {
+                state = state + "," + value;
+            }
+
+            index += 1;
+        }
+
+        return state + "]";
+    }
+
+    function encode_map(value : Table, encodeFn : Function[String, String] = encode_binary) : String {
+        if value["key"]? and value["value"]? {
+            return "{" + encode_binary(value["key"] as String) + ":" + encodeFn(value["value"] as String) + "}";
+        }
+
+        return "{}";
+    }
+
+    function encode_map_checked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
+        if value["key"]? and value["value"]? {
+            return Ok(encode_map(value, encodeFn));
+        }
+
+        return Err("json map requires key and value fields");
+    }
+
+    function encode_value(value : T, encodeFn : Function[T, String]) : String {
+        return encodeFn(value);
+    }
+
+    function format_options(indent : String = "  ") : Table {
+        return {
+            "indent": indent,
+            "newline": "\n"
+        };
+    }
+
+    function format(value : T, encodeFn : Function[T, String] = encoder(), options : Table = format_options()) : String {
+        return format_value(value, encodeFn, options);
+    }
+
+    function format_key_value_list(list : List[Table], encodeFn : Function[String, String], state : Table) : String {
+        return format_key_value_list_checked(list, encodeFn, state)!;
+    }
+
+    function format_key_value_list_checked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, String] {
+        local Result[String, String] encoded = encode_key_value_list_checked(list, encodeFn);
+        if not encoded? {
+            return encoded;
+        }
+
+        return Ok(encoded!);
+    }
+
+    function format_value(value : T, encodeFn : Function[T, String], state : Table) : String {
+        if state["indent"]? {
+            return encodeFn(value);
+        }
+
+        return encodeFn(value);
+    }
 }
