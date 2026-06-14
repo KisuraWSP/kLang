@@ -1,6 +1,6 @@
 # Static Page Server
 
-Shows a static page server style project with an index.html asset beside Klang source.
+Shows a static page server style project that renders HTML through the stdlib `html` module.
 ## Files
 
 - `first.klang` is the project entry file.

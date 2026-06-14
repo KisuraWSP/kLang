@@ -172,6 +172,13 @@ let mut here_string = //
 </body>
 </html>
 //;
+
+-- stdlib/html can render markup from typed functions, which is useful for WASM.
+import "html";
+local String renderedPage = html.Document(
+    "kLang",
+    html.Main([html.Class("page")], html.H1([], html.Text("Hello from kLang")))
+);
 ```
 
 2. Functions

@@ -109,6 +109,17 @@ Run without stdlib module resolution:
 go run . check examples/helloworld --raw-lang
 ```
 
+Render HTML from stdlib helpers:
+
+```lua
+import "html";
+
+local String page = html.Document(
+    "Hello",
+    html.Main([html.Class("page")], html.H1([], html.Text("Hello from kLang")))
+);
+```
+
 Package a checked project into a compact source bundle:
 
 ```sh

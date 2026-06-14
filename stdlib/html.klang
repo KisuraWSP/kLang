@@ -1,0 +1,1338 @@
+-- HTML rendering helpers for browser and WASM-oriented Klang programs.
+-- This module renders markup as strings today, while keeping small typed
+-- building blocks that can grow into a templating engine later.
+
+namespace html {
+    --- Signature: function Escape(value : String) : String
+    --- Returns: String.
+    --- Summary: Escapes text content for safe HTML rendering.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Escape(value : String) : String {
+        local mut String result = "";
+        local mut Int index = 0;
+        while index < len(value) {
+            local Char current = value[index];
+            if current == "&" {
+                result += "&amp;";
+            } else if current == "<" {
+                result += "&lt;";
+            } else if current == ">" {
+                result += "&gt;";
+            } else {
+                result += current as String;
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    --- Signature: function EscapeAttribute(value : String) : String
+    --- Returns: String.
+    --- Summary: Escapes an attribute value before it is written inside quotes.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EscapeAttribute(value : String) : String {
+        return Escape(value);
+    }
+
+    --- Signature: function Text(value : String) : String
+    --- Returns: String.
+    --- Summary: Renders escaped text content.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Text(value : String) : String {
+        return Escape(value);
+    }
+
+    --- Signature: function Raw(value : String) : String
+    --- Returns: String.
+    --- Summary: Renders raw HTML without escaping for trusted markup.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Raw(value : String) : String {
+        return value;
+    }
+
+    --- Signature: function Attr(name : String, value : String) : String
+    --- Returns: String.
+    --- Summary: Renders one HTML attribute with an escaped value.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Attr(name : String, value : String) : String {
+        return " " + name + "='" + EscapeAttribute(value) + "'";
+    }
+
+    --- Signature: function BoolAttr(name : String, enabled : Bool) : String
+    --- Returns: String.
+    --- Summary: Renders a boolean HTML attribute when enabled.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function BoolAttr(name : String, enabled : Bool) : String {
+        if enabled { return " " + name; }
+        return "";
+    }
+
+    --- Signature: function DataAttr(name : String, value : String) : String
+    --- Returns: String.
+    --- Summary: Renders a data-* attribute with an escaped value.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function DataAttr(name : String, value : String) : String {
+        return Attr("data-" + name, value);
+    }
+
+    --- Signature: function Class(value : String) : String
+    --- Returns: String.
+    --- Summary: Renders a class attribute.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Class(value : String) : String {
+        return Attr("class", value);
+    }
+
+    --- Signature: function Id(value : String) : String
+    --- Returns: String.
+    --- Summary: Renders an id attribute.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Id(value : String) : String {
+        return Attr("id", value);
+    }
+
+    --- Signature: function Href(value : String) : String
+    --- Returns: String.
+    --- Summary: Renders an href attribute.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Href(value : String) : String {
+        return Attr("href", value);
+    }
+
+    --- Signature: function Src(value : String) : String
+    --- Returns: String.
+    --- Summary: Renders a src attribute.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Src(value : String) : String {
+        return Attr("src", value);
+    }
+
+    --- Signature: function Attrs(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Joins rendered attributes into one attribute string.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Attrs(attrs : List[String]) : String {
+        local mut String result = "";
+        local mut Int index = 0;
+        while index < len(attrs) {
+            result += attrs[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    --- Signature: function Fragment(children : List[String]) : String
+    --- Returns: String.
+    --- Summary: Joins a list of rendered child nodes without adding a wrapper tag.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Fragment(children : List[String]) : String {
+        local mut String result = "";
+        local mut Int index = 0;
+        while index < len(children) {
+            result += children[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    --- Signature: function Element(tag : String, attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders a normal HTML element with opening and closing tags.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Element(tag : String, attrs : List[String], children : String) : String {
+        return "<" + tag + Attrs(attrs) + ">" + children + "</" + tag + ">";
+    }
+
+    --- Signature: function VoidElement(tag : String, attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders a void HTML element that has no closing tag.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function VoidElement(tag : String, attrs : List[String]) : String {
+        return "<" + tag + Attrs(attrs) + ">";
+    }
+
+    --- Signature: function Doctype() : String
+    --- Returns: String.
+    --- Summary: Renders the HTML5 document type declaration.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Doctype() : String {
+        return "<!doctype html>";
+    }
+
+    --- Signature: function Document(title : String, body : String) : String
+    --- Returns: String.
+    --- Summary: Renders a complete HTML document with title and body content.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Document(title : String, body : String) : String {
+        local String head = Head([], Title([], Text(title)));
+        return Doctype() + Html([], head + Body([], body));
+    }
+
+    --- Signature: function A(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <a> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function A(attrs : List[String], children : String) : String {
+        return Element("a", attrs, children);
+    }
+
+    --- Signature: function Abbr(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <abbr> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Abbr(attrs : List[String], children : String) : String {
+        return Element("abbr", attrs, children);
+    }
+
+    --- Signature: function Address(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <address> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Address(attrs : List[String], children : String) : String {
+        return Element("address", attrs, children);
+    }
+
+    --- Signature: function Article(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <article> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Article(attrs : List[String], children : String) : String {
+        return Element("article", attrs, children);
+    }
+
+    --- Signature: function Aside(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <aside> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Aside(attrs : List[String], children : String) : String {
+        return Element("aside", attrs, children);
+    }
+
+    --- Signature: function Audio(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <audio> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Audio(attrs : List[String], children : String) : String {
+        return Element("audio", attrs, children);
+    }
+
+    --- Signature: function B(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <b> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function B(attrs : List[String], children : String) : String {
+        return Element("b", attrs, children);
+    }
+
+    --- Signature: function Bdi(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <bdi> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Bdi(attrs : List[String], children : String) : String {
+        return Element("bdi", attrs, children);
+    }
+
+    --- Signature: function Bdo(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <bdo> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Bdo(attrs : List[String], children : String) : String {
+        return Element("bdo", attrs, children);
+    }
+
+    --- Signature: function Blockquote(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <blockquote> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Blockquote(attrs : List[String], children : String) : String {
+        return Element("blockquote", attrs, children);
+    }
+
+    --- Signature: function Body(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <body> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Body(attrs : List[String], children : String) : String {
+        return Element("body", attrs, children);
+    }
+
+    --- Signature: function Button(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <button> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Button(attrs : List[String], children : String) : String {
+        return Element("button", attrs, children);
+    }
+
+    --- Signature: function Canvas(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <canvas> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Canvas(attrs : List[String], children : String) : String {
+        return Element("canvas", attrs, children);
+    }
+
+    --- Signature: function Caption(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <caption> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Caption(attrs : List[String], children : String) : String {
+        return Element("caption", attrs, children);
+    }
+
+    --- Signature: function Cite(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <cite> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Cite(attrs : List[String], children : String) : String {
+        return Element("cite", attrs, children);
+    }
+
+    --- Signature: function Code(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <code> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Code(attrs : List[String], children : String) : String {
+        return Element("code", attrs, children);
+    }
+
+    --- Signature: function Colgroup(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <colgroup> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Colgroup(attrs : List[String], children : String) : String {
+        return Element("colgroup", attrs, children);
+    }
+
+    --- Signature: function Data(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <data> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Data(attrs : List[String], children : String) : String {
+        return Element("data", attrs, children);
+    }
+
+    --- Signature: function Datalist(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <datalist> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Datalist(attrs : List[String], children : String) : String {
+        return Element("datalist", attrs, children);
+    }
+
+    --- Signature: function Dd(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <dd> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Dd(attrs : List[String], children : String) : String {
+        return Element("dd", attrs, children);
+    }
+
+    --- Signature: function Del(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <del> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Del(attrs : List[String], children : String) : String {
+        return Element("del", attrs, children);
+    }
+
+    --- Signature: function Details(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <details> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Details(attrs : List[String], children : String) : String {
+        return Element("details", attrs, children);
+    }
+
+    --- Signature: function Dfn(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <dfn> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Dfn(attrs : List[String], children : String) : String {
+        return Element("dfn", attrs, children);
+    }
+
+    --- Signature: function Dialog(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <dialog> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Dialog(attrs : List[String], children : String) : String {
+        return Element("dialog", attrs, children);
+    }
+
+    --- Signature: function Div(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <div> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Div(attrs : List[String], children : String) : String {
+        return Element("div", attrs, children);
+    }
+
+    --- Signature: function Dl(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <dl> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Dl(attrs : List[String], children : String) : String {
+        return Element("dl", attrs, children);
+    }
+
+    --- Signature: function Dt(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <dt> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Dt(attrs : List[String], children : String) : String {
+        return Element("dt", attrs, children);
+    }
+
+    --- Signature: function Em(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <em> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Em(attrs : List[String], children : String) : String {
+        return Element("em", attrs, children);
+    }
+
+    --- Signature: function Fieldset(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <fieldset> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Fieldset(attrs : List[String], children : String) : String {
+        return Element("fieldset", attrs, children);
+    }
+
+    --- Signature: function Figcaption(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <figcaption> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Figcaption(attrs : List[String], children : String) : String {
+        return Element("figcaption", attrs, children);
+    }
+
+    --- Signature: function Figure(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <figure> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Figure(attrs : List[String], children : String) : String {
+        return Element("figure", attrs, children);
+    }
+
+    --- Signature: function Footer(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <footer> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Footer(attrs : List[String], children : String) : String {
+        return Element("footer", attrs, children);
+    }
+
+    --- Signature: function Form(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <form> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Form(attrs : List[String], children : String) : String {
+        return Element("form", attrs, children);
+    }
+
+    --- Signature: function H1(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <h1> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function H1(attrs : List[String], children : String) : String {
+        return Element("h1", attrs, children);
+    }
+
+    --- Signature: function H2(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <h2> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function H2(attrs : List[String], children : String) : String {
+        return Element("h2", attrs, children);
+    }
+
+    --- Signature: function H3(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <h3> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function H3(attrs : List[String], children : String) : String {
+        return Element("h3", attrs, children);
+    }
+
+    --- Signature: function H4(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <h4> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function H4(attrs : List[String], children : String) : String {
+        return Element("h4", attrs, children);
+    }
+
+    --- Signature: function H5(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <h5> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function H5(attrs : List[String], children : String) : String {
+        return Element("h5", attrs, children);
+    }
+
+    --- Signature: function H6(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <h6> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function H6(attrs : List[String], children : String) : String {
+        return Element("h6", attrs, children);
+    }
+
+    --- Signature: function Head(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <head> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Head(attrs : List[String], children : String) : String {
+        return Element("head", attrs, children);
+    }
+
+    --- Signature: function Header(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <header> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Header(attrs : List[String], children : String) : String {
+        return Element("header", attrs, children);
+    }
+
+    --- Signature: function Hgroup(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <hgroup> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Hgroup(attrs : List[String], children : String) : String {
+        return Element("hgroup", attrs, children);
+    }
+
+    --- Signature: function Html(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <html> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Html(attrs : List[String], children : String) : String {
+        return Element("html", attrs, children);
+    }
+
+    --- Signature: function I(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <i> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function I(attrs : List[String], children : String) : String {
+        return Element("i", attrs, children);
+    }
+
+    --- Signature: function Iframe(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <iframe> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Iframe(attrs : List[String], children : String) : String {
+        return Element("iframe", attrs, children);
+    }
+
+    --- Signature: function Ins(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <ins> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Ins(attrs : List[String], children : String) : String {
+        return Element("ins", attrs, children);
+    }
+
+    --- Signature: function Kbd(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <kbd> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Kbd(attrs : List[String], children : String) : String {
+        return Element("kbd", attrs, children);
+    }
+
+    --- Signature: function Label(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <label> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Label(attrs : List[String], children : String) : String {
+        return Element("label", attrs, children);
+    }
+
+    --- Signature: function Legend(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <legend> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Legend(attrs : List[String], children : String) : String {
+        return Element("legend", attrs, children);
+    }
+
+    --- Signature: function Li(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <li> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Li(attrs : List[String], children : String) : String {
+        return Element("li", attrs, children);
+    }
+
+    --- Signature: function Main(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <main> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Main(attrs : List[String], children : String) : String {
+        return Element("main", attrs, children);
+    }
+
+    --- Signature: function MapTag(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <map> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function MapTag(attrs : List[String], children : String) : String {
+        return Element("map", attrs, children);
+    }
+
+    --- Signature: function Map(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <map> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Map(attrs : List[String], children : String) : String {
+        return MapTag(attrs, children);
+    }
+
+    --- Signature: function Mark(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <mark> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Mark(attrs : List[String], children : String) : String {
+        return Element("mark", attrs, children);
+    }
+
+    --- Signature: function Menu(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <menu> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Menu(attrs : List[String], children : String) : String {
+        return Element("menu", attrs, children);
+    }
+
+    --- Signature: function Meter(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <meter> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Meter(attrs : List[String], children : String) : String {
+        return Element("meter", attrs, children);
+    }
+
+    --- Signature: function Nav(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <nav> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Nav(attrs : List[String], children : String) : String {
+        return Element("nav", attrs, children);
+    }
+
+    --- Signature: function Noscript(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <noscript> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Noscript(attrs : List[String], children : String) : String {
+        return Element("noscript", attrs, children);
+    }
+
+    --- Signature: function ObjectTag(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <object> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ObjectTag(attrs : List[String], children : String) : String {
+        return Element("object", attrs, children);
+    }
+
+    --- Signature: function Object(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <object> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Object(attrs : List[String], children : String) : String {
+        return ObjectTag(attrs, children);
+    }
+
+    --- Signature: function Ol(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <ol> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Ol(attrs : List[String], children : String) : String {
+        return Element("ol", attrs, children);
+    }
+
+    --- Signature: function Optgroup(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <optgroup> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Optgroup(attrs : List[String], children : String) : String {
+        return Element("optgroup", attrs, children);
+    }
+
+    --- Signature: function OptionTag(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <option> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function OptionTag(attrs : List[String], children : String) : String {
+        return Element("option", attrs, children);
+    }
+
+    --- Signature: function Option(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <option> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Option(attrs : List[String], children : String) : String {
+        return OptionTag(attrs, children);
+    }
+
+    --- Signature: function Output(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <output> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Output(attrs : List[String], children : String) : String {
+        return Element("output", attrs, children);
+    }
+
+    --- Signature: function P(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <p> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function P(attrs : List[String], children : String) : String {
+        return Element("p", attrs, children);
+    }
+
+    --- Signature: function Picture(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <picture> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Picture(attrs : List[String], children : String) : String {
+        return Element("picture", attrs, children);
+    }
+
+    --- Signature: function Pre(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <pre> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Pre(attrs : List[String], children : String) : String {
+        return Element("pre", attrs, children);
+    }
+
+    --- Signature: function Progress(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <progress> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Progress(attrs : List[String], children : String) : String {
+        return Element("progress", attrs, children);
+    }
+
+    --- Signature: function Q(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <q> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Q(attrs : List[String], children : String) : String {
+        return Element("q", attrs, children);
+    }
+
+    --- Signature: function Rp(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <rp> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Rp(attrs : List[String], children : String) : String {
+        return Element("rp", attrs, children);
+    }
+
+    --- Signature: function Rt(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <rt> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Rt(attrs : List[String], children : String) : String {
+        return Element("rt", attrs, children);
+    }
+
+    --- Signature: function Ruby(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <ruby> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Ruby(attrs : List[String], children : String) : String {
+        return Element("ruby", attrs, children);
+    }
+
+    --- Signature: function S(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <s> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function S(attrs : List[String], children : String) : String {
+        return Element("s", attrs, children);
+    }
+
+    --- Signature: function Samp(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <samp> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Samp(attrs : List[String], children : String) : String {
+        return Element("samp", attrs, children);
+    }
+
+    --- Signature: function Script(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <script> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Script(attrs : List[String], children : String) : String {
+        return Element("script", attrs, children);
+    }
+
+    --- Signature: function Search(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <search> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Search(attrs : List[String], children : String) : String {
+        return Element("search", attrs, children);
+    }
+
+    --- Signature: function Section(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <section> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Section(attrs : List[String], children : String) : String {
+        return Element("section", attrs, children);
+    }
+
+    --- Signature: function Select(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <select> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Select(attrs : List[String], children : String) : String {
+        return Element("select", attrs, children);
+    }
+
+    --- Signature: function Slot(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <slot> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Slot(attrs : List[String], children : String) : String {
+        return Element("slot", attrs, children);
+    }
+
+    --- Signature: function Small(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <small> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Small(attrs : List[String], children : String) : String {
+        return Element("small", attrs, children);
+    }
+
+    --- Signature: function Span(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <span> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Span(attrs : List[String], children : String) : String {
+        return Element("span", attrs, children);
+    }
+
+    --- Signature: function Strong(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <strong> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Strong(attrs : List[String], children : String) : String {
+        return Element("strong", attrs, children);
+    }
+
+    --- Signature: function Style(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <style> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Style(attrs : List[String], children : String) : String {
+        return Element("style", attrs, children);
+    }
+
+    --- Signature: function Sub(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <sub> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sub(attrs : List[String], children : String) : String {
+        return Element("sub", attrs, children);
+    }
+
+    --- Signature: function Summary(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <summary> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Summary(attrs : List[String], children : String) : String {
+        return Element("summary", attrs, children);
+    }
+
+    --- Signature: function Sup(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <sup> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sup(attrs : List[String], children : String) : String {
+        return Element("sup", attrs, children);
+    }
+
+    --- Signature: function Table(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <table> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Table(attrs : List[String], children : String) : String {
+        return Element("table", attrs, children);
+    }
+
+    --- Signature: function Tbody(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <tbody> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Tbody(attrs : List[String], children : String) : String {
+        return Element("tbody", attrs, children);
+    }
+
+    --- Signature: function Td(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <td> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Td(attrs : List[String], children : String) : String {
+        return Element("td", attrs, children);
+    }
+
+    --- Signature: function Template(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <template> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Template(attrs : List[String], children : String) : String {
+        return Element("template", attrs, children);
+    }
+
+    --- Signature: function Textarea(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <textarea> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Textarea(attrs : List[String], children : String) : String {
+        return Element("textarea", attrs, children);
+    }
+
+    --- Signature: function Tfoot(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <tfoot> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Tfoot(attrs : List[String], children : String) : String {
+        return Element("tfoot", attrs, children);
+    }
+
+    --- Signature: function Th(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <th> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Th(attrs : List[String], children : String) : String {
+        return Element("th", attrs, children);
+    }
+
+    --- Signature: function Thead(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <thead> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Thead(attrs : List[String], children : String) : String {
+        return Element("thead", attrs, children);
+    }
+
+    --- Signature: function Time(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <time> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Time(attrs : List[String], children : String) : String {
+        return Element("time", attrs, children);
+    }
+
+    --- Signature: function Title(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <title> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Title(attrs : List[String], children : String) : String {
+        return Element("title", attrs, children);
+    }
+
+    --- Signature: function Tr(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <tr> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Tr(attrs : List[String], children : String) : String {
+        return Element("tr", attrs, children);
+    }
+
+    --- Signature: function U(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <u> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function U(attrs : List[String], children : String) : String {
+        return Element("u", attrs, children);
+    }
+
+    --- Signature: function Ul(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <ul> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Ul(attrs : List[String], children : String) : String {
+        return Element("ul", attrs, children);
+    }
+
+    --- Signature: function VarTag(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <var> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function VarTag(attrs : List[String], children : String) : String {
+        return Element("var", attrs, children);
+    }
+
+    --- Signature: function Var(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <var> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Var(attrs : List[String], children : String) : String {
+        return VarTag(attrs, children);
+    }
+
+    --- Signature: function Video(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the <video> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Video(attrs : List[String], children : String) : String {
+        return Element("video", attrs, children);
+    }
+
+    --- Signature: function Area(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <area> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Area(attrs : List[String]) : String {
+        return VoidElement("area", attrs);
+    }
+
+    --- Signature: function Base(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <base> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Base(attrs : List[String]) : String {
+        return VoidElement("base", attrs);
+    }
+
+    --- Signature: function Br(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <br> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Br(attrs : List[String]) : String {
+        return VoidElement("br", attrs);
+    }
+
+    --- Signature: function Col(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <col> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Col(attrs : List[String]) : String {
+        return VoidElement("col", attrs);
+    }
+
+    --- Signature: function Embed(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <embed> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Embed(attrs : List[String]) : String {
+        return VoidElement("embed", attrs);
+    }
+
+    --- Signature: function Hr(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <hr> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Hr(attrs : List[String]) : String {
+        return VoidElement("hr", attrs);
+    }
+
+    --- Signature: function Img(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <img> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Img(attrs : List[String]) : String {
+        return VoidElement("img", attrs);
+    }
+
+    --- Signature: function Input(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <input> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Input(attrs : List[String]) : String {
+        return VoidElement("input", attrs);
+    }
+
+    --- Signature: function Link(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <link> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Link(attrs : List[String]) : String {
+        return VoidElement("link", attrs);
+    }
+
+    --- Signature: function Meta(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <meta> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Meta(attrs : List[String]) : String {
+        return VoidElement("meta", attrs);
+    }
+
+    --- Signature: function Param(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <param> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Param(attrs : List[String]) : String {
+        return VoidElement("param", attrs);
+    }
+
+    --- Signature: function Source(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <source> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Source(attrs : List[String]) : String {
+        return VoidElement("source", attrs);
+    }
+
+    --- Signature: function Track(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <track> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Track(attrs : List[String]) : String {
+        return VoidElement("track", attrs);
+    }
+
+    --- Signature: function Wbr(attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders the void <wbr> HTML element.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Wbr(attrs : List[String]) : String {
+        return VoidElement("wbr", attrs);
+    }
+
+    --- Signature: function Acronym(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <acronym> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Acronym(attrs : List[String], children : String) : String {
+        return Element("acronym", attrs, children);
+    }
+
+    --- Signature: function Applet(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <applet> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Applet(attrs : List[String], children : String) : String {
+        return Element("applet", attrs, children);
+    }
+
+    --- Signature: function Basefont(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <basefont> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Basefont(attrs : List[String], children : String) : String {
+        return Element("basefont", attrs, children);
+    }
+
+    --- Signature: function Bgsound(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <bgsound> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Bgsound(attrs : List[String], children : String) : String {
+        return Element("bgsound", attrs, children);
+    }
+
+    --- Signature: function Big(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <big> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Big(attrs : List[String], children : String) : String {
+        return Element("big", attrs, children);
+    }
+
+    --- Signature: function Blink(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <blink> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Blink(attrs : List[String], children : String) : String {
+        return Element("blink", attrs, children);
+    }
+
+    --- Signature: function Center(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <center> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Center(attrs : List[String], children : String) : String {
+        return Element("center", attrs, children);
+    }
+
+    --- Signature: function Content(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <content> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Content(attrs : List[String], children : String) : String {
+        return Element("content", attrs, children);
+    }
+
+    --- Signature: function Dir(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <dir> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Dir(attrs : List[String], children : String) : String {
+        return Element("dir", attrs, children);
+    }
+
+    --- Signature: function Font(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <font> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Font(attrs : List[String], children : String) : String {
+        return Element("font", attrs, children);
+    }
+
+    --- Signature: function Frame(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <frame> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Frame(attrs : List[String], children : String) : String {
+        return Element("frame", attrs, children);
+    }
+
+    --- Signature: function Frameset(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <frameset> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Frameset(attrs : List[String], children : String) : String {
+        return Element("frameset", attrs, children);
+    }
+
+    --- Signature: function Image(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <image> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Image(attrs : List[String], children : String) : String {
+        return Element("image", attrs, children);
+    }
+
+    --- Signature: function Marquee(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <marquee> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Marquee(attrs : List[String], children : String) : String {
+        return Element("marquee", attrs, children);
+    }
+
+    --- Signature: function Menuitem(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <menuitem> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Menuitem(attrs : List[String], children : String) : String {
+        return Element("menuitem", attrs, children);
+    }
+
+    --- Signature: function Nobr(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <nobr> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Nobr(attrs : List[String], children : String) : String {
+        return Element("nobr", attrs, children);
+    }
+
+    --- Signature: function Noembed(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <noembed> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Noembed(attrs : List[String], children : String) : String {
+        return Element("noembed", attrs, children);
+    }
+
+    --- Signature: function Noframes(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <noframes> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Noframes(attrs : List[String], children : String) : String {
+        return Element("noframes", attrs, children);
+    }
+
+    --- Signature: function Plaintext(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <plaintext> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Plaintext(attrs : List[String], children : String) : String {
+        return Element("plaintext", attrs, children);
+    }
+
+    --- Signature: function Portal(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <portal> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Portal(attrs : List[String], children : String) : String {
+        return Element("portal", attrs, children);
+    }
+
+    --- Signature: function Rb(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <rb> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Rb(attrs : List[String], children : String) : String {
+        return Element("rb", attrs, children);
+    }
+
+    --- Signature: function Rtc(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <rtc> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Rtc(attrs : List[String], children : String) : String {
+        return Element("rtc", attrs, children);
+    }
+
+    --- Signature: function Shadow(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <shadow> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Shadow(attrs : List[String], children : String) : String {
+        return Element("shadow", attrs, children);
+    }
+
+    --- Signature: function Spacer(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <spacer> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Spacer(attrs : List[String], children : String) : String {
+        return Element("spacer", attrs, children);
+    }
+
+    --- Signature: function Strike(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <strike> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Strike(attrs : List[String], children : String) : String {
+        return Element("strike", attrs, children);
+    }
+
+    --- Signature: function Tt(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <tt> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Tt(attrs : List[String], children : String) : String {
+        return Element("tt", attrs, children);
+    }
+
+    --- Signature: function Xmp(attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders the legacy <xmp> HTML element for compatibility.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Xmp(attrs : List[String], children : String) : String {
+        return Element("xmp", attrs, children);
+    }
+
+    --- Signature: function Tag(name : String, attrs : List[String], children : String) : String
+    --- Returns: String.
+    --- Summary: Renders any custom or future HTML-style element by tag name.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Tag(name : String, attrs : List[String], children : String) : String {
+        return Element(name, attrs, children);
+    }
+
+    --- Signature: function VoidTag(name : String, attrs : List[String]) : String
+    --- Returns: String.
+    --- Summary: Renders any custom or future void HTML-style element by tag name.
+    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function VoidTag(name : String, attrs : List[String]) : String {
+        return VoidElement(name, attrs);
+    }
+}

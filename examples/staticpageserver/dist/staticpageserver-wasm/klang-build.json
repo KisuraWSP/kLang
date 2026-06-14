@@ -1,0 +1,12 @@
+{
+  "backend": "WASM",
+  "entry": "src/first.klang",
+  "files": [
+    "src/first.klang",
+    "src/app.klang",
+    "src/html.klang"
+  ],
+  "number_of_files": 3,
+  "project_name": "staticpageserver",
+  "raw_lang": false
+}

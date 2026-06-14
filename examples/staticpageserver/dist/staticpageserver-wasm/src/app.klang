@@ -1,0 +1,44 @@
+import "html";
+
+namespace App {
+    function RenderPage(title : String, heading : String, message : String) : String {
+        local String content = html.Main(
+            [html.Class("page")],
+            html.H1([], html.Text(heading)) +
+            html.P([], html.Text(message)) +
+            html.Footer([], html.Small([], html.Text("Rendered with stdlib/html for the WASM browser runtime.")))
+        );
+
+        return html.Document(title, content);
+    }
+
+    function LoadIndexPage(path : String) : String {
+        if path == "index.html" {
+            return RenderPage("kLang Static Page", "Hello from kLang", "This page is rendered from typed html module helpers.");
+        }
+
+        return RenderPage("Not Found", "404", "Page not found.");
+    }
+
+    function HandleRequest(route : String) : Int {
+        local mut Table response = {"status": 200, "file": "index.html", "contentType": "text/html"};
+        local mut String page = LoadIndexPage(response.file);
+
+        if route != "/" {
+            response["status"] = 404;
+            page = LoadIndexPage("missing.html");
+        }
+
+        print("GET", route, response.status, response.contentType);
+        print(page);
+        return response.status;
+    }
+
+    function Start() : Int {
+        local String host = "127.0.0.1";
+        local Int port = 8080;
+
+        print("static page server", host, port, "index.html");
+        return HandleRequest("/");
+    }
+}
