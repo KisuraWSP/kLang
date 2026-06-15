@@ -1,0 +1,283 @@
+namespace dsa {
+    namespace arrayhashmap {
+        -- A hash table of keys and values, each stored sequentially.
+        -- Insertion order is preserved. In general, this data structure supports the same operations as std.ArrayList.
+        -- Deletion operations:
+        -- swapRemove - O(1)
+        -- orderedRemove - O(N)
+        -- Modifying the hash map while iterating is allowed, however, one must understand the (well defined) behavior when mixing insertions and deletions with iteration.
+
+
+        pub fn capacity(self: Self) usize
+        Returns the number of total elements which may be present before it is no longer guaranteed that no allocations will be performed.
+
+        pub fn clearAndFree(self: *Self) void
+        Clears the map and releases the backing allocation
+
+        pub fn clearRetainingCapacity(self: *Self) void
+        Clears the map but retains the backing allocation for future use.
+
+        pub fn clone(self: Self) !Self
+        Create a copy of the hash map which can be modified separately. The copy uses the same context and allocator as this instance.
+
+        pub fn cloneWithAllocator(self: Self, allocator: Allocator) !Self
+        Create a copy of the hash map which can be modified separately. The copy uses the same context as this instance, but the specified allocator.
+
+        pub fn cloneWithAllocatorAndContext(self: Self, allocator: Allocator, ctx: anytype) !ArrayHashMap(K, V, @TypeOf(ctx), store_hash)
+        Create a copy of the hash map which can be modified separately. The copy uses the specified allocator and context.
+
+        pub fn cloneWithContext(self: Self, ctx: anytype) !ArrayHashMap(K, V, @TypeOf(ctx), store_hash)
+        Create a copy of the hash map which can be modified separately. The copy uses the same allocator as this instance, but the specified context.
+
+        pub fn contains(self: Self, key: K) bool
+        Check whether a key is stored in the map
+
+        pub fn containsAdapted(self: Self, key: anytype, ctx: anytype) bool
+        pub fn count(self: Self) usize
+        Returns the number of KV pairs stored in this map.
+
+        pub fn deinit(self: *Self) void
+        Frees the backing allocation and leaves the map in an undefined state. Note that this does not free keys or values. You must take care of that before calling this function, if it is needed.
+
+        pub fn ensureTotalCapacity(self: *Self, new_capacity: usize) !void
+        Increases capacity, guaranteeing that insertions up until the expected_count will not cause an allocation, and therefore cannot fail.
+
+        pub fn ensureUnusedCapacity(self: *Self, additional_count: usize) !void
+        Increases capacity, guaranteeing that insertions up until additional_count more items will not cause an allocation, and therefore cannot fail.
+
+        pub fn fetchOrderedRemove(self: *Self, key: K) ?KV
+        If there is an Entry with a matching key, it is deleted from the hash map, and then returned from this function. The entry is removed from the underlying array by shifting all elements forward thereby maintaining the current ordering.
+
+        pub fn fetchOrderedRemoveAdapted(self: *Self, key: anytype, ctx: anytype) ?KV
+        pub fn fetchPut(self: *Self, key: K, value: V) !?KV
+        Inserts a new Entry into the hash map, returning the previous one, if any.
+
+        pub fn fetchPutAssumeCapacity(self: *Self, key: K, value: V) ?KV
+        Inserts a new Entry into the hash map, returning the previous one, if any. If insertion happuns, asserts there is enough capacity without allocating.
+
+        pub fn fetchSwapRemove(self: *Self, key: K) ?KV
+        If there is an Entry with a matching key, it is deleted from the hash map, and then returned from this function. The entry is removed from the underlying array by swapping it with the last element.
+
+        pub fn fetchSwapRemoveAdapted(self: *Self, key: anytype, ctx: anytype) ?KV
+        pub fn get(self: Self, key: K) ?V
+        Find the value associated with a key
+
+        pub fn getAdapted(self: Self, key: anytype, ctx: anytype) ?V
+        pub fn getEntry(self: Self, key: K) ?Entry
+        Finds pointers to the key and value storage associated with a key.
+
+        pub fn getEntryAdapted(self: Self, key: anytype, ctx: anytype) ?Entry
+        pub fn getIndex(self: Self, key: K) ?usize
+        Finds the index in the entries array where a key is stored
+
+        pub fn getIndexAdapted(self: Self, key: anytype, ctx: anytype) ?usize
+        pub fn getKey(self: Self, key: K) ?K
+        Find the actual key associated with an adapted key
+
+        pub fn getKeyAdapted(self: Self, key: anytype, ctx: anytype) ?K
+        pub fn getKeyPtr(self: Self, key: K) ?*K
+        Find a pointer to the actual key associated with an adapted key
+
+        pub fn getKeyPtrAdapted(self: Self, key: anytype, ctx: anytype) ?*K
+        pub fn getOrPut(self: *Self, key: K) !GetOrPutResult
+        If key exists this function cannot fail. If there is an existing item with key, then the result Entry pointer points to it, and found_existing is true. Otherwise, puts a new item with undefined value, and the Entry pointer points to it. Caller should then initialize the value (but not the key).
+
+        pub fn getOrPutAdapted(self: *Self, key: anytype, ctx: anytype) !GetOrPutResult
+        pub fn getOrPutAssumeCapacity(self: *Self, key: K) GetOrPutResult
+        If there is an existing item with key, then the result Entry pointer points to it, and found_existing is true. Otherwise, puts a new item with undefined value, and the Entry pointer points to it. Caller should then initialize the value (but not the key). If a new entry needs to be stored, this function asserts there is enough capacity to store it.
+
+        pub fn getOrPutAssumeCapacityAdapted(self: *Self, key: anytype, ctx: anytype) GetOrPutResult
+        pub fn getOrPutValue(self: *Self, key: K, value: V) !GetOrPutResult
+        pub fn getPtr(self: Self, key: K) ?*V
+        Find a pointer to the value associated with a key
+
+        pub fn getPtrAdapted(self: Self, key: anytype, ctx: anytype) ?*V
+        pub fn init(allocator: Allocator) Self
+        Create an ArrayHashMap instance which will use a specified allocator.
+
+        pub fn initContext(allocator: Allocator, ctx: Context) Self
+        pub fn iterator(self: *const Self) Iterator
+        Returns an iterator over the pairs in this map. Modifying the map may invalidate this iterator.
+
+        pub fn keys(self: Self) []K
+        Returns the backing array of keys in this map. Modifying the map may invalidate this array. Modifying this array in a way that changes key hashes or key equality puts the map into an unusable state until reIndex is called.
+
+        pub fn lockPointers(self: *Self) void
+        Puts the hash map into a state where any method call that would cause an existing key or value pointer to become invalidated will instead trigger an assertion.
+
+        pub fn move(self: *Self) Self
+        Set the map to an empty state, making deinitialization a no-op, and returning a copy of the original.
+
+        pub fn orderedRemove(self: *Self, key: K) bool
+        If there is an Entry with a matching key, it is deleted from the hash map. The entry is removed from the underlying array by shifting all elements forward, thereby maintaining the current ordering. Returns true if an entry was removed, false otherwise.
+
+        pub fn orderedRemoveAdapted(self: *Self, key: anytype, ctx: anytype) bool
+        pub fn orderedRemoveAt(self: *Self, index: usize) void
+        Deletes the item at the specified index in entries from the hash map. The entry is removed from the underlying array by shifting all elements forward, thereby maintaining the current ordering.
+
+        pub fn pop(self: *Self) KV
+        Removes the last inserted Entry in the hash map and returns it.
+
+        pub fn popOrNull(self: *Self) ?KV
+        Removes the last inserted Entry in the hash map and returns it if count is nonzero. Otherwise returns null.
+
+        pub fn put(self: *Self, key: K, value: V) !void
+        Clobbers any existing data. To detect if a put would clobber existing data, see getOrPut.
+
+        pub fn putAssumeCapacity(self: *Self, key: K, value: V) void
+        Asserts there is enough capacity to store the new key-value pair. Clobbers any existing data. To detect if a put would clobber existing data, see getOrPutAssumeCapacity.
+
+        pub fn putAssumeCapacityNoClobber(self: *Self, key: K, value: V) void
+        Asserts there is enough capacity to store the new key-value pair. Asserts that it does not clobber any existing data. To detect if a put would clobber existing data, see getOrPutAssumeCapacity.
+
+        pub fn putNoClobber(self: *Self, key: K, value: V) !void
+        Inserts a key-value pair into the hash map, asserting that no previous entry with the same key is already present
+
+        pub fn reIndex(self: *Self) !void
+        Recomputes stored hashes and rebuilds the key indexes. If the underlying keys have been modified directly, call this method to recompute the denormalized metadata necessary for the operation of the methods of this map that lookup entries by key.
+
+        pub fn shrinkAndFree(self: *Self, new_len: usize) void
+        Shrinks the underlying Entry array to new_len elements and discards any associated index entries. Reduces allocated capacity.
+
+        pub fn shrinkRetainingCapacity(self: *Self, new_len: usize) void
+        Shrinks the underlying Entry array to new_len elements and discards any associated index entries. Keeps capacity the same.
+
+        pub fn sort(self: *Self, sort_ctx: anytype) void
+        Sorts the entries and then rebuilds the index. sort_ctx must have this method: fn lessThan(ctx: @TypeOf(ctx), a_index: usize, b_index: usize) bool
+
+        pub fn swapRemove(self: *Self, key: K) bool
+        If there is an Entry with a matching key, it is deleted from the hash map. The entry is removed from the underlying array by swapping it with the last element. Returns true if an entry was removed, false otherwise.
+
+        pub fn swapRemoveAdapted(self: *Self, key: anytype, ctx: anytype) bool
+        pub fn swapRemoveAt(self: *Self, index: usize) void
+        Deletes the item at the specified index in entries from the hash map. The entry is removed from the underlying array by swapping it with the last element.
+
+        pub fn unlockPointers(self: *Self) void
+        Undoes a call to lockPointers.
+
+        pub fn values(self: Self) []V
+        Returns the backing array of values in this map. Modifying the map may invalidate this array. It is permitted to modify the values in this array.
+    }
+
+    namespace doublylinkedlist {
+        pub fn append(list: *Self, new_node: *Node) void
+        Insert a new node at the end of the list.
+
+        pub fn concatByMoving(list1: *Self, list2: *Self) void
+        Concatenate list2 onto the end of list1, removing all entries from the former.
+
+        pub fn insertAfter(list: *Self, node: *Node, new_node: *Node) void
+        Insert a new node after an existing one.
+
+        pub fn insertBefore(list: *Self, node: *Node, new_node: *Node) void
+        Insert a new node before an existing one.
+
+        pub fn pop(list: *Self) ?*Node
+        Remove and return the last node in the list.
+
+        pub fn popFirst(list: *Self) ?*Node
+        Remove and return the first node in the list.
+
+        pub fn prepend(list: *Self, new_node: *Node) void
+        Insert a new node at the beginning of the list.
+
+        pub fn remove(list: *Self, node: *Node) void
+        Remove a node from the list.
+    }
+
+    namespace ringbuffer {
+        -- This ring buffer stores read and write indices while being able to utilise the full backing slice by incrementing the indices modulo twice the slice's length and reducing indices modulo the slice's length on slice access. This means that whether the ring buffer is full or empty can be distinguished by looking at the difference between the read and write indices without adding an extra boolean flag or having to reserve a slot in the buffer.
+        --  This ring buffer has not been implemented with thread safety in mind, and therefore should not be assumed to be suitable for use cases involving separate reader and writer threads.
+    
+        pub fn deinit(self: *RingBuffer, allocator: Allocator) void
+        Free the data backing a RingBuffer; must be passed the same Allocator as init().
+
+        pub fn init(allocator: Allocator, capacity: usize) Allocator.Error!RingBuffer
+        Allocate a new RingBuffer; deinit() should be called to free the buffer.
+
+        pub fn isEmpty(self: RingBuffer) bool
+        Returns true if the ring buffer is empty and false otherwise.
+
+        pub fn isFull(self: RingBuffer) bool
+        Returns true if the ring buffer is full and false otherwise.
+
+        pub fn len(self: RingBuffer) usize
+        Returns the length of data available for reading
+
+        pub fn mask(self: RingBuffer, index: usize) usize
+        Returns index modulo the length of the backing slice.
+
+        pub fn mask2(self: RingBuffer, index: usize) usize
+        Returns index modulo twice the length of the backing slice.
+
+        pub fn read(self: *RingBuffer) ?u8
+        Consume a byte from the ring buffer and return it. Returns null if the ring buffer is empty.
+
+        pub fn readAssumeLength(self: *RingBuffer) u8
+        Consume a byte from the ring buffer and return it; asserts that the buffer is not empty.
+
+        pub fn readFirst(self: *RingBuffer, dest: []u8, length: usize) Error!void
+        Reads first length bytes written to the ring buffer into dest; Returns Error.ReadLengthInvalid if length greater than ring or dest length Uses memcpy and so dest must not overlap ring buffer data.
+
+        pub fn readFirstAssumeLength(self: *RingBuffer, dest: []u8, length: usize) void
+        Reads first length bytes written to the ring buffer into dest; Asserts that length not greater than ring buffer or dest length Uses memcpy and so dest must not overlap ring buffer data.
+
+        pub fn readLast(self: *RingBuffer, dest: []u8, length: usize) Error!void
+        Reads last length bytes written to the ring buffer into dest; Returns Error.ReadLengthInvalid if length greater than ring or dest length Uses memcpy and so dest must not overlap ring buffer data. Reduces write index by length.
+
+        pub fn readLastAssumeLength(self: *RingBuffer, dest: []u8, length: usize) void
+        Reads last length bytes written to the ring buffer into dest; Asserts that length not greater than ring buffer or dest length Uses memcpy and so dest must not overlap ring buffer data. Reduces write index by length.
+
+        pub fn sliceAt(self: RingBuffer, start_unmasked: usize, length: usize) Slice
+        Returns a Slice for the region of the ring buffer starting at self.mask(start_unmasked) with the specified length.
+
+        pub fn sliceLast(self: RingBuffer, length: usize) Slice
+        Returns a Slice for the last length bytes written to the ring buffer. Does not check that any bytes have been written into the region.
+
+        pub fn write(self: *RingBuffer, byte: u8) Error!void
+        Write byte into the ring buffer. Returns error.Full if the ring buffer is full.
+
+        pub fn writeAssumeCapacity(self: *RingBuffer, byte: u8) void
+        Write byte into the ring buffer. If the ring buffer is full, the oldest byte is overwritten.
+
+        pub fn writeSlice(self: *RingBuffer, bytes: []const u8) Error!void
+        Write bytes into the ring buffer. Returns error.Full if the ring buffer does not have enough space, without writing any data. Uses memcpy and so bytes must not overlap ring buffer data.
+
+        pub fn writeSliceAssumeCapacity(self: *RingBuffer, bytes: []const u8) void
+        Write bytes into the ring buffer. If there is not enough space, older bytes will be overwritten. Uses memcpy and so bytes must not overlap ring buffer data.
+
+        pub fn writeSliceForwards(self: *RingBuffer, bytes: []const u8) Error!void
+        Write bytes into the ring buffer. Returns error.Full if the ring buffer does not have enough space, without writing any data. Uses copyForwards and can write slices from this RingBuffer into itself.
+
+        pub fn writeSliceForwardsAssumeCapacity(self: *RingBuffer, bytes: []const u8) void
+        Write bytes into the ring buffer. If there is not enough space, older bytes will be overwritten. Uses copyForwards and can write slices from this RingBuffer into itself.
+    }
+
+    namespace xar {
+        Array :: struct($T: typeid, $SHIFT: uint) where 0 < SHIFT, SHIFT <= MAX_SHIFT {
+            … // See source for fields
+        }
+
+        An Exponential Array with stable element addresses.
+
+        Unlike [dynamic]T which reallocates and moves elements when growing, Array allocates separate chunks of exponentially increasing size. This guarantees that pointers to elements remain valid for the lifetime of the container.
+
+        Fields:
+        chunks: Fixed array of multi-pointers to allocated chunks
+        len: Number of elements currently stored
+        allocator: Allocator used for chunk allocations
+
+        Type Parameters:
+        T: The element type
+        SHIFT: Controls initial chunk size (1 << SHIFT). Must be in range (0, MAX_SHIFT].
+        Larger values mean fewer, bigger chunks. Recommended: 4-8.
+
+        Chunk sizes grow as:
+        chunks[0]: 1 << SHIFT elements
+        chunks[1]: 1 << SHIFT elements
+        chunks[2]: 1 << (SHIFT + 1) elements
+        chunks[3]: 1 << (SHIFT + 2) elements
+        chunks[4]: 1 << (SHIFT + 3) elements
+        ...and so on
+    }
+}
