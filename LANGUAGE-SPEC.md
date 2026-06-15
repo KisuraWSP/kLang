@@ -31,6 +31,7 @@
 31. JavaScript FFI is filesystem-only through `JSModule` and `JSCall` descriptors loaded from `.js` files.
 32. Variable destructuring can unpack Lists, Tables, Maps, and object fields through parser lowering into inferred declarations.
 33. `_` is a discard identifier for ignored values and can be reused without creating a binding.
+34. `lazy` variable declarations delay initializer evaluation until the binding is first accessed.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -39,6 +40,7 @@ Rules
 - `val` declares a global inferred immutable variable, and `var` declares a global inferred mutable variable.
 - `const` declares a strictly immutable inferred value in the current scope and requires an initializer.
 - Inferred declarations must have an initializer and are checked before runtime.
+- `lazy local`, `lazy global`, `lazy let`, `lazy val`, and `lazy var` declarations require an initializer and evaluate it on first access, caching the result afterward.
 - Destructuring declarations must have an initializer and lower to ordinary inferred declarations before semantic checking and runtime execution.
 - `_ = expression;` evaluates and discards an expression result. Declarations and destructuring bindings named `_` also discard their values instead of entering scope.
 - Multiple return signatures use `(name : Type, mut OtherType)` syntax and return values with `return left, right;`.

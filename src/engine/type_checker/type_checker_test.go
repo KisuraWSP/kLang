@@ -301,6 +301,40 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "discard assignment only supports =")
 }
 
+func TestCheckProgramAcceptsLazyVariableInitialization(t *testing.T) {
+	program := programFromSource(`
+function BuildCount() : Int {
+    return 10;
+}
+
+function Main() : Int {
+    lazy local Int count = BuildCount();
+    lazy let inferred = count + 1;
+    return inferred;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected lazy variable type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsLazyVariableTypeMismatch(t *testing.T) {
+	program := programFromSource(`
+function BuildCount() : Int {
+    return 10;
+}
+
+function Main() : String {
+    lazy local String count = BuildCount();
+    return count;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "cannot assign Int to local String count")
+}
+
 func TestCheckProgramAcceptsMultipleReturnsAnyAndPrivateInline(t *testing.T) {
 	program := programFromSource(`
 private inline function Pair() : (name : String, value : Int) {

@@ -100,6 +100,7 @@ func (lowerer *destructuringLowerer) lowerDestructuringStatement(stmt Destructur
 			Scope:      "local",
 			Inferred:   true,
 			Mutable:    false,
+			Lazy:       stmt.Lazy,
 			Type:       "T",
 			Name:       tempName,
 			Expression: stmt.Expression,
@@ -118,6 +119,7 @@ func (lowerer *destructuringLowerer) lowerPattern(stmt DestructuringStatement, p
 			Inferred:   true,
 			Exported:   stmt.Exported,
 			Mutable:    stmt.Mutable,
+			Lazy:       stmt.Lazy,
 			Type:       "T",
 			Name:       current.Name,
 			Expression: value,
@@ -126,6 +128,7 @@ func (lowerer *destructuringLowerer) lowerPattern(stmt DestructuringStatement, p
 			binding.Scope = "local"
 			binding.Exported = false
 			binding.Mutable = false
+			binding.Lazy = false
 		}
 		*lowered = append(*lowered, binding)
 	case DestructuringListPattern:
@@ -136,7 +139,7 @@ func (lowerer *destructuringLowerer) lowerPattern(stmt DestructuringStatement, p
 				continue
 			}
 			nestedTemp := lowerer.tempName()
-			*lowered = append(*lowered, tempVariable(stmt.Pos, nestedTemp, access))
+			*lowered = append(*lowered, tempVariable(stmt.Pos, nestedTemp, access, stmt.Lazy))
 			lowerer.lowerPattern(stmt, item, identifierExpression(nestedTemp), lowered)
 		}
 	case DestructuringObjectPattern:
@@ -147,7 +150,7 @@ func (lowerer *destructuringLowerer) lowerPattern(stmt DestructuringStatement, p
 				continue
 			}
 			nestedTemp := lowerer.tempName()
-			*lowered = append(*lowered, tempVariable(stmt.Pos, nestedTemp, access))
+			*lowered = append(*lowered, tempVariable(stmt.Pos, nestedTemp, access, stmt.Lazy))
 			lowerer.lowerPattern(stmt, field.Pattern, identifierExpression(nestedTemp), lowered)
 		}
 	}
@@ -163,12 +166,13 @@ func (lowerer *destructuringLowerer) tempName() string {
 	return name
 }
 
-func tempVariable(pos Position, name string, value Expression) VariableStatement {
+func tempVariable(pos Position, name string, value Expression, lazy bool) VariableStatement {
 	return VariableStatement{
 		Pos:        pos,
 		Scope:      "local",
 		Inferred:   true,
 		Mutable:    false,
+		Lazy:       lazy,
 		Type:       "T",
 		Name:       name,
 		Expression: value,

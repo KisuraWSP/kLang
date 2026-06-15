@@ -140,6 +140,7 @@ type VariableStatement struct {
 	Inferred   bool
 	Exported   bool
 	Mutable    bool
+	Lazy       bool
 	Type       string
 	Name       string
 	Expression Expression
@@ -150,6 +151,7 @@ type DestructuringStatement struct {
 	Scope      string
 	Exported   bool
 	Mutable    bool
+	Lazy       bool
 	Pattern    DestructuringPattern
 	Expression Expression
 }

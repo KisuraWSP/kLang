@@ -1071,6 +1071,64 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesLazyVariableInitializationOnDemand(t *testing.T) {
+	result := runParsedSource(t, `
+global mut Int calls = 0;
+
+function Mark() : Int {
+    calls += 1;
+    return 40 + calls;
+}
+
+function Main() : Int {
+    lazy local Int value = Mark();
+    local Int before = calls;
+    local Int first = value;
+    local Int second = value;
+    return before * 100 + first + second + calls;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 83 {
+		t.Fatalf("expected lazy variable program to return 83, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeDoesNotEvaluateUnusedLazyVariable(t *testing.T) {
+	result := runParsedSource(t, `
+global mut Int calls = 0;
+
+function Mark() : Int {
+    calls += 1;
+    return calls;
+}
+
+function Main() : Int {
+    lazy let value = Mark();
+    return calls;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 0 {
+		t.Fatalf("expected unused lazy variable program to return 0, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeMovesLazyVariableInitializerWhenForced(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : String {
+    local String value = "ready";
+    lazy local String moved = move value;
+    local String before = value;
+    return before + moved;
+}
+`)
+
+	if result.Value.Kind != ValueString || result.Value.Data.(string) != "readyready" {
+		t.Fatalf("expected lazy move program to return readyready, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeTailCallOptimizesSelfRecursion(t *testing.T) {
 	runtime := New()
 	runtime.maxDepth = 8

@@ -87,7 +87,7 @@ func (parser *Parser) parseStatement() Statement {
 	case lexer.TokenFunc:
 		return parser.parseFunction(false, "", false, false, false, false, false)
 	case lexer.TokenLazy:
-		return parser.parseLazyFunction()
+		return parser.parseLazy()
 	case lexer.TokenAsync:
 		return parser.parseAsyncFunction()
 	case lexer.TokenInner:
@@ -751,13 +751,33 @@ func (parser *Parser) parseTag() Statement {
 	return parser.parseFunction(true, message, false, false, false, false, false)
 }
 
-func (parser *Parser) parseLazyFunction() Statement {
+func (parser *Parser) parseLazy() Statement {
 	parser.consume(lexer.TokenLazy, "expected lazy")
-	if !parser.check(lexer.TokenFunc) {
-		parser.addError(parser.current(), "lazy must be followed by a function declaration")
+	switch parser.current().Type {
+	case lexer.TokenFunc:
+		return parser.parseFunction(false, "", true, false, false, false, false)
+	case lexer.TokenGlobal:
+		start := parser.advance()
+		return parser.parseVariableFromStart(start, "global", false, true)
+	case lexer.TokenLocal:
+		start := parser.advance()
+		return parser.parseVariableFromStart(start, "local", false, true)
+	case lexer.TokenLet:
+		start := parser.advance()
+		return parser.parseInferredVariableFromStart(start, "local", false, true, true)
+	case lexer.TokenVal:
+		start := parser.advance()
+		return parser.parseInferredVariableFromStart(start, "global", false, false, true)
+	case lexer.TokenVar:
+		start := parser.advance()
+		return parser.parseInferredVariableFromStart(start, "global", false, true, true)
+	case lexer.TokenConst:
+		parser.addError(parser.current(), "lazy const is not supported")
+		return nil
+	default:
+		parser.addError(parser.current(), "lazy must be followed by function, local, global, let, val, or var")
 		return nil
 	}
-	return parser.parseFunction(false, "", true, false, false, false, false)
 }
 
 func (parser *Parser) parseAsyncFunction() Statement {
@@ -965,10 +985,10 @@ func (parser *Parser) parseParameters() []Parameter {
 func (parser *Parser) parseExport() Statement {
 	start := parser.consume(lexer.TokenExport, "expected export")
 	if parser.check(lexer.TokenGlobal) {
-		return parser.parseVariableFromStart(start, "global", true)
+		return parser.parseVariableFromStart(start, "global", true, false)
 	}
 	if parser.check(lexer.TokenLocal) {
-		return parser.parseVariableFromStart(start, "local", true)
+		return parser.parseVariableFromStart(start, "local", true, false)
 	}
 	parser.addError(parser.current(), "expected local or global after export")
 	return nil
@@ -976,16 +996,16 @@ func (parser *Parser) parseExport() Statement {
 
 func (parser *Parser) parseVariable(scope string, exported bool) Statement {
 	start := parser.advance()
-	return parser.parseVariableFromStart(start, scope, exported)
+	return parser.parseVariableFromStart(start, scope, exported, false)
 }
 
-func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, exported bool) Statement {
+func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, exported bool, lazy bool) Statement {
 	if exported {
 		parser.consume(scopeToken(scope), fmt.Sprintf("expected %s after export", scope))
 	}
 	mutable := parser.match(lexer.TokenMut)
 	if parser.check(lexer.TokenLeftSquareBrace) || parser.check(lexer.TokenScopeBegin) {
-		return parser.parseDestructuringFromStart(start, scope, exported, mutable)
+		return parser.parseDestructuringFromStart(start, scope, exported, mutable, lazy)
 	}
 	if scope == "local" && parser.check(lexer.TokenIdentifier) && parser.peek().Type == lexer.TokenAssign {
 		name := parser.consume(lexer.TokenIdentifier, "expected variable name")
@@ -998,6 +1018,7 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 			Inferred:   true,
 			Exported:   exported,
 			Mutable:    mutable,
+			Lazy:       lazy,
 			Type:       "T",
 			Name:       name.Literal,
 			Expression: expr,
@@ -1009,6 +1030,9 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 	if parser.match(lexer.TokenAssign) {
 		expr = parser.parseExpressionUntil(lexer.TokenSemicolon)
 	}
+	if lazy && expr.Node == nil {
+		parser.addError(parser.current(), "lazy variable declarations require an initializer")
+	}
 	parser.consumeOptionalSemicolon()
 
 	return VariableStatement{
@@ -1016,6 +1040,7 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 		Scope:      scope,
 		Exported:   exported,
 		Mutable:    mutable,
+		Lazy:       lazy,
 		Type:       typeName,
 		Name:       name.Literal,
 		Expression: expr,
@@ -1024,12 +1049,16 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 
 func (parser *Parser) parseInferredVariable(scope string, constant bool, defaultMutable bool) Statement {
 	start := parser.advance()
+	return parser.parseInferredVariableFromStart(start, scope, constant, defaultMutable, false)
+}
+
+func (parser *Parser) parseInferredVariableFromStart(start lexer.Token, scope string, constant bool, defaultMutable bool, lazy bool) Statement {
 	mutable := defaultMutable
 	if scope == "local" {
 		mutable = parser.match(lexer.TokenMut)
 	}
 	if !constant && (parser.check(lexer.TokenLeftSquareBrace) || parser.check(lexer.TokenScopeBegin)) {
-		return parser.parseDestructuringFromStart(start, scope, false, mutable)
+		return parser.parseDestructuringFromStart(start, scope, false, mutable, lazy)
 	}
 	typeName := "T"
 	name := parser.consume(lexer.TokenIdentifier, "expected variable name")
@@ -1043,7 +1072,7 @@ func (parser *Parser) parseInferredVariable(scope string, constant bool, default
 	if !parser.match(lexer.TokenAssign) {
 		parser.addError(parser.current(), "inferred variable declarations require an initializer")
 		parser.consumeOptionalSemicolon()
-		return VariableStatement{Pos: positionFromToken(start), Scope: scope, Inferred: true, Mutable: mutable, Type: typeName, Name: name.Literal}
+		return VariableStatement{Pos: positionFromToken(start), Scope: scope, Inferred: true, Mutable: mutable, Lazy: lazy, Type: typeName, Name: name.Literal}
 	}
 	expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
 	parser.consumeOptionalSemicolon()
@@ -1052,6 +1081,7 @@ func (parser *Parser) parseInferredVariable(scope string, constant bool, default
 		Scope:      scope,
 		Inferred:   true,
 		Mutable:    mutable,
+		Lazy:       lazy,
 		Type:       typeName,
 		Name:       name.Literal,
 		Expression: expr,
@@ -1065,7 +1095,7 @@ func inferredExplicitType(typeName string) string {
 	return typeName
 }
 
-func (parser *Parser) parseDestructuringFromStart(start lexer.Token, scope string, exported bool, mutable bool) Statement {
+func (parser *Parser) parseDestructuringFromStart(start lexer.Token, scope string, exported bool, mutable bool, lazy bool) Statement {
 	pattern := parser.parseDestructuringPattern()
 	if pattern == nil {
 		parser.synchronize()
@@ -1074,7 +1104,7 @@ func (parser *Parser) parseDestructuringFromStart(start lexer.Token, scope strin
 	if !parser.match(lexer.TokenAssign) {
 		parser.addError(parser.current(), "destructuring declarations require an initializer")
 		parser.consumeOptionalSemicolon()
-		return DestructuringStatement{Pos: positionFromToken(start), Scope: scope, Exported: exported, Mutable: mutable, Pattern: pattern}
+		return DestructuringStatement{Pos: positionFromToken(start), Scope: scope, Exported: exported, Mutable: mutable, Lazy: lazy, Pattern: pattern}
 	}
 	expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
 	parser.consumeOptionalSemicolon()
@@ -1083,6 +1113,7 @@ func (parser *Parser) parseDestructuringFromStart(start lexer.Token, scope strin
 		Scope:      scope,
 		Exported:   exported,
 		Mutable:    mutable,
+		Lazy:       lazy,
 		Pattern:    pattern,
 		Expression: expr,
 	}

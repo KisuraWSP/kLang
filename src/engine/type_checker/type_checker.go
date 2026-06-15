@@ -602,7 +602,9 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 			if !current.Inferred && typeName == anyType && exprType != anyType {
 				inferredType = exprType
 			}
-			checker.markMovedFromExpression(current.Expression, locals)
+			if !current.Lazy {
+				checker.markMovedFromExpression(current.Expression, locals)
+			}
 		}
 		if isDiscardIdentifier(current.Name) {
 			return

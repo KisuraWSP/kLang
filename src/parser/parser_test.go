@@ -329,6 +329,37 @@ lazy function Choose(useFirst : Bool, first : Int, second : Int) : Int {
 	}
 }
 
+func TestParseLazyVariableDeclarations(t *testing.T) {
+	program, errors := Parse(`
+lazy local Int count = BuildCount();
+lazy let name = BuildName();
+lazy var shared = BuildShared();
+`)
+	assertNoParseErrors(t, errors)
+
+	cases := []struct {
+		index    int
+		name     string
+		scope    string
+		mutable  bool
+		inferred bool
+	}{
+		{0, "count", "local", false, false},
+		{1, "name", "local", false, true},
+		{2, "shared", "global", true, true},
+	}
+	for _, expected := range cases {
+		decl, ok := program.Statements[expected.index].(VariableStatement)
+		if !ok {
+			t.Fatalf("expected variable declaration at %d, got %T", expected.index, program.Statements[expected.index])
+		}
+		if !decl.Lazy || decl.Name != expected.name || decl.Scope != expected.scope ||
+			decl.Mutable != expected.mutable || decl.Inferred != expected.inferred || decl.Expression.Node == nil {
+			t.Fatalf("unexpected lazy variable declaration at %d: %#v", expected.index, decl)
+		}
+	}
+}
+
 func TestParseAsyncFunctionAndAwait(t *testing.T) {
 	program, errors := Parse(`
 async function LoadValue() : Int {

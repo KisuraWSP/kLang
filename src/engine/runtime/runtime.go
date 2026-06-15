@@ -582,20 +582,24 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 	case parser.VariableStatement:
 		value := zeroValue(current.Type)
 		if current.Expression.Node != nil {
-			var err error
-			value, err = runtime.evalExpression(current.Expression.Node, env)
-			if err != nil {
-				if thrown, ok := thrownValue(err); ok {
-					return signal{kind: signalThrow, value: thrown}, nil
+			if current.Lazy {
+				value = ThunkValue(current.Expression.Node, env)
+			} else {
+				var err error
+				value, err = runtime.evalExpression(current.Expression.Node, env)
+				if err != nil {
+					if thrown, ok := thrownValue(err); ok {
+						return signal{kind: signalThrow, value: thrown}, nil
+					}
+					return signal{}, err
 				}
-				return signal{}, err
 			}
 		}
 		if current.Type == "Table" && value.Kind == ValueMap {
 			value = TableValue(value.Data.(map[string]Value))
 		}
 		typeName := current.Type
-		if current.Inferred && typeName == "T" {
+		if current.Inferred && typeName == "T" && !current.Lazy {
 			typeName = runtimeTypeName(value)
 		}
 		if !valueMatchesType(value, typeName) {

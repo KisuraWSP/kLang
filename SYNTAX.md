@@ -28,6 +28,12 @@ let maybeCount = Some(69420);
 let mut maybeMutableCount = Some(10);
 maybeMutableCount = Some(11);
 
+-- lazy variables
+-- lazy declarations evaluate their initializer only when the value is first accessed.
+lazy local Int expensiveCount = BuildCount();
+lazy let cachedName = BuildName();
+lazy var sharedConfig = LoadConfig();
+
 -- destructuring declarations
 -- List patterns use zero-based indexing. Object patterns read fields by selector.
 local [first, second] = [1, 2];
