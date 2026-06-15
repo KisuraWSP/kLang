@@ -1,0 +1,38 @@
+import "list";
+
+function Main() : Int {
+    local List[Int] start = [3, 1, 2, 1];
+    local List[Int] appended = list.append(start, 4);
+    local List[Int] extended = list.extend(appended, [5, 6]);
+    local List[Int] inserted = list.insert(extended, 1, 9);
+    local Int oneCount = list.count(inserted, 1);
+    
+    local T counter = extended.count;
+    local Int nineIndex = list.index(inserted, 9);
+    local List[Int] popped = list.pop(inserted, 2);
+    local List[Int] removed = list.remove(popped, 1);
+    local List[Int] reversed = list.reverse(removed);
+    local List[Int] sorted = list.sort(reversed);
+    local List[Int] copied = list.copy(sorted);
+    local List[Int] cleared = list.clear(copied);
+
+    print("start", start);
+    print("appended", appended);
+    print("extended", extended);
+    print("inserted", inserted);
+    print("oneCount", oneCount);
+    print("counter", counter);
+    print("nineIndex", nineIndex);
+    print("popped", popped);
+    print("removed", removed);
+    print("reversed", reversed);
+    print("sorted", sorted);
+    print("copied", copied);
+    print("cleared", cleared);
+
+    if len(start) == 4 and len(appended) == 5 and len(extended) == 7 and len(inserted) == 8 and oneCount == 2 and nineIndex == 1 and len(cleared) == 0 {
+        return 0;
+    }
+
+    return 1;
+}

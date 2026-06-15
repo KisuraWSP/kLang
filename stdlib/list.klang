@@ -1,0 +1,177 @@
+-- Python-inspired list helpers expressed as plain stdlib functions.
+-- These functions return new lists instead of mutating the input list in place.
+
+namespace list {
+    --- Signature: function append(values : List[T], value : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Adds value at the end of values and returns the resulting list.
+    --- Contract: Preserve this function-style API; list operations are not methods.
+    function append(values : List[T], value : T) : List[T] {
+        local mut List[T] result = clone values;
+        result[len(result)] = value;
+        return result;
+    }
+
+    --- Signature: function clear(values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns an empty list with the same element type.
+    --- Contract: Preserve this function-style API; list operations are not methods.
+    function clear(values : List[T]) : List[T] {
+        local List[T] result;
+        return result;
+    }
+
+    --- Signature: function copy(values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns an eager copy of values.
+    --- Contract: Preserve this function-style API; list operations are not methods.
+    function copy(values : List[T]) : List[T] {
+        return copy values;
+    }
+
+    --- Signature: function count(values : List[T], value : T) : Int
+    --- Returns: Int.
+    --- Summary: Counts how many elements equal value.
+    --- Contract: Preserve this function-style API; list operations are not methods.
+    function count(values : List[T], value : T) : Int {
+        local mut Int total = 0;
+        local mut Int index = 0;
+        while index < len(values) {
+            if values[index] == value {
+                total += 1;
+            }
+            index += 1;
+        }
+        return total;
+    }
+
+    --- Signature: function extend(values : List[T], extra : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Adds every element from extra to the end of values.
+    --- Contract: Preserve this function-style API; list operations are not methods.
+    function extend(values : List[T], extra : List[T]) : List[T] {
+        local mut List[T] result = clone values;
+        local mut Int index = 0;
+        while index < len(extra) {
+            result[len(result)] = extra[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    --- Signature: function index(values : List[T], value : T) : Int
+    --- Returns: Int.
+    --- Summary: Returns the first index containing value, or -1 when missing.
+    --- Contract: Preserve this function-style API; list operations are not methods.
+    function index(values : List[T], value : T) : Int {
+        local mut Int index = 0;
+        while index < len(values) {
+            if values[index] == value {
+                return index;
+            }
+            index += 1;
+        }
+        return 0 - 1;
+    }
+
+    --- Signature: function insert(values : List[T], position : Int, value : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Adds value at position and returns the resulting list.
+    --- Contract: Preserve this function-style API; list operations are not methods.
+    function insert(values : List[T], position : Int, value : T) : List[T] {
+        local mut List[T] result;
+        local mut Bool inserted = False;
+        local mut Int index = 0;
+
+        if position <= 0 {
+            result[len(result)] = value;
+            inserted = True;
+        }
+
+        while index < len(values) {
+            if not inserted and index == position {
+                result[len(result)] = value;
+                inserted = True;
+            }
+            result[len(result)] = values[index];
+            index += 1;
+        }
+
+        if not inserted {
+            result[len(result)] = value;
+        }
+
+        return result;
+    }
+
+    --- Signature: function pop(values : List[T], position : Int) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns a list without the element at position.
+    --- Contract: Preserve this function-style API; list operations are not methods.
+    function pop(values : List[T], position : Int) : List[T] {
+        local mut List[T] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            if index != position {
+                result[len(result)] = values[index];
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    --- Signature: function remove(values : List[T], value : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Removes the first element equal to value.
+    --- Contract: Preserve this function-style API; list operations are not methods.
+    function remove(values : List[T], value : T) : List[T] {
+        local mut List[T] result;
+        local mut Bool removed = False;
+        local mut Int index = 0;
+        while index < len(values) {
+            if not removed and values[index] == value {
+                removed = True;
+            } else {
+                result[len(result)] = values[index];
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    --- Signature: function reverse(values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Reverses the order of values.
+    --- Contract: Preserve this function-style API; list operations are not methods.
+    function reverse(values : List[T]) : List[T] {
+        local mut List[T] result;
+        local mut Int index = len(values) - 1;
+        while index >= 0 {
+            result[len(result)] = values[index];
+            index -= 1;
+        }
+        return result;
+    }
+
+    --- Signature: function sort[T restrict[Int, Float, String]](values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Sorts Int, Float, or String lists in ascending order.
+    --- Contract: Preserve this function-style API; list operations are not methods.
+    function sort[T restrict[Int, Float, String]](values : List[T]) : List[T] {
+        local mut List[T] result = clone values;
+        local mut Int i = 0;
+        while i < len(result) {
+            local mut Int j = i + 1;
+            while j < len(result) {
+                if result[j] < result[i] {
+                    local T temp = result[i];
+                    result[i] = result[j];
+                    result[j] = temp;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        return result;
+    }
+}

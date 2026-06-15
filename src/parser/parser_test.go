@@ -894,6 +894,43 @@ func TestParseExpressionTreeForCallsSelectorsAndIndexes(t *testing.T) {
 	}
 }
 
+func TestParseFunctionAndSelectorNamedCopy(t *testing.T) {
+	program, errors := Parse(`
+namespace list {
+    function copy(values : List[T]) : List[T] {
+        return copy values;
+    }
+}
+
+function Main() : Int {
+    local List[Int] values = [1, 2, 3];
+    local List[Int] copied = list.copy(values);
+    return len(copied);
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	namespace, ok := program.Statements[0].(NamespaceStatement)
+	if !ok || namespace.Name != "list" {
+		t.Fatalf("expected list namespace, got %#v", program.Statements[0])
+	}
+	fn, ok := namespace.Body[0].(FunctionStatement)
+	if !ok || fn.Name != "copy" {
+		t.Fatalf("expected copy function, got %#v", namespace.Body[0])
+	}
+
+	mainFn := program.Statements[1].(FunctionStatement)
+	decl := mainFn.Body[1].(VariableStatement)
+	call, ok := decl.Expression.Node.(CallExpression)
+	if !ok {
+		t.Fatalf("expected call expression, got %#v", decl.Expression.Node)
+	}
+	selector, ok := call.Callee.(SelectorExpression)
+	if !ok || selector.Field != "copy" {
+		t.Fatalf("expected list.copy selector, got %#v", call.Callee)
+	}
+}
+
 func TestParseLambdaExpression(t *testing.T) {
 	program, errors := Parse(`
 local Function[Int, Int] increment = fun(value : Int) : Int {

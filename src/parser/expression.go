@@ -283,7 +283,7 @@ func (parser *expressionParser) parseIndex(target ExpressionNode) ExpressionNode
 func (parser *expressionParser) parseSelector(target ExpressionNode) ExpressionNode {
 	parser.advance()
 	field := parser.advance()
-	if field.Type != lexer.TokenIdentifier {
+	if field.Type != lexer.TokenIdentifier && field.Type != lexer.TokenCopy && field.Type != lexer.TokenClone {
 		return nil
 	}
 	return SelectorExpression{Target: target, Field: field.Literal}

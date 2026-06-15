@@ -839,7 +839,7 @@ func (parser *Parser) parseInnerFunction() Statement {
 
 func (parser *Parser) parseFunction(deprecated bool, deprecationMessage string, lazy bool, async bool, inner bool, inline bool, private bool) Statement {
 	start := parser.consume(lexer.TokenFunc, "expected function")
-	name := parser.consume(lexer.TokenIdentifier, "expected function name")
+	name := parser.consumeFunctionName("expected function name")
 	typeParams := parser.parseTypeParameters()
 	parser.consume(lexer.TokenLeftBrace, "expected '(' after function name")
 	params := parser.parseParameters()
@@ -1634,6 +1634,15 @@ func (parser *Parser) consume(expected lexer.TokenType, message string) lexer.To
 func (parser *Parser) consumeIdentifierLike(message string) lexer.Token {
 	if parser.check(lexer.TokenIdentifier) || parser.check(lexer.TokenLet) || parser.check(lexer.TokenVar) ||
 		parser.check(lexer.TokenVal) || parser.check(lexer.TokenConst) {
+		return parser.advance()
+	}
+	token := parser.current()
+	parser.addError(token, message)
+	return lexer.Token{Type: lexer.TokenIdentifier, Line: token.Line, Column: token.Column}
+}
+
+func (parser *Parser) consumeFunctionName(message string) lexer.Token {
+	if parser.check(lexer.TokenIdentifier) || parser.check(lexer.TokenCopy) || parser.check(lexer.TokenClone) {
 		return parser.advance()
 	}
 	token := parser.current()
