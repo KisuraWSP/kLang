@@ -2,6 +2,38 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- Make The types that the Langauge implements as Parent Types
+   - To make the parent return a child type we do the below
+   ```go
+      Int (64 bits by default)
+      - i8  
+      - i16  
+      - i32  
+      - i64
+
+      Uint (64 bits by default)
+      - u8 
+      - u16 
+      - u32 
+      - u64
+
+      Float (64 bits by default) 
+      - float32 
+      - float64
+
+      Complex (128 bits by default)
+      - complex64 
+      - complex128
+   ```
+   ```lua
+      -- in the langauge there is a module called types.klang which contained simplfied definitions of the types for your use no import statement is necessary
+      -- need to tell the programming langauge that this file is global to every module and program/project
+      
+      -- this is in the langauge by default
+      -- .child method restricts the Parent type to this amount
+      -- so if .child(8) means the type can only contain 8 bits of information
+      local x : Int.child(8);
+   ```
 - Implement some sort of a lookup table for calling functions in modules in stdlib instead of calling the entire module unless user specifies in code as below like we only need to call one specific function not all of them
 ```lua
 module_caller(call_entire_module : True);

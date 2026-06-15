@@ -1,0 +1,17 @@
+global namespace types {
+    alias i8 = Int.child(8);
+    alias i16 = Int.child(16);
+    alias i32 = Int.child(32);
+    alias i64 = Int.child(64);
+
+    alias u8 = UInt.child(8);
+    alias u16 = UInt.child(16);
+    alias u32 = UInt.child(32);
+    alias u64 = UInt.child(64);
+
+    alias float32 = 
+    alias float64 = 
+
+    alias complex64 = Complex.child(64);
+    alias complex128 = Complex.child(128);
+}
