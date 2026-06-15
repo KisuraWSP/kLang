@@ -179,6 +179,10 @@ func (lexer *Lexer) readNumber() (string, TokenType) {
 		}
 	}
 
+	if lexer.ch == '.' && isLetter(lexer.peekChar()) {
+		return lexer.input[position:lexer.position], tokenType
+	}
+
 	if lexer.ch == '.' || isLetter(lexer.ch) {
 		for lexer.ch == '.' || isLetter(lexer.ch) || isDigit(lexer.ch) {
 			lexer.readChar()

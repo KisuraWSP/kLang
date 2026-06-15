@@ -78,6 +78,21 @@ func TestLexerTokenizesInferredVariableKeywords(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesNumberSelectors(t *testing.T) {
+	input := `5.times(Callback);`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenInt, Literal: "5"},
+		{Type: TokenDot, Literal: "."},
+		{Type: TokenIdentifier, Literal: "times"},
+		{Type: TokenLeftBrace, Literal: "("},
+		{Type: TokenIdentifier, Literal: "Callback"},
+		{Type: TokenRightBrace, Literal: ")"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesPrivateInlineDeferAndHereString(t *testing.T) {
 	input := "private inline function Hidden() : String { defer print(\"done\"); let html = //\n<section>\n    hi\n</section>\n//;\nreturn html;\n}"
 

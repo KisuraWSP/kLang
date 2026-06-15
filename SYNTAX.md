@@ -59,6 +59,22 @@ const intSize = Int.sizeof;
 -- The optional size marker maps the declaration type to Int.
 let size intSizeAlias = Int.sizeof;
 
+-- shared builtin protocols
+-- Collection-like values expose the same .count property.
+local Int textCount = "hallo".count;
+local Int listCount = [1, 2, 3].count;
+
+-- Strings and chars expose case conversion methods.
+local String loud = "hallo".uppercase();
+local Char firstLetter = 'k'.uppercase();
+
+-- Integers can call a callback once for each zero-based index.
+function RememberIndex(index : Int) : Int {
+    return index;
+}
+
+local Int lastIndex = 5.times(RememberIndex);
+
 -- lvalues and rvalues
 -- Only variables and indexed mutable variables can be assigned to.
 -- Computed expressions, literals, function calls, and string indexes are rvalues.

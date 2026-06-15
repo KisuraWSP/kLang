@@ -1771,6 +1771,38 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "pattern match value must be Bool, String, Int, or Float, got Table")
 }
 
+func TestCheckProgramAcceptsBuiltinProtocolMembers(t *testing.T) {
+	program := programFromSource(`
+function Remember(index : Int) : Int {
+    return index;
+}
+
+function Main() : Int {
+    local Int textCount = "hallo".count;
+    local Int listCount = [1, 2, 3].count;
+    local String upper = "hallo".uppercase();
+    local String lower = upper.lowercase();
+    local Int last = 3.times(Remember);
+    return textCount + listCount + len(upper) + len(lower) + last;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected builtin protocol members to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsInvalidBuiltinProtocolMethodArgument(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    return 3.times("bad");
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "callback 3.times argument 1 expects Function[Int,T], got String")
+}
+
 func programFromSource(source string) file.Program {
 	lines := strings.Split(strings.TrimSpace(source), "\n")
 	return file.Program{

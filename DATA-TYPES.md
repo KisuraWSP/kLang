@@ -38,3 +38,8 @@
 
 All builtin type names expose a compile-time size query through `.sizeof`, which returns an `Int`.
 For example, `Int.sizeof` returns the runtime size used for an `Int` value.
+
+Builtin values expose a small shared protocol surface through selector syntax:
+- `String`, `List[T]`, `Map[K, V]`, `Table`, `SIMD[T]`, and `Iterator[T]` provide `.count : Int`.
+- `String` and `Char` provide `.uppercase()` and `.lowercase()`.
+- `Int` and `UInt` provide `.times(callback : Function[Int, T])`, which calls the callback for each zero-based index and returns the callback's last result.

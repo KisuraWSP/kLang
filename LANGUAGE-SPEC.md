@@ -32,6 +32,7 @@
 32. Variable destructuring can unpack Lists, Tables, Maps, and object fields through parser lowering into inferred declarations.
 33. `_` is a discard identifier for ignored values and can be reused without creating a binding.
 34. `lazy` variable declarations delay initializer evaluation until the binding is first accessed.
+35. Builtin values participate in shared selector protocols: collection-like values expose `.count`, strings/chars expose case conversion methods, and integer values expose `.times(callback)`.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -67,3 +68,4 @@ Rules
 - CLI `serve` and package `--serve` start a built-in static web server for the generated WASM runtime bundle so users can run projects in a browser without manually shipping files first.
 - The stdlib `html` module renders escaped text, attributes, fragments, documents, and named HTML tags as strings for browser/WASM-oriented programs.
 - JavaScript FFI can load and describe local `.js` files, expose discovered exports, and create call descriptors without executing JavaScript inside the interpreter.
+- Shared builtin protocols are statically checked and runtime-backed. `.count` is available on `String`, `List`, `Map`, `Table`, `SIMD`, and `Iterator`; `.uppercase()` and `.lowercase()` are available on `String` and `Char`; `.times(callback)` is available on `Int` and `UInt` and invokes the callback with indexes from `0` to `receiver - 1`.

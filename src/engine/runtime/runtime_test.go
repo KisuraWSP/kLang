@@ -1786,6 +1786,29 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeSupportsBuiltinProtocolMembers(t *testing.T) {
+	result := runParsedSource(t, `
+function Remember(index : Int) : Int {
+    return index + 10;
+}
+
+function Main() : Int {
+    local String upper = "hallo".uppercase();
+    local String lower = upper.lowercase();
+    local Char letter = 'k'.uppercase();
+    local Int last = 3.times(Remember);
+    if letter != 'K' {
+        return 0;
+    }
+    return upper.count + lower.count + [1, 2, 3].count + last;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 25 {
+		t.Fatalf("expected builtin protocol members to return 25, got %#v", result.Value)
+	}
+}
+
 func runSource(t *testing.T, source string) Result {
 	t.Helper()
 

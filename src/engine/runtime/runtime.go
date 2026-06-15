@@ -1351,6 +1351,14 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			}
 			return NullValue(), Error{Message: fmt.Sprintf("unknown Result field %q", current.Field)}
 		}
+		if err == nil {
+			if field, ok := builtinProtocolField(value, current.Field); ok {
+				return field, nil
+			}
+			if builtinProtocolMethodExists(value, current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
+			}
+		}
 		if err == nil && value.Kind == ValueObject {
 			object := value.Data.(ObjectData)
 			if field, ok := object.Fields[current.Field]; ok {
@@ -2495,6 +2503,18 @@ func (runtime *Runtime) aliasMethodExists(typeName string, methodName string) bo
 }
 
 func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parser.ExpressionNode, env *Environment) (Value, error) {
+	if builtinProtocolMethodExists(method.Receiver, method.Name) {
+		args := make([]Value, 0, len(argNodes))
+		for _, arg := range argNodes {
+			value, err := runtime.evalExpression(arg, env)
+			if err != nil {
+				return NullValue(), err
+			}
+			args = append(args, value)
+		}
+		return runtime.callBuiltinProtocolMethod(method, args)
+	}
+
 	alias := runtime.aliasFunctions[method.Type]
 	for _, fn := range alias.Methods {
 		if fn.Name != method.Name {
@@ -2542,6 +2562,76 @@ func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parse
 			return signal.value, nil
 		}
 		return NullValue(), nil
+	}
+	return NullValue(), Error{Message: fmt.Sprintf("unknown method %s.%s", method.Type, method.Name)}
+}
+
+func builtinProtocolField(value Value, field string) (Value, bool) {
+	switch field {
+	case "count":
+		length, err := valueLen(value)
+		if err != nil {
+			return NullValue(), false
+		}
+		return IntValue(length), true
+	default:
+		return NullValue(), false
+	}
+}
+
+func builtinProtocolMethodExists(value Value, method string) bool {
+	switch value.Kind {
+	case ValueString, ValueChar:
+		return method == "uppercase" || method == "lowercase"
+	case ValueInt:
+		return method == "times"
+	default:
+		return false
+	}
+}
+
+func (runtime *Runtime) callBuiltinProtocolMethod(method BoundMethodData, args []Value) (Value, error) {
+	switch method.Name {
+	case "uppercase":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: fmt.Sprintf("method %s.%s expects 0 argument(s), got %d", method.Type, method.Name, len(args))}
+		}
+		switch method.Receiver.Kind {
+		case ValueString:
+			return StringValue(strings.ToUpper(method.Receiver.Data.(string))), nil
+		case ValueChar:
+			return CharValue(strings.ToUpper(method.Receiver.Data.(string))), nil
+		}
+	case "lowercase":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: fmt.Sprintf("method %s.%s expects 0 argument(s), got %d", method.Type, method.Name, len(args))}
+		}
+		switch method.Receiver.Kind {
+		case ValueString:
+			return StringValue(strings.ToLower(method.Receiver.Data.(string))), nil
+		case ValueChar:
+			return CharValue(strings.ToLower(method.Receiver.Data.(string))), nil
+		}
+	case "times":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: fmt.Sprintf("method %s.%s expects 1 argument(s), got %d", method.Type, method.Name, len(args))}
+		}
+		if method.Receiver.Kind != ValueInt || args[0].Kind != ValueFunction {
+			return NullValue(), Error{Message: fmt.Sprintf("method %s.%s expects Function[Int,T]", method.Type, method.Name)}
+		}
+		count := method.Receiver.Data.(int)
+		if count < 0 {
+			return NullValue(), Error{Message: "Int.times expects a non-negative receiver"}
+		}
+		result := NullValue()
+		for index := 0; index < count; index++ {
+			value, err := runtime.callFunction(args[0].Data.(string), []Value{IntValue(index)})
+			if err != nil {
+				return NullValue(), err
+			}
+			result = value
+		}
+		return result, nil
 	}
 	return NullValue(), Error{Message: fmt.Sprintf("unknown method %s.%s", method.Type, method.Name)}
 }

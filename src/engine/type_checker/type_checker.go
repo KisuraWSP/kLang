@@ -1882,6 +1882,12 @@ func (checker *TypeChecker) selectorFieldType(targetType string, fieldName strin
 	if methodType, ok := checker.aliasMethodType(targetType, fieldName); ok {
 		return methodType, true
 	}
+	if fieldType, ok := builtinProtocolFieldType(targetType, fieldName); ok {
+		return fieldType, true
+	}
+	if methodType, ok := builtinProtocolMethodType(targetType, fieldName); ok {
+		return methodType, true
+	}
 	if optionType, ok := optionElementType(targetType); ok {
 		switch fieldName {
 		case "value":
@@ -1896,6 +1902,36 @@ func (checker *TypeChecker) selectorFieldType(targetType string, fieldName strin
 			return okType, true
 		case "ok":
 			return "Bool", true
+		}
+	}
+	return "", false
+}
+
+func builtinProtocolFieldType(targetType string, fieldName string) (string, bool) {
+	targetType = normalizeType(targetType)
+	if fieldName != "count" {
+		return "", false
+	}
+	if targetType == "String" || targetType == "Table" ||
+		strings.HasPrefix(targetType, "List[") ||
+		strings.HasPrefix(targetType, "Map[") ||
+		strings.HasPrefix(targetType, "SIMD[") ||
+		strings.HasPrefix(targetType, "Iterator[") {
+		return "Int", true
+	}
+	return "", false
+}
+
+func builtinProtocolMethodType(targetType string, methodName string) (string, bool) {
+	targetType = normalizeType(targetType)
+	switch methodName {
+	case "uppercase", "lowercase":
+		if targetType == "String" || targetType == "Char" {
+			return "Function[" + targetType + "]", true
+		}
+	case "times":
+		if targetType == "Int" || targetType == "UInt" {
+			return "Function[Function[Int,T],T]", true
 		}
 	}
 	return "", false
@@ -2517,6 +2553,10 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 				targetType = targetSymbol.InferredType
 			}
 			if methodType, methodOK := checker.aliasMethodType(targetType, methodName); methodOK {
+				paramTypes, returnType, _ := functionValueType(methodType)
+				return checker.checkCallbackCall(name, paramTypes, returnType, args, locals, source, line)
+			}
+			if methodType, methodOK := builtinProtocolMethodType(targetType, methodName); methodOK {
 				paramTypes, returnType, _ := functionValueType(methodType)
 				return checker.checkCallbackCall(name, paramTypes, returnType, args, locals, source, line)
 			}
