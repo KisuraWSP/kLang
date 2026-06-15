@@ -604,6 +604,9 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 			}
 			checker.markMovedFromExpression(current.Expression, locals)
 		}
+		if isDiscardIdentifier(current.Name) {
+			return
+		}
 		locals[current.Name] = variableSymbol{
 			Name:         current.Name,
 			Type:         typeName,
@@ -853,6 +856,9 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 		switch current := stmt.(type) {
 		case parser.VariableStatement:
 			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
+			if isDiscardIdentifier(current.Name) {
+				continue
+			}
 			typeName := normalizeType(current.Type)
 			if current.Inferred && typeName == anyType {
 				typeName = checker.nullSafetyExpressionType(current.Expression.Node, env)
@@ -1542,6 +1548,15 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 	targetType := ""
 	targetName := ""
 
+	if isDiscardIdentifier(baseName) {
+		if assignment.Op != "=" {
+			checker.addError(source, line, "discard assignment only supports =")
+			return
+		}
+		checker.inferExpression(assignment.Expr, locals, source, line)
+		return
+	}
+
 	if targetExpr, indexExpr, ok := splitTrailingIndexExpression(baseName); ok {
 		baseName = strings.TrimSpace(targetExpr)
 		targetName = baseName
@@ -1604,6 +1619,10 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 			locals[targetName] = variable
 		}
 	}
+}
+
+func isDiscardIdentifier(name string) bool {
+	return strings.TrimSpace(name) == "_"
 }
 
 func (checker *TypeChecker) inferExpression(expr string, locals map[string]variableSymbol, source string, line int) string {

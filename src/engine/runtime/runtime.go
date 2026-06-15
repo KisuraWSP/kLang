@@ -601,6 +601,9 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		if !valueMatchesType(value, typeName) {
 			return signal{}, errorAt(current.Pos, fmt.Sprintf("cannot assign %s to %s variable %q", value.Kind, typeName, current.Name))
 		}
+		if isDiscardIdentifier(current.Name) {
+			return signal{kind: signalNone}, nil
+		}
 		targetEnv := env
 		region := MemoryStack
 		if current.Scope == "global" || current.Exported {
@@ -1128,6 +1131,12 @@ func (runtime *Runtime) executeAssignment(stmt parser.AssignmentStatement, env *
 	if !ok {
 		return Error{Message: "assignment target must be an lvalue"}
 	}
+	if isDiscardIdentifier(identifier.Name) {
+		if stmt.Operator != "=" {
+			return Error{Message: "discard assignment only supports ="}
+		}
+		return nil
+	}
 
 	binding, ok := env.Get(identifier.Name)
 	if !ok {
@@ -1154,6 +1163,10 @@ func (runtime *Runtime) executeAssignment(stmt parser.AssignmentStatement, env *
 		runtime.storeBindingValueLocked(binding, next)
 		return nil
 	})
+}
+
+func isDiscardIdentifier(name string) bool {
+	return name == "_"
 }
 
 func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator string, value Value, env *Environment) error {

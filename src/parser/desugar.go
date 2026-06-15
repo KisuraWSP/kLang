@@ -112,7 +112,7 @@ func (lowerer *destructuringLowerer) lowerDestructuringStatement(stmt Destructur
 func (lowerer *destructuringLowerer) lowerPattern(stmt DestructuringStatement, pattern DestructuringPattern, value Expression, lowered *[]Statement) {
 	switch current := pattern.(type) {
 	case DestructuringBinding:
-		*lowered = append(*lowered, VariableStatement{
+		binding := VariableStatement{
 			Pos:        stmt.Pos,
 			Scope:      stmt.Scope,
 			Inferred:   true,
@@ -121,7 +121,13 @@ func (lowerer *destructuringLowerer) lowerPattern(stmt DestructuringStatement, p
 			Type:       "T",
 			Name:       current.Name,
 			Expression: value,
-		})
+		}
+		if isDiscardName(current.Name) {
+			binding.Scope = "local"
+			binding.Exported = false
+			binding.Mutable = false
+		}
+		*lowered = append(*lowered, binding)
 	case DestructuringListPattern:
 		for index, item := range current.Items {
 			access := indexExpression(value, index)
@@ -145,6 +151,10 @@ func (lowerer *destructuringLowerer) lowerPattern(stmt DestructuringStatement, p
 			lowerer.lowerPattern(stmt, field.Pattern, identifierExpression(nestedTemp), lowered)
 		}
 	}
+}
+
+func isDiscardName(name string) bool {
+	return name == "_"
 }
 
 func (lowerer *destructuringLowerer) tempName() string {

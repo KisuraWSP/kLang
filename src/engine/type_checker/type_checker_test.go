@@ -257,6 +257,50 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "cannot assign String to Int")
 }
 
+func TestCheckProgramAcceptsDiscardIdentifierReuse(t *testing.T) {
+	program := programFromSource(`
+function Value() : Int {
+    return 1;
+}
+
+function Main() : Int {
+    _ = Value();
+    _ = Value();
+    local _ = Value();
+    let _ = Value();
+    local [_, kept, _] = [1, 2, 3];
+    return kept;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected discard identifier type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsDiscardIdentifierRead(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local _ = 1;
+    return _;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `unknown identifier "_"`)
+}
+
+func TestCheckProgramRejectsDiscardCompoundAssignment(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    _ += 1;
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "discard assignment only supports =")
+}
+
 func TestCheckProgramAcceptsMultipleReturnsAnyAndPrivateInline(t *testing.T) {
 	program := programFromSource(`
 private inline function Pair() : (name : String, value : Int) {

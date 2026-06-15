@@ -159,6 +159,29 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesDiscardIdentifier(t *testing.T) {
+	result := runParsedSource(t, `
+global mut Int calls = 0;
+
+function Mark() : Int {
+    calls += 1;
+    return calls;
+}
+
+function Main() : Int {
+    _ = Mark();
+    _ = Mark();
+    local _ = Mark();
+    local [_, kept, _] = [10, 20, 30];
+    return calls + kept;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 23 {
+		t.Fatalf("expected discard identifier program to return 23, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeRejectsMissingIndexedCompoundAssignmentTargets(t *testing.T) {
 	_, listErr := runParsedSourceWithError(`
 function Main() : Int {

@@ -34,6 +34,12 @@ local [first, second] = [1, 2];
 let {name, count: total} = data;
 local mut [head, [left, right]] = pairs;
 
+-- discard identifier
+-- _ evaluates and ignores a value without creating a binding, and can be reused.
+_ = LogEvent();
+local _ = BuildTemporaryValue();
+local [_, selected, _] = [1, 2, 3];
+
 -- inferred global variables
 -- val is immutable, while var is mutable.
 val globalMaybeCount = Some(69420);

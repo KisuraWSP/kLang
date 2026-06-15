@@ -23,6 +23,9 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 	for _, stmt := range statements {
 		switch current := stmt.(type) {
 		case parser.VariableStatement:
+			if isDiscardIdentifier(current.Name) {
+				continue
+			}
 			if current.Scope == "const" && !topLevel {
 				continue
 			}
@@ -179,6 +182,9 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		checker.checkFunctionScope(current, scope, namespace, source)
 	case parser.VariableStatement:
 		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
+		if isDiscardIdentifier(current.Name) {
+			return
+		}
 		if current.Scope == "const" && topLevel {
 			return
 		}
@@ -409,6 +415,9 @@ func (checker *TypeChecker) checkLoopHeaderPart(expr parser.Expression, loopScop
 func (checker *TypeChecker) checkAssignmentTargetScope(target parser.ExpressionNode, scope *lexicalScope, namespace string, source string, line int) {
 	switch current := target.(type) {
 	case parser.IdentifierExpression:
+		if isDiscardIdentifier(current.Name) {
+			return
+		}
 		if _, ok := scope.lookup(current.Name); !ok {
 			checker.addError(source, line, fmt.Sprintf("cannot assign to unknown variable %q", current.Name))
 		}
