@@ -93,6 +93,15 @@ func TestLexerTokenizesNumberSelectors(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesEnumDeclarations(t *testing.T) {
+	input := `enum Color { Red; Blue = 4; Green; }`
+
+	tokens := New(input).Tokenize()
+	if tokens[0].Type != TokenEnum || tokens[0].Literal != "enum" {
+		t.Fatalf("expected enum keyword token, got %#v", tokens[0])
+	}
+}
+
 func TestLexerTokenizesPrivateInlineDeferAndHereString(t *testing.T) {
 	input := "private inline function Hidden() : String { defer print(\"done\"); let html = //\n<section>\n    hi\n</section>\n//;\nreturn html;\n}"
 

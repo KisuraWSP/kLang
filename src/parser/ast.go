@@ -93,6 +93,18 @@ type ImplStatement struct {
 	Methods []FunctionStatement
 }
 
+type EnumStatement struct {
+	Pos      Position
+	Name     string
+	Variants []EnumVariant
+}
+
+type EnumVariant struct {
+	Pos     Position
+	Name    string
+	Ordinal int
+}
+
 type FunctionGroupStatement struct {
 	Pos       Position
 	Name      string
@@ -364,6 +376,7 @@ func (stmt AliasFunctionStatement) statementNode() {
 func (stmt NamespaceStatement) statementNode() {}
 func (stmt TraitStatement) statementNode()     {}
 func (stmt ImplStatement) statementNode()      {}
+func (stmt EnumStatement) statementNode()      {}
 func (stmt FunctionGroupStatement) statementNode() {
 }
 func (stmt FunctionStatement) statementNode() {}
@@ -396,6 +409,7 @@ func (stmt AliasFunctionStatement) Position() Position {
 func (stmt NamespaceStatement) Position() Position { return stmt.Pos }
 func (stmt TraitStatement) Position() Position     { return stmt.Pos }
 func (stmt ImplStatement) Position() Position      { return stmt.Pos }
+func (stmt EnumStatement) Position() Position      { return stmt.Pos }
 func (stmt FunctionGroupStatement) Position() Position {
 	return stmt.Pos
 }

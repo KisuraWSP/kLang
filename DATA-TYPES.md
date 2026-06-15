@@ -35,6 +35,7 @@
 34. WorkSpace // Meta workspace combining Program and BuildSystem
 35. JSModule // Filesystem-only JavaScript module descriptor loaded from a .js file
 36. JSCall // Filesystem-only JavaScript API call descriptor
+37. Enum // User-defined typed ordinal enum values declared with `enum`
 
 All builtin type names expose a compile-time size query through `.sizeof`, which returns an `Int`.
 For example, `Int.sizeof` returns the runtime size used for an `Int` value.
@@ -43,3 +44,5 @@ Builtin values expose a small shared protocol surface through selector syntax:
 - `String`, `List[T]`, `Map[K, V]`, `Table`, `SIMD[T]`, and `Iterator[T]` provide `.count : Int`.
 - `String` and `Char` provide `.uppercase()` and `.lowercase()`.
 - `Int` and `UInt` provide `.times(callback : Function[Int, T])`, which calls the callback for each zero-based index and returns the callback's last result.
+
+User-defined `enum` declarations create typed ordinal values inspired by Go `const`/`iota` enums. Variants are selected as `EnumName.Variant`, compare only with variants from the same enum type, and expose `.ordinal`, `.name`, and `.variant`.

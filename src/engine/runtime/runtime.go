@@ -37,6 +37,7 @@ const (
 	ValueCoroutine   ValueKind = "Coroutine"
 	ValueThread      ValueKind = "Thread"
 	ValueAtomic      ValueKind = "Atomic"
+	ValueEnum        ValueKind = "Enum"
 	ValueFunction    ValueKind = "Function"
 	ValueObject      ValueKind = "Object"
 	ValueBoundMethod ValueKind = "BoundMethod"
@@ -95,6 +96,12 @@ type ThreadData struct {
 type AtomicData struct {
 	Mutex sync.Mutex
 	Value Value
+}
+
+type EnumData struct {
+	Type    string
+	Variant string
+	Ordinal int
 }
 
 type ThunkData struct {
@@ -171,6 +178,7 @@ type Runtime struct {
 	global         *Environment
 	functions      map[string]parser.FunctionStatement
 	aliasFunctions map[string]parser.AliasFunctionStatement
+	enums          map[string]parser.EnumStatement
 	regions        map[string]RegionData
 	groups         map[string][]string
 	closures       map[string]*Environment
@@ -197,6 +205,7 @@ func New() *Runtime {
 		global:         NewEnvironment(nil),
 		functions:      map[string]parser.FunctionStatement{},
 		aliasFunctions: map[string]parser.AliasFunctionStatement{},
+		enums:          map[string]parser.EnumStatement{},
 		regions:        map[string]RegionData{},
 		groups:         map[string][]string{},
 		closures:       map[string]*Environment{},
@@ -297,6 +306,7 @@ func (runtime *Runtime) childRuntime() *Runtime {
 		global:         runtime.global,
 		functions:      cloneFunctionMap(runtime.functions),
 		aliasFunctions: cloneAliasFunctionMap(runtime.aliasFunctions),
+		enums:          cloneEnumMap(runtime.enums),
 		regions:        cloneRegionMap(runtime.regions),
 		groups:         cloneGroupMap(runtime.groups),
 		closures:       cloneClosureMap(runtime.closures),
@@ -318,6 +328,14 @@ func cloneFunctionMap(items map[string]parser.FunctionStatement) map[string]pars
 
 func cloneAliasFunctionMap(items map[string]parser.AliasFunctionStatement) map[string]parser.AliasFunctionStatement {
 	copied := make(map[string]parser.AliasFunctionStatement, len(items))
+	for key, value := range items {
+		copied[key] = value
+	}
+	return copied
+}
+
+func cloneEnumMap(items map[string]parser.EnumStatement) map[string]parser.EnumStatement {
+	copied := make(map[string]parser.EnumStatement, len(items))
 	for key, value := range items {
 		copied[key] = value
 	}
@@ -373,6 +391,11 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 			return errorAt(current.Pos, fmt.Sprintf("alias function %q is already defined", current.Name))
 		}
 		runtime.aliasFunctions[current.Name] = current
+	case parser.EnumStatement:
+		if _, exists := runtime.enums[current.Name]; exists {
+			return errorAt(current.Pos, fmt.Sprintf("enum %q is already defined", current.Name))
+		}
+		runtime.enums[current.Name] = current
 	case parser.FunctionStatement:
 		name := namespace + current.Name
 		if _, exists := runtime.functions[name]; exists {
@@ -559,6 +582,8 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		runtime.regions[current.Name] = RegionData{Name: current.Name, TypeName: current.TypeName, Size: size, Count: count}
 		return signal{kind: signalNone}, nil
 	case parser.AliasFunctionStatement:
+		return signal{kind: signalNone}, nil
+	case parser.EnumStatement:
 		return signal{kind: signalNone}, nil
 	case parser.FunctionGroupStatement:
 		return signal{kind: signalNone}, nil
@@ -932,7 +957,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 
 func isRuntimePatternMatchValue(value Value) bool {
 	switch value.Kind {
-	case ValueBool, ValueString, ValueInt, ValueFloat:
+	case ValueBool, ValueString, ValueInt, ValueFloat, ValueEnum:
 		return true
 	default:
 		return false
@@ -952,6 +977,10 @@ func valuesEqual(left Value, right Value) bool {
 		return left.Data.(int) == right.Data.(int)
 	case ValueFloat:
 		return left.Data.(float64) == right.Data.(float64)
+	case ValueEnum:
+		leftData := left.Data.(EnumData)
+		rightData := right.Data.(EnumData)
+		return leftData.Type == rightData.Type && leftData.Variant == rightData.Variant
 	default:
 		return false
 	}
@@ -1319,6 +1348,11 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 				return IntValue(size), nil
 			}
 		}
+		if target, ok := current.Target.(parser.IdentifierExpression); ok {
+			if value, ok := runtime.enumVariantValue(target.Name, current.Field); ok {
+				return value, nil
+			}
+		}
 		value, err := runtime.evalExpression(current.Target, env)
 		if err == nil && value.Kind == ValueFunction {
 			return FunctionValue(runtime.resolveAliasPath(value.Data.(string)) + "." + current.Field), nil
@@ -1350,6 +1384,16 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 				return BoolValue(result.Ok), nil
 			}
 			return NullValue(), Error{Message: fmt.Sprintf("unknown Result field %q", current.Field)}
+		}
+		if err == nil && value.Kind == ValueEnum {
+			data := value.Data.(EnumData)
+			switch current.Field {
+			case "ordinal":
+				return IntValue(data.Ordinal), nil
+			case "name", "variant":
+				return StringValue(data.Variant), nil
+			}
+			return NullValue(), Error{Message: fmt.Sprintf("unknown enum field %q", current.Field)}
 		}
 		if err == nil {
 			if field, ok := builtinProtocolField(value, current.Field); ok {
@@ -2487,6 +2531,19 @@ func isDefaultAllocator(expr parser.Expression) bool {
 		return false
 	}
 	return expr.Tokens[0].Type == lexer.TokenDot && expr.Tokens[1].Literal == "DEFAULT"
+}
+
+func (runtime *Runtime) enumVariantValue(enumName string, variantName string) (Value, bool) {
+	enum, ok := runtime.enums[enumName]
+	if !ok {
+		return NullValue(), false
+	}
+	for _, variant := range enum.Variants {
+		if variant.Name == variantName {
+			return Value{Kind: ValueEnum, Data: EnumData{Type: enumName, Variant: variantName, Ordinal: variant.Ordinal}}, true
+		}
+	}
+	return NullValue(), false
 }
 
 func (runtime *Runtime) aliasMethodExists(typeName string, methodName string) bool {

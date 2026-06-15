@@ -1803,6 +1803,48 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "callback 3.times argument 1 expects Function[Int,T], got String")
 }
 
+func TestCheckProgramAcceptsEnumIotaStyleDeclarations(t *testing.T) {
+	program := programFromSource(`
+enum Color {
+    Red;
+    Blue = 4;
+    Green;
+}
+
+function Main() : Int {
+    local Color color = Color.Green;
+    if color == {
+        case Color.Red:
+            return 1;
+        case Color.Blue:
+            return 2;
+        case Color.Green:
+            return color.ordinal;
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected enum program to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsEnumAssignmentMismatch(t *testing.T) {
+	program := programFromSource(`
+enum Color { Red; }
+enum Status { Red; }
+
+function Main() : Int {
+    local Color color = Status.Red;
+    return color.ordinal;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "cannot assign Status to local Color color")
+}
+
 func programFromSource(source string) file.Program {
 	lines := strings.Split(strings.TrimSpace(source), "\n")
 	return file.Program{

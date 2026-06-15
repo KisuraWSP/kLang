@@ -58,6 +58,8 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 			continue
 		case parser.ImplStatement:
 			continue
+		case parser.EnumStatement:
+			continue
 		case parser.FunctionGroupStatement:
 			continue
 		case parser.TryCatchStatement:
@@ -176,6 +178,8 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		return
 	case parser.ImplStatement:
 		return
+	case parser.EnumStatement:
+		return
 	case parser.FunctionGroupStatement:
 		return
 	case parser.FunctionStatement:
@@ -250,12 +254,13 @@ func (checker *TypeChecker) checkMatchScope(stmt parser.MatchStatement, scope *l
 	locals := scopeVariables(scope)
 	valueType := checker.inferMatchExpressionType(stmt.Value, locals, source, stmt.Pos.Line)
 	valueType = normalizeType(valueType)
-	if !isPatternMatchType(valueType) {
+	if !checker.isPatternMatchType(valueType) {
 		checker.addError(source, stmt.Pos.Line, fmt.Sprintf("pattern match value must be Bool, String, Int, or Float, got %s", valueType))
 	}
 
 	hasDefault := false
 	boolCases := map[string]bool{}
+	enumCases := map[string]bool{}
 	for _, matchCase := range stmt.Cases {
 		if matchCase.Default {
 			if hasDefault {
@@ -265,7 +270,7 @@ func (checker *TypeChecker) checkMatchScope(stmt parser.MatchStatement, scope *l
 		} else {
 			checker.checkScopeExpression(matchCase.Pattern.Node, scope, namespace, source, matchCase.Pos.Line)
 			patternType := normalizeType(checker.inferMatchExpressionType(matchCase.Pattern, locals, source, matchCase.Pos.Line))
-			if !isPatternMatchType(patternType) {
+			if !checker.isPatternMatchType(patternType) {
 				checker.addError(source, matchCase.Pos.Line, fmt.Sprintf("case pattern must be Bool, String, Int, or Float, got %s", patternType))
 			}
 			if valueType != anyType && patternType != anyType && valueType != patternType {
@@ -279,12 +284,20 @@ func (checker *TypeChecker) checkMatchScope(stmt parser.MatchStatement, scope *l
 					boolCases["False"] = true
 				}
 			}
+			if checker.enumExists(valueType) && patternType == valueType {
+				if _, variant, ok := enumPatternLiteral(matchCase.Pattern.Node); ok {
+					enumCases[variant] = true
+				}
+			}
 		}
 		checker.checkScopeStatements(matchCase.Body, newLexicalScope(scope), namespace, source, true, false)
 	}
 
 	if !stmt.Partial && !hasDefault {
 		if valueType == "Bool" && boolCases["True"] && boolCases["False"] {
+			return
+		}
+		if enum, ok := checker.enums[valueType]; ok && len(enumCases) == len(enum.Variants) {
 			return
 		}
 		checker.addError(source, stmt.Pos.Line, "pattern match is not exhaustive; add case: or mark it partial")
@@ -314,6 +327,18 @@ func boolPatternLiteral(expr parser.ExpressionNode) (bool, bool) {
 	return literal.Value == "True", true
 }
 
+func enumPatternLiteral(expr parser.ExpressionNode) (string, string, bool) {
+	selector, ok := expr.(parser.SelectorExpression)
+	if !ok {
+		return "", "", false
+	}
+	target, ok := selector.Target.(parser.IdentifierExpression)
+	if !ok {
+		return "", "", false
+	}
+	return target.Name, selector.Field, true
+}
+
 func scopeVariables(scope *lexicalScope) map[string]variableSymbol {
 	locals := map[string]variableSymbol{}
 	for current := scope; current != nil; current = current.parent {
@@ -326,13 +351,13 @@ func scopeVariables(scope *lexicalScope) map[string]variableSymbol {
 	return locals
 }
 
-func isPatternMatchType(typeName string) bool {
+func (checker *TypeChecker) isPatternMatchType(typeName string) bool {
 	typeName = normalizeType(typeName)
 	switch typeName {
 	case anyType, "Bool", "String", "Int", "Float":
 		return true
 	default:
-		return false
+		return checker.enumExists(typeName)
 	}
 }
 
@@ -447,7 +472,7 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 		if isBuiltinFunctionName(current.Name) || checker.functionExists(current.Name, namespace) ||
 			checker.aliasFunctionExistsInNamespace(current.Name, namespace) ||
 			checker.functionGroupExistsInNamespace(current.Name, namespace) ||
-			checker.namespaceExists(current.Name) || checker.aliasExists(current.Name) {
+			checker.namespaceExists(current.Name) || checker.aliasExists(current.Name) || checker.enumExists(current.Name) {
 			return
 		}
 		checker.addError(source, line, fmt.Sprintf("unknown identifier %q", current.Name))
@@ -471,6 +496,9 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 			if target, ok := current.Target.(parser.IdentifierExpression); ok && isKnownType(normalizeType(target.Name)) {
 				return
 			}
+		}
+		if target, ok := current.Target.(parser.IdentifierExpression); ok && checker.enumVariantExists(target.Name, current.Field) {
+			return
 		}
 		if checker.selectorFunctionExists(current) {
 			return

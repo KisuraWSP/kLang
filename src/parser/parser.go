@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"kLang/src/lexer"
@@ -80,6 +81,8 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseTrait()
 	case lexer.TokenImpl:
 		return parser.parseImpl()
+	case lexer.TokenEnum:
+		return parser.parseEnum()
 	case lexer.TokenFuncGroup:
 		return parser.parseFunctionGroup()
 	case lexer.TokenAt:
@@ -667,6 +670,42 @@ func (parser *Parser) parseImpl() Statement {
 		Type:    typeName,
 		Methods: methods,
 	}
+}
+
+func (parser *Parser) parseEnum() Statement {
+	start := parser.consume(lexer.TokenEnum, "expected enum")
+	name := parser.consume(lexer.TokenIdentifier, "expected enum name")
+	parser.consume(lexer.TokenScopeBegin, "expected '{' to start enum block")
+
+	var variants []EnumVariant
+	nextOrdinal := 0
+	for !parser.check(lexer.TokenScopeEnd) && !parser.atEnd() {
+		if parser.match(lexer.TokenSemicolon) || parser.match(lexer.TokenComma) {
+			continue
+		}
+		variant := parser.consume(lexer.TokenIdentifier, "expected enum variant name")
+		ordinal := nextOrdinal
+		if parser.match(lexer.TokenAssign) {
+			value := parser.consume(lexer.TokenInt, "expected integer ordinal after '='")
+			parsed, err := strconv.Atoi(value.Literal)
+			if err != nil {
+				parser.addError(value, "expected integer ordinal after '='")
+			} else {
+				ordinal = parsed
+			}
+		}
+		variants = append(variants, EnumVariant{
+			Pos:     positionFromToken(variant),
+			Name:    variant.Literal,
+			Ordinal: ordinal,
+		})
+		nextOrdinal = ordinal + 1
+		parser.match(lexer.TokenSemicolon)
+		parser.match(lexer.TokenComma)
+	}
+	parser.consume(lexer.TokenScopeEnd, "expected '}' to close enum block")
+	parser.consumeOptionalSemicolon()
+	return EnumStatement{Pos: positionFromToken(start), Name: name.Literal, Variants: variants}
 }
 
 func (parser *Parser) parseFunctionGroup() Statement {

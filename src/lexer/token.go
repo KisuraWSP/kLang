@@ -95,6 +95,7 @@ const (
 	TokenInner      // inner
 	TokenTrait      // trait
 	TokenImpl       // impl
+	TokenEnum       // enum
 	TokenStruct     // struct
 	TokenMove       // move
 	TokenCopy       // copy
@@ -158,6 +159,7 @@ var Keywords = map[string]TokenType{
 	"inner":          TokenInner,
 	"trait":          TokenTrait,
 	"impl":           TokenImpl,
+	"enum":           TokenEnum,
 	"struct":         TokenStruct,
 	"move":           TokenMove,
 	"copy":           TokenCopy,

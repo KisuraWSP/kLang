@@ -232,6 +232,8 @@ func runtimeTypeName(value Value) string {
 		return "Thread[T]"
 	case ValueAtomic:
 		return "Atomic[T]"
+	case ValueEnum:
+		return value.Data.(EnumData).Type
 	case ValueFunction:
 		return "Function[T]"
 	case ValueObject:
@@ -747,6 +749,9 @@ func valueString(value Value) string {
 		default:
 			return "Thread(running)"
 		}
+	case ValueEnum:
+		data := value.Data.(EnumData)
+		return data.Type + "." + data.Variant
 	case ValueObject:
 		object := value.Data.(ObjectData)
 		parts := make([]string, 0, len(object.Fields))
@@ -771,6 +776,8 @@ func valueSize(value Value) int {
 		return 0
 	case ValueInt, ValueFloat, ValueBool, ValueChar, ValueFunction, ValueBoundMethod:
 		return 8
+	case ValueEnum:
+		return 16 + len(value.Data.(EnumData).Type) + len(value.Data.(EnumData).Variant)
 	case ValueString:
 		return len(value.Data.(string))
 	case ValueList:
@@ -904,6 +911,8 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Kind == ValueChar
 	case typeName == "Complex":
 		return value.Kind == ValueComplex
+	case value.Kind == ValueEnum:
+		return value.Data.(EnumData).Type == typeName
 	case typeName == "Table":
 		return value.Kind == ValueTable || value.Kind == ValueMap
 	case strings.HasPrefix(typeName, "List["):

@@ -1809,6 +1809,33 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeSupportsEnumIotaStyleValues(t *testing.T) {
+	result := runParsedSource(t, `
+enum Status {
+    Pending;
+    Running = 10;
+    Done;
+}
+
+function Main() : Int {
+    local Status status = Status.Done;
+    if status == {
+        case Status.Pending:
+            return 1;
+        case Status.Running:
+            return 2;
+        case Status.Done:
+            return status.ordinal + len(status.name);
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 15 {
+		t.Fatalf("expected enum program to return 15, got %#v", result.Value)
+	}
+}
+
 func runSource(t *testing.T, source string) Result {
 	t.Helper()
 

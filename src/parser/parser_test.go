@@ -1181,6 +1181,22 @@ func TestParseRejectsMalformedGenericType(t *testing.T) {
 	}
 }
 
+func TestParseEnumDeclaration(t *testing.T) {
+	program, errors := Parse(`enum Color { Red; Blue = 4; Green; }`)
+	assertNoParseErrors(t, errors)
+
+	enumStmt, ok := program.Statements[0].(EnumStatement)
+	if !ok {
+		t.Fatalf("expected enum statement, got %#v", program.Statements[0])
+	}
+	if enumStmt.Name != "Color" || len(enumStmt.Variants) != 3 {
+		t.Fatalf("unexpected enum statement: %#v", enumStmt)
+	}
+	if enumStmt.Variants[0].Ordinal != 0 || enumStmt.Variants[1].Ordinal != 4 || enumStmt.Variants[2].Ordinal != 5 {
+		t.Fatalf("unexpected enum ordinals: %#v", enumStmt.Variants)
+	}
+}
+
 func TestParseFixturePrograms(t *testing.T) {
 	programs, err := file.DiscoverPrograms(filepath.Join("..", "..", "tests"))
 	if err != nil {

@@ -184,6 +184,31 @@ local Result[Int, String] wrappedCount = Result(20);
 -- The postfix ! operator unwraps Ok(value), or throws Err(value) to the nearest catch.
 local Int parsedValue = parsedCount!;
 
+-- typed ordinal enums
+-- Enum variants follow Go/iota-style numbering: first implicit value is 0,
+-- explicit values reset the next implicit ordinal.
+enum NetworkState {
+    Idle;
+    Connecting = 10;
+    Connected;
+    Failed;
+}
+
+local NetworkState state = NetworkState.Connected;
+local Int stateOrdinal = state.ordinal;
+local String stateName = state.name;
+
+if state == {
+    case NetworkState.Idle:
+        print("idle");
+    case NetworkState.Connecting:
+        print("connecting");
+    case NetworkState.Connected:
+        print("connected");
+    case NetworkState.Failed:
+        print("failed");
+}
+
 -- Complex and SIMD data
 -- Complex(real, imaginary) accepts Int or Float parts.
 local Complex z = Complex(2, 3);

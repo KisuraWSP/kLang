@@ -45,6 +45,7 @@ type TypeChecker struct {
 	globals        map[string]variableSymbol
 	aliases        map[string]string
 	traits         map[string]traitSymbol
+	enums          map[string]enumSymbol
 	errors         []Error
 	warnings       []Warning
 	namespace      string
@@ -87,6 +88,19 @@ type traitMethodSymbol struct {
 	Line       int
 }
 
+type enumSymbol struct {
+	Name     string
+	Variants map[string]enumVariantSymbol
+	File     string
+	Line     int
+}
+
+type enumVariantSymbol struct {
+	Name    string
+	Ordinal int
+	Line    int
+}
+
 type variableSymbol struct {
 	Name         string
 	Type         string
@@ -112,6 +126,7 @@ func CheckProgram(program file.Program) Report {
 		globals:        map[string]variableSymbol{},
 		aliases:        map[string]string{},
 		traits:         map[string]traitSymbol{},
+		enums:          map[string]enumSymbol{},
 	}
 
 	units := make([]sourceUnit, 0, len(program.Files))
@@ -126,6 +141,7 @@ func CheckProgram(program file.Program) Report {
 		checker.collectFunctions(unit, "")
 	}
 	checker.collectTraits(program)
+	checker.collectEnums(program)
 	checker.collectAliases(program)
 	checker.collectAliasFunctionsAndRegions(program)
 	checker.collectFunctionGroups(program)
@@ -303,6 +319,49 @@ func (checker *TypeChecker) collectTraits(program file.Program) {
 	}
 	for _, source := range parsed.Sources {
 		checker.checkImplStatements(source.Program.Statements, source.Path)
+	}
+}
+
+func (checker *TypeChecker) collectEnums(program file.Program) {
+	parsed := parser.ParseLoadedProgram(program)
+	if !parsed.Passed() {
+		return
+	}
+	for _, source := range parsed.Sources {
+		checker.collectEnumStatements(source.Program.Statements, source.Path)
+	}
+}
+
+func (checker *TypeChecker) collectEnumStatements(statements []parser.Statement, source string) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.EnumStatement:
+			if _, exists := checker.enums[current.Name]; exists {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("enum %q is already defined", current.Name))
+				continue
+			}
+			enum := enumSymbol{Name: current.Name, Variants: map[string]enumVariantSymbol{}, File: source, Line: current.Pos.Line}
+			seenOrdinals := map[int]string{}
+			for _, variant := range current.Variants {
+				if _, exists := enum.Variants[variant.Name]; exists {
+					checker.addError(source, variant.Pos.Line, fmt.Sprintf("enum %s variant %q is already defined", current.Name, variant.Name))
+					continue
+				}
+				if previous, exists := seenOrdinals[variant.Ordinal]; exists {
+					checker.addError(source, variant.Pos.Line, fmt.Sprintf("enum %s ordinal %d is already used by %s", current.Name, variant.Ordinal, previous))
+					continue
+				}
+				seenOrdinals[variant.Ordinal] = variant.Name
+				enum.Variants[variant.Name] = enumVariantSymbol{Name: variant.Name, Ordinal: variant.Ordinal, Line: variant.Pos.Line}
+			}
+			checker.enums[current.Name] = enum
+		case parser.NamespaceStatement:
+			checker.collectEnumStatements(current.Body, source)
+		case parser.PrivateBlockStatement:
+			checker.collectEnumStatements(current.Body, source)
+		case parser.AliasFunctionStatement:
+			checker.collectEnumStatements(current.Body, source)
+		}
 	}
 }
 
@@ -1791,6 +1850,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		if fieldName == "sizeof" && isKnownType(normalizeType(targetExpr)) {
 			return "Int"
 		}
+		if checker.enumVariantExists(targetExpr, fieldName) {
+			return normalizeType(targetExpr)
+		}
 		targetType := checker.inferExpression(targetExpr, locals, source, line)
 		if fieldType, ok := checker.selectorFieldType(targetType, fieldName); ok {
 			return fieldType
@@ -1839,6 +1901,10 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		return checker.checkCall(callName, args, locals, source, line)
 	}
 
+	if enumName, variantName, ok := splitIdentifierSelectorCallName(expr); ok && checker.enumVariantExists(enumName, variantName) {
+		return normalizeType(enumName)
+	}
+
 	if variable, ok := checker.lookupVariable(expr, locals); ok {
 		if variable.Type == movedType {
 			checker.addError(source, line, fmt.Sprintf("variable %q was moved", expr))
@@ -1877,6 +1943,20 @@ func (checker *TypeChecker) aliasMethodType(typeName string, methodName string) 
 	return "", false
 }
 
+func (checker *TypeChecker) enumExists(name string) bool {
+	_, ok := checker.enums[normalizeType(name)]
+	return ok
+}
+
+func (checker *TypeChecker) enumVariantExists(enumName string, variantName string) bool {
+	enum, ok := checker.enums[normalizeType(enumName)]
+	if !ok {
+		return false
+	}
+	_, ok = enum.Variants[variantName]
+	return ok
+}
+
 func (checker *TypeChecker) selectorFieldType(targetType string, fieldName string) (string, bool) {
 	targetType = normalizeType(targetType)
 	if methodType, ok := checker.aliasMethodType(targetType, fieldName); ok {
@@ -1887,6 +1967,14 @@ func (checker *TypeChecker) selectorFieldType(targetType string, fieldName strin
 	}
 	if methodType, ok := builtinProtocolMethodType(targetType, fieldName); ok {
 		return methodType, true
+	}
+	if checker.enumExists(targetType) {
+		switch fieldName {
+		case "ordinal":
+			return "Int", true
+		case "name", "variant":
+			return "String", true
+		}
 	}
 	if optionType, ok := optionElementType(targetType); ok {
 		switch fieldName {
