@@ -12,7 +12,7 @@ complex programs that we will be able to run with whatever user created code and
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 
 # REFACTOR
-- Improve Variables
+- Improve Variables [partial done]
 - Improve Functions, Function Aliases, Structs
 - Improve Data Types
 - Improve Error Reporting, Error Handling, Errors System
