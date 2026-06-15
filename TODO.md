@@ -2,6 +2,17 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- Implement some sort of a lookup table for calling functions in modules in stdlib instead of calling the entire module unless user specifies in code as below like we only need to call one specific function not all of them
+```lua
+module_caller(call_entire_module : True);
+```
+- add a keyword called "module" which tells the programming langauge that the module is disabled for importing until its removed by user (like the below)
+```lua
+module(disabled : True);
+```
+
+- add call site to the langauge for relating to functions, variables, structs, function aliases, etc...
+
 - HashSet / Set builtin
    You have Map and List, but a Set[T] is commonly needed. Especially useful for compiler work, graph traversal, deduping imports, and static analysis.
 - Richer pattern destructuring
@@ -123,7 +134,6 @@ My design instinct: keep Table as a safe dynamic record/map first, then grow Lua
    THis is a multi line comment
 *)
 ```
-
     
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project under 10 seconds

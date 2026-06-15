@@ -1,5 +1,0 @@
-import "app";
-
-function Main() : Int {
-    return App.Start();
-}
