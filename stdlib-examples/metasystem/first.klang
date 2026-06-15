@@ -1,0 +1,26 @@
+import "metasystem";
+
+function Main() : Int {
+    local WorkSpace workspace = metasystem.workspace.StandaloneWorkspace(
+        "metasystem-demo",
+        ["app", "list"],
+        ["first.klang", "app.klang"]
+    );
+
+    local Table summary = metasystem.workspace.Summary(workspace);
+    local Result[WorkSpace, String] validation = metasystem.workspace.Validate(workspace);
+    local Table plan = metasystem.build.BuildPlan(workspace, ["check", "run"]);
+    local Table complete = metasystem.build.CompleteMessage(workspace, summary);
+    local Table loop = metasystem.build.message_loop(workspace, [complete]);
+
+    print("summary", summary);
+    print("plan", plan);
+    print("complete", complete);
+    print("loop", loop);
+
+    if validation? and summary["ready"] as Bool and plan["ready"] as Bool and loop["complete"] as Bool and loop["processed"] as Int == 1 {
+        return 0;
+    }
+
+    return 1;
+}

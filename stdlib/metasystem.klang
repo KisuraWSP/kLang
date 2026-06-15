@@ -65,6 +65,91 @@ namespace metasystem {
             return WorkSpace(program, build);
         }
 
+        --- Signature: function StandaloneWorkspace(name : String, modules : List[String], files : List[String]) : WorkSpace
+        --- Returns: WorkSpace.
+        --- Summary: Creates a workspace descriptor for interpreter-backed standalone execution.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function StandaloneWorkspace(name : String, modules : List[String], files : List[String]) : WorkSpace {
+            return UserDefinedWorkspace(name, modules, files, "Standalone");
+        }
+
+        --- Signature: function WasmWorkspace(name : String, modules : List[String], files : List[String]) : WorkSpace
+        --- Returns: WorkSpace.
+        --- Summary: Creates a workspace descriptor for browser/WASM packaging.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function WasmWorkspace(name : String, modules : List[String], files : List[String]) : WorkSpace {
+            return UserDefinedWorkspace(name, modules, files, "WASM");
+        }
+
+        --- Signature: function JavaScriptWorkspace(name : String, modules : List[String], files : List[String]) : WorkSpace
+        --- Returns: WorkSpace.
+        --- Summary: Creates a workspace descriptor for JavaScript-oriented packaging.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function JavaScriptWorkspace(name : String, modules : List[String], files : List[String]) : WorkSpace {
+            return UserDefinedWorkspace(name, modules, files, "JS");
+        }
+
+        --- Signature: function ValidBackend(backend : String) : Bool
+        --- Returns: Bool.
+        --- Summary: Checks whether backend is accepted by BuildSystem.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function ValidBackend(backend : String) : Bool {
+            return backend == "Standalone" or backend == "WASM" or backend == "JS";
+        }
+
+        --- Signature: function FileCount(workspace : WorkSpace) : Int
+        --- Returns: Int.
+        --- Summary: Returns the number of files tracked by workspace.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function FileCount(workspace : WorkSpace) : Int {
+            return len(files(workspace));
+        }
+
+        --- Signature: function MainFile(workspace : WorkSpace) : String
+        --- Returns: String.
+        --- Summary: Returns the first workspace file or an empty string when no files exist.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function MainFile(workspace : WorkSpace) : String {
+            local List[String] workspaceFiles = files(workspace);
+            if len(workspaceFiles) == 0 {
+                return "";
+            }
+            return workspaceFiles[0];
+        }
+
+        --- Signature: function Summary(workspace : WorkSpace) : Table
+        --- Returns: Table.
+        --- Summary: Builds a stable table view of a workspace for tools and examples.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function Summary(workspace : WorkSpace) : Table {
+            local List[String] workspaceFiles = files(workspace);
+            local String workspaceBackend = backend(workspace);
+            return {
+                "backend": workspaceBackend,
+                "files": workspaceFiles,
+                "file_count": len(workspaceFiles),
+                "main_file": MainFile(workspace),
+                "manifest": manifest(workspace),
+                "valid_backend": ValidBackend(workspaceBackend),
+                "ready": len(workspaceFiles) > 0 and ValidBackend(workspaceBackend)
+            };
+        }
+
+        --- Signature: function Validate(workspace : WorkSpace) : Result[WorkSpace, String]
+        --- Returns: Result[WorkSpace, String].
+        --- Summary: Validates the workspace descriptor before a tool tries to build or run it.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function Validate(workspace : WorkSpace) : Result[WorkSpace, String] {
+            local String workspaceBackend = backend(workspace);
+            if not ValidBackend(workspaceBackend) {
+                return Err("unsupported workspace backend: " + workspaceBackend);
+            }
+            if FileCount(workspace) == 0 {
+                return Err("workspace must contain at least one source file");
+            }
+            return Ok(workspace);
+        }
+
         --- Signature: function create_workspace(name : String, workspace := DefaultWorkspace()) : WorkSpace
         --- Returns: WorkSpace.
         --- Summary: Creates or initializes create workspace with the supplied Klang value(s).
@@ -269,6 +354,46 @@ namespace metasystem {
                 "count": len(workspaceSet),
                 "overridden": True
             };
+        }
+
+        --- Signature: function BuildPlan(workspace : WorkSpace, flags : List[String]) : Table
+        --- Returns: Table.
+        --- Summary: Builds a table describing how a workspace should be processed by tools.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function BuildPlan(workspace : WorkSpace, flags : List[String]) : Table {
+            local Table summary = metasystem.workspace.Summary(workspace);
+            return {
+                "workspace": workspace,
+                "backend": summary["backend"],
+                "files": summary["files"],
+                "file_count": summary["file_count"],
+                "main_file": summary["main_file"],
+                "manifest": summary["manifest"],
+                "flags": flags,
+                "ready": summary["ready"]
+            };
+        }
+
+        --- Signature: function ToolMessage(kind : String, workspace : WorkSpace, payload : Any) : Table
+        --- Returns: Table.
+        --- Summary: Creates a runtime/tool message tied to a workspace descriptor.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function ToolMessage(kind : String, workspace : WorkSpace, payload : Any) : Table {
+            return {
+                "kind": kind,
+                "workspace": workspace,
+                "payload": payload,
+                "manifest": workspace_manifest(workspace),
+                "stack": debug_stack()
+            };
+        }
+
+        --- Signature: function CompleteMessage(workspace : WorkSpace, payload : Any) : Table
+        --- Returns: Table.
+        --- Summary: Creates the COMPLETE message consumed by message_loop.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function CompleteMessage(workspace : WorkSpace, payload : Any) : Table {
+            return ToolMessage("COMPLETE", workspace, payload);
         }
     }
 }
