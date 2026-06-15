@@ -29,6 +29,7 @@
 29. `Program`, `BuildSystem`, and `WorkSpace` are builtin meta-programming values for describing custom workspaces and compact build plans.
 30. `debug`, `debug_type`, `debug_stack`, and `breakpoint` are builtin debugger helpers.
 31. JavaScript FFI is filesystem-only through `JSModule` and `JSCall` descriptors loaded from `.js` files.
+32. Variable destructuring can unpack Lists, Tables, Maps, and object fields through parser lowering into inferred declarations.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -37,6 +38,7 @@ Rules
 - `val` declares a global inferred immutable variable, and `var` declares a global inferred mutable variable.
 - `const` declares a strictly immutable inferred value in the current scope and requires an initializer.
 - Inferred declarations must have an initializer and are checked before runtime.
+- Destructuring declarations must have an initializer and lower to ordinary inferred declarations before semantic checking and runtime execution.
 - Multiple return signatures use `(name : Type, mut OtherType)` syntax and return values with `return left, right;`.
 - Named return values are zero-initialized in the function body.
 - `private { ... }` creates a private lexical block.

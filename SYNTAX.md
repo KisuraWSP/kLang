@@ -28,6 +28,12 @@ let maybeCount = Some(69420);
 let mut maybeMutableCount = Some(10);
 maybeMutableCount = Some(11);
 
+-- destructuring declarations
+-- List patterns use zero-based indexing. Object patterns read fields by selector.
+local [first, second] = [1, 2];
+let {name, count: total} = data;
+local mut [head, [left, right]] = pairs;
+
 -- inferred global variables
 -- val is immutable, while var is mutable.
 val globalMaybeCount = Some(69420);

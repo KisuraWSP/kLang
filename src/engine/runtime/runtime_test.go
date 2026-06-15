@@ -144,6 +144,21 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesVariableDestructuring(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local [first, [second, third]] = [1, [2, 3]];
+    local Table data = {"name": "klang", "count": 4};
+    local {name, count: total} = data;
+    return first + second + third + total + len(name);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 15 {
+		t.Fatalf("expected destructuring program to return 15, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeRejectsMissingIndexedCompoundAssignmentTargets(t *testing.T) {
 	_, listErr := runParsedSourceWithError(`
 function Main() : Int {

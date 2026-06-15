@@ -229,6 +229,34 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "cannot assign String to Int")
 }
 
+func TestCheckProgramAcceptsVariableDestructuring(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local [first, second] = [1, 2];
+    let mut [left, right] = [3, 4];
+    right = first + second + left;
+    return right;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected destructuring type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsDestructuredMutationMismatch(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut [count, other] = [1, 2];
+    count = "bad";
+    return other;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "cannot assign String to Int")
+}
+
 func TestCheckProgramAcceptsMultipleReturnsAnyAndPrivateInline(t *testing.T) {
 	program := programFromSource(`
 private inline function Pair() : (name : String, value : Int) {

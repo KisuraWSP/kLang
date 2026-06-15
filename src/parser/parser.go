@@ -44,6 +44,7 @@ func (parser *Parser) ParseProgram() *Program {
 		}
 		program.Statements = append(program.Statements, stmt)
 	}
+	program.Statements = lowerDestructuringStatements(program.Statements)
 	return program
 }
 
@@ -983,6 +984,9 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 		parser.consume(scopeToken(scope), fmt.Sprintf("expected %s after export", scope))
 	}
 	mutable := parser.match(lexer.TokenMut)
+	if parser.check(lexer.TokenLeftSquareBrace) || parser.check(lexer.TokenScopeBegin) {
+		return parser.parseDestructuringFromStart(start, scope, exported, mutable)
+	}
 	if scope == "local" && parser.check(lexer.TokenIdentifier) && parser.peek().Type == lexer.TokenAssign {
 		name := parser.consume(lexer.TokenIdentifier, "expected variable name")
 		parser.consume(lexer.TokenAssign, "expected '=' after inferred local variable name")
@@ -1024,6 +1028,9 @@ func (parser *Parser) parseInferredVariable(scope string, constant bool, default
 	if scope == "local" {
 		mutable = parser.match(lexer.TokenMut)
 	}
+	if !constant && (parser.check(lexer.TokenLeftSquareBrace) || parser.check(lexer.TokenScopeBegin)) {
+		return parser.parseDestructuringFromStart(start, scope, false, mutable)
+	}
 	typeName := "T"
 	name := parser.consume(lexer.TokenIdentifier, "expected variable name")
 	if parser.check(lexer.TokenIdentifier) && parser.peek().Type == lexer.TokenAssign {
@@ -1056,6 +1063,77 @@ func inferredExplicitType(typeName string) string {
 		return "Int"
 	}
 	return typeName
+}
+
+func (parser *Parser) parseDestructuringFromStart(start lexer.Token, scope string, exported bool, mutable bool) Statement {
+	pattern := parser.parseDestructuringPattern()
+	if pattern == nil {
+		parser.synchronize()
+		return nil
+	}
+	if !parser.match(lexer.TokenAssign) {
+		parser.addError(parser.current(), "destructuring declarations require an initializer")
+		parser.consumeOptionalSemicolon()
+		return DestructuringStatement{Pos: positionFromToken(start), Scope: scope, Exported: exported, Mutable: mutable, Pattern: pattern}
+	}
+	expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
+	parser.consumeOptionalSemicolon()
+	return DestructuringStatement{
+		Pos:        positionFromToken(start),
+		Scope:      scope,
+		Exported:   exported,
+		Mutable:    mutable,
+		Pattern:    pattern,
+		Expression: expr,
+	}
+}
+
+func (parser *Parser) parseDestructuringPattern() DestructuringPattern {
+	if parser.check(lexer.TokenLeftSquareBrace) {
+		return parser.parseListDestructuringPattern()
+	}
+	if parser.check(lexer.TokenScopeBegin) {
+		return parser.parseObjectDestructuringPattern()
+	}
+	name := parser.consume(lexer.TokenIdentifier, "expected destructuring binding name")
+	if name.Type != lexer.TokenIdentifier {
+		return nil
+	}
+	return DestructuringBinding{Name: name.Literal}
+}
+
+func (parser *Parser) parseListDestructuringPattern() DestructuringPattern {
+	parser.consume(lexer.TokenLeftSquareBrace, "expected '[' to start destructuring pattern")
+	var items []DestructuringPattern
+	for !parser.check(lexer.TokenRightSquareBrace) && !parser.atEnd() {
+		items = append(items, parser.parseDestructuringPattern())
+		if !parser.match(lexer.TokenComma) {
+			break
+		}
+	}
+	parser.consume(lexer.TokenRightSquareBrace, "expected ']' to close destructuring pattern")
+	return DestructuringListPattern{Items: items}
+}
+
+func (parser *Parser) parseObjectDestructuringPattern() DestructuringPattern {
+	parser.consume(lexer.TokenScopeBegin, "expected '{' to start destructuring pattern")
+	var fields []DestructuringObjectField
+	for !parser.check(lexer.TokenScopeEnd) && !parser.atEnd() {
+		field := parser.consume(lexer.TokenIdentifier, "expected object field name in destructuring pattern")
+		if field.Type != lexer.TokenIdentifier {
+			return nil
+		}
+		pattern := DestructuringPattern(DestructuringBinding{Name: field.Literal})
+		if parser.match(lexer.TokenInferReturn) {
+			pattern = parser.parseDestructuringPattern()
+		}
+		fields = append(fields, DestructuringObjectField{Field: field.Literal, Pattern: pattern})
+		if !parser.match(lexer.TokenComma) {
+			break
+		}
+	}
+	parser.consume(lexer.TokenScopeEnd, "expected '}' to close destructuring pattern")
+	return DestructuringObjectPattern{Fields: fields}
 }
 
 func (parser *Parser) parseReturn() Statement {
@@ -1336,7 +1414,7 @@ func (parser *Parser) parseBlock() []Statement {
 		statements = append(statements, stmt)
 	}
 	parser.consume(lexer.TokenScopeEnd, "expected '}' to close block")
-	return statements
+	return lowerDestructuringStatements(statements)
 }
 
 func (parser *Parser) parseType() string {

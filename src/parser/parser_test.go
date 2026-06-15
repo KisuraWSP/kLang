@@ -143,6 +143,43 @@ export local exported = "shared";
 	}
 }
 
+func TestParseDestructuringDeclarationsLowerToVariables(t *testing.T) {
+	program, errors := Parse(`
+local [first, second] = [1, 2];
+let {name: label, size} = data;
+local mut [head, [left, right]] = pairs;
+`)
+	assertNoParseErrors(t, errors)
+
+	if len(program.Statements) != 11 {
+		t.Fatalf("expected 11 lowered statements, got %d", len(program.Statements))
+	}
+
+	temp, ok := program.Statements[0].(VariableStatement)
+	if !ok || temp.Name != "__klang_destructure_0" || !temp.Inferred || temp.Scope != "local" {
+		t.Fatalf("expected first lowered temp declaration, got %#v", program.Statements[0])
+	}
+
+	first, ok := program.Statements[1].(VariableStatement)
+	if !ok || first.Name != "first" || !first.Inferred || first.Expression.Literal() != "__klang_destructure_0 [ 0 ]" {
+		t.Fatalf("expected lowered first binding, got %#v", program.Statements[1])
+	}
+
+	label, ok := program.Statements[4].(VariableStatement)
+	if !ok || label.Name != "label" || label.Expression.Literal() != "__klang_destructure_1 . name" {
+		t.Fatalf("expected lowered object alias binding, got %#v", program.Statements[4])
+	}
+
+	nestedTemp, ok := program.Statements[8].(VariableStatement)
+	if !ok || nestedTemp.Name != "__klang_destructure_3" || nestedTemp.Mutable {
+		t.Fatalf("expected nested temp declaration, got %#v", program.Statements[8])
+	}
+	right, ok := program.Statements[10].(VariableStatement)
+	if !ok || right.Name != "right" || !right.Mutable {
+		t.Fatalf("expected mutable nested right binding, got %#v", program.Statements[10])
+	}
+}
+
 func TestParsePrivateInlineDeferHereStringAndMultipleReturns(t *testing.T) {
 	program, errors := Parse(`
 private inline function Print() : (name : String, value : Int) {

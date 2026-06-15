@@ -145,6 +145,36 @@ type VariableStatement struct {
 	Expression Expression
 }
 
+type DestructuringStatement struct {
+	Pos        Position
+	Scope      string
+	Exported   bool
+	Mutable    bool
+	Pattern    DestructuringPattern
+	Expression Expression
+}
+
+type DestructuringPattern interface {
+	destructuringPattern()
+}
+
+type DestructuringBinding struct {
+	Name string
+}
+
+type DestructuringListPattern struct {
+	Items []DestructuringPattern
+}
+
+type DestructuringObjectPattern struct {
+	Fields []DestructuringObjectField
+}
+
+type DestructuringObjectField struct {
+	Field   string
+	Pattern DestructuringPattern
+}
+
 type ReturnStatement struct {
 	Pos        Position
 	Expression Expression
@@ -334,8 +364,10 @@ func (stmt TraitStatement) statementNode()     {}
 func (stmt ImplStatement) statementNode()      {}
 func (stmt FunctionGroupStatement) statementNode() {
 }
-func (stmt FunctionStatement) statementNode()   {}
-func (stmt VariableStatement) statementNode()   {}
+func (stmt FunctionStatement) statementNode() {}
+func (stmt VariableStatement) statementNode() {}
+func (stmt DestructuringStatement) statementNode() {
+}
 func (stmt ReturnStatement) statementNode()     {}
 func (stmt ThrowStatement) statementNode()      {}
 func (stmt BreakStatement) statementNode()      {}
@@ -365,8 +397,11 @@ func (stmt ImplStatement) Position() Position      { return stmt.Pos }
 func (stmt FunctionGroupStatement) Position() Position {
 	return stmt.Pos
 }
-func (stmt FunctionStatement) Position() Position   { return stmt.Pos }
-func (stmt VariableStatement) Position() Position   { return stmt.Pos }
+func (stmt FunctionStatement) Position() Position { return stmt.Pos }
+func (stmt VariableStatement) Position() Position { return stmt.Pos }
+func (stmt DestructuringStatement) Position() Position {
+	return stmt.Pos
+}
 func (stmt ReturnStatement) Position() Position     { return stmt.Pos }
 func (stmt ThrowStatement) Position() Position      { return stmt.Pos }
 func (stmt BreakStatement) Position() Position      { return stmt.Pos }
@@ -401,6 +436,12 @@ func (expr GroupExpression) expressionNode() {}
 func (expr LambdaExpression) expressionNode() {
 }
 func (expr RawExpression) expressionNode() {}
+
+func (pattern DestructuringBinding) destructuringPattern() {}
+func (pattern DestructuringListPattern) destructuringPattern() {
+}
+func (pattern DestructuringObjectPattern) destructuringPattern() {
+}
 
 func (expr Expression) Literal() string {
 	parts := make([]string, 0, len(expr.Tokens))
