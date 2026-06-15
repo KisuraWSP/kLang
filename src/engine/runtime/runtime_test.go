@@ -790,6 +790,26 @@ function Main() : Int {
 	assertRuntimeErrorContains(t, err, `variable "value" is already defined`)
 }
 
+func TestRuntimeExecutesBlockShadowingWithoutLeaking(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Int value = 1;
+    if True {
+        local Int value = 20;
+        print(value);
+    }
+    return value;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected block shadowing to preserve outer value 1, got %#v", result.Value)
+	}
+	if len(result.Output) != 1 || result.Output[0] != "20" {
+		t.Fatalf("expected inner shadow output 20, got %#v", result.Output)
+	}
+}
+
 func TestRuntimeRejectsReturnTypeMismatch(t *testing.T) {
 	_, err := runParsedSourceWithError(`
 function Main() : Int {

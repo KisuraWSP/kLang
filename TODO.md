@@ -13,7 +13,7 @@ complex programs that we will be able to run with whatever user created code and
 
 # REFACTOR
 - Improve Variables
-- Improve Functions
+- Improve Functions, Function Aliases, Structs
 - Improve Data Types
 - Improve Error Reporting, Error Handling, Errors System
 - Improve Runtime

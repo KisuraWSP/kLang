@@ -584,6 +584,25 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramDoesNotLeakShadowedMoveFromInnerBlock(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local String value = "outer";
+    if True {
+        local String value = "inner";
+        local String moved = move value;
+        print(moved);
+    }
+    return len(value);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected shadowed move not to affect outer binding, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramRejectsLocalLeakFromIfBlock(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

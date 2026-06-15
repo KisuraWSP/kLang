@@ -3,6 +3,7 @@ package typechecker
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -533,91 +534,8 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 		}
 	}
 	checker.checkFunctionNullSafety(fn)
-
-	body := maskNestedFunctions(fn.Body)
-	for _, stmt := range splitStatements(body) {
-		line := fn.Line + lineAt(body, stmt.Start) - 1
-		current := trimStatementPrefix(stmt.Text)
-		if current == "" {
-			continue
-		}
-
-		if decl, ok := parseFunctionLocalDeclaration(current); ok {
-			inferredType := ""
-			if decl.Type != anyType {
-				checker.checkDeclaredType(decl.Type, fn.File, line)
-			}
-			if decl.Expression != "" {
-				if decl.Scope == "const" && !isCompileTimeConstantExpression(decl.Expression) {
-					checker.addError(fn.File, line, fmt.Sprintf("const %s requires a compile-time constant initializer", decl.Name))
-				}
-				exprType := checker.inferExpression(decl.Expression, locals, fn.File, line)
-				if decl.Inferred && decl.Type == anyType {
-					decl.Type = exprType
-				}
-				if !isAssignable(decl.Type, exprType) {
-					checker.addError(fn.File, line, fmt.Sprintf("cannot assign %s to local %s %s", exprType, decl.Type, decl.Name))
-				}
-				if !decl.Inferred && decl.Type == anyType && exprType != anyType {
-					inferredType = exprType
-				}
-				if movedName, ok := movedIdentifier(decl.Expression); ok {
-					if movedVariable, exists := locals[movedName]; exists {
-						movedVariable.Type = movedType
-						locals[movedName] = movedVariable
-					}
-				}
-			}
-
-			locals[decl.Name] = variableSymbol{
-				Name:         decl.Name,
-				Type:         decl.Type,
-				InferredType: inferredType,
-				KnownSome:    isKnownSomeInitializer(decl.Expression),
-				Mutable:      decl.Mutable,
-				File:         fn.File,
-				Line:         line,
-			}
-			continue
-		}
-
-		if _, ok := parseGlobalLikeDeclaration(current); ok {
-			continue
-		}
-
-		if strings.HasPrefix(current, "return ") {
-			expr := strings.TrimSpace(strings.TrimPrefix(current, "return "))
-			if len(fn.ReturnTypes) != 0 {
-				checker.checkTupleReturn(fn, expr, locals, line)
-			} else {
-				exprType := checker.inferExpression(expr, locals, fn.File, line)
-				if !isAssignable(fn.ReturnType, exprType) {
-					checker.addError(fn.File, line, fmt.Sprintf("function %s returns %s but return expression is %s", fn.Name, fn.ReturnType, exprType))
-				}
-			}
-			continue
-		}
-
-		if strings.HasPrefix(current, "throw ") {
-			expr := strings.TrimSpace(strings.TrimPrefix(current, "throw "))
-			checker.inferExpression(expr, locals, fn.File, line)
-			continue
-		}
-
-		if assignment, ok := parseAssignment(current); ok {
-			checker.checkAssignment(assignment, locals, fn.File, line)
-			if movedName, ok := movedIdentifier(assignment.Expr); ok {
-				if movedVariable, exists := locals[movedName]; exists {
-					movedVariable.Type = movedType
-					locals[movedName] = movedVariable
-				}
-			}
-			continue
-		}
-
-		if looksLikeCall(current) {
-			checker.inferExpression(current, locals, fn.File, line)
-		}
+	if parsedFn, ok := parseFunctionBodyForSemanticCheck(fn); ok {
+		checker.checkSemanticStatements(fn, parsedFn.Body, locals, map[string]bool{})
 	}
 }
 
@@ -637,6 +555,271 @@ func (checker *TypeChecker) checkTupleReturn(fn functionSymbol, expr string, loc
 			}
 			checker.addError(fn.File, line, fmt.Sprintf("function %s %s expects %s but got %s", fn.Name, name, expected.Type, exprType))
 		}
+	}
+}
+
+func parseFunctionBodyForSemanticCheck(fn functionSymbol) (parser.FunctionStatement, bool) {
+	source := fmt.Sprintf("function __Semantic() : T {\n%s\n}", fn.Body)
+	program, errors := parser.Parse(source)
+	if len(errors) != 0 || len(program.Statements) == 0 {
+		return parser.FunctionStatement{}, false
+	}
+	parsedFn, ok := program.Statements[0].(parser.FunctionStatement)
+	return parsedFn, ok
+}
+
+func (checker *TypeChecker) checkSemanticStatements(fn functionSymbol, statements []parser.Statement, locals map[string]variableSymbol, declared map[string]bool) {
+	for _, stmt := range statements {
+		checker.checkSemanticStatement(fn, stmt, locals, declared)
+	}
+}
+
+func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parser.Statement, locals map[string]variableSymbol, declared map[string]bool) {
+	line := semanticLine(fn, stmt.Position())
+	switch current := stmt.(type) {
+	case parser.VariableStatement:
+		checker.checkSemanticExpression(fn, current.Expression, locals, line)
+		if current.Scope == "global" || current.Exported {
+			return
+		}
+		inferredType := ""
+		typeName := normalizeType(current.Type)
+		if typeName != anyType {
+			checker.checkDeclaredType(typeName, fn.File, line)
+		}
+		if current.Expression.Node != nil {
+			exprSource := expressionSource(current.Expression)
+			if current.Scope == "const" && !isCompileTimeConstantExpression(exprSource) {
+				checker.addError(fn.File, line, fmt.Sprintf("const %s requires a compile-time constant initializer", current.Name))
+			}
+			exprType := checker.inferExpression(exprSource, locals, fn.File, line)
+			if current.Inferred && typeName == anyType {
+				typeName = exprType
+			}
+			if !isAssignable(typeName, exprType) {
+				checker.addError(fn.File, line, fmt.Sprintf("cannot assign %s to local %s %s", exprType, typeName, current.Name))
+			}
+			if !current.Inferred && typeName == anyType && exprType != anyType {
+				inferredType = exprType
+			}
+			checker.markMovedFromExpression(current.Expression, locals)
+		}
+		locals[current.Name] = variableSymbol{
+			Name:         current.Name,
+			Type:         typeName,
+			InferredType: inferredType,
+			KnownSome:    isKnownSomeInitializer(expressionSource(current.Expression)),
+			Mutable:      current.Mutable,
+			File:         fn.File,
+			Line:         line,
+		}
+		declared[current.Name] = true
+	case parser.ReturnStatement:
+		if len(current.Values) != 0 {
+			parts := make([]string, 0, len(current.Values))
+			for _, value := range current.Values {
+				parts = append(parts, expressionSource(value))
+				checker.checkSemanticExpression(fn, value, locals, line)
+			}
+			checker.checkTupleReturn(fn, strings.Join(parts, ","), locals, line)
+			return
+		}
+		checker.checkSemanticExpression(fn, current.Expression, locals, line)
+		exprType := checker.inferExpression(expressionSource(current.Expression), locals, fn.File, line)
+		if len(fn.ReturnTypes) == 0 && !isAssignable(fn.ReturnType, exprType) {
+			checker.addError(fn.File, line, fmt.Sprintf("function %s returns %s but return expression is %s", fn.Name, fn.ReturnType, exprType))
+		}
+	case parser.ThrowStatement:
+		checker.checkSemanticExpression(fn, current.Expression, locals, line)
+	case parser.AssignmentStatement:
+		assignment := assignmentStatement{Target: expressionSource(current.Target), Op: current.Operator, Expr: expressionSource(current.Expression)}
+		checker.checkAssignment(assignment, locals, fn.File, line)
+		checker.markMovedFromExpression(current.Expression, locals)
+	case parser.ExpressionStatement:
+		checker.checkSemanticExpression(fn, current.Expression, locals, line)
+	case parser.IfStatement:
+		checker.checkSemanticExpression(fn, current.Condition, locals, line)
+		checker.checkSemanticChildBlock(fn, current.Consequence, locals)
+		if current.ElseIf != nil {
+			checker.checkSemanticChildBlock(fn, []parser.Statement{*current.ElseIf}, locals)
+		}
+		checker.checkSemanticChildBlock(fn, current.Alternative, locals)
+	case parser.MatchStatement:
+		checker.checkSemanticExpression(fn, current.Value, locals, line)
+		for _, matchCase := range current.Cases {
+			checker.checkSemanticExpression(fn, matchCase.Pattern, locals, semanticLine(fn, matchCase.Pos))
+			checker.checkSemanticChildBlock(fn, matchCase.Body, locals)
+		}
+	case parser.LoopStatement:
+		checker.checkSemanticLoop(fn, current, locals, line)
+	case parser.TryCatchStatement:
+		checker.checkSemanticChildBlock(fn, current.TryBody, locals)
+		catchLocals := copyLocals(locals)
+		catchLocals[current.ErrorName] = variableSymbol{Name: current.ErrorName, Type: anyType, File: fn.File, Line: line}
+		checker.checkSemanticChildBlockWithLocals(fn, current.CatchBody, locals, catchLocals, map[string]bool{current.ErrorName: true})
+	case parser.DeferStatement:
+		if current.Stmt != nil {
+			checker.checkSemanticChildBlock(fn, []parser.Statement{current.Stmt}, locals)
+		}
+		checker.checkSemanticChildBlock(fn, current.Body, locals)
+	case parser.PrivateBlockStatement:
+		checker.checkSemanticChildBlock(fn, current.Body, locals)
+	case parser.FunctionStatement:
+		return
+	}
+}
+
+func (checker *TypeChecker) checkSemanticExpression(fn functionSymbol, expr parser.Expression, locals map[string]variableSymbol, line int) {
+	if expr.Node == nil || len(expr.Tokens) == 0 {
+		return
+	}
+	checker.inferExpression(expressionSource(expr), locals, fn.File, line)
+}
+
+func (checker *TypeChecker) checkSemanticLoop(fn functionSymbol, stmt parser.LoopStatement, locals map[string]variableSymbol, line int) {
+	loopLocals := copyLocals(locals)
+	declared := map[string]bool{}
+	if init, condition, post, ok := parseCStyleScopeHeader(stmt.Header); ok {
+		checker.checkSemanticLoopHeaderPart(fn, init, loopLocals, declared, line)
+		checker.checkSemanticExpression(fn, condition, loopLocals, line)
+		checker.checkSemanticLoopHeaderPart(fn, post, loopLocals, declared, line)
+		checker.checkSemanticChildBlockWithLocals(fn, stmt.Body, locals, loopLocals, declared)
+		return
+	}
+	if iterator, iterable, ok := parseRangeScopeHeader(stmt.Header); ok {
+		checker.checkSemanticExpression(fn, iterable, locals, line)
+		loopLocals[iterator] = variableSymbol{Name: iterator, Type: "Int", File: fn.File, Line: line}
+		declared[iterator] = true
+		checker.checkSemanticChildBlockWithLocals(fn, stmt.Body, locals, loopLocals, declared)
+		return
+	}
+	if name, expr, ok := parseEvaluationScopeHeader(stmt.Header); ok {
+		checker.checkSemanticExpression(fn, expr, locals, line)
+		loopLocals[name] = variableSymbol{Name: name, Type: anyType, Mutable: true, File: fn.File, Line: line}
+		declared[name] = true
+	} else {
+		checker.checkSemanticExpression(fn, stmt.Header, locals, line)
+	}
+	checker.checkSemanticChildBlockWithLocals(fn, stmt.Body, locals, loopLocals, declared)
+}
+
+func (checker *TypeChecker) checkSemanticLoopHeaderPart(fn functionSymbol, expr parser.Expression, locals map[string]variableSymbol, declared map[string]bool, line int) {
+	if len(expr.Tokens) == 0 {
+		return
+	}
+	if stmt, ok := semanticLoopHeaderStatement(expr); ok {
+		checker.checkSemanticStatement(fn, stmt, locals, declared)
+		return
+	}
+	checker.checkSemanticExpression(fn, expr, locals, line)
+}
+
+func semanticLoopHeaderStatement(expr parser.Expression) (parser.Statement, bool) {
+	tokens := expr.Tokens
+	if len(tokens) == 0 {
+		return nil, false
+	}
+	if tokens[0].Type == lexer.TokenLocal || tokens[0].Type == lexer.TokenLet || tokens[0].Type == lexer.TokenConst {
+		parserSource := expressionTokensSource(tokens) + ";"
+		program, errors := parser.Parse(parserSource)
+		if len(errors) == 0 && len(program.Statements) == 1 {
+			return program.Statements[0], true
+		}
+	}
+	if index := assignmentOperatorIndex(tokens); index != -1 {
+		target := parser.Expression{Tokens: tokens[:index], Node: parser.ParseExpressionTokens(tokens[:index])}
+		value := parser.Expression{Tokens: tokens[index+1:], Node: parser.ParseExpressionTokens(tokens[index+1:])}
+		return parser.AssignmentStatement{
+			Pos:        parser.Position{Line: tokens[0].Line, Column: tokens[0].Column},
+			Target:     target,
+			Operator:   tokens[index].Literal,
+			Expression: value,
+		}, true
+	}
+	return nil, false
+}
+
+func (checker *TypeChecker) checkSemanticChildBlock(fn functionSymbol, statements []parser.Statement, parent map[string]variableSymbol) {
+	child := copyLocals(parent)
+	checker.checkSemanticChildBlockWithLocals(fn, statements, parent, child, map[string]bool{})
+}
+
+func (checker *TypeChecker) checkSemanticChildBlockWithLocals(fn functionSymbol, statements []parser.Statement, parent map[string]variableSymbol, child map[string]variableSymbol, declared map[string]bool) {
+	checker.checkSemanticStatements(fn, statements, child, declared)
+	for name, variable := range child {
+		if declared[name] {
+			continue
+		}
+		if _, exists := parent[name]; exists {
+			parent[name] = variable
+		}
+	}
+}
+
+func (checker *TypeChecker) markMovedFromExpression(expr parser.Expression, locals map[string]variableSymbol) {
+	if movedName, ok := movedIdentifier(expressionSource(expr)); ok {
+		if movedVariable, exists := locals[movedName]; exists {
+			movedVariable.Type = movedType
+			locals[movedName] = movedVariable
+		}
+	}
+}
+
+func semanticLine(fn functionSymbol, pos parser.Position) int {
+	if pos.Line <= 0 {
+		return fn.Line
+	}
+	return fn.Line + pos.Line - 2
+}
+
+func expressionTokensSource(tokens []lexer.Token) string {
+	var builder strings.Builder
+	var previous lexer.Token
+	hasPrevious := false
+	for _, token := range tokens {
+		literal := tokenSourceLiteral(token)
+		if literal == "" {
+			continue
+		}
+		if builder.Len() > 0 && tokenNeedsLeadingSpace(previous, token, hasPrevious) {
+			builder.WriteByte(' ')
+		}
+		builder.WriteString(literal)
+		previous = token
+		hasPrevious = true
+	}
+	return builder.String()
+}
+
+func expressionSource(expr parser.Expression) string {
+	return expressionTokensSource(expr.Tokens)
+}
+
+func tokenSourceLiteral(token lexer.Token) string {
+	switch token.Type {
+	case lexer.TokenString:
+		return strconv.Quote(token.Literal)
+	case lexer.TokenChar:
+		return "'" + strings.ReplaceAll(token.Literal, "'", "\\'") + "'"
+	default:
+		return token.Literal
+	}
+}
+
+func tokenNeedsLeadingSpace(previous lexer.Token, token lexer.Token, hasPrevious bool) bool {
+	if hasPrevious {
+		switch previous.Type {
+		case lexer.TokenDot, lexer.TokenNamespaceAccess, lexer.TokenLeftBrace, lexer.TokenLeftSquareBrace:
+			return false
+		}
+	}
+	switch token.Type {
+	case lexer.TokenLeftBrace, lexer.TokenRightBrace, lexer.TokenLeftSquareBrace, lexer.TokenRightSquareBrace,
+		lexer.TokenDot, lexer.TokenNamespaceAccess, lexer.TokenComma, lexer.TokenSemicolon, lexer.TokenQuestion,
+		lexer.TokenBang:
+		return false
+	default:
+		return true
 	}
 }
 
