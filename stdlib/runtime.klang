@@ -137,4 +137,35 @@ namespace runtime {
     function WorkspaceManifest(workspace : WorkSpace) : String {
         return workspace_manifest(workspace);
     }
+
+    namespace debug {
+        -- convert these to useful functions when the langauge is powerful
+        val __LOC__ : string
+        __LOC__ returns the location at which this expression appears in the file currently being parsed by the compiler, with the standard error format of OCaml: "File %S, line %d, characters %d-%d".
+        Since 4.02
+        val __FILE__ : string
+        __FILE__ returns the name of the file currently being parsed by the compiler.
+        Since 4.02
+        val __LINE__ : int
+        __LINE__ returns the line number at which this expression appears in the file currently being parsed by the compiler.
+        Since 4.02
+        val __MODULE__ : string
+        __MODULE__ returns the module name of the file being parsed by the compiler.
+        Since 4.02
+        val __POS__ : string * int * int * int
+        __POS__ returns a tuple (file,lnum,cnum,enum), corresponding to the location at which this expression appears in the file currently being parsed by the compiler. file is the current filename, lnum the line number, cnum the character position in the line and enum the last character position in the line.
+        Since 4.02
+        val __FUNCTION__ : string
+        __FUNCTION__ returns the name of the current function or method, including any enclosing modules or classes.
+        Since 4.12
+        val __LOC_OF__ : 'a -> string * 'a
+        __LOC_OF__ expr returns a pair (loc, expr) where loc is the location of expr in the file currently being parsed by the compiler, with the standard error format of OCaml: "File %S, line %d, characters %d-%d".
+        Since 4.02
+        val __LINE_OF__ : 'a -> int * 'a
+        __LINE_OF__ expr returns a pair (line, expr), where line is the line number at which the expression expr appears in the file currently being parsed by the compiler.
+        Since 4.02
+        val __POS_OF__ : 'a -> (string * int * int * int) * 'a
+        __POS_OF__ expr returns a pair (loc,expr), where loc is a tuple (file,lnum,cnum,enum) corresponding to the location at which the expression expr appears in the file currently being parsed by the compiler. file is the current filename, lnum the line number, cnum the character position in the line and enum the last character position in the line.
+        Since 4.02
+    }
 }

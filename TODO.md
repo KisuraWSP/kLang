@@ -2,34 +2,49 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- HashSet / Set builtin
+   You have Map and List, but a Set[T] is commonly needed. Especially useful for compiler work, graph traversal, deduping imports, and static analysis.
+- Richer pattern destructuring
+   Destructuring already exists. It could expand into function parameters, match cases, loops, and records.
+- Better string formatting
+   The docs show a custom Printf example. This probably deserves official language or stdlib support:
+- Compile-time evaluation / macros, carefully limited
+   You already have Program, BuildSystem, WorkSpace, .sizeof, and diagnostics. A small compile-time feature could be powerful:
+   generate code, validate constants, create specialized functions, or define DSLs.
+- Testing built into the CLI
+   A first-class kLang test command would help the ecosystem a lot.
+   Even simple conventions like test files, test functions, assertions, and golden-output tests would make the language feel more complete.
+- Cancellation/context support
+Async, Awaitable, threads, and WASM would benefit from a builtin Context-like runtime cancellation model:
+cancellation, timeout, deadline, propagation.
+- Channel/message-passing concurrency
+Threads and Atomics exist, but message passing would give the language a cleaner high-level concurrency story.
+Go-style channels would fit beautifully here, especially given your Go influence.
+- Resource safety syntax
+Since kLang has allocators, regions, defer, refs, boxes, and arenas, a structured resource feature could fit well:
+something like scoped ownership or using-style blocks that guarantee cleanup at scope end.
+- Generic constraints beyond restrict[...]
+T restrict[Int, Float] is good, but the language could grow richer constraints:
+numeric, comparable, hashable, iterable, allocator-like, trait-bound.
+This would make generic functions safer and more expressive.
+- Exhaustive pattern matching
+Since enums and Result/Option already exist, the checker could warn when a match forgets a case. This would make kLang feel safer without adding much syntax burden.
 
 - Core Table Semantics
 
 Keep Table as the only fully dynamic container.
-
 Support mixed primitive keys: String, Int, UInt, Float, Bool, Char.
-
 Support mixed values, including typed kLang values.
-
 Define whether Table keys compare by value, identity, or normalized representation.
-
 Reject or clearly define unsafe keys like Table keys, function keys, allocator values, refs, etc.
-
 Preserve copy-on-write behavior for ordinary assignment, as your current runtime spec requires.
-
 Make indexed mutation detach shared storage before writing.
-
 Define stable behavior for missing keys.
 Field Access
-
 Keep table.name as sugar for table["name"].
-
 Decide whether table.name = value is allowed.
-
 Make field access fail clearly if the key is missing, or return Option[Any].
-
 Avoid silently creating fields from reads.
-
 Keep selector protocols like .count separate from user table fields, or define precedence.
 This one matters a lot. If table.count can mean either “builtin count property” or string key "count", you need a rule.
 For example:
@@ -42,60 +57,40 @@ data.count      -- builtin protocol only, if available
 data.name       -- sugar only when no builtin selector conflicts
 Or simpler: allow data.name, but reserve builtin protocol names like count.
 Deletion
-
 Add an explicit deletion operation.
-
 Do not make None() or Null automatically delete unless you really want Lua-style behavior.
-
 Prefer something clear:
 delete data["name"];
 or:
 table_delete(data, "name");
 Lua’s nil deletion is elegant, but in kLang it could conflict with Option, Null, and typed absence.
 Iteration
-
 Define iter(table) behavior.
-
 Decide whether iteration yields keys, values, or key/value pairs.
-
 Prefer a typed pair result:
 Iterator[(Any, Any)]
 or a builtin table-entry type.
-
 Add explicit helpers:
 table_keys(data)
 table_values(data)
 table_entries(data)
-
 Do not promise deterministic order unless you are willing to maintain it.
-
 If deterministic order matters, specify insertion-order iteration.
 Array-Like Behavior
-
 Decide whether Table has a Lua-style array part.
-
 Decide whether array-like table indexes are zero-based or one-based.
-
 Since kLang already uses zero-based indexing, keep Table zero-based too.
-
 Define whether data.count counts all keys or only sequential numeric indexes.
-
 Avoid Lua’s #table ambiguity.
 I’d strongly recommend:
 data.count              -- total number of entries
 table_sequence_count(t) -- optional contiguous numeric length
 Metatable-Like Behavior
-
 Add this only after the basic Table is solid.
-
 Do not copy Lua metatables exactly at first.
-
 Start with a controlled kLang version, maybe TableShape or TableMeta.
-
 Support missing-key fallback first.
-
 Add custom string/debug representation second.
-
 Add operator hooks much later, if ever.
 Minimal useful version:
 local mut Table parent = {"name": "base"};
@@ -105,19 +100,12 @@ Then:
 child.name -- reads from child, then parent
 Avoid starting with full __index, __newindex, __call, __add, etc. That much dynamism can punch holes through your type checker and runtime invariants.
 Runtime Safety
-
 Table operations should report errors through ErrorContext.
-
 Missing key, invalid key type, invalid mutation, and selector conflict should have clear diagnostics.
-
 Table mutation should respect immutable vs mutable bindings.
-
 Table mutation through aliases should obey copy-on-write.
-
 Table values stored inside Ref, RefMut, RefCell, or allocator-backed objects need explicit behavior.
-
 Threaded workers should not mutate shared Table without synchronization.
-
 If shared mutation is allowed, require Atomic-like wrappers or a synchronized table type later.
 What I Would Implement First
 Solid Table get/set/delete.
@@ -129,6 +117,12 @@ Deterministic diagnostics through ErrorContext.
 Optional fallback table/prototype lookup.
 Only later: metatable/operator/call hooks.
 My design instinct: keep Table as a safe dynamic record/map first, then grow Lua-like behavior behind explicit APIs. That gives you Lua’s flexibility without letting dynamic table magic leak into every part of the runtime.
+- add support for multiline comments via the below
+```fsharp
+(* 
+   THis is a multi line comment
+*)
+```
 
     
 # TODO When All Previous todos are done (End Goal)
