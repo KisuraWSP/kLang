@@ -1,4 +1,4 @@
-import "array"; -- this code will fail because module is disabled 
+import "runtime"; -- this code will fail because module is disabled 
                 --  but it will not fail right now because module contains garbage code actually
 
 namespace App {
