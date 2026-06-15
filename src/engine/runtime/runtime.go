@@ -106,6 +106,7 @@ type ThunkData struct {
 
 type ObjectData struct {
 	Type   string
+	Struct bool
 	Fields map[string]Value
 }
 
@@ -2420,7 +2421,26 @@ func (runtime *Runtime) callAliasFunction(name string, args []Value) (Value, err
 	}
 	fields["__type"] = StringValue(name)
 	fields["__hooks"] = IntValue(len(alias.Hooks))
-	return Value{Kind: ValueObject, Data: ObjectData{Type: name, Fields: fields}}, nil
+	fields["__methods"] = IntValue(len(alias.Methods))
+	traits, impls := aliasBodyMetadataCounts(alias.Body)
+	fields["__traits"] = IntValue(traits)
+	fields["__impls"] = IntValue(impls)
+	fields["__struct"] = BoolValue(alias.Struct)
+	return Value{Kind: ValueObject, Data: ObjectData{Type: name, Struct: alias.Struct, Fields: fields}}, nil
+}
+
+func aliasBodyMetadataCounts(statements []parser.Statement) (int, int) {
+	traits := 0
+	impls := 0
+	for _, stmt := range statements {
+		switch stmt.(type) {
+		case parser.TraitStatement:
+			traits++
+		case parser.ImplStatement:
+			impls++
+		}
+	}
+	return traits, impls
 }
 
 func isDefaultAllocator(expr parser.Expression) bool {

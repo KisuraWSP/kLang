@@ -218,7 +218,18 @@ func (parser *Parser) parseAliasFunction(inline bool, private bool) Statement {
 	if parser.match(lexer.TokenArrow) || parser.match(lexer.TokenInferReturn) {
 		returnType = parser.parseTypeOnCurrentLine()
 	}
+	structStyle := false
+	if parser.match(lexer.TokenAssign) {
+		parser.consume(lexer.TokenStruct, "expected struct after '=' in alias function type body")
+		structStyle = true
+	} else if parser.match(lexer.TokenStruct) {
+		structStyle = true
+	}
 	blockStyle := parser.match(lexer.TokenScopeBegin)
+	if structStyle && !blockStyle {
+		parser.consume(lexer.TokenScopeBegin, "expected '{' after alias function struct")
+		blockStyle = true
+	}
 
 	stmt := AliasFunctionStatement{
 		Pos:        positionFromToken(start),
@@ -226,6 +237,7 @@ func (parser *Parser) parseAliasFunction(inline bool, private bool) Statement {
 		TypeParams: typeParams,
 		Params:     params,
 		ReturnType: normalizeAliasReturnType(returnType),
+		Struct:     structStyle,
 		Inline:     inline,
 		Private:    private,
 	}

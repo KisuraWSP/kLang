@@ -1415,6 +1415,54 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesAliasFunctionStructBody(t *testing.T) {
+	result := runParsedSource(t, `
+alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type = struct {
+    trait LengthTracked {
+        function Size(value : Int) : Int;
+    }
+
+    impl LengthTracked for Int {
+        function Size(value : Int) : Int {
+            return value;
+        }
+    }
+
+    [new] {
+        allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
+    }
+
+    [delete] {
+        allocator.free = free_all_allocator(.{});
+    }
+
+    [side_effects] {
+        local T call_site = #call_site;
+        allocator.free = free_all_allocator(.{});
+    }
+
+    #extend {
+        function get_length() -> int {
+            return this.length;
+        }
+
+        function with_extra(extra : Int) -> int {
+            return this.length + extra;
+        }
+    }
+}
+
+function Main() : Int {
+    local T list = ArrayList("value", 3, 10);
+    return list.get_length() + list.with_extra(4) + list.__hooks + list.__methods + list.__traits + list.__impls;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 17 {
+		t.Fatalf("expected struct alias runtime metadata and methods to return 17, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesAliasExtensionMethodArguments(t *testing.T) {
 	result := runParsedSource(t, `
 alias function Counter(value: int) -> type

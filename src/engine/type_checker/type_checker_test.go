@@ -1133,6 +1133,46 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsAliasFunctionStructBody(t *testing.T) {
+	program := programFromSource(`
+alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type = struct {
+    trait LengthTracked {
+        function Size(value : Int) : Int;
+    }
+
+    impl LengthTracked for Int {
+        function Size(value : Int) : Int {
+            return value;
+        }
+    }
+
+    [new] {
+        allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
+    }
+
+    #extend {
+        function get_length() -> int {
+            return this.length;
+        }
+
+        function with_extra(extra : Int) -> int {
+            return this.length + extra;
+        }
+    }
+}
+
+function Main() : Int {
+    local T list = ArrayList("value", 3, 10);
+    return list.get_length() + list.with_extra(4);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected struct alias function program to type check, got %#v", report.Errors)
+	}
+}
+
 func TestCheckProgramAcceptsInferredParameterDefaultsAndAtomicBuiltins(t *testing.T) {
 	program := programFromSource(`
 function UserDefinedWorkspace() : String {

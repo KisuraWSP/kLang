@@ -53,6 +53,7 @@ type AliasFunctionStatement struct {
 	TypeParams []TypeParameter
 	Params     []Parameter
 	ReturnType string
+	Struct     bool
 	Inline     bool
 	Private    bool
 	Hooks      []AliasHook

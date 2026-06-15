@@ -939,6 +939,54 @@ function create_workspace(name : String, workspace := UserDefinedWorkspace()) {
 	}
 }
 
+func TestParseAliasFunctionStructBody(t *testing.T) {
+	program, errors := Parse(`
+alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type = struct {
+    trait LengthTracked {
+        function Size(value : Int) : Int;
+    }
+
+    impl LengthTracked for Int {
+        function Size(value : Int) : Int {
+            return value;
+        }
+    }
+
+    [new] {
+        allocator.region = get_default_procces_allocator(#region(100, T), #sizeof(capacity));
+    }
+
+    [delete] {
+        allocator.free = free_all_allocator(.{});
+    }
+
+    [side_effects] {
+        local T call_site = #call_site;
+        allocator.free = free_all_allocator(.{});
+    }
+
+    #extend {
+        function get_length() -> int {
+            return this.length;
+        }
+
+        function with_extra(extra : Int) -> int {
+            return this.length + extra;
+        }
+    }
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	alias, ok := program.Statements[0].(AliasFunctionStatement)
+	if !ok {
+		t.Fatalf("expected alias function, got %T", program.Statements[0])
+	}
+	if !alias.Struct || alias.ReturnType != "T" || len(alias.Hooks) != 3 || len(alias.Methods) != 2 || len(alias.Body) != 2 {
+		t.Fatalf("unexpected struct alias parse: %#v", alias)
+	}
+}
+
 func TestParseEntryPointDirective(t *testing.T) {
 	program, errors := Parse(`
 namespace App {

@@ -188,7 +188,7 @@ func cloneValue(value Value) Value {
 		for key, item := range object.Fields {
 			fields[key] = cloneValue(item)
 		}
-		return Value{Kind: ValueObject, Data: ObjectData{Type: object.Type, Fields: fields}}
+		return Value{Kind: ValueObject, Data: ObjectData{Type: object.Type, Struct: object.Struct, Fields: fields}}
 	case ValueThunk:
 		return value
 	default:

@@ -85,6 +85,7 @@ func TestLexerTokenizesPrivateInlineDeferAndHereString(t *testing.T) {
 	foundPrivate := false
 	foundInline := false
 	foundDefer := false
+	foundStruct := false
 	foundHereString := false
 	for _, token := range tokens {
 		switch token.Type {
@@ -94,14 +95,22 @@ func TestLexerTokenizesPrivateInlineDeferAndHereString(t *testing.T) {
 			foundInline = true
 		case TokenDefer:
 			foundDefer = true
+		case TokenStruct:
+			foundStruct = true
 		case TokenString:
 			if strings.Contains(token.Literal, "<section>") && strings.Contains(token.Literal, "</section>") {
 				foundHereString = true
 			}
 		}
 	}
-	if !foundPrivate || !foundInline || !foundDefer || !foundHereString {
-		t.Fatalf("expected private/inline/defer/here string tokens, got %#v", tokens)
+	structTokens := New(`alias function Wrapped(value : Int) : type = struct {}`).Tokenize()
+	for _, token := range structTokens {
+		if token.Type == TokenStruct {
+			foundStruct = true
+		}
+	}
+	if !foundPrivate || !foundInline || !foundDefer || !foundStruct || !foundHereString {
+		t.Fatalf("expected private/inline/defer/struct/here string tokens, got %#v %#v", tokens, structTokens)
 	}
 }
 
