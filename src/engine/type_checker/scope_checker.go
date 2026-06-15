@@ -133,8 +133,30 @@ func (checker *TypeChecker) checkLexicalScopes(program file.Program) {
 	}
 
 	for _, source := range parsed.Sources {
-		checker.checkScopeStatements(source.Program.Statements, globalScope, "", source.Path, false, true)
+		statements := filterModuleFunctions(source.Program.Statements, "", source.ModuleFunctionFilter)
+		checker.checkScopeStatements(statements, globalScope, "", source.Path, false, true)
 	}
+}
+
+func filterModuleFunctions(statements []parser.Statement, namespace string, filter map[string]bool) []parser.Statement {
+	if filter == nil {
+		return statements
+	}
+	filtered := make([]parser.Statement, 0, len(statements))
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.FunctionStatement:
+			if filter[namespace+current.Name] {
+				filtered = append(filtered, current)
+			}
+		case parser.NamespaceStatement:
+			current.Body = filterModuleFunctions(current.Body, namespace+current.Name+".", filter)
+			filtered = append(filtered, current)
+		default:
+			filtered = append(filtered, current)
+		}
+	}
+	return filtered
 }
 
 func (checker *TypeChecker) checkScopeStatements(statements []parser.Statement, scope *lexicalScope, namespace string, source string, inLoop bool, topLevel bool) {
@@ -163,6 +185,8 @@ func (checker *TypeChecker) predeclareLocalFunctions(statements []parser.Stateme
 func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *lexicalScope, namespace string, source string, inLoop bool, topLevel bool) {
 	switch current := stmt.(type) {
 	case parser.ImportStatement:
+		return
+	case parser.ModuleDirectiveStatement:
 		return
 	case parser.EntryPointStatement:
 		return

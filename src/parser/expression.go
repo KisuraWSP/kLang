@@ -122,7 +122,7 @@ func (parser *expressionParser) parsePrefix() ExpressionNode {
 
 	token := parser.advance()
 	switch token.Type {
-	case lexer.TokenIdentifier, lexer.TokenLet, lexer.TokenVar, lexer.TokenVal, lexer.TokenConst:
+	case lexer.TokenIdentifier, lexer.TokenLet, lexer.TokenVar, lexer.TokenVal, lexer.TokenConst, lexer.TokenModule:
 		return IdentifierExpression{Name: token.Literal}
 	case lexer.TokenInt:
 		return LiteralExpression{Kind: "Int", Value: token.Literal}
@@ -283,7 +283,7 @@ func (parser *expressionParser) parseIndex(target ExpressionNode) ExpressionNode
 func (parser *expressionParser) parseSelector(target ExpressionNode) ExpressionNode {
 	parser.advance()
 	field := parser.advance()
-	if field.Type != lexer.TokenIdentifier && field.Type != lexer.TokenCopy && field.Type != lexer.TokenClone {
+	if field.Type != lexer.TokenIdentifier && field.Type != lexer.TokenCopy && field.Type != lexer.TokenClone && field.Type != lexer.TokenModule {
 		return nil
 	}
 	return SelectorExpression{Target: target, Field: field.Literal}

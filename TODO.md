@@ -44,14 +44,6 @@
       -- so if .child(8) means the type can only contain 8 bits of information
       local x : Int.child(8);
    ```
-- Implement some sort of a lookup table for calling functions in modules in stdlib instead of calling the entire module unless user specifies in code as below like we only need to call one specific function not all of them
-```lua
-module_caller(call_entire_module : True);
-```
-- add a keyword called "module" which tells the programming langauge that the module is disabled for importing until its removed by user (like the below)
-```lua
-module(disabled : True);
-```
 
 - add call site to the langauge for relating to functions, variables, structs, function aliases, etc...
 

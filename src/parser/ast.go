@@ -25,12 +25,19 @@ type Statement interface {
 }
 
 type ImportStatement struct {
-	Pos  Position
-	Path string
+	Pos              Position
+	Path             string
+	CallEntireModule bool
 }
 
 type EntryPointStatement struct {
 	Pos Position
+}
+
+type ModuleDirectiveStatement struct {
+	Pos     Position
+	Name    string
+	Options map[string]bool
 }
 
 type AliasStatement struct {
@@ -367,6 +374,8 @@ type RawExpression struct {
 }
 
 func (stmt ImportStatement) statementNode() {}
+func (stmt ModuleDirectiveStatement) statementNode() {
+}
 func (stmt EntryPointStatement) statementNode() {
 }
 func (stmt AliasStatement) statementNode()  {}
@@ -398,6 +407,9 @@ func (stmt PrivateBlockStatement) statementNode() {
 }
 
 func (stmt ImportStatement) Position() Position { return stmt.Pos }
+func (stmt ModuleDirectiveStatement) Position() Position {
+	return stmt.Pos
+}
 func (stmt EntryPointStatement) Position() Position {
 	return stmt.Pos
 }

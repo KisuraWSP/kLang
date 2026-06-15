@@ -239,6 +239,17 @@ local String renderedPage = html.Document(
     "kLang",
     html.Main([html.Class("page")], html.H1([], html.Text("Hello from kLang")))
 );
+
+-- stdlib imports collect only the referenced module functions by default.
+-- This source collects html.Document, html.Main, html.Class, html.H1, html.Text,
+-- and same-module helper functions reached from those functions.
+
+-- opt out of selective stdlib function lookup for this source's imports
+module_caller(call_entire_module : True);
+import "runtime";
+
+-- inside a module source, reject imports until the directive is removed
+module(disabled : True);
 ```
 
 2. Functions
@@ -793,6 +804,9 @@ impl Printable for Int {
 - Each standalone script or folder project is resolved as a separate workspace.
 - Local imports are resolved inside the workspace before stdlib imports.
 - Resolver caches imported files and parsed import lists to speed repeated checks.
+- Stdlib imports use selective function lookup by default; only functions called through the imported module namespace and their same-module helper dependencies are collected.
+- Use `module_caller(call_entire_module : True);` in the importing source to load complete stdlib modules.
+- Use `module(disabled : True);` in a module source to make imports of that module fail until the directive is removed or set to false.
 - Use `--raw-lang` with the CLI to disable stdlib imports for a pure language run.
 ```sh
 kLang run examples/helloworld

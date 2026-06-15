@@ -267,6 +267,97 @@ func TestResolveProgramRawLangDisablesStdlibImports(t *testing.T) {
 	}
 }
 
+func TestResolveProgramRejectsDisabledModule(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "sealed.klang", `
+module(disabled : True);
+namespace sealed {
+    function Open() : Int { return 1; }
+}
+`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `import "sealed";`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	_, report := NewResolver(stdlibRoot).ResolveProgram(program)
+	if report.Passed() {
+		t.Fatal("expected disabled module import to fail")
+	}
+	if !strings.Contains(report.Errors[0].Message, "disabled") {
+		t.Fatalf("expected disabled module error, got %#v", report.Errors)
+	}
+}
+
+func TestResolveProgramFiltersStdlibFunctionsByModuleCalls(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "tools.klang", `
+namespace tools {
+    function Used() : Int { return Helper(); }
+    function Helper() : Int { return 7; }
+    function Unused() : Int { return 99; }
+}
+`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `
+import "tools";
+function Main() : Int {
+    return tools.Used();
+}
+`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolved, report := NewResolver(stdlibRoot).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected module resolution to pass, got %#v", report.Errors)
+	}
+	filter := resolved.Files[1].ModuleFunctionFilter
+	if !filter["tools.Used"] || !filter["tools.Helper"] {
+		t.Fatalf("expected used function and helper in filter, got %#v", filter)
+	}
+	if filter["tools.Unused"] {
+		t.Fatalf("did not expect unused function in filter, got %#v", filter)
+	}
+}
+
+func TestResolveProgramModuleCallerLoadsEntireStdlibModule(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "tools.klang", `
+namespace tools {
+    function Used() : Int { return 1; }
+    function Unused() : Int { return 2; }
+}
+`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `
+module_caller(call_entire_module : True);
+import "tools";
+function Main() : Int {
+    return tools.Used();
+}
+`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolved, report := NewResolver(stdlibRoot).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected module resolution to pass, got %#v", report.Errors)
+	}
+	if resolved.Files[1].ModuleFunctionFilter != nil {
+		t.Fatalf("expected full module import to have no function filter, got %#v", resolved.Files[1].ModuleFunctionFilter)
+	}
+}
+
 func TestResolveProgramRawLangStillAllowsLocalImports(t *testing.T) {
 	root := t.TempDir()
 	appRoot := filepath.Join(root, "app")

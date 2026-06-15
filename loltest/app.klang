@@ -1,0 +1,10 @@
+import "array"; -- this code will fail because module is disabled 
+                --  but it will not fail right now because module contains garbage code actually
+
+namespace App {
+    #set_entry_point_to_here
+    function Start() : Int {
+        print("Welcome to loltest");
+        return 0;
+    }
+}

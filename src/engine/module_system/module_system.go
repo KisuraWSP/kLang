@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"kLang/src/engine/file"
 	"kLang/src/parser"
@@ -53,12 +54,19 @@ type Resolver struct {
 	exists        map[string]bool
 	programs      map[string]file.Program
 	imports       map[string][]parser.ImportStatement
+	metadata      map[string]sourceMetadata
 }
 
 type resolutionState struct {
 	visited   map[string]bool
 	resolving map[string]bool
 	reported  map[string]bool
+}
+
+type sourceMetadata struct {
+	Imports          []parser.ImportStatement
+	ModuleDisabled   bool
+	CallEntireModule bool
 }
 
 func NewResolver(stdlibRoot string) *Resolver {
@@ -71,6 +79,7 @@ func NewResolver(stdlibRoot string) *Resolver {
 		exists:     map[string]bool{},
 		programs:   map[string]file.Program{},
 		imports:    map[string][]parser.ImportStatement{},
+		metadata:   map[string]sourceMetadata{},
 	}
 }
 
@@ -134,6 +143,20 @@ func (resolver *Resolver) resolveSource(state *resolutionState, program *file.Pr
 				Message: err.Error(),
 			})
 			continue
+		}
+
+		if resolver.moduleDisabled(imported) {
+			report.Errors = append(report.Errors, Error{
+				File:    source.Path,
+				Line:    importStmt.Pos.Line,
+				Column:  importStmt.Pos.Column,
+				Message: fmt.Sprintf("module %q is disabled", importStmt.Path),
+			})
+			continue
+		}
+
+		if module.Kind == ImportStdlib && !importStmt.CallEntireModule {
+			imported = resolver.applyStdlibFunctionFilter(imported, importStmt.Path, source)
 		}
 
 		if resolver.moduleIsResolving(state, imported) {
@@ -253,19 +276,27 @@ func (resolver *Resolver) addModuleReport(state *resolutionState, report *Report
 }
 
 func (resolver *Resolver) importsFor(source file.SourceFile) ([]parser.ImportStatement, []parser.Error) {
-	key := resolver.pathKey(source.Path)
-	if imports, ok := resolver.imports[key]; ok {
-		return imports, nil
+	metadata, errors := resolver.metadataFor(source)
+	if len(errors) != 0 {
+		return nil, errors
 	}
+	return metadata.Imports, nil
+}
 
+func (resolver *Resolver) metadataFor(source file.SourceFile) (sourceMetadata, []parser.Error) {
+	key := resolver.pathKey(source.Path)
+	if metadata, ok := resolver.metadata[key]; ok {
+		return metadata, nil
+	}
 	parsed := parser.ParseSource(source)
 	if len(parsed.Errors) != 0 {
-		return nil, parsed.Errors
+		return sourceMetadata{}, parsed.Errors
 	}
 
-	imports := collectImports(parsed.Program.Statements)
-	resolver.imports[key] = imports
-	return imports, nil
+	metadata := collectSourceMetadata(parsed.Program.Statements)
+	resolver.imports[key] = metadata.Imports
+	resolver.metadata[key] = metadata
+	return metadata, nil
 }
 
 func (resolver *Resolver) loadProgram(path string) (file.Program, error) {
@@ -283,39 +314,311 @@ func (resolver *Resolver) loadProgram(path string) (file.Program, error) {
 }
 
 func collectImports(statements []parser.Statement) []parser.ImportStatement {
+	return collectSourceMetadata(statements).Imports
+}
+
+func collectSourceMetadata(statements []parser.Statement) sourceMetadata {
+	metadata := sourceMetadata{}
 	var imports []parser.ImportStatement
 	for _, stmt := range statements {
 		switch current := stmt.(type) {
 		case parser.ImportStatement:
+			current.CallEntireModule = metadata.CallEntireModule
 			imports = append(imports, current)
+		case parser.ModuleDirectiveStatement:
+			switch current.Name {
+			case "module":
+				if current.Options["disabled"] {
+					metadata.ModuleDisabled = true
+				}
+			case "module_caller":
+				if current.Options["call_entire_module"] {
+					metadata.CallEntireModule = true
+				}
+			}
 		case parser.NamespaceStatement:
-			imports = append(imports, collectImports(current.Body)...)
+			nested := collectSourceMetadata(current.Body)
+			imports = append(imports, nested.Imports...)
 		case parser.FunctionStatement:
-			imports = append(imports, collectImports(current.Body)...)
+			nested := collectSourceMetadata(current.Body)
+			imports = append(imports, nested.Imports...)
 		case parser.AliasFunctionStatement:
-			imports = append(imports, collectImports(current.Body)...)
+			nested := collectSourceMetadata(current.Body)
+			imports = append(imports, nested.Imports...)
 			for _, method := range current.Methods {
-				imports = append(imports, collectImports(method.Body)...)
+				methodMetadata := collectSourceMetadata(method.Body)
+				imports = append(imports, methodMetadata.Imports...)
 			}
 		case parser.ImplStatement:
 			for _, method := range current.Methods {
-				imports = append(imports, collectImports(method.Body)...)
+				methodMetadata := collectSourceMetadata(method.Body)
+				imports = append(imports, methodMetadata.Imports...)
 			}
 		case parser.IfStatement:
-			imports = append(imports, collectImports(current.Consequence)...)
-			imports = append(imports, collectImports(current.Alternative)...)
+			consequence := collectSourceMetadata(current.Consequence)
+			alternative := collectSourceMetadata(current.Alternative)
+			imports = append(imports, consequence.Imports...)
+			imports = append(imports, alternative.Imports...)
 			if current.ElseIf != nil {
-				imports = append(imports, collectImports([]parser.Statement{*current.ElseIf})...)
+				elseIf := collectSourceMetadata([]parser.Statement{*current.ElseIf})
+				imports = append(imports, elseIf.Imports...)
 			}
 		case parser.LoopStatement:
-			imports = append(imports, collectImports(current.Body)...)
+			nested := collectSourceMetadata(current.Body)
+			imports = append(imports, nested.Imports...)
 		case parser.MatchStatement:
 			for _, matchCase := range current.Cases {
-				imports = append(imports, collectImports(matchCase.Body)...)
+				matchMetadata := collectSourceMetadata(matchCase.Body)
+				imports = append(imports, matchMetadata.Imports...)
 			}
 		}
 	}
-	return imports
+	for index := range imports {
+		imports[index].CallEntireModule = metadata.CallEntireModule
+	}
+	metadata.Imports = imports
+	return metadata
+}
+
+func (resolver *Resolver) moduleDisabled(program file.Program) bool {
+	for _, source := range program.Files {
+		metadata, errors := resolver.metadataFor(source)
+		if len(errors) == 0 && metadata.ModuleDisabled {
+			return true
+		}
+	}
+	return false
+}
+
+func (resolver *Resolver) applyStdlibFunctionFilter(program file.Program, importPath string, importingSource file.SourceFile) file.Program {
+	moduleName := moduleNameFromImportPath(importPath)
+	parsedImporter := parser.ParseSource(importingSource)
+	if len(parsedImporter.Errors) != 0 {
+		return program
+	}
+	selected := collectCalledModuleFunctions(parsedImporter.Program.Statements, moduleName)
+	if len(selected) == 0 {
+		selected = map[string]bool{}
+	}
+	selected = resolver.expandSelectedFunctions(program, selected)
+
+	filtered := program
+	filtered.Files = make([]file.SourceFile, 0, len(program.Files))
+	for _, source := range program.Files {
+		source.ModuleFunctionFilter = cloneBoolMap(selected)
+		filtered.Files = append(filtered.Files, source)
+	}
+	return filtered
+}
+
+func (resolver *Resolver) expandSelectedFunctions(program file.Program, selected map[string]bool) map[string]bool {
+	definitions := map[string]parser.FunctionStatement{}
+	for _, source := range program.Files {
+		parsed := parser.ParseSource(source)
+		if len(parsed.Errors) != 0 {
+			continue
+		}
+		collectFunctionDefinitions(parsed.Program.Statements, "", definitions)
+	}
+
+	changed := true
+	for changed {
+		changed = false
+		for name := range selected {
+			fn, ok := definitions[name]
+			if !ok {
+				continue
+			}
+			namespace := namespacePrefix(name)
+			calls := collectFunctionBodyCalls(fn.Body, namespace)
+			for call := range calls {
+				if _, exists := definitions[call]; !exists || selected[call] {
+					continue
+				}
+				selected[call] = true
+				changed = true
+			}
+		}
+	}
+	return selected
+}
+
+func moduleNameFromImportPath(importPath string) string {
+	clean := filepath.Clean(importPath)
+	name := strings.TrimSuffix(filepath.Base(clean), file.KlangExtension)
+	return name
+}
+
+func collectCalledModuleFunctions(statements []parser.Statement, moduleName string) map[string]bool {
+	selected := map[string]bool{}
+	collectStatementCalls(statements, func(name string) {
+		if strings.HasPrefix(name, moduleName+".") {
+			selected[name] = true
+		}
+	})
+	return selected
+}
+
+func collectFunctionDefinitions(statements []parser.Statement, namespace string, definitions map[string]parser.FunctionStatement) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.NamespaceStatement:
+			collectFunctionDefinitions(current.Body, namespace+current.Name+".", definitions)
+		case parser.FunctionStatement:
+			definitions[namespace+current.Name] = current
+		}
+	}
+}
+
+func collectFunctionBodyCalls(statements []parser.Statement, namespace string) map[string]bool {
+	calls := map[string]bool{}
+	collectStatementCalls(statements, func(name string) {
+		if strings.Contains(name, ".") {
+			calls[name] = true
+			return
+		}
+		calls[namespace+name] = true
+	})
+	return calls
+}
+
+func collectStatementCalls(statements []parser.Statement, add func(string)) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.FunctionStatement:
+			collectStatementCalls(current.Body, add)
+		case parser.AliasFunctionStatement:
+			collectStatementCalls(current.Body, add)
+			for _, method := range current.Methods {
+				collectStatementCalls(method.Body, add)
+			}
+		case parser.VariableStatement:
+			collectExpressionCalls(current.Expression.Node, add)
+		case parser.DestructuringStatement:
+			collectExpressionCalls(current.Expression.Node, add)
+		case parser.ReturnStatement:
+			collectExpressionCalls(current.Expression.Node, add)
+			for _, value := range current.Values {
+				collectExpressionCalls(value.Node, add)
+			}
+		case parser.ThrowStatement:
+			collectExpressionCalls(current.Expression.Node, add)
+		case parser.AssignmentStatement:
+			collectExpressionCalls(current.Target.Node, add)
+			collectExpressionCalls(current.Expression.Node, add)
+		case parser.ExpressionStatement:
+			collectExpressionCalls(current.Expression.Node, add)
+		case parser.IfStatement:
+			collectExpressionCalls(current.Condition.Node, add)
+			collectStatementCalls(current.Consequence, add)
+			collectStatementCalls(current.Alternative, add)
+			if current.ElseIf != nil {
+				collectStatementCalls([]parser.Statement{*current.ElseIf}, add)
+			}
+		case parser.MatchStatement:
+			collectExpressionCalls(current.Value.Node, add)
+			for _, matchCase := range current.Cases {
+				collectExpressionCalls(matchCase.Pattern.Node, add)
+				collectStatementCalls(matchCase.Body, add)
+			}
+		case parser.LoopStatement:
+			collectExpressionCalls(current.Header.Node, add)
+			collectStatementCalls(current.Body, add)
+		case parser.TryCatchStatement:
+			collectStatementCalls(current.TryBody, add)
+			collectStatementCalls(current.CatchBody, add)
+		case parser.DeferStatement:
+			if current.Stmt != nil {
+				collectStatementCalls([]parser.Statement{current.Stmt}, add)
+			}
+			collectStatementCalls(current.Body, add)
+		case parser.PrivateBlockStatement:
+			collectStatementCalls(current.Body, add)
+		case parser.NamespaceStatement:
+			collectStatementCalls(current.Body, add)
+		}
+	}
+}
+
+func collectExpressionCalls(expr parser.ExpressionNode, add func(string)) {
+	switch current := expr.(type) {
+	case parser.CallExpression:
+		if name, ok := expressionPath(current.Callee); ok {
+			add(name)
+		}
+		collectExpressionCalls(current.Callee, add)
+		for _, arg := range current.Arguments {
+			collectExpressionCalls(arg, add)
+		}
+	case parser.UnaryExpression:
+		collectExpressionCalls(current.Right, add)
+	case parser.BinaryExpression:
+		collectExpressionCalls(current.Left, add)
+		collectExpressionCalls(current.Right, add)
+	case parser.IndexExpression:
+		collectExpressionCalls(current.Target, add)
+		collectExpressionCalls(current.Index, add)
+	case parser.SelectorExpression:
+		collectExpressionCalls(current.Target, add)
+	case parser.CastExpression:
+		collectExpressionCalls(current.Value, add)
+	case parser.NullCheckExpression:
+		collectExpressionCalls(current.Value, add)
+	case parser.PropagateExpression:
+		collectExpressionCalls(current.Value, add)
+	case parser.ConditionalExpression:
+		collectExpressionCalls(current.Condition, add)
+		collectExpressionCalls(current.Consequence, add)
+		collectExpressionCalls(current.Alternative, add)
+	case parser.ListExpression:
+		for _, item := range current.Items {
+			collectExpressionCalls(item, add)
+		}
+	case parser.ListComprehensionExpression:
+		collectExpressionCalls(current.Value, add)
+		collectExpressionCalls(current.Iterable, add)
+		collectExpressionCalls(current.Condition, add)
+	case parser.MapExpression:
+		for _, entry := range current.Entries {
+			collectExpressionCalls(entry.Key, add)
+			collectExpressionCalls(entry.Value, add)
+		}
+	case parser.GroupExpression:
+		collectExpressionCalls(current.Inner, add)
+	case parser.LambdaExpression:
+		collectStatementCalls(current.Body, add)
+	}
+}
+
+func expressionPath(expr parser.ExpressionNode) (string, bool) {
+	switch current := expr.(type) {
+	case parser.IdentifierExpression:
+		return current.Name, true
+	case parser.SelectorExpression:
+		target, ok := expressionPath(current.Target)
+		if !ok {
+			return "", false
+		}
+		return target + "." + current.Field, true
+	default:
+		return "", false
+	}
+}
+
+func namespacePrefix(name string) string {
+	index := strings.LastIndex(name, ".")
+	if index == -1 {
+		return ""
+	}
+	return name[:index+1]
+}
+
+func cloneBoolMap(items map[string]bool) map[string]bool {
+	copied := make(map[string]bool, len(items))
+	for key, value := range items {
+		copied[key] = value
+	}
+	return copied
 }
 
 func (resolver *Resolver) pathExists(path string) bool {

@@ -15,8 +15,9 @@ const KlangEntryPoint = "first.klang"
 const KlangDistDir = "dist"
 
 type SourceFile struct {
-	Path  string
-	Lines []string
+	Path                 string
+	Lines                []string
+	ModuleFunctionFilter map[string]bool
 }
 
 type Program struct {

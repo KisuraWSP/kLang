@@ -36,6 +36,8 @@
 36. `enum` declarations define typed ordinal enum values with implicit iota-style ordinals and optional explicit integer ordinals.
 37. Aggregate values use copy-on-write storage for ordinary assignment.
 38. Every loaded workspace has a compiler/runtime `Context`, and failures are reported as source-aware `ErrorContext` diagnostics.
+39. Stdlib imports use a function lookup table by default so only module functions referenced through the imported module namespace are collected, type checked, and registered. `module_caller(call_entire_module : True);` in the importing source opts back into whole-module stdlib imports.
+40. A module source may declare `module(disabled : True);` to reject imports of that module until the directive is removed or set to false.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -63,6 +65,9 @@ Rules
 - `spawn(functionValue, [args...])` starts a child interpreter worker and returns `Thread[T]`; `join(thread)` waits and returns `T`.
 - Threaded workers share loaded functions, globals, memory tracking, and output. Use `Atomic[T]` for shared mutable values that need safe read-modify-write behavior.
 - Each standalone script or project is resolved as its own workspace. Resolver caches speed repeated imports without sharing visited-state between workspaces.
+- Stdlib imports are selectively collected by default. For example, `import "html";` plus `html.Document(...)` collects `html.Document` and its same-module helper dependencies, not every function in `stdlib/html.klang`.
+- Place `module_caller(call_entire_module : True);` in a source file to make its stdlib imports load complete modules.
+- Place `module(disabled : True);` in a module source to make the resolver reject imports of that module.
 - Alias functions may contain trait and impl declarations in addition to hooks and extension methods.
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.
 - CLI `package` checks a program and writes a compact source bundle with `klang-build.json`.

@@ -1,3 +1,5 @@
+module(disabled : True);
+
 namespace dsa {
     namespace arrayhashmap {
         -- A hash table of keys and values, each stored sequentially.

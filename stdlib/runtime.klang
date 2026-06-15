@@ -1,3 +1,5 @@
+module(disabled : True);
+
 -- Runtime helpers around debugger, concurrency, atomic, and workspace builtins.
 
 namespace runtime {

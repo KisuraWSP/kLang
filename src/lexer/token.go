@@ -109,6 +109,7 @@ const (
 	TokenVal        // val
 	TokenConst      // const
 	TokenCall       // call
+	TokenModule     // module
 	TokenNameSpace  // namespace
 	TokenReturn     // return
 	TokenBreak      // break
@@ -173,6 +174,7 @@ var Keywords = map[string]TokenType{
 	"val":            TokenVal,
 	"const":          TokenConst,
 	"call":           TokenCall,
+	"module":         TokenModule,
 	"namespace":      TokenNameSpace,
 	"return":         TokenReturn,
 	"break":          TokenBreak,

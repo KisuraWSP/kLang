@@ -623,6 +623,26 @@ call random.RandomRange(1, 2);
 	}
 }
 
+func TestParseModuleDirectives(t *testing.T) {
+	program, errors := Parse(`
+module(disabled : True);
+module_caller(call_entire_module : True);
+`)
+	assertNoParseErrors(t, errors)
+
+	if len(program.Statements) != 2 {
+		t.Fatalf("expected 2 module directive statements, got %d", len(program.Statements))
+	}
+	module, ok := program.Statements[0].(ModuleDirectiveStatement)
+	if !ok || module.Name != "module" || !module.Options["disabled"] {
+		t.Fatalf("unexpected module directive: %#v", program.Statements[0])
+	}
+	caller, ok := program.Statements[1].(ModuleDirectiveStatement)
+	if !ok || caller.Name != "module_caller" || !caller.Options["call_entire_module"] {
+		t.Fatalf("unexpected module caller directive: %#v", program.Statements[1])
+	}
+}
+
 func TestParseChainedNamespaceAliasAndNamespaceAccess(t *testing.T) {
 	program, errors := Parse(`
 namespace std {

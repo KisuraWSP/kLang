@@ -1,3 +1,5 @@
+module(disabled : True);
+
 namespace array {
     Struct Array
 
@@ -61,6 +63,4 @@ namespace array {
     Note
 
     When using Array with range-based functions like those in std.algorithm, Array must be sliced to get a range (for example, use array[].map! instead of array.map!). The container itself is not a range.
-
-
 }

@@ -7,9 +7,10 @@ import (
 )
 
 type ParsedSource struct {
-	Path    string
-	Program *Program
-	Errors  []Error
+	Path                 string
+	Program              *Program
+	Errors               []Error
+	ModuleFunctionFilter map[string]bool
 }
 
 type ParsedProgram struct {
@@ -21,9 +22,10 @@ type ParsedProgram struct {
 func ParseSource(source sourcefile.SourceFile) ParsedSource {
 	program, errors := Parse(strings.Join(source.Lines, "\n"))
 	return ParsedSource{
-		Path:    source.Path,
-		Program: program,
-		Errors:  errors,
+		Path:                 source.Path,
+		Program:              program,
+		Errors:               errors,
+		ModuleFunctionFilter: source.ModuleFunctionFilter,
 	}
 }
 

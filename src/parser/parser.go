@@ -62,6 +62,11 @@ func (parser *Parser) parseStatement() Statement {
 		return nil
 	case lexer.TokenImport:
 		return parser.parseImport()
+	case lexer.TokenModule:
+		if parser.peek().Type == lexer.TokenLeftBrace {
+			return parser.parseModuleDirective()
+		}
+		return parser.parseExpressionOrAssignment()
 	case lexer.TokenHash:
 		return parser.parseDirective()
 	case lexer.TokenAlias:
@@ -134,6 +139,9 @@ func (parser *Parser) parseStatement() Statement {
 	case lexer.TokenDoWhile, lexer.TokenDo:
 		return parser.parseLoop(token.Literal)
 	default:
+		if token.Type == lexer.TokenIdentifier && token.Literal == "module_caller" {
+			return parser.parseModuleDirective()
+		}
 		return parser.parseExpressionOrAssignment()
 	}
 }
@@ -145,6 +153,31 @@ func (parser *Parser) parseImport() Statement {
 	return ImportStatement{
 		Pos:  positionFromToken(start),
 		Path: path.Literal,
+	}
+}
+
+func (parser *Parser) parseModuleDirective() Statement {
+	start := parser.advance()
+	name := start.Literal
+	parser.consume(lexer.TokenLeftBrace, fmt.Sprintf("expected '(' after %s", name))
+	options := map[string]bool{}
+	if !parser.check(lexer.TokenRightBrace) {
+		for {
+			key := parser.consume(lexer.TokenIdentifier, "expected module directive option")
+			parser.consume(lexer.TokenInferReturn, "expected ':' after module directive option")
+			value := parser.consume(lexer.TokenBool, "expected Bool module directive option value")
+			options[key.Literal] = value.Literal == "True"
+			if !parser.match(lexer.TokenComma) {
+				break
+			}
+		}
+	}
+	parser.consume(lexer.TokenRightBrace, fmt.Sprintf("expected ')' after %s options", name))
+	parser.consumeOptionalSemicolon()
+	return ModuleDirectiveStatement{
+		Pos:     positionFromToken(start),
+		Name:    name,
+		Options: options,
 	}
 }
 
@@ -1046,8 +1079,8 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 	if parser.check(lexer.TokenLeftSquareBrace) || parser.check(lexer.TokenScopeBegin) {
 		return parser.parseDestructuringFromStart(start, scope, exported, mutable, lazy)
 	}
-	if scope == "local" && parser.check(lexer.TokenIdentifier) && parser.peek().Type == lexer.TokenAssign {
-		name := parser.consume(lexer.TokenIdentifier, "expected variable name")
+	if scope == "local" && parser.checkIdentifierLike() && parser.peek().Type == lexer.TokenAssign {
+		name := parser.consumeIdentifierLike("expected variable name")
 		parser.consume(lexer.TokenAssign, "expected '=' after inferred local variable name")
 		expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
 		parser.consumeOptionalSemicolon()
@@ -1064,7 +1097,7 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 		}
 	}
 	typeName := parser.parseType()
-	name := parser.consume(lexer.TokenIdentifier, "expected variable name")
+	name := parser.consumeIdentifierLike("expected variable name")
 	var expr Expression
 	if parser.match(lexer.TokenAssign) {
 		expr = parser.parseExpressionUntil(lexer.TokenSemicolon)
@@ -1100,10 +1133,10 @@ func (parser *Parser) parseInferredVariableFromStart(start lexer.Token, scope st
 		return parser.parseDestructuringFromStart(start, scope, false, mutable, lazy)
 	}
 	typeName := "T"
-	name := parser.consume(lexer.TokenIdentifier, "expected variable name")
-	if parser.check(lexer.TokenIdentifier) && parser.peek().Type == lexer.TokenAssign {
+	name := parser.consumeIdentifierLike("expected variable name")
+	if parser.checkIdentifierLike() && parser.peek().Type == lexer.TokenAssign {
 		typeName = inferredExplicitType(name.Literal)
-		name = parser.consume(lexer.TokenIdentifier, "expected variable name")
+		name = parser.consumeIdentifierLike("expected variable name")
 	}
 	if constant {
 		mutable = false
@@ -1632,13 +1665,17 @@ func (parser *Parser) consume(expected lexer.TokenType, message string) lexer.To
 }
 
 func (parser *Parser) consumeIdentifierLike(message string) lexer.Token {
-	if parser.check(lexer.TokenIdentifier) || parser.check(lexer.TokenLet) || parser.check(lexer.TokenVar) ||
-		parser.check(lexer.TokenVal) || parser.check(lexer.TokenConst) {
+	if parser.checkIdentifierLike() {
 		return parser.advance()
 	}
 	token := parser.current()
 	parser.addError(token, message)
 	return lexer.Token{Type: lexer.TokenIdentifier, Line: token.Line, Column: token.Column}
+}
+
+func (parser *Parser) checkIdentifierLike() bool {
+	return parser.check(lexer.TokenIdentifier) || parser.check(lexer.TokenLet) || parser.check(lexer.TokenVar) ||
+		parser.check(lexer.TokenVal) || parser.check(lexer.TokenConst) || parser.check(lexer.TokenModule)
 }
 
 func (parser *Parser) consumeFunctionName(message string) lexer.Token {

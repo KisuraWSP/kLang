@@ -113,8 +113,9 @@ type variableSymbol struct {
 }
 
 type sourceUnit struct {
-	Path string
-	Text string
+	Path                 string
+	Text                 string
+	ModuleFunctionFilter map[string]bool
 }
 
 func CheckProgram(program file.Program) Report {
@@ -132,8 +133,9 @@ func CheckProgram(program file.Program) Report {
 	units := make([]sourceUnit, 0, len(program.Files))
 	for _, source := range program.Files {
 		units = append(units, sourceUnit{
-			Path: source.Path,
-			Text: stripComments(strings.Join(source.Lines, "\n")),
+			Path:                 source.Path,
+			Text:                 stripComments(strings.Join(source.Lines, "\n")),
+			ModuleFunctionFilter: source.ModuleFunctionFilter,
 		})
 	}
 
@@ -265,7 +267,7 @@ func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string) 
 			}
 
 			body := unit.Text[openBrace+1 : closeBrace]
-			checker.collectFunctions(sourceUnit{Path: unit.Path, Text: body}, namespace+name+".")
+			checker.collectFunctions(sourceUnit{Path: unit.Path, Text: body, ModuleFunctionFilter: unit.ModuleFunctionFilter}, namespace+name+".")
 			index = closeBrace + 1
 			continue
 		}
@@ -292,7 +294,7 @@ func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string) 
 
 		if _, exists := checker.functions[fn.Name]; exists {
 			checker.addError(fn.File, fn.Line, fmt.Sprintf("function %q is already defined", fn.Name))
-		} else {
+		} else if unit.ModuleFunctionFilter == nil || unit.ModuleFunctionFilter[fn.Name] {
 			checker.functions[fn.Name] = fn
 		}
 		index = end
@@ -543,7 +545,8 @@ func (checker *TypeChecker) checkTopLevelCalls(unit sourceUnit) {
 	text := maskBlocks(unit.Text)
 	for _, stmt := range splitStatements(text) {
 		current := trimStatementPrefix(stmt.Text)
-		if strings.HasPrefix(current, "global ") || strings.HasPrefix(current, "import ") || strings.HasPrefix(current, "alias ") || current == "" {
+		if strings.HasPrefix(current, "global ") || strings.HasPrefix(current, "import ") || strings.HasPrefix(current, "alias ") ||
+			strings.HasPrefix(current, "module(") || strings.HasPrefix(current, "module_caller(") || current == "" {
 			continue
 		}
 		if looksLikeCall(current) {

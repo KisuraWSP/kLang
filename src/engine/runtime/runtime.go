@@ -250,14 +250,15 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 	}
 	for _, source := range program.Sources {
 		for _, stmt := range source.Program.Statements {
-			if err := runtime.collectFunctions(stmt, ""); err != nil {
+			if err := runtime.collectFunctions(stmt, "", source.ModuleFunctionFilter); err != nil {
 				return Result{}, err
 			}
 		}
 	}
 
 	for _, source := range program.Sources {
-		signal, err := runtime.executeBlock(source.Program.Statements, runtime.global, false)
+		statements := filterRuntimeModuleFunctions(source.Program.Statements, "", source.ModuleFunctionFilter)
+		signal, err := runtime.executeBlock(statements, runtime.global, false)
 		if err != nil {
 			return Result{}, err
 		}
@@ -286,6 +287,27 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 		return Result{}, err
 	}
 	return Result{Value: value, Output: runtime.outputLines(), Memory: runtime.memory.Stats()}, nil
+}
+
+func filterRuntimeModuleFunctions(statements []parser.Statement, namespace string, filter map[string]bool) []parser.Statement {
+	if filter == nil {
+		return statements
+	}
+	filtered := make([]parser.Statement, 0, len(statements))
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.FunctionStatement:
+			if filter[namespace+current.Name] {
+				filtered = append(filtered, current)
+			}
+		case parser.NamespaceStatement:
+			current.Body = filterRuntimeModuleFunctions(current.Body, namespace+current.Name+".", filter)
+			filtered = append(filtered, current)
+		default:
+			filtered = append(filtered, current)
+		}
+	}
+	return filtered
 }
 
 func (runtime *Runtime) appendOutput(line string) {
@@ -382,7 +404,7 @@ func (runtime *Runtime) defineArgs() error {
 	return runtime.defineValueInRegion(runtime.global, "Args", false, "List[String]", Value{Kind: ValueList, Data: values}, MemoryHeap)
 }
 
-func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string) error {
+func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string, filter map[string]bool) error {
 	switch current := stmt.(type) {
 	case parser.RegionStatement:
 		runtime.regions[current.Name] = RegionData{Name: current.Name, TypeName: current.TypeName}
@@ -398,6 +420,9 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 		runtime.enums[current.Name] = current
 	case parser.FunctionStatement:
 		name := namespace + current.Name
+		if filter != nil && !filter[name] {
+			return nil
+		}
 		if _, exists := runtime.functions[name]; exists {
 			return errorAt(current.Pos, fmt.Sprintf("function %q is already defined", name))
 		}
@@ -422,60 +447,60 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 		runtime.aliases[current.Name] = current.Target
 	case parser.NamespaceStatement:
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace+current.Name+"."); err != nil {
+			if err := runtime.collectFunctions(nested, namespace+current.Name+".", filter); err != nil {
 				return err
 			}
 		}
 	case parser.MatchStatement:
 		for _, matchCase := range current.Cases {
 			for _, nested := range matchCase.Body {
-				if err := runtime.collectFunctions(nested, namespace); err != nil {
+				if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
 					return err
 				}
 			}
 		}
 	case parser.IfStatement:
 		for _, nested := range current.Consequence {
-			if err := runtime.collectFunctions(nested, namespace); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
 				return err
 			}
 		}
 		for _, nested := range current.Alternative {
-			if err := runtime.collectFunctions(nested, namespace); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
 				return err
 			}
 		}
 	case parser.LoopStatement:
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
 				return err
 			}
 		}
 	case parser.TryCatchStatement:
 		for _, nested := range current.TryBody {
-			if err := runtime.collectFunctions(nested, namespace); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
 				return err
 			}
 		}
 		for _, nested := range current.CatchBody {
-			if err := runtime.collectFunctions(nested, namespace); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
 				return err
 			}
 		}
 	case parser.PrivateBlockStatement:
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
 				return err
 			}
 		}
 	case parser.DeferStatement:
 		if current.Stmt != nil {
-			if err := runtime.collectFunctions(current.Stmt, namespace); err != nil {
+			if err := runtime.collectFunctions(current.Stmt, namespace, filter); err != nil {
 				return err
 			}
 		}
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
 				return err
 			}
 		}
@@ -563,6 +588,8 @@ func (runtime *Runtime) evalReturnValue(stmt parser.ReturnStatement, env *Enviro
 func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment, inLoop bool) (signal, error) {
 	switch current := stmt.(type) {
 	case parser.ImportStatement:
+		return signal{kind: signalNone}, nil
+	case parser.ModuleDirectiveStatement:
 		return signal{kind: signalNone}, nil
 	case parser.EntryPointStatement:
 		return signal{kind: signalNone}, nil
