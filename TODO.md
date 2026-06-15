@@ -2,6 +2,16 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- add this below
+   - basically this scope when the program reads it, it gives first priority to it and executes at compilation stage
+   ```lua
+      -- a scope that gets the first priority when running
+      run {
+         print("Yay this code gets executed");
+      }
+
+   ```
+
 - Make The types that the Langauge implements as Parent Types
    - To make the parent return a child type we do the below
    ```go
