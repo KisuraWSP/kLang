@@ -84,7 +84,8 @@ itemsList[1] = count;
 
 -- referential transparency
 -- Immutable bindings snapshot aggregate rvalues, so later mutations through another
--- mutable binding do not change the immutable value.
+-- mutable binding do not change the immutable value. The runtime implements this
+-- with copy-on-write storage: assignment shares first, mutation detaches later.
 local List[Int] savedItems = itemsList;
 itemsList[0] = 100;
 
@@ -94,7 +95,7 @@ local String owned = "hello";
 local String transferred = move owned;
 
 -- copy and clone semantics
--- copy and clone create cloned values without moving from the original binding.
+-- copy and clone create eager cloned values without moving from the original binding.
 local List[Int] sourceItems = [1, 2, 3];
 local List[Int] copiedItems = copy sourceItems;
 local List[Int] clonedItems = clone sourceItems;

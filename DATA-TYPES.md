@@ -46,3 +46,5 @@ Builtin values expose a small shared protocol surface through selector syntax:
 - `Int` and `UInt` provide `.times(callback : Function[Int, T])`, which calls the callback for each zero-based index and returns the callback's last result.
 
 User-defined `enum` declarations create typed ordinal values inspired by Go `const`/`iota` enums. Variants are selected as `EnumName.Variant`, compare only with variants from the same enum type, and expose `.ordinal`, `.name`, and `.variant`.
+
+Aggregate collection values use copy-on-write storage for ordinary assignment. Shared `List`, `Map`, `Table`, and `SIMD` storage is detached when a mutable binding is written, while explicit `copy` and `clone` still create eager clones.

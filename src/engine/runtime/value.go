@@ -196,6 +196,35 @@ func cloneValue(value Value) Value {
 	}
 }
 
+func shareValue(value Value) Value {
+	switch value.Kind {
+	case ValueOption:
+		option := value.Data.(OptionData)
+		option.Value = shareValue(option.Value)
+		return Value{Kind: ValueOption, Data: option}
+	case ValueResult:
+		result := value.Data.(ResultData)
+		result.Value = shareValue(result.Value)
+		return Value{Kind: ValueResult, Data: result}
+	case ValueAwaitable:
+		data := value.Data.(*AwaitableData)
+		args := make([]Value, 0, len(data.Args))
+		for _, arg := range data.Args {
+			args = append(args, shareValue(arg))
+		}
+		return Value{Kind: ValueAwaitable, Data: &AwaitableData{Function: data.Function, Args: args, Done: data.Done, Value: shareValue(data.Value)}}
+	case ValueObject:
+		object := value.Data.(ObjectData)
+		fields := make(map[string]Value, len(object.Fields))
+		for key, field := range object.Fields {
+			fields[key] = shareValue(field)
+		}
+		return Value{Kind: ValueObject, Data: ObjectData{Type: object.Type, Struct: object.Struct, Fields: fields}}
+	default:
+		return value
+	}
+}
+
 func runtimeTypeName(value Value) string {
 	switch value.Kind {
 	case ValueInt:

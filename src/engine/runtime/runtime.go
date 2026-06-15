@@ -1012,7 +1012,7 @@ func (runtime *Runtime) defineValue(env *Environment, name string, mutable bool,
 }
 
 func (runtime *Runtime) defineValueInRegion(env *Environment, name string, mutable bool, typeName string, value Value, region MemoryRegion) error {
-	snapshot := cloneValue(value)
+	snapshot := shareValue(value)
 	return env.Define(name, mutable, typeName, snapshot, runtime.memory.Allocate(snapshot, region))
 }
 
@@ -1023,7 +1023,7 @@ func (runtime *Runtime) storeBindingValue(binding *Binding, value Value) {
 }
 
 func (runtime *Runtime) storeBindingValueLocked(binding *Binding, value Value) {
-	snapshot := cloneValue(value)
+	snapshot := shareValue(value)
 	binding.Value = snapshot
 	runtime.memory.Store(binding.ObjectID, snapshot)
 }
@@ -1264,7 +1264,7 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 			keyType, valueType, hasMapTypes := mapTypes(binding.Type)
 			items := make(map[string]Value, len(binding.Value.Data.(map[string]Value)))
 			for existingKey, existingValue := range binding.Value.Data.(map[string]Value) {
-				items[existingKey] = cloneValue(existingValue)
+				items[existingKey] = existingValue
 			}
 			if binding.Value.Kind == ValueMap && hasMapTypes && !valueMatchesType(index, keyType) {
 				return Error{Message: fmt.Sprintf("cannot use %s as map key type %s", index.Kind, keyType)}

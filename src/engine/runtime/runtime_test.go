@@ -761,6 +761,42 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeUsesCopyOnWriteForSharedListBindings(t *testing.T) {
+	runtime := New()
+	original := Value{Kind: ValueList, Data: []Value{IntValue(1), IntValue(2)}}
+	if err := runtime.defineValue(runtime.global, "a", true, "List[Int]", original); err != nil {
+		t.Fatalf("failed to define a: %v", err)
+	}
+	aBinding, _ := runtime.global.Get("a")
+	if err := runtime.defineValue(runtime.global, "b", true, "List[Int]", aBinding.Value); err != nil {
+		t.Fatalf("failed to define b: %v", err)
+	}
+	bBinding, _ := runtime.global.Get("b")
+
+	aItems := aBinding.Value.Data.([]Value)
+	bItems := bBinding.Value.Data.([]Value)
+	if len(aItems) == 0 || len(bItems) == 0 || &aItems[0] != &bItems[0] {
+		t.Fatalf("expected bindings to share backing storage before mutation")
+	}
+
+	err := runtime.assignIndex(parser.IndexExpression{
+		Target: parser.IdentifierExpression{Name: "b"},
+		Index:  parser.LiteralExpression{Kind: "Int", Value: "0"},
+	}, "=", IntValue(9), runtime.global)
+	if err != nil {
+		t.Fatalf("indexed assignment failed: %v", err)
+	}
+
+	aItems = aBinding.Value.Data.([]Value)
+	bItems = bBinding.Value.Data.([]Value)
+	if aItems[0].Data.(int) != 1 || bItems[0].Data.(int) != 9 {
+		t.Fatalf("expected mutation to detach b from a, got a=%#v b=%#v", aItems, bItems)
+	}
+	if &aItems[0] == &bItems[0] {
+		t.Fatalf("expected bindings to stop sharing backing storage after mutation")
+	}
+}
+
 func TestRuntimeRejectsRValueAssignmentTarget(t *testing.T) {
 	_, err := runParsedSourceWithError(`
 function Main() : Int {

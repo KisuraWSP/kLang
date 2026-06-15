@@ -16,8 +16,17 @@ complex programs that we will be able to run with whatever user created code and
 
 - Improve Variables [partial done] <why because we might revisit this later>
 - Improve Loops <broken right now>
-- Improve Functions, Function Aliases, Structs √
+- Improve Functions, Function Aliases, Structs <broken right now>
 - Improve Data Types <broken right now>
+    -   Zero-Cost Iterators and Functional Pipelines
+        Data types like arrays, lists, and dictionaries have been upgraded to support functional programming concepts out of the box.
+        Chaining: Instead of writing complex for loops with temporary variables, you can chain operations directly on the list: users.filter(...).map(...).sort(...).
+        Lazy Evaluation: In languages like Rust or C# (LINQ), chaining these methods together doesn't actually process the array immediately. The language builds a highly optimized execution plan behind the scenes and processes the data in one ultra-fast pass, meaning you get the readability of functional programming without sacrificing the performance of a raw C-style for loop.
+
+    -   Extension Methods
+        Historically, if the creators of a programming language didn't include a specific method on a String, you had to write a clunky helper function like reverseString(myString).
+        Bolting on Functionality: Modern languages like Kotlin, C#, and Swift feature "Extension Methods." These allow developers to "open up" built-in data types and bolt their own custom methods directly onto them as if they were there from the factory.
+        Ergonomics: This allows for incredibly readable code. Instead of calculateDate(10, "days", "ago"), you can extend the integer data type so you can simply write 10.days.ago().
 - Improve Error Reporting, Error Handling, Errors System <broken right now>
 (**improve errors system and error handling, error reporting should be proper and helpful not vague
 **)
