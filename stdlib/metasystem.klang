@@ -395,5 +395,16 @@ namespace metasystem {
         function CompleteMessage(workspace : WorkSpace, payload : Any) : Table {
             return ToolMessage("COMPLETE", workspace, payload);
         }
+
+        -- returns the ast of the source code that u provided
+        function GetASTFromSourceCode(code : Option[Program]) {
+
+        }
+
+        -- returns the ast of the entire project that you provided
+        -- Project could be a built in type if there is no equivalent in our langauges builtin data types
+        function GetAstFromEntireProject(code : Option[Project]) {
+
+        }
     }
 }
