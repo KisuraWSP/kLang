@@ -35,6 +35,7 @@
 35. Builtin values participate in shared selector protocols: collection-like values expose `.count`, strings/chars expose case conversion methods, and integer values expose `.times(callback)`.
 36. `enum` declarations define typed ordinal enum values with implicit iota-style ordinals and optional explicit integer ordinals.
 37. Aggregate values use copy-on-write storage for ordinary assignment.
+38. Every loaded workspace has a compiler/runtime `Context`, and failures are reported as source-aware `ErrorContext` diagnostics.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -73,3 +74,4 @@ Rules
 - Shared builtin protocols are statically checked and runtime-backed. `.count` is available on `String`, `List`, `Map`, `Table`, `SIMD`, and `Iterator`; `.uppercase()` and `.lowercase()` are available on `String` and `Char`; `.times(callback)` is available on `Int` and `UInt` and invokes the callback with indexes from `0` to `receiver - 1`.
 - Enum variants are selected with `EnumName.Variant`, have the enum name as their static type, and can be used in pattern matches. Enum values expose `.ordinal : Int`, `.name : String`, and `.variant : String`; values from different enum types are not assignable to each other.
 - Ordinary assignment of aggregate collection values such as `List`, `Map`, `Table`, and `SIMD` may share storage until one binding is mutated. Indexed mutation detaches the mutated binding first, preserving referential transparency for the other binding. Explicit `copy` and `clone` still request an eager cloned value.
+- `Context` tracks the program name, entry point, selected backend, source files, and collected diagnostics. `ErrorContext` includes the failing phase (`SOURCE`, `MODULE`, `PARSE`, `TYPE`, `RUNTIME`, `BACKEND`, or `WASM`), location, source line, rule, message, and fix hint. CLI `check`, `run`, `package`, and WASM packaging must report through this structure.

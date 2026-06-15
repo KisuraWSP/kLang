@@ -992,7 +992,7 @@ func typeSizeof(typeName string) (int, bool) {
 		return 1, true
 	case "Int", "UInt", "Float", "Complex":
 		return 8, true
-	case "String", "List", "Map", "Table", "T", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic":
+	case "String", "List", "Map", "Table", "T", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic", "Context", "ErrorContext":
 		return 16, true
 	default:
 		return 0, false

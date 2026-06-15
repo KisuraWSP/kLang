@@ -54,9 +54,9 @@ function RunVM(program : List[Int]) : Int {
 }
 
 function Main() : Int {
-    -- Bytecode: PUSH 5, PUSH 0, JUMP_IF_ZERO 8, PUSH 10, ADD, HALT
+    -- Bytecode: PUSH 5, PUSH 1, JUMP_IF_ZERO 8, PUSH 10, ADD, HALT
     -- Address:  0     1  2      3             4  5       6    7
-    local List[Int] myProgram = [1, 5, 1, 0, 3, 8, 1, 10, 2, 0];
+    local List[Int] myProgram = [1, 5, 1, 1, 3, 8, 1, 10, 2, 0];
     
     local Int result = RunVM(myProgram);
     

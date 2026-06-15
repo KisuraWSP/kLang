@@ -128,6 +128,9 @@ func zeroValue(typeName string) Value {
 	if typeName == "Table" {
 		return TableValue(map[string]Value{})
 	}
+	if typeName == "Context" || typeName == "ErrorContext" {
+		return Value{Kind: ValueObject, Data: ObjectData{Type: typeName, Fields: map[string]Value{}}}
+	}
 	if strings.HasPrefix(typeName, "Option[") {
 		return OptionNoneValue()
 	}
@@ -944,6 +947,8 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Data.(EnumData).Type == typeName
 	case typeName == "Table":
 		return value.Kind == ValueTable || value.Kind == ValueMap
+	case typeName == "Context" || typeName == "ErrorContext":
+		return value.Kind == ValueObject && value.Data.(ObjectData).Type == typeName
 	case strings.HasPrefix(typeName, "List["):
 		return value.Kind == ValueList
 	case strings.HasPrefix(typeName, "Map["):

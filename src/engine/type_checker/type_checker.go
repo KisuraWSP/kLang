@@ -3224,7 +3224,7 @@ func isKnownType(typeName string) bool {
 	if typeName == anyType || typeName == dynamicAnyType || typeName == "Int" || typeName == "UInt" || typeName == "String" ||
 		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" ||
 		typeName == "Table" || typeName == "Program" || typeName == "BuildSystem" || typeName == "WorkSpace" ||
-		typeName == "JSModule" || typeName == "JSCall" {
+		typeName == "JSModule" || typeName == "JSCall" || typeName == "Context" || typeName == "ErrorContext" {
 		return true
 	}
 	if isCustomTypeName(typeName) {

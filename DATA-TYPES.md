@@ -36,6 +36,8 @@
 35. JSModule // Filesystem-only JavaScript module descriptor loaded from a .js file
 36. JSCall // Filesystem-only JavaScript API call descriptor
 37. Enum // User-defined typed ordinal enum values declared with `enum`
+38. Context // Compiler/runtime source context for a workspace, including files, entry point, backend, and diagnostics
+39. ErrorContext // Source-aware diagnostic containing phase, file, line, column, rule, message, hint, and source line
 
 All builtin type names expose a compile-time size query through `.sizeof`, which returns an `Int`.
 For example, `Int.sizeof` returns the runtime size used for an `Int` value.
@@ -48,3 +50,5 @@ Builtin values expose a small shared protocol surface through selector syntax:
 User-defined `enum` declarations create typed ordinal values inspired by Go `const`/`iota` enums. Variants are selected as `EnumName.Variant`, compare only with variants from the same enum type, and expose `.ordinal`, `.name`, and `.variant`.
 
 Aggregate collection values use copy-on-write storage for ordinary assignment. Shared `List`, `Map`, `Table`, and `SIMD` storage is detached when a mutable binding is written, while explicit `copy` and `clone` still create eager clones.
+
+The language engine builds a `Context` for each loaded workspace and reports failures through `ErrorContext`. This diagnostic context is used by module resolution, parsing, type checking, runtime execution, packaging, and WASM backend generation.

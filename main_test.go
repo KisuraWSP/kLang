@@ -7,11 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	langcontext "kLang/src/engine/context"
 	"kLang/src/engine/file"
 )
 
 func TestRuntimeErrorPartsExtractsLineColumnAndMessage(t *testing.T) {
-	line, column, message := runtimeErrorParts(errors.New("runtime failed: line 3:9: cannot assign String to Int"))
+	line, column, message := langcontext.RuntimeErrorParts(errors.New("runtime failed: line 3:9: cannot assign String to Int"))
 
 	if line != 3 || column != 9 || message != "cannot assign String to Int" {
 		t.Fatalf("unexpected runtime parts: %d %d %q", line, column, message)
@@ -19,7 +20,7 @@ func TestRuntimeErrorPartsExtractsLineColumnAndMessage(t *testing.T) {
 }
 
 func TestHumanTypeMessageAddsHelpfulContext(t *testing.T) {
-	message := humanTypeMessage("cannot assign String to local Int value")
+	message := langcontext.HumanTypeMessage("cannot assign String to local Int value")
 
 	if !strings.Contains(message, "This value does not have the type declared") {
 		t.Fatalf("expected helpful type context, got %q", message)

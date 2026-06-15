@@ -508,6 +508,11 @@ local String manifestType = debug_type(manifest);
 local List[String] stack = debug_stack();
 breakpoint("after manifest");
 
+-- source context diagnostics
+-- The engine builds Context and ErrorContext descriptors while checking,
+-- running, packaging, and generating WASM bundles. ErrorContext reports include
+-- phase, file, line, column, source line, violated rule, message, and hint.
+
 -- JavaScript filesystem-only FFI
 -- js_import reads a local .js file and returns a descriptor.
 local JSModule js = js_import("vendor/library.js");

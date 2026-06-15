@@ -2,7 +2,7 @@ function ProcessMatrix(matrix : List[List[Int]], metadata : Map[String, T]) : Ma
     local mut Map[String, Int] rowResults = {};
     local Int rows = len(matrix);
     
-    for local mut Int i = 0; i < rows; i += 1 {
+    for i := range(rows) {
         -- Extracting a list from a list
         local List[Int] currentRow = matrix[i];
         local mut Int rowSum = 0;

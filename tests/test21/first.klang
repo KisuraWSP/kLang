@@ -40,16 +40,16 @@ function InitPlayer(name : String) : Int {
     playerMetadata["Name"] = name;
     playerMetadata["Status"] = "Alive";
     
-    player["HP"] = 100;
-    player["MaxHP"] = 100;
-    player["Atk"] = 15;
-    player["Def"] = 5;
+    player["HP"] = 500;
+    player["MaxHP"] = 500;
+    player["Atk"] = 60;
+    player["Def"] = 20;
     player["Gold"] = 0;
-    player["Potions"] = 3;
+    player["Potions"] = 10;
     player["Level"] = 1;
     player["Exp"] = 0;
     
-    inventory["HealthPotion"] = 3;
+    inventory["HealthPotion"] = 10;
     inventory["Bomb"] = 1;
     
     return 1;

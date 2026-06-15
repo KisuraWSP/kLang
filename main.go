@@ -9,12 +9,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	stdruntime "runtime"
 	"strconv"
 	"strings"
 	"time"
 
+	langcontext "kLang/src/engine/context"
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
 	"kLang/src/engine/runtime"
@@ -267,7 +267,8 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 	}
 	parsedProgram := parser.ParseLoadedProgram(resolvedProgram)
 	if !parsedProgram.Passed() {
-		return fmt.Errorf("parse failed: %v", parsedProgram.Errors())
+		printContextErrors(langcontext.ParseErrors(resolvedProgram, parsedProgram))
+		return fmt.Errorf("parse failed")
 	}
 
 	bundleDir := filepath.Join(outRoot, program.Name+"-"+strings.ToLower(backend))
@@ -318,6 +319,7 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 	}
 	if backend == "WASM" {
 		if err := writeWASMBrowserBundle(bundleDir); err != nil {
+			printContextErrors([]langcontext.ErrorContext{langcontext.BackendError(resolvedProgram, backend, err)})
 			return err
 		}
 	}
@@ -618,18 +620,7 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 
 	parsedProgram := parser.ParseLoadedProgram(resolvedProgram)
 	if !parsedProgram.Passed() {
-		for _, source := range parsedProgram.Sources {
-			for _, err := range source.Errors {
-				printDiagnostic(os.Stderr, diagnostic{
-					Kind:    "PARSE ERROR",
-					File:    source.Path,
-					Line:    err.Line,
-					Column:  err.Column,
-					Message: err.Message,
-					Help:    "The parser could not understand this part of the program. Check the syntax around the marked code.",
-				}, sourceLines(resolvedProgram, source.Path))
-			}
-		}
+		printContextErrors(langcontext.ParseErrors(resolvedProgram, parsedProgram))
 		return fmt.Errorf("parse failed")
 	}
 	fmt.Printf("  parse: ok\n")
@@ -643,7 +634,7 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 	result, err := runtime.NewWithArgs(options.ProgramArgs).Run(parsedProgram)
 	elapsed := time.Since(started)
 	if err != nil {
-		printRuntimeError(resolvedProgram, err)
+		printContextErrors([]langcontext.ErrorContext{langcontext.RuntimeError(resolvedProgram, err)})
 		return fmt.Errorf("runtime failed: %w", err)
 	}
 	for _, line := range result.Output {
@@ -660,29 +651,11 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 }
 
 func printModuleErrors(program file.Program, report modulesystem.Report) {
-	for _, err := range report.Errors {
-		printDiagnostic(os.Stderr, diagnostic{
-			Kind:    "MODULE ERROR",
-			File:    err.File,
-			Line:    err.Line,
-			Column:  err.Column,
-			Message: err.Message,
-			Help:    "The module resolver could not load an import used by this file.",
-		}, sourceLines(program, err.File))
-	}
+	printContextErrors(langcontext.ModuleErrors(program, report))
 }
 
 func printTypeErrors(program file.Program, report typechecker.Report) {
-	for _, err := range report.Errors {
-		printDiagnostic(os.Stderr, diagnostic{
-			Kind:    "TYPE ERROR",
-			File:    err.File,
-			Line:    err.Line,
-			Column:  1,
-			Message: humanTypeMessage(err.Message),
-			Help:    "I found a conflict between what this code produces and what the surrounding program expects.",
-		}, sourceLines(program, err.File))
-	}
+	printContextErrors(langcontext.TypeErrors(program, report))
 }
 
 func printTypeWarnings(report typechecker.Report) {
@@ -691,83 +664,33 @@ func printTypeWarnings(report typechecker.Report) {
 	}
 }
 
-type diagnostic struct {
-	Kind    string
-	File    string
-	Line    int
-	Column  int
-	Message string
-	Help    string
+func printContextErrors(errors []langcontext.ErrorContext) {
+	for _, err := range errors {
+		printDiagnostic(os.Stderr, err)
+	}
 }
 
-func printDiagnostic(out *os.File, diag diagnostic, lines []string) {
+func printDiagnostic(out *os.File, diag langcontext.ErrorContext) {
 	location := diag.File
 	if diag.Line > 0 {
 		location = fmt.Sprintf("%s:%d:%d", diag.File, diag.Line, maxInt(diag.Column, 1))
 	}
-	fmt.Fprintf(out, "\n-- %s %s\n\n", diag.Kind, strings.Repeat("-", maxInt(1, 72-len(diag.Kind))))
+	kind := string(diag.Phase) + " ERROR"
+	fmt.Fprintf(out, "\n-- %s %s\n\n", kind, strings.Repeat("-", maxInt(1, 72-len(kind))))
 	fmt.Fprintf(out, "%s\n\n", location)
+	if diag.Rule != "" {
+		fmt.Fprintf(out, "Rule: %s\n\n", diag.Rule)
+	}
 	fmt.Fprintf(out, "%s\n\n", diag.Message)
-	if diag.Line > 0 && diag.Line <= len(lines) {
-		code := lines[diag.Line-1]
+	if diag.Line > 0 && diag.SourceLine != "" {
 		width := len(strconv.Itoa(diag.Line))
-		fmt.Fprintf(out, "%*d | %s\n", width, diag.Line, code)
+		fmt.Fprintf(out, "%*d | %s\n", width, diag.Line, diag.SourceLine)
 		caretColumn := maxInt(diag.Column, 1)
 		fmt.Fprintf(out, "%*s | %s^\n\n", width, "", strings.Repeat(" ", maxInt(0, caretColumn-1)))
 	}
-	if diag.Help != "" {
-		fmt.Fprintf(out, "Hint: %s\n\n", diag.Help)
+	if diag.Hint != "" {
+		fmt.Fprintf(out, "Hint: %s\n\n", diag.Hint)
 	}
-}
-
-func printRuntimeError(program file.Program, err error) {
-	line, column, message := runtimeErrorParts(err)
-	printDiagnostic(os.Stderr, diagnostic{
-		Kind:    "RUNTIME ERROR",
-		File:    program.EntryPoint,
-		Line:    line,
-		Column:  column,
-		Message: message,
-		Help:    "The program reached this code while running and could not continue safely.",
-	}, sourceLines(program, program.EntryPoint))
-}
-
-func runtimeErrorParts(err error) (int, int, string) {
-	message := err.Error()
-	pattern := regexp.MustCompile(`line ([0-9]+):([0-9]+): (.*)`)
-	matches := pattern.FindStringSubmatch(message)
-	if len(matches) != 4 {
-		return 0, 0, message
-	}
-	line, _ := strconv.Atoi(matches[1])
-	column, _ := strconv.Atoi(matches[2])
-	return line, column, matches[3]
-}
-
-func humanTypeMessage(message string) string {
-	switch {
-	case strings.Contains(message, "cannot assign"):
-		return message + "\n\nThis value does not have the type declared for the variable."
-	case strings.Contains(message, "argument") && strings.Contains(message, "expects"):
-		return message + "\n\nThis function call is passing a value with an unexpected type."
-	case strings.Contains(message, "unknown identifier"):
-		return message + "\n\nThis name has not been declared in the current scope."
-	default:
-		return message
-	}
-}
-
-func sourceLines(program file.Program, path string) []string {
-	clean := filepath.Clean(path)
-	for _, source := range program.Files {
-		if filepath.Clean(source.Path) == clean {
-			return source.Lines
-		}
-	}
-	if lines, err := file.ReadLines(path); err == nil {
-		return lines
-	}
-	return nil
 }
 
 func maxInt(left int, right int) int {

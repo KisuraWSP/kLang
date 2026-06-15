@@ -1,9 +1,8 @@
 # TODO
-- add **"Context"** system so that the programming langauge is able to understand user level source code and that whatever source code that the user provides is correct by the langauges rules/semantics/runtime/ WASM backend
-    - build this feature into the entire language source code be it parser, lexer, or whatever it must be fully built in and integrated so that the users source code is understood by the programming langauge and it knows what to do and will give an expected output to what the user wants and if it didnt give an expected output then tell the user what is wrong (so for that we will provide something called an **"ErrorContext"**, so that the programming langauge will know that there is an error and it will know what to do and will tell user on how to fix it)
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+    
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project under 10 seconds
 - Make this langauge be able to run on web runtime with no issues
