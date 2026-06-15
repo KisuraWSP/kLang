@@ -10,3 +10,13 @@ complex programs that we will be able to run with whatever user created code and
 - Make this langauge be able to run on web runtime with no issues
 - Make the language runtime more powerful and be able to execute any user code without issue but if there is an issue then render the error and stop it either via runtime/checking stage
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
+
+# REFACTOR
+- Improve Variables
+- Improve Functions
+- Improve Data Types
+- Improve Error Reporting, Error Handling, Errors System
+- Improve Runtime
+
+# TARGET MILESTONE
+- Jan 1st 2027 - Language should be able to understand user code and have powerful interface to use with

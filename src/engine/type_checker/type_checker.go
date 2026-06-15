@@ -90,6 +90,7 @@ type variableSymbol struct {
 	Name         string
 	Type         string
 	InferredType string
+	KnownSome    bool
 	Mutable      bool
 	Default      string
 	File         string
@@ -468,11 +469,12 @@ func (checker *TypeChecker) collectGlobals(unit sourceUnit) {
 		}
 
 		checker.globals[decl.Name] = variableSymbol{
-			Name:    decl.Name,
-			Type:    decl.Type,
-			Mutable: decl.Mutable,
-			File:    unit.Path,
-			Line:    decl.Line,
+			Name:      decl.Name,
+			Type:      decl.Type,
+			KnownSome: isKnownSomeInitializer(decl.Expression),
+			Mutable:   decl.Mutable,
+			File:      unit.Path,
+			Line:      decl.Line,
 		}
 	}
 }
@@ -530,6 +532,7 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 			checker.addError(fn.File, fn.Line, fmt.Sprintf("parameter %s default expects %s, got %s", param.Name, param.Type, defaultType))
 		}
 	}
+	checker.checkFunctionNullSafety(fn)
 
 	body := maskNestedFunctions(fn.Body)
 	for _, stmt := range splitStatements(body) {
@@ -570,6 +573,7 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 				Name:         decl.Name,
 				Type:         decl.Type,
 				InferredType: inferredType,
+				KnownSome:    isKnownSomeInitializer(decl.Expression),
 				Mutable:      decl.Mutable,
 				File:         fn.File,
 				Line:         line,
@@ -634,6 +638,249 @@ func (checker *TypeChecker) checkTupleReturn(fn functionSymbol, expr string, loc
 			checker.addError(fn.File, line, fmt.Sprintf("function %s %s expects %s but got %s", fn.Name, name, expected.Type, exprType))
 		}
 	}
+}
+
+type nullSafetySymbol struct {
+	Type      string
+	KnownSome bool
+}
+
+func (checker *TypeChecker) checkFunctionNullSafety(fn functionSymbol) {
+	source := fmt.Sprintf("function __NullSafety() : T {\n%s\n}", fn.Body)
+	program, errors := parser.Parse(source)
+	if len(errors) != 0 || len(program.Statements) == 0 {
+		return
+	}
+	parsedFn, ok := program.Statements[0].(parser.FunctionStatement)
+	if !ok {
+		return
+	}
+	env := map[string]nullSafetySymbol{}
+	for name, global := range checker.globals {
+		env[name] = nullSafetySymbol{Type: normalizeType(global.Type), KnownSome: global.KnownSome}
+	}
+	for _, param := range fn.Params {
+		env[param.Name] = nullSafetySymbol{Type: normalizeType(param.Type)}
+	}
+	checker.checkNullSafetyStatements(parsedFn.Body, env, fn.File, fn.Line)
+}
+
+func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statement, env map[string]nullSafetySymbol, source string, baseLine int) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.VariableStatement:
+			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
+			typeName := normalizeType(current.Type)
+			if current.Inferred && typeName == anyType {
+				typeName = checker.nullSafetyExpressionType(current.Expression.Node, env)
+			}
+			if _, ok := optionElementType(typeName); ok {
+				env[current.Name] = nullSafetySymbol{Type: typeName, KnownSome: nullSafetyExpressionIsKnownSome(current.Expression.Node)}
+			} else {
+				env[current.Name] = nullSafetySymbol{Type: typeName}
+			}
+		case parser.AssignmentStatement:
+			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
+			if target, ok := current.Target.Node.(parser.IdentifierExpression); ok {
+				if symbol, exists := env[target.Name]; exists {
+					symbol.KnownSome = nullSafetyExpressionIsKnownSome(current.Expression.Node)
+					env[target.Name] = symbol
+				}
+			}
+		case parser.ReturnStatement:
+			if len(current.Values) == 0 {
+				checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
+			}
+			for _, expr := range current.Values {
+				checker.checkNullSafetyExpression(expr.Node, env, source, baseLine)
+			}
+		case parser.ThrowStatement:
+			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
+		case parser.ExpressionStatement:
+			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
+		case parser.IfStatement:
+			checker.checkNullSafetyExpression(current.Condition.Node, env, source, baseLine)
+			guarded := copyNullSafetyEnv(env)
+			for name := range nullSafetySomeGuards(current.Condition.Node) {
+				if symbol, ok := guarded[name]; ok {
+					if _, option := optionElementType(symbol.Type); option {
+						symbol.KnownSome = true
+						guarded[name] = symbol
+					}
+				}
+			}
+			checker.checkNullSafetyStatements(current.Consequence, guarded, source, baseLine)
+			if current.ElseIf != nil {
+				checker.checkNullSafetyStatements([]parser.Statement{*current.ElseIf}, copyNullSafetyEnv(env), source, baseLine)
+			}
+			checker.checkNullSafetyStatements(current.Alternative, copyNullSafetyEnv(env), source, baseLine)
+		case parser.LoopStatement:
+			checker.checkNullSafetyExpression(current.Header.Node, env, source, baseLine)
+			guarded := copyNullSafetyEnv(env)
+			for name := range nullSafetySomeGuards(current.Header.Node) {
+				if symbol, ok := guarded[name]; ok {
+					if _, option := optionElementType(symbol.Type); option {
+						symbol.KnownSome = true
+						guarded[name] = symbol
+					}
+				}
+			}
+			checker.checkNullSafetyStatements(current.Body, guarded, source, baseLine)
+		case parser.TryCatchStatement:
+			checker.checkNullSafetyStatements(current.TryBody, copyNullSafetyEnv(env), source, baseLine)
+			catchEnv := copyNullSafetyEnv(env)
+			catchEnv[current.ErrorName] = nullSafetySymbol{Type: anyType}
+			checker.checkNullSafetyStatements(current.CatchBody, catchEnv, source, baseLine)
+		case parser.DeferStatement:
+			checker.checkNullSafetyStatements(current.Body, copyNullSafetyEnv(env), source, baseLine)
+			if current.Stmt != nil {
+				checker.checkNullSafetyStatements([]parser.Statement{current.Stmt}, copyNullSafetyEnv(env), source, baseLine)
+			}
+		case parser.PrivateBlockStatement:
+			checker.checkNullSafetyStatements(current.Body, copyNullSafetyEnv(env), source, baseLine)
+		case parser.MatchStatement:
+			checker.checkNullSafetyExpression(current.Value.Node, env, source, baseLine)
+			for _, matchCase := range current.Cases {
+				checker.checkNullSafetyExpression(matchCase.Pattern.Node, env, source, baseLine)
+				checker.checkNullSafetyStatements(matchCase.Body, copyNullSafetyEnv(env), source, baseLine)
+			}
+		}
+	}
+}
+
+func (checker *TypeChecker) checkNullSafetyExpression(expr parser.ExpressionNode, env map[string]nullSafetySymbol, source string, baseLine int) {
+	switch current := expr.(type) {
+	case nil, parser.LiteralExpression, parser.IdentifierExpression:
+		return
+	case parser.GroupExpression:
+		checker.checkNullSafetyExpression(current.Inner, env, source, baseLine)
+	case parser.UnaryExpression:
+		checker.checkNullSafetyExpression(current.Right, env, source, baseLine)
+	case parser.BinaryExpression:
+		checker.checkNullSafetyExpression(current.Left, env, source, baseLine)
+		checker.checkNullSafetyExpression(current.Right, env, source, baseLine)
+	case parser.CallExpression:
+		checker.checkNullSafetyExpression(current.Callee, env, source, baseLine)
+		for _, arg := range current.Arguments {
+			checker.checkNullSafetyExpression(arg, env, source, baseLine)
+		}
+	case parser.IndexExpression:
+		checker.checkNullSafetyExpression(current.Target, env, source, baseLine)
+		checker.checkNullSafetyExpression(current.Index, env, source, baseLine)
+	case parser.SelectorExpression:
+		checker.checkNullSafetyExpression(current.Target, env, source, baseLine)
+		if current.Field == "value" {
+			if target, ok := current.Target.(parser.IdentifierExpression); ok {
+				if symbol, exists := env[target.Name]; exists {
+					if _, option := optionElementType(symbol.Type); option && !symbol.KnownSome {
+						line := baseLine + selectorLine(current.Target) - 1
+						checker.addError(source, line, fmt.Sprintf("Option value %s must be checked with .some before accessing .value", target.Name))
+					}
+				}
+			}
+		}
+	case parser.CastExpression:
+		checker.checkNullSafetyExpression(current.Value, env, source, baseLine)
+	case parser.NullCheckExpression:
+		checker.checkNullSafetyExpression(current.Value, env, source, baseLine)
+	case parser.PropagateExpression:
+		checker.checkNullSafetyExpression(current.Value, env, source, baseLine)
+	case parser.ConditionalExpression:
+		checker.checkNullSafetyExpression(current.Condition, env, source, baseLine)
+		checker.checkNullSafetyExpression(current.Consequence, env, source, baseLine)
+		checker.checkNullSafetyExpression(current.Alternative, env, source, baseLine)
+	case parser.ListExpression:
+		for _, item := range current.Items {
+			checker.checkNullSafetyExpression(item, env, source, baseLine)
+		}
+	case parser.ListComprehensionExpression:
+		checker.checkNullSafetyExpression(current.Iterable, env, source, baseLine)
+		checker.checkNullSafetyExpression(current.Condition, env, source, baseLine)
+		checker.checkNullSafetyExpression(current.Value, env, source, baseLine)
+	case parser.MapExpression:
+		for _, entry := range current.Entries {
+			checker.checkNullSafetyExpression(entry.Key, env, source, baseLine)
+			checker.checkNullSafetyExpression(entry.Value, env, source, baseLine)
+		}
+	case parser.LambdaExpression:
+		lambdaEnv := copyNullSafetyEnv(env)
+		for _, param := range current.Params {
+			lambdaEnv[param.Name] = nullSafetySymbol{Type: normalizeType(param.Type)}
+		}
+		checker.checkNullSafetyStatements(current.Body, lambdaEnv, source, baseLine)
+	}
+}
+
+func (checker *TypeChecker) nullSafetyExpressionType(expr parser.ExpressionNode, env map[string]nullSafetySymbol) string {
+	switch current := expr.(type) {
+	case parser.IdentifierExpression:
+		if symbol, ok := env[current.Name]; ok {
+			return symbol.Type
+		}
+	case parser.CallExpression:
+		if callee, ok := current.Callee.(parser.IdentifierExpression); ok {
+			switch callee.Name {
+			case "Some":
+				return "Option[T]"
+			case "None":
+				return "Option[T]"
+			}
+		}
+	}
+	return anyType
+}
+
+func nullSafetyExpressionIsKnownSome(expr parser.ExpressionNode) bool {
+	call, ok := expr.(parser.CallExpression)
+	if !ok {
+		return false
+	}
+	callee, ok := call.Callee.(parser.IdentifierExpression)
+	return ok && callee.Name == "Some"
+}
+
+func nullSafetySomeGuards(expr parser.ExpressionNode) map[string]bool {
+	guards := map[string]bool{}
+	switch current := expr.(type) {
+	case parser.SelectorExpression:
+		if current.Field == "some" {
+			if target, ok := current.Target.(parser.IdentifierExpression); ok {
+				guards[target.Name] = true
+			}
+		}
+	case parser.GroupExpression:
+		for name := range nullSafetySomeGuards(current.Inner) {
+			guards[name] = true
+		}
+	case parser.BinaryExpression:
+		for name := range nullSafetySomeGuards(current.Left) {
+			guards[name] = true
+		}
+		for name := range nullSafetySomeGuards(current.Right) {
+			guards[name] = true
+		}
+	case parser.UnaryExpression:
+		if current.Operator != "not" {
+			for name := range nullSafetySomeGuards(current.Right) {
+				guards[name] = true
+			}
+		}
+	}
+	return guards
+}
+
+func copyNullSafetyEnv(env map[string]nullSafetySymbol) map[string]nullSafetySymbol {
+	copied := make(map[string]nullSafetySymbol, len(env))
+	for name, symbol := range env {
+		copied[name] = symbol
+	}
+	return copied
+}
+
+func selectorLine(expr parser.ExpressionNode) int {
+	// The string checker reports function-level lines today; keep this pass aligned
+	// until expression nodes carry source positions.
+	return 1
 }
 
 type variableDeclaration struct {
@@ -1110,9 +1357,11 @@ func movedIdentifier(expr string) (string, bool) {
 func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, locals map[string]variableSymbol, source string, line int) {
 	baseName := assignment.Target
 	targetType := ""
+	targetName := ""
 
 	if targetExpr, indexExpr, ok := splitTrailingIndexExpression(baseName); ok {
 		baseName = strings.TrimSpace(targetExpr)
+		targetName = baseName
 		if !isSimpleIdentifier(baseName) {
 			checker.addError(source, line, "assignment target must be an lvalue")
 			return
@@ -1133,6 +1382,7 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 		indexType := checker.inferExpression(indexExpr, locals, source, line)
 		targetType = checker.checkIndexedAssignmentTarget(base.Type, indexType, source, line)
 	} else {
+		targetName = baseName
 		if !isSimpleIdentifier(baseName) {
 			checker.addError(source, line, "assignment target must be an lvalue")
 			return
@@ -1165,6 +1415,10 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 		if variable, ok := locals[assignment.Target]; ok && variable.Type == anyType && exprType != anyType {
 			variable.Type = exprType
 			locals[assignment.Target] = variable
+		}
+		if variable, ok := locals[targetName]; ok && strings.HasPrefix(normalizeType(variable.Type), "Option[") {
+			variable.KnownSome = isKnownSomeInitializer(assignment.Expr)
+			locals[targetName] = variable
 		}
 	}
 }
@@ -3206,6 +3460,15 @@ func copyLocals(locals map[string]variableSymbol) map[string]variableSymbol {
 		copied[name] = variable
 	}
 	return copied
+}
+
+func isKnownSomeInitializer(expr string) bool {
+	expr = strings.TrimSpace(expr)
+	if expr == "" {
+		return false
+	}
+	callName, _, ok := parseFunctionCall(expr)
+	return ok && callName == "Some"
 }
 
 func parseFunctionCall(expr string) (string, []string, bool) {

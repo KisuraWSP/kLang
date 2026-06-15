@@ -1431,7 +1431,10 @@ function Main() : Int {
     local Option[Int] first = next(iterator);
     local Coroutine[Int] co = coroutine(BuildValue);
     local Option[Int] resumed = resume(co);
-    return (await pending) + first.value + resumed.value + len(data.name);
+    if first.some and resumed.some {
+        return (await pending) + first.value + resumed.value + len(data.name);
+    }
+    return 0;
 }
 `)
 
@@ -1460,6 +1463,49 @@ function Main() : Int {
 `)
 
 	assertTypeError(t, CheckProgram(program), "next expects Iterator, got Int")
+}
+
+func TestCheckProgramRejectsUnsafeOptionValueAccess(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Option[Int] value = None();
+    return value.value;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "Option value value must be checked with .some before accessing .value")
+}
+
+func TestCheckProgramAcceptsGuardedOptionValueAccess(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Option[Int] value = None();
+    if value.some {
+        return value.value;
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected guarded Option value access to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramTracksKnownSomeAssignments(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut Option[Int] value = None();
+    value = Some(10);
+    return value.value;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected known Some assignment to type check, got %#v", report.Errors)
+	}
 }
 
 func TestCheckProgramAcceptsPatternMatchStatement(t *testing.T) {
