@@ -112,6 +112,37 @@ let size intSize = Int.sizeof;
 	}
 }
 
+func TestParseLocalInferredVariableDeclaration(t *testing.T) {
+	program, errors := Parse(`
+local count = 1;
+local mut values = [1, 2, 3];
+export local exported = "shared";
+`)
+	assertNoParseErrors(t, errors)
+
+	cases := []struct {
+		index    int
+		name     string
+		mutable  bool
+		exported bool
+	}{
+		{0, "count", false, false},
+		{1, "values", true, false},
+		{2, "exported", false, true},
+	}
+
+	for _, expected := range cases {
+		decl, ok := program.Statements[expected.index].(VariableStatement)
+		if !ok {
+			t.Fatalf("expected variable declaration at %d, got %T", expected.index, program.Statements[expected.index])
+		}
+		if !decl.Inferred || decl.Scope != "local" || decl.Type != "T" || decl.Name != expected.name ||
+			decl.Mutable != expected.mutable || decl.Exported != expected.exported || decl.Expression.Node == nil {
+			t.Fatalf("unexpected inferred local declaration at %d: %#v", expected.index, decl)
+		}
+	}
+}
+
 func TestParsePrivateInlineDeferHereStringAndMultipleReturns(t *testing.T) {
 	program, errors := Parse(`
 private inline function Print() : (name : String, value : Int) {

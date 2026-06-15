@@ -983,6 +983,22 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 		parser.consume(scopeToken(scope), fmt.Sprintf("expected %s after export", scope))
 	}
 	mutable := parser.match(lexer.TokenMut)
+	if scope == "local" && parser.check(lexer.TokenIdentifier) && parser.peek().Type == lexer.TokenAssign {
+		name := parser.consume(lexer.TokenIdentifier, "expected variable name")
+		parser.consume(lexer.TokenAssign, "expected '=' after inferred local variable name")
+		expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
+		parser.consumeOptionalSemicolon()
+		return VariableStatement{
+			Pos:        positionFromToken(start),
+			Scope:      scope,
+			Inferred:   true,
+			Exported:   exported,
+			Mutable:    mutable,
+			Type:       "T",
+			Name:       name.Literal,
+			Expression: expr,
+		}
+	}
 	typeName := parser.parseType()
 	name := parser.consume(lexer.TokenIdentifier, "expected variable name")
 	var expr Expression

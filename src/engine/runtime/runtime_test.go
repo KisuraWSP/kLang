@@ -124,6 +124,26 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesLocalTypeInference(t *testing.T) {
+	result := runParsedSource(t, `
+function MakeName() : String {
+    return "klang";
+}
+
+function Main() : Int {
+    local count = 2;
+    local mut values = [1, 2, 3];
+    local name = MakeName();
+    values[1] = count + len(name);
+    return values[1];
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 7 {
+		t.Fatalf("expected local type inference program to return 7, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeRejectsMissingIndexedCompoundAssignmentTargets(t *testing.T) {
 	_, listErr := runParsedSourceWithError(`
 function Main() : Int {

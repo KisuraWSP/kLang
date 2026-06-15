@@ -196,6 +196,39 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsLocalTypeInference(t *testing.T) {
+	program := programFromSource(`
+function MakeName() : String {
+    return "klang";
+}
+
+function Main() : Int {
+    local count = 1;
+    local mut values = [1, 2, 3];
+    local name = MakeName();
+    values[0] = count + len(name);
+    return values[0];
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected local type inference program to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsLocalInferredMutationMismatch(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut count = 1;
+    count = "bad";
+    return count;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "cannot assign String to Int")
+}
+
 func TestCheckProgramAcceptsMultipleReturnsAnyAndPrivateInline(t *testing.T) {
 	program := programFromSource(`
 private inline function Pair() : (name : String, value : Int) {
