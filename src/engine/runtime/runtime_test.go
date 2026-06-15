@@ -1459,6 +1459,214 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesStdlibArrayModule(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd failed: %v", err)
+		}
+	}()
+
+	result := runSource(t, `
+import "array";
+
+function Main() : Int {
+    local List[Int] values = [1, 2, 3];
+    local List[Int] pushed = array.push(values, 4);
+    local List[Int] inserted = array.insert(pushed, 1, 9);
+    local List[Int] updated = array.set(inserted, 0, 8);
+    local List[Int] sliced = array.slice(updated, 1, 4);
+    local List[Int] removed = array.remove(sliced, 2);
+    local List[Int] reversed = array.reverse(removed);
+    local Option[Int] front = array.front(reversed);
+    local Option[Int] missing = array.fetch(reversed, 20);
+    if not front.some or missing.some {
+        return 0;
+    }
+    return array.len(reversed) + array.get(reversed, 0) + array.index_of(reversed, 9) + array.count(updated, 9) + array.capacity(values);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 10 {
+		t.Fatalf("expected stdlib array program to return 10, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesStdlibDSAModule(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd failed: %v", err)
+		}
+	}()
+
+	result := runSource(t, `
+import "dsa";
+
+function Main() : Int {
+    local mut T stack = dsa.StackEmpty();
+    stack = dsa.StackPush(stack, 3);
+    stack = dsa.StackPush(stack, 5);
+    local Option[Int] top = dsa.StackPeek(stack);
+    local Table popped = dsa.StackPop(stack);
+    local T nextStack = popped.stack;
+    local Option[Int] poppedValue = popped.value as Option[Int];
+
+    local mut T queue = dsa.QueueEmpty();
+    queue = dsa.QueuePush(queue, 7);
+    queue = dsa.QueuePush(queue, 11);
+    local Table shifted = dsa.QueuePop(queue);
+    local T nextQueue = shifted.queue;
+    local Option[Int] shiftedValue = shifted.value as Option[Int];
+
+    local mut T ordered = dsa.OrderedMapEmpty();
+    ordered = dsa.OrderedMapPut(ordered, "a", 10);
+    ordered = dsa.OrderedMapPut(ordered, "b", 20);
+    ordered = dsa.OrderedMapPut(ordered, "a", 12);
+    local Option[T] found = dsa.OrderedMapGet(ordered, "a");
+    local T removed = dsa.OrderedMapRemove(ordered, "b");
+    local mut T compat = dsa.arrayhashmap.New(["x"], [4]);
+    compat = dsa.arrayhashmap.Put(compat, "y", 6);
+    local Option[T] compatFound = dsa.arrayhashmap.Get(compat, "y");
+
+    if top.some {
+        if poppedValue.some {
+            if shiftedValue.some {
+                if found.some {
+                    if compatFound.some {
+                        local Int foundValue = found.value as Int;
+                        local Int compatValue = compatFound.value as Int;
+                        return top.value + poppedValue.value + dsa.StackCount(nextStack) +
+                            shiftedValue.value + dsa.QueueCount(nextQueue) +
+                            foundValue + dsa.OrderedMapCount(removed) +
+                            compatValue + dsa.OrderedMapCount(compat);
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 40 {
+		t.Fatalf("expected stdlib dsa program to return 40, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesStdlibMetasystemASTHelpers(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd failed: %v", err)
+		}
+	}()
+
+	result := runSource(t, `
+import "metasystem";
+
+function Main() : Int {
+    local Program program = Program(["app", "mathg"]);
+    local Table programAst = metasystem.build.GetASTFromSourceCode(Some(program));
+    local Table defaultProgramAst = metasystem.build.GetASTFromSourceCode(None());
+    local WorkSpace workspace = metasystem.workspace.UserDefinedWorkspace("demo", ["app"], ["first.klang", "app.klang"], "Standalone");
+    local Table projectAst = metasystem.build.GetAstFromEntireProject(Some(workspace));
+    local Table fallbackProjectAst = metasystem.build.GetAstFromEntireProject(None());
+
+    local Bool programAvailable = programAst["available"] as Bool;
+    local Bool defaultProgramAvailable = defaultProgramAst["available"] as Bool;
+    local Int projectFileCount = projectAst["file_count"] as Int;
+    local Int fallbackFileCount = fallbackProjectAst["file_count"] as Int;
+    if not programAvailable or defaultProgramAvailable {
+        return 0;
+    }
+    if projectFileCount != 2 or fallbackFileCount != 1 {
+        return 0;
+    }
+
+    local List[String] programNodes = programAst["nodes"] as List[String];
+    local List[String] projectNodes = projectAst["nodes"] as List[String];
+    return len(programNodes) + len(projectNodes) + projectFileCount + fallbackFileCount;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 9 {
+		t.Fatalf("expected stdlib metasystem AST helpers to return 9, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesStdlibRuntimeDebugHelpers(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd failed: %v", err)
+		}
+	}()
+
+	result := runSource(t, `
+import "runtime";
+
+function Main() : Int {
+    local Int line = runtime.debug.__LINE__();
+    local Table pos = runtime.debug.__POS__();
+    local Table lineOf = runtime.debug.__LINE_OF__(5);
+    local String fn = runtime.debug.__FUNCTION__();
+    local String module = runtime.debug.__MODULE__();
+    local String file = runtime.debug.__FILE__();
+    local Int wrapperLine = runtime.debug.Line();
+
+    if line <= 0 {
+        return 0;
+    }
+    if wrapperLine <= 0 {
+        return 0;
+    }
+    if (pos["line"] as Int) <= 0 {
+        return 0;
+    }
+    if (lineOf["line"] as Int) <= 0 {
+        return 0;
+    }
+    if (lineOf["value"] as Int) != 5 {
+        return 0;
+    }
+    return len(fn) + len(module) + len(file) + (lineOf["value"] as Int);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 29 {
+		t.Fatalf("expected stdlib runtime debug helpers to return 29, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeLoadsJSFilesystemModuleDescriptor(t *testing.T) {
 	jsPath := filepath.Join(t.TempDir(), "library.js")
 	if err := os.WriteFile(jsPath, []byte("export function init() {}\nexport const version = 1;\n"), 0644); err != nil {

@@ -305,6 +305,7 @@ type BinaryExpression struct {
 }
 
 type CallExpression struct {
+	Pos       Position
 	Callee    ExpressionNode
 	Arguments []ExpressionNode
 }

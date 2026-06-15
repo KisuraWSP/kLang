@@ -396,15 +396,79 @@ namespace metasystem {
             return ToolMessage("COMPLETE", workspace, payload);
         }
 
-        -- returns the ast of the source code that u provided
-        function GetASTFromSourceCode(code : Option[Program]) {
+        --- Signature: function GetASTFromSourceCode(code : Option[Program]) : Table
+        --- Returns: Table.
+        --- Summary: Builds an AST-shaped descriptor for a Program value.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed parser.
+        function GetASTFromSourceCode(code : Option[Program]) : Table {
+            if code.some {
+                return {
+                    "kind": "ProgramAST",
+                    "source": "program",
+                    "available": True,
+                    "program": code.value,
+                    "program_type": debug_type(code.value),
+                    "nodes": ["Program", "ModuleList"],
+                    "diagnostics": [],
+                    "stack": debug_stack()
+                };
+            }
 
+            local Program fallback = metasystem.workspace.DefaultProgram();
+            return {
+                "kind": "ProgramAST",
+                "source": "default-program",
+                "available": False,
+                "program": fallback,
+                "program_type": debug_type(fallback),
+                "nodes": ["Program", "ModuleList"],
+                "diagnostics": ["no program source provided; default Program was used"],
+                "stack": debug_stack()
+            };
         }
 
-        -- returns the ast of the entire project that you provided
-        -- Project could be a built in type if there is no equivalent in our langauges builtin data types
-        function GetAstFromEntireProject(code : Option[Project]) {
+        --- Signature: function GetAstFromEntireProject(code : Option[WorkSpace]) : Table
+        --- Returns: Table.
+        --- Summary: Builds an AST-shaped descriptor for a complete workspace/project.
+        --- Contract: Preserve this typed interface when upgrading to a runtime-backed parser.
+        function GetAstFromEntireProject(code : Option[WorkSpace]) : Table {
+            if code.some {
+                local WorkSpace workspace = code.value;
+                local Table summary = metasystem.workspace.Summary(workspace);
+                return {
+                    "kind": "ProjectAST",
+                    "source": "workspace",
+                    "available": True,
+                    "workspace": workspace,
+                    "summary": summary,
+                    "backend": summary["backend"],
+                    "files": summary["files"],
+                    "file_count": summary["file_count"],
+                    "main_file": summary["main_file"],
+                    "manifest": summary["manifest"],
+                    "nodes": ["WorkSpace", "Program", "BuildSystem", "FileList"],
+                    "diagnostics": [],
+                    "stack": debug_stack()
+                };
+            }
 
+            local WorkSpace workspace = metasystem.workspace.DefaultWorkspace();
+            local Table summary = metasystem.workspace.Summary(workspace);
+            return {
+                "kind": "ProjectAST",
+                "source": "default-workspace",
+                "available": False,
+                "workspace": workspace,
+                "summary": summary,
+                "backend": summary["backend"],
+                "files": summary["files"],
+                "file_count": summary["file_count"],
+                "main_file": summary["main_file"],
+                "manifest": summary["manifest"],
+                "nodes": ["WorkSpace", "Program", "BuildSystem", "FileList"],
+                "diagnostics": ["no workspace project provided; default WorkSpace was used"],
+                "stack": debug_stack()
+            };
         }
     }
 }

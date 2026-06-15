@@ -1,66 +1,275 @@
-module(disabled : True);
+-- List-backed array helpers.
+-- Klang region arrays require a concrete region, so this stdlib module exposes
+-- portable array-style operations over List[T] values.
 
 namespace array {
-    Struct Array
+    --- Signature: function empty(values : List[T]) : Bool
+    --- Returns: Bool.
+    --- Summary: Returns True when values has no elements.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function empty(values : List[T]) : Bool {
+        return len(values) == 0;
+    }
 
-    Array type with deterministic control of memory. The memory allocated for the array is reclaimed as soon as possible; there is no reliance on the garbage collector. Array uses malloc, realloc and free for managing its own memory.
+    --- Signature: function len(values : List[T]) : Int
+    --- Returns: Int.
+    --- Summary: Returns the number of elements in values.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function len(values : List[T]) : Int {
+        return values.count;
+    }
 
-    struct Array(T)
-    
-    if (!is(immutable(T) == immutable(bool)));
-    This means that pointers to elements of an Array will become dangling as soon as the element is removed from the Array. On the other hand the memory allocated by an Array will be scanned by the GC and GC managed objects referenced from an Array will be kept alive.
+    --- Signature: function capacity(values : List[T]) : Int
+    --- Returns: Int.
+    --- Summary: Returns the usable capacity for the List-backed array.
+    --- Contract: List-backed arrays expose their current length as capacity.
+    function capacity(values : List[T]) : Int {
+        return len(values);
+    }
 
-    Constructors
+    --- Signature: function copy(values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns an eager copy of values.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function copy(values : List[T]) : List[T] {
+        return copy values;
+    }
 
-    Name	Description
-    this ()	Constructor taking a number of items.
-    this (r)	Constructor taking an input range
-    Properties
+    --- Signature: function clear(values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns an empty array with the same element type.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function clear(values : List[T]) : List[T] {
+        local List[T] result;
+        return result;
+    }
 
-    Name	Type	Description
-    back[get]	inout(T)	
-    capacity[get]	size_t	
-    dup[get]	Array	Duplicates the array. The elements themselves are not transitively duplicated.
-    empty[get]	bool	
-    front[get]	inout(T)	
-    length[get]	size_t	
-    length[set]	size_t	Sets the number of elements in the array to newLength. If newLength is greater than length, the new elements are added to the end of the array and initialized with T.init. If T is a struct whose default constructor is annotated with @disable, newLength must be lower than or equal to length.
-    Methods
+    --- Signature: function get(values : List[T], index : Int) : T
+    --- Returns: T.
+    --- Summary: Returns the element at index.
+    --- Contract: Caller must pass an in-bounds zero-based index.
+    function get(values : List[T], index : Int) : T {
+        return values[index];
+    }
 
-    Name	Description
-    clear ()	Removes all the elements from the array and releases allocated memory.
-    data ()	
-    insertAfter (r, stuff)	Inserts stuff before, after, or instead range r, which must be a valid range previously extracted from this array. stuff can be a value convertible to T or a range of objects convertible to T. Both stable and non-stable version behave the same and guarantee that ranges iterating over the array are never invalidated.
-    insertBack (stuff)	Inserts the specified elements at the back of the array. stuff can be a value convertible to T or a range of objects convertible to T.
-    insertBefore (r, stuff)	Inserts stuff before, after, or instead range r, which must be a valid range previously extracted from this array. stuff can be a value convertible to T or a range of objects convertible to T. Both stable and non-stable version behave the same and guarantee that ranges iterating over the array are never invalidated.
-    linearRemove (r)	Removes all elements belonging to r, which must be a range obtained originally from this array.
-    opBinary (stuff)	
-    opDollar ()	
-    opEquals (rhs)	Comparison for equality.
-    opIndex (i)	
-    opOpAssign (stuff)	Forwards to insertBack.
-    opSlice ()	
-    opSlice (i, j)	
-    opSliceAssign (value)	Slicing operators executing the specified operation on the entire slice.
-    opSliceOpAssign (value)	Slicing operators executing the specified operation on the entire slice.
-    opSliceUnary ()	Slicing operators executing the specified operation on the entire slice.
-    removeAny ()	Removes the last element from the array and returns it. Both stable and non-stable versions behave the same and guarantee that ranges iterating over the array are never invalidated.
-    removeBack ()	Removes the value from the back of the array. Both stable and non-stable versions behave the same and guarantee that ranges iterating over the array are never invalidated.
-    removeBack (howMany)	Removes howMany values from the back of the array. Unlike the unparameterized versions above, these functions do not throw if they could not remove howMany elements. Instead, if howMany > n, all elements are removed. The returned value is the effective number of elements removed. Both stable and non-stable versions behave the same and guarantee that ranges iterating over the array are never invalidated.
-    replace (r, stuff)	Inserts stuff before, after, or instead range r, which must be a valid range previously extracted from this array. stuff can be a value convertible to T or a range of objects convertible to T. Both stable and non-stable version behave the same and guarantee that ranges iterating over the array are never invalidated.
-    reserve (elements)	Ensures sufficient capacity to accommodate e elements. If e < capacity, this method does nothing.
-    Aliases
+    --- Signature: function fetch(values : List[T], index : Int) : Option[T]
+    --- Returns: Option[T].
+    --- Summary: Returns Some(element) for an in-bounds index, otherwise None.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function fetch(values : List[T], index : Int) : Option[T] {
+        if index < 0 or index >= len(values) {
+            return None();
+        }
+        return Some(values[index]);
+    }
 
-    Name	Description
-    ConstRange	Defines the arrays primary range, which is a random-access range.
-    ImmutableRange	Defines the arrays primary range, which is a random-access range.
-    insert	Inserts the specified elements at the back of the array. stuff can be a value convertible to T or a range of objects convertible to T.
-    Range	Defines the arrays primary range, which is a random-access range.
-    stableInsertBefore	Inserts stuff before, after, or instead range r, which must be a valid range previously extracted from this array. stuff can be a value convertible to T or a range of objects convertible to T. Both stable and non-stable version behave the same and guarantee that ranges iterating over the array are never invalidated.
-    stableRemoveAny	Removes the last element from the array and returns it. Both stable and non-stable versions behave the same and guarantee that ranges iterating over the array are never invalidated.
-    stableRemoveBack	Removes the value from the back of the array. Both stable and non-stable versions behave the same and guarantee that ranges iterating over the array are never invalidated.
-    stableRemoveBack	Removes howMany values from the back of the array. Unlike the unparameterized versions above, these functions do not throw if they could not remove howMany elements. Instead, if howMany > n, all elements are removed. The returned value is the effective number of elements removed. Both stable and non-stable versions behave the same and guarantee that ranges iterating over the array are never invalidated.
-    Note
+    --- Signature: function front(values : List[T]) : Option[T]
+    --- Returns: Option[T].
+    --- Summary: Returns the first element when present.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function front(values : List[T]) : Option[T] {
+        return fetch(values, 0);
+    }
 
-    When using Array with range-based functions like those in std.algorithm, Array must be sliced to get a range (for example, use array[].map! instead of array.map!). The container itself is not a range.
+    --- Signature: function back(values : List[T]) : Option[T]
+    --- Returns: Option[T].
+    --- Summary: Returns the last element when present.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function back(values : List[T]) : Option[T] {
+        return fetch(values, len(values) - 1);
+    }
+
+    --- Signature: function set(values : List[T], index : Int, value : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns a copy of values with index set to value.
+    --- Contract: Out-of-bounds indexes leave the array unchanged.
+    function set(values : List[T], index : Int, value : T) : List[T] {
+        local mut List[T] result = clone values;
+        if index >= 0 and index < len(result) {
+            result[index] = value;
+        }
+        return result;
+    }
+
+    --- Signature: function push(values : List[T], value : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Appends value and returns the resulting array.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function push(values : List[T], value : T) : List[T] {
+        local mut List[T] result = clone values;
+        result[len(result)] = value;
+        return result;
+    }
+
+    --- Signature: function append(values : List[T], value : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Appends value and returns the resulting array.
+    --- Contract: Alias-compatible spelling for push.
+    function append(values : List[T], value : T) : List[T] {
+        return push(values, value);
+    }
+
+    --- Signature: function extend(values : List[T], extra : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Appends every element from extra.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function extend(values : List[T], extra : List[T]) : List[T] {
+        local mut List[T] result = clone values;
+        local mut Int index = 0;
+        while index < len(extra) {
+            result[len(result)] = extra[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    --- Signature: function insert(values : List[T], index : Int, value : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Inserts value before index.
+    --- Contract: Negative indexes insert at the front; indexes after the end append.
+    function insert(values : List[T], index : Int, value : T) : List[T] {
+        local mut List[T] result;
+        local mut Bool inserted = False;
+        local mut Int current = 0;
+
+        if index <= 0 {
+            result[len(result)] = value;
+            inserted = True;
+        }
+
+        while current < len(values) {
+            if not inserted and current == index {
+                result[len(result)] = value;
+                inserted = True;
+            }
+            result[len(result)] = values[current];
+            current += 1;
+        }
+
+        if not inserted {
+            result[len(result)] = value;
+        }
+
+        return result;
+    }
+
+    --- Signature: function remove_at(values : List[T], index : Int) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns values without the element at index.
+    --- Contract: Out-of-bounds indexes leave the array unchanged.
+    function remove_at(values : List[T], index : Int) : List[T] {
+        local mut List[T] result;
+        local mut Int current = 0;
+        while current < len(values) {
+            if current != index {
+                result[len(result)] = values[current];
+            }
+            current += 1;
+        }
+        return result;
+    }
+
+    --- Signature: function remove(values : List[T], value : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Removes the first element equal to value.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function remove(values : List[T], value : T) : List[T] {
+        local mut List[T] result;
+        local mut Bool removed = False;
+        local mut Int index = 0;
+        while index < len(values) {
+            if not removed and values[index] == value {
+                removed = True;
+            } else {
+                result[len(result)] = values[index];
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    --- Signature: function pop(values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns values without the final element.
+    --- Contract: Empty arrays remain empty.
+    function pop(values : List[T]) : List[T] {
+        if len(values) == 0 {
+            return clear(values);
+        }
+        return remove_at(values, len(values) - 1);
+    }
+
+    --- Signature: function slice(values : List[T], start : Int, stop : Int) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns the half-open range [start, stop).
+    --- Contract: Bounds are clamped to the valid array range.
+    function slice(values : List[T], start : Int, stop : Int) : List[T] {
+        local mut List[T] result;
+        local mut Int index = start;
+        local mut Int limit = stop;
+        if index < 0 {
+            index = 0;
+        }
+        if limit > len(values) {
+            limit = len(values);
+        }
+        while index < limit {
+            result[len(result)] = values[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    --- Signature: function reverse(values : List[T]) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns values in reverse order.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function reverse(values : List[T]) : List[T] {
+        local mut List[T] result;
+        local mut Int index = len(values) - 1;
+        while index >= 0 {
+            result[len(result)] = values[index];
+            index -= 1;
+        }
+        return result;
+    }
+
+    --- Signature: function index_of(values : List[T], value : T) : Int
+    --- Returns: Int.
+    --- Summary: Returns the first index containing value, or -1 when missing.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function index_of(values : List[T], value : T) : Int {
+        local mut Int index = 0;
+        while index < len(values) {
+            if values[index] == value {
+                return index;
+            }
+            index += 1;
+        }
+        return 0 - 1;
+    }
+
+    --- Signature: function contains(values : List[T], value : T) : Bool
+    --- Returns: Bool.
+    --- Summary: Returns True when value exists in values.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function contains(values : List[T], value : T) : Bool {
+        return index_of(values, value) >= 0;
+    }
+
+    --- Signature: function count(values : List[T], value : T) : Int
+    --- Returns: Int.
+    --- Summary: Counts elements equal to value.
+    --- Contract: Preserve this function-style API; array operations are not methods.
+    function count(values : List[T], value : T) : Int {
+        local mut Int total = 0;
+        local mut Int index = 0;
+        while index < len(values) {
+            if values[index] == value {
+                total += 1;
+            }
+            index += 1;
+        }
+        return total;
+    }
 }

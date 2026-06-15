@@ -2511,6 +2511,28 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.addError(source, line, fmt.Sprintf("workspace_manifest expects WorkSpace, got %s", workspaceType))
 		}
 		return "String"
+	case "runtime_debug_loc", "runtime.debug.__LOC__", "runtime_debug_file", "runtime.debug.__FILE__", "runtime_debug_module", "runtime.debug.__MODULE__", "runtime_debug_function", "runtime.debug.__FUNCTION__":
+		if len(args) != 0 {
+			checker.addError(source, line, fmt.Sprintf("%s expects 0 arguments", name))
+		}
+		return "String"
+	case "runtime_debug_line", "runtime.debug.__LINE__":
+		if len(args) != 0 {
+			checker.addError(source, line, fmt.Sprintf("%s expects 0 arguments", name))
+		}
+		return "Int"
+	case "runtime_debug_pos", "runtime.debug.__POS__":
+		if len(args) != 0 {
+			checker.addError(source, line, fmt.Sprintf("%s expects 0 arguments", name))
+		}
+		return "Table"
+	case "runtime_debug_loc_of", "runtime.debug.__LOC_OF__", "runtime_debug_line_of", "runtime.debug.__LINE_OF__", "runtime_debug_pos_of", "runtime.debug.__POS_OF__":
+		if len(args) != 1 {
+			checker.addError(source, line, fmt.Sprintf("%s expects 1 argument", name))
+			return "Table"
+		}
+		checker.inferExpression(args[0], locals, source, line)
+		return "Table"
 	case "debug":
 		if len(args) != 1 {
 			checker.addError(source, line, "debug expects 1 argument")

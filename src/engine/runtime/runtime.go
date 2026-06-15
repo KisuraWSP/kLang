@@ -123,6 +123,12 @@ type BoundMethodData struct {
 	Receiver Value
 }
 
+type callSite struct {
+	File   string
+	Line   int
+	Column int
+}
+
 type RegionData struct {
 	Name     string
 	TypeName string
@@ -177,6 +183,7 @@ type Runtime struct {
 	memory         *Memory
 	global         *Environment
 	functions      map[string]parser.FunctionStatement
+	functionFiles  map[string]string
 	aliasFunctions map[string]parser.AliasFunctionStatement
 	enums          map[string]parser.EnumStatement
 	regions        map[string]RegionData
@@ -187,6 +194,7 @@ type Runtime struct {
 	callDepth      int
 	maxDepth       int
 	callStack      []string
+	callSites      []callSite
 	nextFunc       int
 	innerSets      []map[string]Value
 	args           []string
@@ -204,6 +212,7 @@ func New() *Runtime {
 		memory:         NewMemory(),
 		global:         NewEnvironment(nil),
 		functions:      map[string]parser.FunctionStatement{},
+		functionFiles:  map[string]string{},
 		aliasFunctions: map[string]parser.AliasFunctionStatement{},
 		enums:          map[string]parser.EnumStatement{},
 		regions:        map[string]RegionData{},
@@ -250,7 +259,7 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 	}
 	for _, source := range program.Sources {
 		for _, stmt := range source.Program.Statements {
-			if err := runtime.collectFunctions(stmt, "", source.ModuleFunctionFilter); err != nil {
+			if err := runtime.collectFunctions(stmt, "", source.ModuleFunctionFilter, source.Path); err != nil {
 				return Result{}, err
 			}
 		}
@@ -327,6 +336,7 @@ func (runtime *Runtime) childRuntime() *Runtime {
 		memory:         runtime.memory,
 		global:         runtime.global,
 		functions:      cloneFunctionMap(runtime.functions),
+		functionFiles:  cloneStringMap(runtime.functionFiles),
 		aliasFunctions: cloneAliasFunctionMap(runtime.aliasFunctions),
 		enums:          cloneEnumMap(runtime.enums),
 		regions:        cloneRegionMap(runtime.regions),
@@ -404,7 +414,7 @@ func (runtime *Runtime) defineArgs() error {
 	return runtime.defineValueInRegion(runtime.global, "Args", false, "List[String]", Value{Kind: ValueList, Data: values}, MemoryHeap)
 }
 
-func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string, filter map[string]bool) error {
+func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string, filter map[string]bool, sourcePath string) error {
 	switch current := stmt.(type) {
 	case parser.RegionStatement:
 		runtime.regions[current.Name] = RegionData{Name: current.Name, TypeName: current.TypeName}
@@ -427,6 +437,7 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 			return errorAt(current.Pos, fmt.Sprintf("function %q is already defined", name))
 		}
 		runtime.functions[name] = current
+		runtime.functionFiles[name] = sourcePath
 	case parser.FunctionGroupStatement:
 		name := namespace + current.Name
 		if _, exists := runtime.groups[name]; exists {
@@ -447,60 +458,60 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 		runtime.aliases[current.Name] = current.Target
 	case parser.NamespaceStatement:
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace+current.Name+".", filter); err != nil {
+			if err := runtime.collectFunctions(nested, namespace+current.Name+".", filter, sourcePath); err != nil {
 				return err
 			}
 		}
 	case parser.MatchStatement:
 		for _, matchCase := range current.Cases {
 			for _, nested := range matchCase.Body {
-				if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
+				if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
 					return err
 				}
 			}
 		}
 	case parser.IfStatement:
 		for _, nested := range current.Consequence {
-			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
 				return err
 			}
 		}
 		for _, nested := range current.Alternative {
-			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
 				return err
 			}
 		}
 	case parser.LoopStatement:
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
 				return err
 			}
 		}
 	case parser.TryCatchStatement:
 		for _, nested := range current.TryBody {
-			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
 				return err
 			}
 		}
 		for _, nested := range current.CatchBody {
-			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
 				return err
 			}
 		}
 	case parser.PrivateBlockStatement:
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
 				return err
 			}
 		}
 	case parser.DeferStatement:
 		if current.Stmt != nil {
-			if err := runtime.collectFunctions(current.Stmt, namespace, filter); err != nil {
+			if err := runtime.collectFunctions(current.Stmt, namespace, filter, sourcePath); err != nil {
 				return err
 			}
 		}
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace, filter); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
 				return err
 			}
 		}
@@ -1064,6 +1075,9 @@ func (runtime *Runtime) defineLocalFunction(fn parser.FunctionStatement, env *En
 		return "", Error{Message: fmt.Sprintf("function %q is already defined", name)}
 	}
 	runtime.functions[name] = fn
+	if len(runtime.callStack) > 0 {
+		runtime.functionFiles[name] = runtime.functionFiles[runtime.callStack[len(runtime.callStack)-1]]
+	}
 	runtime.closures[name] = env
 	return name, nil
 }
@@ -1822,7 +1836,23 @@ func (runtime *Runtime) evalCall(expr parser.CallExpression, env *Environment) (
 			args = append(args, value)
 		}
 	}
-	return runtime.callFunction(callee.Data.(string), args)
+	return runtime.callFunctionAt(callee.Data.(string), args, runtime.callSiteFor(expr.Pos))
+}
+
+func (runtime *Runtime) callFunctionAt(name string, args []Value, site callSite) (Value, error) {
+	runtime.callSites = append(runtime.callSites, site)
+	defer func() {
+		runtime.callSites = runtime.callSites[:len(runtime.callSites)-1]
+	}()
+	return runtime.callFunction(name, args)
+}
+
+func (runtime *Runtime) callSiteFor(pos parser.Position) callSite {
+	site := callSite{Line: pos.Line, Column: pos.Column}
+	if len(runtime.callStack) > 0 {
+		site.File = runtime.functionFiles[runtime.callStack[len(runtime.callStack)-1]]
+	}
+	return site
 }
 
 func (runtime *Runtime) evalIndex(expr parser.IndexExpression, env *Environment) (Value, error) {
@@ -2196,6 +2226,60 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 			len(files),
 			len(modules),
 		)), nil
+	case "runtime_debug_loc", "runtime.debug.__LOC__":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: name + " expects no arguments"}
+		}
+		return StringValue(runtime.debugLocationString(runtime.currentCallSite())), nil
+	case "runtime_debug_file", "runtime.debug.__FILE__":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: name + " expects no arguments"}
+		}
+		return StringValue(runtime.currentCallSite().File), nil
+	case "runtime_debug_line", "runtime.debug.__LINE__":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: name + " expects no arguments"}
+		}
+		return IntValue(runtime.currentCallSite().Line), nil
+	case "runtime_debug_module", "runtime.debug.__MODULE__":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: name + " expects no arguments"}
+		}
+		return StringValue(runtime.debugModuleName(runtime.currentCallSite())), nil
+	case "runtime_debug_pos", "runtime.debug.__POS__":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: name + " expects no arguments"}
+		}
+		return runtime.debugPositionTable(runtime.currentCallSite()), nil
+	case "runtime_debug_function", "runtime.debug.__FUNCTION__":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: name + " expects no arguments"}
+		}
+		return StringValue(runtime.currentFunctionName()), nil
+	case "runtime_debug_loc_of", "runtime.debug.__LOC_OF__":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: name + " expects one value"}
+		}
+		return TableValue(map[string]Value{
+			"loc":   StringValue(runtime.debugLocationString(runtime.currentCallSite())),
+			"value": args[0],
+		}), nil
+	case "runtime_debug_line_of", "runtime.debug.__LINE_OF__":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: name + " expects one value"}
+		}
+		return TableValue(map[string]Value{
+			"line":  IntValue(runtime.currentCallSite().Line),
+			"value": args[0],
+		}), nil
+	case "runtime_debug_pos_of", "runtime.debug.__POS_OF__":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: name + " expects one value"}
+		}
+		return TableValue(map[string]Value{
+			"pos":   runtime.debugPositionTable(runtime.currentCallSite()),
+			"value": args[0],
+		}), nil
 	case "debug":
 		if len(args) != 1 {
 			return NullValue(), Error{Message: "debug expects one value"}
@@ -2426,6 +2510,45 @@ func requireObject(args []Value, typeName string, functionName string) (ObjectDa
 		return ObjectData{}, Error{Message: fmt.Sprintf("%s expects %s", functionName, typeName)}
 	}
 	return args[0].Data.(ObjectData), nil
+}
+
+func (runtime *Runtime) currentCallSite() callSite {
+	if len(runtime.callSites) == 0 {
+		return callSite{}
+	}
+	return runtime.callSites[len(runtime.callSites)-1]
+}
+
+func (runtime *Runtime) currentFunctionName() string {
+	if len(runtime.callStack) == 0 {
+		return ""
+	}
+	return runtime.callStack[len(runtime.callStack)-1]
+}
+
+func (runtime *Runtime) debugModuleName(site callSite) string {
+	if site.File != "" {
+		base := filepath.Base(site.File)
+		return strings.TrimSuffix(base, filepath.Ext(base))
+	}
+	current := runtime.currentFunctionName()
+	if index := strings.Index(current, "."); index != -1 {
+		return current[:index]
+	}
+	return current
+}
+
+func (runtime *Runtime) debugLocationString(site callSite) string {
+	return fmt.Sprintf("File %q, line %d, characters %d-%d", site.File, site.Line, site.Column, site.Column+1)
+}
+
+func (runtime *Runtime) debugPositionTable(site callSite) Value {
+	return TableValue(map[string]Value{
+		"file":         StringValue(site.File),
+		"line":         IntValue(site.Line),
+		"start_column": IntValue(site.Column),
+		"end_column":   IntValue(site.Column + 1),
+	})
 }
 
 func stringData(value Value) (string, bool) {
@@ -2831,6 +2954,10 @@ func isBuiltinFunction(name string) bool {
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",
+		"runtime_debug_loc", "runtime_debug_file", "runtime_debug_line", "runtime_debug_module", "runtime_debug_pos", "runtime_debug_function",
+		"runtime_debug_loc_of", "runtime_debug_line_of", "runtime_debug_pos_of",
+		"runtime.debug.__LOC__", "runtime.debug.__FILE__", "runtime.debug.__LINE__", "runtime.debug.__MODULE__", "runtime.debug.__POS__", "runtime.debug.__FUNCTION__",
+		"runtime.debug.__LOC_OF__", "runtime.debug.__LINE_OF__", "runtime.debug.__POS_OF__",
 		"debug", "debug_type", "debug_stack", "breakpoint", "js_import", "js_source", "js_exports", "js_call",
 		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true

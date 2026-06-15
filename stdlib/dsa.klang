@@ -1,285 +1,412 @@
-module(disabled : True);
-
-namespace dsa {
-    namespace arrayhashmap {
-        -- A hash table of keys and values, each stored sequentially.
-        -- Insertion order is preserved. In general, this data structure supports the same operations as std.ArrayList.
-        -- Deletion operations:
-        -- swapRemove - O(1)
-        -- orderedRemove - O(N)
-        -- Modifying the hash map while iterating is allowed, however, one must understand the (well defined) behavior when mixing insertions and deletions with iteration.
-
-
-        pub fn capacity(self: Self) usize
-        Returns the number of total elements which may be present before it is no longer guaranteed that no allocations will be performed.
-
-        pub fn clearAndFree(self: *Self) void
-        Clears the map and releases the backing allocation
-
-        pub fn clearRetainingCapacity(self: *Self) void
-        Clears the map but retains the backing allocation for future use.
-
-        pub fn clone(self: Self) !Self
-        Create a copy of the hash map which can be modified separately. The copy uses the same context and allocator as this instance.
-
-        pub fn cloneWithAllocator(self: Self, allocator: Allocator) !Self
-        Create a copy of the hash map which can be modified separately. The copy uses the same context as this instance, but the specified allocator.
-
-        pub fn cloneWithAllocatorAndContext(self: Self, allocator: Allocator, ctx: anytype) !ArrayHashMap(K, V, @TypeOf(ctx), store_hash)
-        Create a copy of the hash map which can be modified separately. The copy uses the specified allocator and context.
-
-        pub fn cloneWithContext(self: Self, ctx: anytype) !ArrayHashMap(K, V, @TypeOf(ctx), store_hash)
-        Create a copy of the hash map which can be modified separately. The copy uses the same allocator as this instance, but the specified context.
-
-        pub fn contains(self: Self, key: K) bool
-        Check whether a key is stored in the map
-
-        pub fn containsAdapted(self: Self, key: anytype, ctx: anytype) bool
-        pub fn count(self: Self) usize
-        Returns the number of KV pairs stored in this map.
-
-        pub fn deinit(self: *Self) void
-        Frees the backing allocation and leaves the map in an undefined state. Note that this does not free keys or values. You must take care of that before calling this function, if it is needed.
-
-        pub fn ensureTotalCapacity(self: *Self, new_capacity: usize) !void
-        Increases capacity, guaranteeing that insertions up until the expected_count will not cause an allocation, and therefore cannot fail.
-
-        pub fn ensureUnusedCapacity(self: *Self, additional_count: usize) !void
-        Increases capacity, guaranteeing that insertions up until additional_count more items will not cause an allocation, and therefore cannot fail.
-
-        pub fn fetchOrderedRemove(self: *Self, key: K) ?KV
-        If there is an Entry with a matching key, it is deleted from the hash map, and then returned from this function. The entry is removed from the underlying array by shifting all elements forward thereby maintaining the current ordering.
-
-        pub fn fetchOrderedRemoveAdapted(self: *Self, key: anytype, ctx: anytype) ?KV
-        pub fn fetchPut(self: *Self, key: K, value: V) !?KV
-        Inserts a new Entry into the hash map, returning the previous one, if any.
-
-        pub fn fetchPutAssumeCapacity(self: *Self, key: K, value: V) ?KV
-        Inserts a new Entry into the hash map, returning the previous one, if any. If insertion happuns, asserts there is enough capacity without allocating.
-
-        pub fn fetchSwapRemove(self: *Self, key: K) ?KV
-        If there is an Entry with a matching key, it is deleted from the hash map, and then returned from this function. The entry is removed from the underlying array by swapping it with the last element.
-
-        pub fn fetchSwapRemoveAdapted(self: *Self, key: anytype, ctx: anytype) ?KV
-        pub fn get(self: Self, key: K) ?V
-        Find the value associated with a key
-
-        pub fn getAdapted(self: Self, key: anytype, ctx: anytype) ?V
-        pub fn getEntry(self: Self, key: K) ?Entry
-        Finds pointers to the key and value storage associated with a key.
-
-        pub fn getEntryAdapted(self: Self, key: anytype, ctx: anytype) ?Entry
-        pub fn getIndex(self: Self, key: K) ?usize
-        Finds the index in the entries array where a key is stored
-
-        pub fn getIndexAdapted(self: Self, key: anytype, ctx: anytype) ?usize
-        pub fn getKey(self: Self, key: K) ?K
-        Find the actual key associated with an adapted key
-
-        pub fn getKeyAdapted(self: Self, key: anytype, ctx: anytype) ?K
-        pub fn getKeyPtr(self: Self, key: K) ?*K
-        Find a pointer to the actual key associated with an adapted key
-
-        pub fn getKeyPtrAdapted(self: Self, key: anytype, ctx: anytype) ?*K
-        pub fn getOrPut(self: *Self, key: K) !GetOrPutResult
-        If key exists this function cannot fail. If there is an existing item with key, then the result Entry pointer points to it, and found_existing is true. Otherwise, puts a new item with undefined value, and the Entry pointer points to it. Caller should then initialize the value (but not the key).
-
-        pub fn getOrPutAdapted(self: *Self, key: anytype, ctx: anytype) !GetOrPutResult
-        pub fn getOrPutAssumeCapacity(self: *Self, key: K) GetOrPutResult
-        If there is an existing item with key, then the result Entry pointer points to it, and found_existing is true. Otherwise, puts a new item with undefined value, and the Entry pointer points to it. Caller should then initialize the value (but not the key). If a new entry needs to be stored, this function asserts there is enough capacity to store it.
-
-        pub fn getOrPutAssumeCapacityAdapted(self: *Self, key: anytype, ctx: anytype) GetOrPutResult
-        pub fn getOrPutValue(self: *Self, key: K, value: V) !GetOrPutResult
-        pub fn getPtr(self: Self, key: K) ?*V
-        Find a pointer to the value associated with a key
-
-        pub fn getPtrAdapted(self: Self, key: anytype, ctx: anytype) ?*V
-        pub fn init(allocator: Allocator) Self
-        Create an ArrayHashMap instance which will use a specified allocator.
-
-        pub fn initContext(allocator: Allocator, ctx: Context) Self
-        pub fn iterator(self: *const Self) Iterator
-        Returns an iterator over the pairs in this map. Modifying the map may invalidate this iterator.
-
-        pub fn keys(self: Self) []K
-        Returns the backing array of keys in this map. Modifying the map may invalidate this array. Modifying this array in a way that changes key hashes or key equality puts the map into an unusable state until reIndex is called.
-
-        pub fn lockPointers(self: *Self) void
-        Puts the hash map into a state where any method call that would cause an existing key or value pointer to become invalidated will instead trigger an assertion.
-
-        pub fn move(self: *Self) Self
-        Set the map to an empty state, making deinitialization a no-op, and returning a copy of the original.
-
-        pub fn orderedRemove(self: *Self, key: K) bool
-        If there is an Entry with a matching key, it is deleted from the hash map. The entry is removed from the underlying array by shifting all elements forward, thereby maintaining the current ordering. Returns true if an entry was removed, false otherwise.
-
-        pub fn orderedRemoveAdapted(self: *Self, key: anytype, ctx: anytype) bool
-        pub fn orderedRemoveAt(self: *Self, index: usize) void
-        Deletes the item at the specified index in entries from the hash map. The entry is removed from the underlying array by shifting all elements forward, thereby maintaining the current ordering.
-
-        pub fn pop(self: *Self) KV
-        Removes the last inserted Entry in the hash map and returns it.
-
-        pub fn popOrNull(self: *Self) ?KV
-        Removes the last inserted Entry in the hash map and returns it if count is nonzero. Otherwise returns null.
-
-        pub fn put(self: *Self, key: K, value: V) !void
-        Clobbers any existing data. To detect if a put would clobber existing data, see getOrPut.
-
-        pub fn putAssumeCapacity(self: *Self, key: K, value: V) void
-        Asserts there is enough capacity to store the new key-value pair. Clobbers any existing data. To detect if a put would clobber existing data, see getOrPutAssumeCapacity.
-
-        pub fn putAssumeCapacityNoClobber(self: *Self, key: K, value: V) void
-        Asserts there is enough capacity to store the new key-value pair. Asserts that it does not clobber any existing data. To detect if a put would clobber existing data, see getOrPutAssumeCapacity.
-
-        pub fn putNoClobber(self: *Self, key: K, value: V) !void
-        Inserts a key-value pair into the hash map, asserting that no previous entry with the same key is already present
-
-        pub fn reIndex(self: *Self) !void
-        Recomputes stored hashes and rebuilds the key indexes. If the underlying keys have been modified directly, call this method to recompute the denormalized metadata necessary for the operation of the methods of this map that lookup entries by key.
-
-        pub fn shrinkAndFree(self: *Self, new_len: usize) void
-        Shrinks the underlying Entry array to new_len elements and discards any associated index entries. Reduces allocated capacity.
-
-        pub fn shrinkRetainingCapacity(self: *Self, new_len: usize) void
-        Shrinks the underlying Entry array to new_len elements and discards any associated index entries. Keeps capacity the same.
-
-        pub fn sort(self: *Self, sort_ctx: anytype) void
-        Sorts the entries and then rebuilds the index. sort_ctx must have this method: fn lessThan(ctx: @TypeOf(ctx), a_index: usize, b_index: usize) bool
-
-        pub fn swapRemove(self: *Self, key: K) bool
-        If there is an Entry with a matching key, it is deleted from the hash map. The entry is removed from the underlying array by swapping it with the last element. Returns true if an entry was removed, false otherwise.
-
-        pub fn swapRemoveAdapted(self: *Self, key: anytype, ctx: anytype) bool
-        pub fn swapRemoveAt(self: *Self, index: usize) void
-        Deletes the item at the specified index in entries from the hash map. The entry is removed from the underlying array by swapping it with the last element.
-
-        pub fn unlockPointers(self: *Self) void
-        Undoes a call to lockPointers.
-
-        pub fn values(self: Self) []V
-        Returns the backing array of values in this map. Modifying the map may invalidate this array. It is permitted to modify the values in this array.
-    }
-
-    namespace doublylinkedlist {
-        pub fn append(list: *Self, new_node: *Node) void
-        Insert a new node at the end of the list.
-
-        pub fn concatByMoving(list1: *Self, list2: *Self) void
-        Concatenate list2 onto the end of list1, removing all entries from the former.
-
-        pub fn insertAfter(list: *Self, node: *Node, new_node: *Node) void
-        Insert a new node after an existing one.
-
-        pub fn insertBefore(list: *Self, node: *Node, new_node: *Node) void
-        Insert a new node before an existing one.
-
-        pub fn pop(list: *Self) ?*Node
-        Remove and return the last node in the list.
-
-        pub fn popFirst(list: *Self) ?*Node
-        Remove and return the first node in the list.
-
-        pub fn prepend(list: *Self, new_node: *Node) void
-        Insert a new node at the beginning of the list.
-
-        pub fn remove(list: *Self, node: *Node) void
-        Remove a node from the list.
-    }
-
-    namespace ringbuffer {
-        -- This ring buffer stores read and write indices while being able to utilise the full backing slice by incrementing the indices modulo twice the slice's length and reducing indices modulo the slice's length on slice access. This means that whether the ring buffer is full or empty can be distinguished by looking at the difference between the read and write indices without adding an extra boolean flag or having to reserve a slot in the buffer.
-        --  This ring buffer has not been implemented with thread safety in mind, and therefore should not be assumed to be suitable for use cases involving separate reader and writer threads.
-    
-        pub fn deinit(self: *RingBuffer, allocator: Allocator) void
-        Free the data backing a RingBuffer; must be passed the same Allocator as init().
-
-        pub fn init(allocator: Allocator, capacity: usize) Allocator.Error!RingBuffer
-        Allocate a new RingBuffer; deinit() should be called to free the buffer.
-
-        pub fn isEmpty(self: RingBuffer) bool
-        Returns true if the ring buffer is empty and false otherwise.
-
-        pub fn isFull(self: RingBuffer) bool
-        Returns true if the ring buffer is full and false otherwise.
-
-        pub fn len(self: RingBuffer) usize
-        Returns the length of data available for reading
-
-        pub fn mask(self: RingBuffer, index: usize) usize
-        Returns index modulo the length of the backing slice.
-
-        pub fn mask2(self: RingBuffer, index: usize) usize
-        Returns index modulo twice the length of the backing slice.
-
-        pub fn read(self: *RingBuffer) ?u8
-        Consume a byte from the ring buffer and return it. Returns null if the ring buffer is empty.
-
-        pub fn readAssumeLength(self: *RingBuffer) u8
-        Consume a byte from the ring buffer and return it; asserts that the buffer is not empty.
-
-        pub fn readFirst(self: *RingBuffer, dest: []u8, length: usize) Error!void
-        Reads first length bytes written to the ring buffer into dest; Returns Error.ReadLengthInvalid if length greater than ring or dest length Uses memcpy and so dest must not overlap ring buffer data.
-
-        pub fn readFirstAssumeLength(self: *RingBuffer, dest: []u8, length: usize) void
-        Reads first length bytes written to the ring buffer into dest; Asserts that length not greater than ring buffer or dest length Uses memcpy and so dest must not overlap ring buffer data.
-
-        pub fn readLast(self: *RingBuffer, dest: []u8, length: usize) Error!void
-        Reads last length bytes written to the ring buffer into dest; Returns Error.ReadLengthInvalid if length greater than ring or dest length Uses memcpy and so dest must not overlap ring buffer data. Reduces write index by length.
-
-        pub fn readLastAssumeLength(self: *RingBuffer, dest: []u8, length: usize) void
-        Reads last length bytes written to the ring buffer into dest; Asserts that length not greater than ring buffer or dest length Uses memcpy and so dest must not overlap ring buffer data. Reduces write index by length.
-
-        pub fn sliceAt(self: RingBuffer, start_unmasked: usize, length: usize) Slice
-        Returns a Slice for the region of the ring buffer starting at self.mask(start_unmasked) with the specified length.
-
-        pub fn sliceLast(self: RingBuffer, length: usize) Slice
-        Returns a Slice for the last length bytes written to the ring buffer. Does not check that any bytes have been written into the region.
-
-        pub fn write(self: *RingBuffer, byte: u8) Error!void
-        Write byte into the ring buffer. Returns error.Full if the ring buffer is full.
-
-        pub fn writeAssumeCapacity(self: *RingBuffer, byte: u8) void
-        Write byte into the ring buffer. If the ring buffer is full, the oldest byte is overwritten.
-
-        pub fn writeSlice(self: *RingBuffer, bytes: []const u8) Error!void
-        Write bytes into the ring buffer. Returns error.Full if the ring buffer does not have enough space, without writing any data. Uses memcpy and so bytes must not overlap ring buffer data.
-
-        pub fn writeSliceAssumeCapacity(self: *RingBuffer, bytes: []const u8) void
-        Write bytes into the ring buffer. If there is not enough space, older bytes will be overwritten. Uses memcpy and so bytes must not overlap ring buffer data.
-
-        pub fn writeSliceForwards(self: *RingBuffer, bytes: []const u8) Error!void
-        Write bytes into the ring buffer. Returns error.Full if the ring buffer does not have enough space, without writing any data. Uses copyForwards and can write slices from this RingBuffer into itself.
-
-        pub fn writeSliceForwardsAssumeCapacity(self: *RingBuffer, bytes: []const u8) void
-        Write bytes into the ring buffer. If there is not enough space, older bytes will be overwritten. Uses copyForwards and can write slices from this RingBuffer into itself.
-    }
-
-    namespace xar {
-        Array :: struct($T: typeid, $SHIFT: uint) where 0 < SHIFT, SHIFT <= MAX_SHIFT {
-            … // See source for fields
+-- Data structure helpers built from Klang's current List, Table, Option, and
+-- alias-function object support.
+
+alias function Stack[T: Any](items : List[T]) : type = struct {
+    #extend {
+        function count() : Int {
+            return len(this.items);
         }
 
-        An Exponential Array with stable element addresses.
+        function empty() : Bool {
+            return len(this.items) == 0;
+        }
+    }
+}
 
-        Unlike [dynamic]T which reallocates and moves elements when growing, Array allocates separate chunks of exponentially increasing size. This guarantees that pointers to elements remain valid for the lifetime of the container.
+alias function Queue[T: Any](items : List[T]) : type = struct {
+    #extend {
+        function count() : Int {
+            return len(this.items);
+        }
 
-        Fields:
-        chunks: Fixed array of multi-pointers to allocated chunks
-        len: Number of elements currently stored
-        allocator: Allocator used for chunk allocations
+        function empty() : Bool {
+            return len(this.items) == 0;
+        }
+    }
+}
 
-        Type Parameters:
-        T: The element type
-        SHIFT: Controls initial chunk size (1 << SHIFT). Must be in range (0, MAX_SHIFT].
-        Larger values mean fewer, bigger chunks. Recommended: 4-8.
+alias function OrderedMap[T: Any](keys : List[T], values : List[T]) : type = struct {
+    #extend {
+        function count() : Int {
+            return len(this.keys);
+        }
 
-        Chunk sizes grow as:
-        chunks[0]: 1 << SHIFT elements
-        chunks[1]: 1 << SHIFT elements
-        chunks[2]: 1 << (SHIFT + 1) elements
-        chunks[3]: 1 << (SHIFT + 2) elements
-        chunks[4]: 1 << (SHIFT + 3) elements
-        ...and so on
+        function empty() : Bool {
+            return len(this.keys) == 0;
+        }
+    }
+}
+
+namespace dsa {
+    --- Signature: function Pair(key : T, value : T) : Table
+    --- Returns: Table.
+    --- Summary: Creates a generic key/value pair table.
+    --- Contract: Pair tables contain key and value fields.
+    function Pair(key : T, value : T) : Table {
+        return {"key": key, "value": value};
+    }
+
+    --- Signature: function StackNew(items : List[T]) : T
+    --- Returns: T.
+    --- Summary: Creates a Stack alias object from items.
+    --- Contract: Stack values are immutable objects; operations return new Stack values.
+    function StackNew(items : List[T]) : T {
+        return Stack(items);
+    }
+
+    --- Signature: function StackEmpty() : T
+    --- Returns: T.
+    --- Summary: Creates an empty Stack alias object.
+    --- Contract: Preserve this constructor-style helper for callers without an initial list.
+    function StackEmpty() : T {
+        local List[T] items;
+        return Stack(items);
+    }
+
+    --- Signature: function StackValues(stack : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns a copy of the stack items.
+    --- Contract: Returned items are ordered from bottom to top.
+    function StackValues(stack : T) : List[T] {
+        return clone (stack.items as List[T]);
+    }
+
+    --- Signature: function StackCount(stack : T) : Int
+    --- Returns: Int.
+    --- Summary: Returns the number of items in stack.
+    --- Contract: Preserve this function-style API; DSA operations are not mutating methods.
+    function StackCount(stack : T) : Int {
+        return len(stack.items as List[T]);
+    }
+
+    --- Signature: function StackIsEmpty(stack : T) : Bool
+    --- Returns: Bool.
+    --- Summary: Returns True when stack has no items.
+    --- Contract: Preserve this function-style API; DSA operations are not mutating methods.
+    function StackIsEmpty(stack : T) : Bool {
+        return StackCount(stack) == 0;
+    }
+
+    --- Signature: function StackPush(stack : T, value : T) : T
+    --- Returns: T.
+    --- Summary: Returns a new stack with value pushed on top.
+    --- Contract: Original stack remains unchanged.
+    function StackPush(stack : T, value : T) : T {
+        local mut List[T] items = stack.items as List[T];
+        items[len(items)] = value;
+        return Stack(items);
+    }
+
+    --- Signature: function StackPeek(stack : T) : Option[T]
+    --- Returns: Option[T].
+    --- Summary: Returns the top item without removing it.
+    --- Contract: Empty stacks return None.
+    function StackPeek(stack : T) : Option[T] {
+        local List[T] items = stack.items as List[T];
+        if len(items) == 0 {
+            return None();
+        }
+        return Some(items[len(items) - 1]);
+    }
+
+    --- Signature: function StackPop(stack : T) : Table
+    --- Returns: Table.
+    --- Summary: Removes the top item and returns {"stack": nextStack, "value": Option[T]}.
+    --- Contract: Empty stacks return the original stack and None.
+    function StackPop(stack : T) : Table {
+        local List[T] items = stack.items as List[T];
+        if len(items) == 0 {
+            return {"stack": stack, "value": None()};
+        }
+
+        local mut List[T] nextItems;
+        local mut Int index = 0;
+        while index < len(items) - 1 {
+            nextItems[len(nextItems)] = items[index];
+            index += 1;
+        }
+        return {"stack": Stack(nextItems), "value": Some(items[len(items) - 1])};
+    }
+
+    --- Signature: function QueueNew(items : List[T]) : T
+    --- Returns: T.
+    --- Summary: Creates a Queue alias object from items.
+    --- Contract: Queue values are immutable objects; operations return new Queue values.
+    function QueueNew(items : List[T]) : T {
+        return Queue(items);
+    }
+
+    --- Signature: function QueueEmpty() : T
+    --- Returns: T.
+    --- Summary: Creates an empty Queue alias object.
+    --- Contract: Preserve this constructor-style helper for callers without an initial list.
+    function QueueEmpty() : T {
+        local List[T] items;
+        return Queue(items);
+    }
+
+    --- Signature: function QueueValues(queue : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns a copy of queued items.
+    --- Contract: Returned items are ordered from front to back.
+    function QueueValues(queue : T) : List[T] {
+        return clone (queue.items as List[T]);
+    }
+
+    --- Signature: function QueueCount(queue : T) : Int
+    --- Returns: Int.
+    --- Summary: Returns the number of queued items.
+    --- Contract: Preserve this function-style API; DSA operations are not mutating methods.
+    function QueueCount(queue : T) : Int {
+        return len(queue.items as List[T]);
+    }
+
+    --- Signature: function QueueIsEmpty(queue : T) : Bool
+    --- Returns: Bool.
+    --- Summary: Returns True when queue has no items.
+    --- Contract: Preserve this function-style API; DSA operations are not mutating methods.
+    function QueueIsEmpty(queue : T) : Bool {
+        return QueueCount(queue) == 0;
+    }
+
+    --- Signature: function QueuePush(queue : T, value : T) : T
+    --- Returns: T.
+    --- Summary: Returns a new queue with value added at the back.
+    --- Contract: Original queue remains unchanged.
+    function QueuePush(queue : T, value : T) : T {
+        local mut List[T] items = queue.items as List[T];
+        items[len(items)] = value;
+        return Queue(items);
+    }
+
+    --- Signature: function QueuePeek(queue : T) : Option[T]
+    --- Returns: Option[T].
+    --- Summary: Returns the front item without removing it.
+    --- Contract: Empty queues return None.
+    function QueuePeek(queue : T) : Option[T] {
+        local List[T] items = queue.items as List[T];
+        if len(items) == 0 {
+            return None();
+        }
+        return Some(items[0]);
+    }
+
+    --- Signature: function QueuePop(queue : T) : Table
+    --- Returns: Table.
+    --- Summary: Removes the front item and returns {"queue": nextQueue, "value": Option[T]}.
+    --- Contract: Empty queues return the original queue and None.
+    function QueuePop(queue : T) : Table {
+        local List[T] items = queue.items as List[T];
+        if len(items) == 0 {
+            return {"queue": queue, "value": None()};
+        }
+
+        local mut List[T] nextItems;
+        local mut Int index = 1;
+        while index < len(items) {
+            nextItems[len(nextItems)] = items[index];
+            index += 1;
+        }
+        return {"queue": Queue(nextItems), "value": Some(items[0])};
+    }
+
+    --- Signature: function OrderedMapNew(keys : List[T], values : List[T]) : T
+    --- Returns: T.
+    --- Summary: Creates an ordered map from parallel key and value lists.
+    --- Contract: Pairs are read until either list ends; duplicate keys keep their first value.
+    function OrderedMapNew(keys : List[T], values : List[T]) : T {
+        local mut List[T] nextKeys;
+        local mut List[T] nextValues;
+        local mut Int index = 0;
+        while index < len(keys) and index < len(values) {
+            if OrderedMapIndexOf(OrderedMap(nextKeys, nextValues), keys[index]) < 0 {
+                nextKeys[len(nextKeys)] = keys[index];
+                nextValues[len(nextValues)] = values[index];
+            }
+            index += 1;
+        }
+        return OrderedMap(nextKeys, nextValues);
+    }
+
+    --- Signature: function OrderedMapEmpty() : T
+    --- Returns: T.
+    --- Summary: Creates an empty ordered map.
+    --- Contract: Preserve this constructor-style helper for callers without initial pairs.
+    function OrderedMapEmpty() : T {
+        local List[T] keys;
+        local List[T] values;
+        return OrderedMap(keys, values);
+    }
+
+    --- Signature: function OrderedMapCount(map : T) : Int
+    --- Returns: Int.
+    --- Summary: Returns the number of key/value pairs.
+    --- Contract: Preserve this function-style API; DSA operations are not mutating methods.
+    function OrderedMapCount(map : T) : Int {
+        return len(map.keys as List[T]);
+    }
+
+    --- Signature: function OrderedMapIsEmpty(map : T) : Bool
+    --- Returns: Bool.
+    --- Summary: Returns True when map has no pairs.
+    --- Contract: Preserve this function-style API; DSA operations are not mutating methods.
+    function OrderedMapIsEmpty(map : T) : Bool {
+        return OrderedMapCount(map) == 0;
+    }
+
+    --- Signature: function OrderedMapKeys(map : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns keys in insertion order.
+    --- Contract: Returned keys are copied.
+    function OrderedMapKeys(map : T) : List[T] {
+        return clone (map.keys as List[T]);
+    }
+
+    --- Signature: function OrderedMapValues(map : T) : List[T]
+    --- Returns: List[T].
+    --- Summary: Returns values in insertion order.
+    --- Contract: Returned values are copied.
+    function OrderedMapValues(map : T) : List[T] {
+        return clone (map.values as List[T]);
+    }
+
+    --- Signature: function OrderedMapIndexOf(map : T, key : T) : Int
+    --- Returns: Int.
+    --- Summary: Returns the insertion-order index for key, or -1 when missing.
+    --- Contract: Key comparison uses Klang equality.
+    function OrderedMapIndexOf(map : T, key : T) : Int {
+        local List[T] keys = map.keys as List[T];
+        local mut Int index = 0;
+        while index < len(keys) {
+            if keys[index] == key {
+                return index;
+            }
+            index += 1;
+        }
+        return 0 - 1;
+    }
+
+    --- Signature: function OrderedMapContains(map : T, key : T) : Bool
+    --- Returns: Bool.
+    --- Summary: Returns True when key exists.
+    --- Contract: Key comparison uses Klang equality.
+    function OrderedMapContains(map : T, key : T) : Bool {
+        return OrderedMapIndexOf(map, key) >= 0;
+    }
+
+    --- Signature: function OrderedMapGet(map : T, key : T) : Option[T]
+    --- Returns: Option[T].
+    --- Summary: Returns the value for key when present.
+    --- Contract: Missing keys return None.
+    function OrderedMapGet(map : T, key : T) : Option[T] {
+        local Int index = OrderedMapIndexOf(map, key);
+        if index < 0 {
+            return None();
+        }
+        local List[T] values = map.values as List[T];
+        return Some(values[index]);
+    }
+
+    --- Signature: function OrderedMapPut(map : T, key : T, value : T) : T
+    --- Returns: T.
+    --- Summary: Inserts or replaces a key/value pair while preserving insertion order.
+    --- Contract: Replacing an existing key keeps its original position.
+    function OrderedMapPut(map : T, key : T, value : T) : T {
+        local List[T] keys = map.keys as List[T];
+        local List[T] values = map.values as List[T];
+        local mut List[T] nextKeys;
+        local mut List[T] nextValues;
+        local mut Bool replaced = False;
+        local mut Int index = 0;
+
+        while index < len(keys) {
+            nextKeys[len(nextKeys)] = keys[index];
+            if keys[index] == key {
+                nextValues[len(nextValues)] = value;
+                replaced = True;
+            } else {
+                nextValues[len(nextValues)] = values[index];
+            }
+            index += 1;
+        }
+
+        if not replaced {
+            nextKeys[len(nextKeys)] = key;
+            nextValues[len(nextValues)] = value;
+        }
+
+        return OrderedMap(nextKeys, nextValues);
+    }
+
+    --- Signature: function OrderedMapRemove(map : T, key : T) : T
+    --- Returns: T.
+    --- Summary: Removes key when present.
+    --- Contract: Remaining pairs keep their relative order.
+    function OrderedMapRemove(map : T, key : T) : T {
+        local List[T] keys = map.keys as List[T];
+        local List[T] values = map.values as List[T];
+        local mut List[T] nextKeys;
+        local mut List[T] nextValues;
+        local mut Int index = 0;
+
+        while index < len(keys) {
+            if keys[index] != key {
+                nextKeys[len(nextKeys)] = keys[index];
+                nextValues[len(nextValues)] = values[index];
+            }
+            index += 1;
+        }
+
+        return OrderedMap(nextKeys, nextValues);
+    }
+
+    --- Signature: function OrderedMapPairs(map : T) : List[Table]
+    --- Returns: List[Table].
+    --- Summary: Returns key/value pair tables in insertion order.
+    --- Contract: Each pair contains key and value fields.
+    function OrderedMapPairs(map : T) : List[Table] {
+        local List[T] keys = map.keys as List[T];
+        local List[T] values = map.values as List[T];
+        local mut List[Table] pairs;
+        local mut Int index = 0;
+        while index < len(keys) {
+            pairs[len(pairs)] = Pair(keys[index], values[index]);
+            index += 1;
+        }
+        return pairs;
+    }
+
+    namespace arrayhashmap {
+        --- Signature: function New(keys : List[T], values : List[T]) : T
+        --- Returns: T.
+        --- Summary: Compatibility constructor for the ordered-map implementation.
+        --- Contract: Preserves insertion order.
+        function New(keys : List[T], values : List[T]) : T {
+            return dsa.OrderedMapNew(keys, values);
+        }
+
+        --- Signature: function Put(map : T, key : T, value : T) : T
+        --- Returns: T.
+        --- Summary: Inserts or replaces a key/value pair.
+        --- Contract: Delegates to dsa.OrderedMapPut.
+        function Put(map : T, key : T, value : T) : T {
+            return dsa.OrderedMapPut(map, key, value);
+        }
+
+        --- Signature: function Get(map : T, key : T) : Option[T]
+        --- Returns: Option[T].
+        --- Summary: Returns the value for key when present.
+        --- Contract: Delegates to dsa.OrderedMapGet.
+        function Get(map : T, key : T) : Option[T] {
+            return dsa.OrderedMapGet(map, key);
+        }
+
+        --- Signature: function Remove(map : T, key : T) : T
+        --- Returns: T.
+        --- Summary: Removes key when present.
+        --- Contract: Delegates to dsa.OrderedMapRemove.
+        function Remove(map : T, key : T) : T {
+            return dsa.OrderedMapRemove(map, key);
+        }
     }
 }

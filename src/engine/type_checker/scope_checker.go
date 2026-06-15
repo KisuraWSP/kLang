@@ -655,7 +655,11 @@ func (checker *TypeChecker) selectorFunctionExists(expr parser.SelectorExpressio
 	if !ok {
 		return false
 	}
-	_, ok = checker.functions[checker.resolveAliasPath(path)]
+	resolved := checker.resolveAliasPath(path)
+	if isBuiltinFunctionName(resolved) {
+		return true
+	}
+	_, ok = checker.functions[resolved]
 	return ok
 }
 
@@ -680,6 +684,10 @@ func isBuiltinFunctionName(name string) bool {
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",
+		"runtime_debug_loc", "runtime_debug_file", "runtime_debug_line", "runtime_debug_module", "runtime_debug_pos", "runtime_debug_function",
+		"runtime_debug_loc_of", "runtime_debug_line_of", "runtime_debug_pos_of",
+		"runtime.debug.__LOC__", "runtime.debug.__FILE__", "runtime.debug.__LINE__", "runtime.debug.__MODULE__", "runtime.debug.__POS__", "runtime.debug.__FUNCTION__",
+		"runtime.debug.__LOC_OF__", "runtime.debug.__LINE_OF__", "runtime.debug.__POS_OF__",
 		"debug", "debug_type", "debug_stack", "breakpoint", "js_import", "js_source", "js_exports", "js_call",
 		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true

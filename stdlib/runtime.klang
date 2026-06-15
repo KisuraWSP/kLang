@@ -1,4 +1,4 @@
-module(disabled : True);
+module(disabled : False);
 
 -- Runtime helpers around debugger, concurrency, atomic, and workspace builtins.
 
@@ -141,33 +141,81 @@ namespace runtime {
     }
 
     namespace debug {
-        -- convert these to useful functions when the langauge is powerful
-        val __LOC__ : string
-        __LOC__ returns the location at which this expression appears in the file currently being parsed by the compiler, with the standard error format of OCaml: "File %S, line %d, characters %d-%d".
-        Since 4.02
-        val __FILE__ : string
-        __FILE__ returns the name of the file currently being parsed by the compiler.
-        Since 4.02
-        val __LINE__ : int
-        __LINE__ returns the line number at which this expression appears in the file currently being parsed by the compiler.
-        Since 4.02
-        val __MODULE__ : string
-        __MODULE__ returns the module name of the file being parsed by the compiler.
-        Since 4.02
-        val __POS__ : string * int * int * int
-        __POS__ returns a tuple (file,lnum,cnum,enum), corresponding to the location at which this expression appears in the file currently being parsed by the compiler. file is the current filename, lnum the line number, cnum the character position in the line and enum the last character position in the line.
-        Since 4.02
-        val __FUNCTION__ : string
-        __FUNCTION__ returns the name of the current function or method, including any enclosing modules or classes.
-        Since 4.12
-        val __LOC_OF__ : 'a -> string * 'a
-        __LOC_OF__ expr returns a pair (loc, expr) where loc is the location of expr in the file currently being parsed by the compiler, with the standard error format of OCaml: "File %S, line %d, characters %d-%d".
-        Since 4.02
-        val __LINE_OF__ : 'a -> int * 'a
-        __LINE_OF__ expr returns a pair (line, expr), where line is the line number at which the expression expr appears in the file currently being parsed by the compiler.
-        Since 4.02
-        val __POS_OF__ : 'a -> (string * int * int * int) * 'a
-        __POS_OF__ expr returns a pair (loc,expr), where loc is a tuple (file,lnum,cnum,enum) corresponding to the location at which the expression expr appears in the file currently being parsed by the compiler. file is the current filename, lnum the line number, cnum the character position in the line and enum the last character position in the line.
-        Since 4.02
+        -- The call-site magic names are runtime builtins:
+        -- runtime.debug.__LOC__(), __FILE__(), __LINE__(), __MODULE__(),
+        -- __POS__(), __FUNCTION__(), __LOC_OF__(value), __LINE_OF__(value),
+        -- and __POS_OF__(value).
+
+        --- Signature: function Loc() : String
+        --- Returns: String.
+        --- Summary: Returns a formatted location for this helper call.
+        --- Contract: Use runtime.debug.__LOC__() when exact user call-site metadata is required.
+        function Loc() : String {
+            return runtime_debug_loc();
+        }
+
+        --- Signature: function File() : String
+        --- Returns: String.
+        --- Summary: Returns the current source file for this helper call.
+        --- Contract: Use runtime.debug.__FILE__() when exact user call-site metadata is required.
+        function File() : String {
+            return runtime_debug_file();
+        }
+
+        --- Signature: function Line() : Int
+        --- Returns: Int.
+        --- Summary: Returns the current source line for this helper call.
+        --- Contract: Use runtime.debug.__LINE__() when exact user call-site metadata is required.
+        function Line() : Int {
+            return runtime_debug_line();
+        }
+
+        --- Signature: function Module() : String
+        --- Returns: String.
+        --- Summary: Returns the current module name for this helper call.
+        --- Contract: Use runtime.debug.__MODULE__() when exact user call-site metadata is required.
+        function Module() : String {
+            return runtime_debug_module();
+        }
+
+        --- Signature: function Pos() : Table
+        --- Returns: Table.
+        --- Summary: Returns file, line, start_column, and end_column for this helper call.
+        --- Contract: Use runtime.debug.__POS__() when exact user call-site metadata is required.
+        function Pos() : Table {
+            return runtime_debug_pos();
+        }
+
+        --- Signature: function FunctionName() : String
+        --- Returns: String.
+        --- Summary: Returns the current function name for this helper call.
+        --- Contract: Use runtime.debug.__FUNCTION__() when exact user call-site metadata is required.
+        function FunctionName() : String {
+            return runtime_debug_function();
+        }
+
+        --- Signature: function LocOf(value : T) : Table
+        --- Returns: Table.
+        --- Summary: Returns a table containing loc and value.
+        --- Contract: Use runtime.debug.__LOC_OF__(value) when exact user call-site metadata is required.
+        function LocOf(value : T) : Table {
+            return runtime_debug_loc_of(value);
+        }
+
+        --- Signature: function LineOf(value : T) : Table
+        --- Returns: Table.
+        --- Summary: Returns a table containing line and value.
+        --- Contract: Use runtime.debug.__LINE_OF__(value) when exact user call-site metadata is required.
+        function LineOf(value : T) : Table {
+            return runtime_debug_line_of(value);
+        }
+
+        --- Signature: function PosOf(value : T) : Table
+        --- Returns: Table.
+        --- Summary: Returns a table containing pos and value.
+        --- Contract: Use runtime.debug.__POS_OF__(value) when exact user call-site metadata is required.
+        function PosOf(value : T) : Table {
+            return runtime_debug_pos_of(value);
+        }
     }
 }

@@ -255,7 +255,7 @@ func (parser *expressionParser) parseBinary(left ExpressionNode) ExpressionNode 
 }
 
 func (parser *expressionParser) parseCall(callee ExpressionNode) ExpressionNode {
-	parser.advance()
+	start := parser.advance()
 	var args []ExpressionNode
 	if !parser.check(lexer.TokenRightBrace) {
 		for {
@@ -268,7 +268,7 @@ func (parser *expressionParser) parseCall(callee ExpressionNode) ExpressionNode 
 	if !parser.match(lexer.TokenRightBrace) {
 		return nil
 	}
-	return CallExpression{Callee: callee, Arguments: args}
+	return CallExpression{Pos: positionFromToken(start), Callee: callee, Arguments: args}
 }
 
 func (parser *expressionParser) parseIndex(target ExpressionNode) ExpressionNode {
