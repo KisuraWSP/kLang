@@ -47,7 +47,7 @@ function RunVM(program : List[Int]) : Int {
     
     -- Return the top of the stack
     unless sp > 0 {
-        return -1; -- Error: Stack underflow
+        return 0 - 1; -- Error: Stack underflow
     } else {
         return stack[sp - 1];
     }

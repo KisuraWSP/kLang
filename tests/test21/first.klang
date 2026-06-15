@@ -79,7 +79,7 @@ function LevelUpCheck() : Bool {
 function CalculateDamage(attack : Int, defense : Int) : Int {
     local mut Int baseDamage = attack - defense;
     -- Introduce slight randomness (+/- 2)
-    local Int variance = call random.RandomRange(-2, 3);
+    local Int variance = call random.RandomRange(0 - 2, 3);
     baseDamage += variance;
     
     -- Ensure minimum 1 damage unless heavily armored
@@ -197,7 +197,7 @@ function EventMonster() : Int {
     if victory {
         return 4;
     } else {
-        return -1; -- Death signal
+        return 0 - 1; -- Death signal
     }
 }
 
@@ -284,7 +284,7 @@ function Main() : Int {
                 local T roomFunction = eventDispatcher[roomEventID];
                 local Int eventResult = roomFunction();
                 
-                if eventResult == -1 {
+                if eventResult == 0 - 1 {
                     break; -- Death signal returned from event
                 }
             }

@@ -27,14 +27,14 @@ function ApplyResonance(crystals : List[Int], operations : List[T]) : List[Int] 
 }
 
 function Main() : Int {
-    local List[Int] rawCrystals = [5, -2, 12, 8];
+    local List[Int] rawCrystals = [5, 0 - 2, 12, 8];
     local List[T] actionQueue = [Amplify, Dampen, InvertPolarity];
     
     -- Applying the set of operations at the same time
     local List[Int] finalState = ApplyResonance(rawCrystals, actionQueue);
     
     -- Check winning condition (Expected: [-10, -3, -15, -13])
-    unless finalState[0] == -10 {
+    unless finalState[0] == 0 - 10 {
         print("Game Over: Resonance cascade failure.");
         return 1;
     } else {

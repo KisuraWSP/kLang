@@ -6,7 +6,7 @@ function ApplyToList(items : List[Int], operation : T) : List[Int] {
     local mut List[Int] resultList = [];
     
     -- Assuming a C-style loop for this test based on your docs
-    for i := 0; i < 10; i += 1 {
+    for local mut Int i = 0; i < len(items); i += 1 {
         -- Testing function application on list items
         -- Assuming 'operation' holds the first-class function signature
         resultList[i] = operation(items[i]);

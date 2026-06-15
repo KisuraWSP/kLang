@@ -15,15 +15,15 @@ function EvaluateDeepNesting() : Bool {
                                         -- 9 levels deep. Can your parser handle 50?
                                         coreValue = 999;
                                         break;
-                                    } else { coreValue = -1; }
+                                    } else { coreValue = 0 - 1; }
                                 }
                             }
-                        } else { coreValue = -2; }
+                        } else { coreValue = 0 - 2; }
                     }
                 }
                 if coreValue == 999 break;
             }
-        } else { coreValue = -3; }
+        } else { coreValue = 0 - 3; }
     }
     
     if coreValue == 999 { return True; } else { return False; }

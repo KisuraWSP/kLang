@@ -8,7 +8,7 @@ function Main() : Int {
     
     -- Testing do_while loop
     local mut Int index = 0;
-    do_while index := range(5) {
+    while index < len(dataList) {
         memoryStore["iteration"] = dataList[index];
         index += 1;
         

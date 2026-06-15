@@ -6,7 +6,7 @@ function ConsumeMemory() : Int {
     
     print("Beginning heap allocation test...");
     
-    for i := 0; i < 5000; i += 1 {
+    for local mut Int i = 0; i < 5000; i += 1 {
         local mut List[String] chunk = [];
         
         for j := range(100) {

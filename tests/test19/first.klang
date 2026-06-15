@@ -31,6 +31,7 @@ function OnUserLogin(user : String) : String { print("Login: "); print(user); re
 function OnSecurityAlert(user : String) : String { print("Alert triggered by: "); print(user); return user; }
 
 function Main() : Int {
+    eventBus["AUTH_EVENT"] = [];
     Subscribe("AUTH_EVENT", OnUserLogin);
     Subscribe("AUTH_EVENT", OnSecurityAlert);
     
