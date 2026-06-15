@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"kLang/src/engine/file"
+	"kLang/src/lexer"
 	"kLang/src/parser"
 )
 
@@ -451,6 +452,9 @@ func (checker *TypeChecker) collectGlobals(unit sourceUnit) {
 		}
 
 		if decl.Expression != "" {
+			if decl.Scope == "const" && !isCompileTimeConstantExpression(decl.Expression) {
+				checker.addError(unit.Path, decl.Line, fmt.Sprintf("const %s requires a compile-time constant initializer", decl.Name))
+			}
 			exprType := checker.inferExpression(decl.Expression, map[string]variableSymbol{}, unit.Path, decl.Line)
 			if decl.Inferred && decl.Type == anyType {
 				decl.Type = exprType
@@ -541,6 +545,9 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 				checker.checkDeclaredType(decl.Type, fn.File, line)
 			}
 			if decl.Expression != "" {
+				if decl.Scope == "const" && !isCompileTimeConstantExpression(decl.Expression) {
+					checker.addError(fn.File, line, fmt.Sprintf("const %s requires a compile-time constant initializer", decl.Name))
+				}
 				exprType := checker.inferExpression(decl.Expression, locals, fn.File, line)
 				if decl.Inferred && decl.Type == anyType {
 					decl.Type = exprType
@@ -978,6 +985,62 @@ func inferredExplicitTypeName(typeName string) string {
 		return "Int"
 	}
 	return typeName
+}
+
+func isCompileTimeConstantExpression(expr string) bool {
+	tokens := lexer.New(expr).Tokenize()
+	if len(tokens) > 0 && tokens[len(tokens)-1].Type == lexer.TokenEOFDescriptor {
+		tokens = tokens[:len(tokens)-1]
+	}
+	if len(tokens) == 0 {
+		return false
+	}
+	return isCompileTimeConstantNode(parser.ParseExpressionTokens(tokens))
+}
+
+func isCompileTimeConstantNode(node parser.ExpressionNode) bool {
+	switch current := node.(type) {
+	case parser.LiteralExpression:
+		return true
+	case parser.GroupExpression:
+		return isCompileTimeConstantNode(current.Inner)
+	case parser.UnaryExpression:
+		switch current.Operator {
+		case "-", "not":
+			return isCompileTimeConstantNode(current.Right)
+		default:
+			return false
+		}
+	case parser.BinaryExpression:
+		return isCompileTimeConstantNode(current.Left) && isCompileTimeConstantNode(current.Right)
+	case parser.CastExpression:
+		return isCompileTimeConstantNode(current.Value)
+	case parser.NullCheckExpression:
+		return isCompileTimeConstantNode(current.Value)
+	case parser.ConditionalExpression:
+		return isCompileTimeConstantNode(current.Condition) &&
+			isCompileTimeConstantNode(current.Consequence) &&
+			isCompileTimeConstantNode(current.Alternative)
+	case parser.ListExpression:
+		for _, item := range current.Items {
+			if !isCompileTimeConstantNode(item) {
+				return false
+			}
+		}
+		return true
+	case parser.MapExpression:
+		for _, entry := range current.Entries {
+			if !isCompileTimeConstantNode(entry.Key) || !isCompileTimeConstantNode(entry.Value) {
+				return false
+			}
+		}
+		return true
+	case parser.SelectorExpression:
+		target, ok := current.Target.(parser.IdentifierExpression)
+		return ok && current.Field == "sizeof" && isKnownType(target.Name)
+	default:
+		return false
+	}
 }
 
 func parseAssignment(stmt string) (assignmentStatement, bool) {

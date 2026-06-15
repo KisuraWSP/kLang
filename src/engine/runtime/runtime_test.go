@@ -82,6 +82,32 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeRejectsAssignmentAfterMove(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local mut String first = "hello";
+    local String second = move first;
+    first = "again";
+    return len(second);
+}
+`)
+
+	assertRuntimeErrorContains(t, err, `variable "first" was moved`)
+}
+
+func TestRuntimeRejectsIndexedAssignmentAfterMove(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local mut List[Int] values = [1];
+    local List[Int] moved = move values;
+    values[0] = 2;
+    return moved[0];
+}
+`)
+
+	assertRuntimeErrorContains(t, err, `variable "values" was moved`)
+}
+
 func TestRuntimeExecutesInferredVariablesConstAndSizeof(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {
@@ -96,6 +122,26 @@ function Main() : Int {
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 69431 {
 		t.Fatalf("expected inferred variable program to return 69431, got %#v", result.Value)
 	}
+}
+
+func TestRuntimeRejectsMissingIndexedCompoundAssignmentTargets(t *testing.T) {
+	_, listErr := runParsedSourceWithError(`
+function Main() : Int {
+    local mut List[Int] values = [];
+    values[0] += 1;
+    return values[0];
+}
+`)
+	assertRuntimeErrorContains(t, listErr, "compound assignment requires existing list index 0")
+
+	_, mapErr := runParsedSourceWithError(`
+function Main() : Int {
+    local mut Map[String, Int] values = {};
+    values["missing"] += 1;
+    return 0;
+}
+`)
+	assertRuntimeErrorContains(t, mapErr, `compound assignment requires existing map key "missing"`)
 }
 
 func TestRuntimeExecutesMultipleReturnsHereStringAndDefer(t *testing.T) {

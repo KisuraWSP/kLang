@@ -63,6 +63,43 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "cannot mutate immutable variable")
 }
 
+func TestCheckProgramChecksConstInitializers(t *testing.T) {
+	accept := programFromSource(`
+const intSize = Int.sizeof;
+const folded = (1 + 2) * 3;
+
+function Main() : Int {
+    const localSize = String.sizeof + 1;
+    return intSize + folded + localSize;
+}
+`)
+	if report := CheckProgram(accept); !report.Passed() {
+		t.Fatalf("expected compile-time const initializers to pass, got %#v", report.Errors)
+	}
+
+	rejectCall := programFromSource(`
+function MakeValue() : Int {
+    return 1;
+}
+
+const bad = MakeValue();
+
+function Main() : Int {
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(rejectCall), "const bad requires a compile-time constant initializer")
+
+	rejectIdentifier := programFromSource(`
+function Main() : Int {
+    local Int value = 1;
+    const bad = value;
+    return bad;
+}
+`)
+	assertTypeError(t, CheckProgram(rejectIdentifier), "const bad requires a compile-time constant initializer")
+}
+
 func TestCheckProgramRejectsRValueAssignmentTarget(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

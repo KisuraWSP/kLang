@@ -1134,6 +1134,9 @@ func (runtime *Runtime) executeAssignment(stmt parser.AssignmentStatement, env *
 		return Error{Message: fmt.Sprintf("unknown variable %q", identifier.Name)}
 	}
 	return binding.WithLock(func() error {
+		if binding.Moved {
+			return Error{Message: fmt.Sprintf("variable %q was moved", identifier.Name)}
+		}
 		if err := runtime.memory.EnsureWritable(binding.ObjectID); err != nil {
 			return err
 		}
@@ -1169,6 +1172,9 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 	}
 
 	return binding.WithLock(func() error {
+		if binding.Moved {
+			return Error{Message: fmt.Sprintf("variable %q was moved", targetIdentifier.Name)}
+		}
 		if !binding.Mutable {
 			return Error{Message: fmt.Sprintf("cannot mutate immutable variable %q", targetIdentifier.Name)}
 		}
@@ -1191,6 +1197,9 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 			}
 			if capacity, ok := runtime.regionArrayCapacity(binding.Type); ok && position >= capacity {
 				return Error{Message: fmt.Sprintf("array index %d exceeds region %s capacity %d", position, regionNameFromRuntimeArrayType(binding.Type), capacity)}
+			}
+			if operator != "=" && position >= len(items) {
+				return Error{Message: fmt.Sprintf("compound assignment requires existing list index %d", position)}
 			}
 			for len(items) <= position {
 				items = append(items, NullValue())
@@ -1217,6 +1226,11 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 			key, err := mapKey(index)
 			if err != nil {
 				return err
+			}
+			if operator != "=" {
+				if _, ok := items[key]; !ok {
+					return Error{Message: fmt.Sprintf("compound assignment requires existing map key %q", key)}
+				}
 			}
 			current := items[key]
 			next, err := applyAssignmentOperator(current, operator, value)
