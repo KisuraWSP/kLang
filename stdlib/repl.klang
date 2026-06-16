@@ -1,0 +1,4 @@
+-- this module will contain source code for u 
+-- to do an interactive read eval print loop in the langauge
+-- this library will access every deep crevice in the langauage source code, 
+-- stdlib, runtime, parser, lexer, etc...
