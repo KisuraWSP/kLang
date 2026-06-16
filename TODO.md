@@ -2,6 +2,15 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- allow support for hot/cold programs
+   - this is the basis for a hot reloading code runtime environment/system
+- implement a new keyword "report" and langauage wide stack tracing for errors
+   ```lua
+      -- the report keyword can be used with either variables, functions, functions parameters/arguments
+      -- what this keyword does is that during the execution of the program it will give a live stack trace in which the data values of said item which u mentioned to report will show in a nice stack trace interface like the below and it displays it live
+      report t;
+      report test();
+   ```
 - add lsp plugin for vscode
 - builtin assert keyword to the language
 - In the programming language i want you to do this
