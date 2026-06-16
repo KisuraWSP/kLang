@@ -2,6 +2,7 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- Allow support of assigning values to variables if a function supports multiple return types
 - allow support for hot/cold programs
    - this is the basis for a hot reloading code runtime environment/system
 - implement a new keyword "report" and langauage wide stack tracing for errors
