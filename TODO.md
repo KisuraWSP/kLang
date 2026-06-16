@@ -2,6 +2,17 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- add a new builtin type called **"Type"**, this type is a parent type of all the data types in our programming langauge every type in this langauge conforms to it
+   - it stores the following
+   - Automated Serialization: Relying on stored type metadata to automatically encode (pack) and decode (unpack) complex data structures into byte streams for network transmission or file storage, eliminating the need for hardcoded parsing logic.
+   - Data Introspection: The capacity of a program to query its own primitive structures or records during execution. This includes discovering the names, types, and memory offsets of fields within a struct or record without knowing them at compile time.
+   - Memory Layout Interpretation: Using runtime metadata to determine the exact byte size, alignment, and memory footprint of an arbitrary piece of data before attempting to read, copy, or manipulate it.
+   - all of these above information can only be accessed for any type via the method 
+   ```lua
+      -- applicable for every data type for this langauage
+      const info = Int.get_runtime_type_info();
+   ```
+
 - add support for stdlib modules where in which if defined as a global namespace the programming language will be automattically able to call said code without a namespace or any import
    - for this to work we need to keep a special Symbol table of all the information which cannot be accessed by the programmer only the programming langauage
 ```lua

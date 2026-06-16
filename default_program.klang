@@ -1,0 +1,4 @@
+-- this code is always executed by the go compiler which passes into our runtime and 
+-- will do the same behave as the main functions in both the wasm main and the normal
+-- main made by the go lang
+-- only do this once the runtime is powerful enough and has features
