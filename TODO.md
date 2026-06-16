@@ -2,6 +2,13 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- In the programming language i want you to do this
+So whenever we start a program tell the go code to always run a .klang file called default_program.klang this is the main entry point program that is given first priority to users (do these once enough features are there to make it powerful)
+- First workspace in the language is the default_program.klang
+The language will generate the user porgram as second workspace
+Workspace and meta programming types like Program, BuildSystem, Workspace, etc… allows for parallel code wide execution so for this to happen we need to use threads/channels in the golang code
+- allow importing of modules within other modules
+   - this would reduce the usage of reimplementing existing functions
 - add a new builtin type called **"Type"**, this type is a parent type of all the data types in our programming langauge every type in this langauge conforms to it
    - it stores the following
    - Automated Serialization: Relying on stored type metadata to automatically encode (pack) and decode (unpack) complex data structures into byte streams for network transmission or file storage, eliminating the need for hardcoded parsing logic.

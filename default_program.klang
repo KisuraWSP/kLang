@@ -2,3 +2,19 @@
 -- will do the same behave as the main functions in both the wasm main and the normal
 -- main made by the go lang
 -- only do this once the runtime is powerful enough and has features
+
+-- why this code is going to be in run scope because we want the programming langauge to give priority to this during execution of code
+run {
+    -- once the features are finalized lets do little by little implement this system until we can do it
+    -- we might be able to do the wasm main if we have enough features in the programming langauge
+    -- lets see
+    -- but this program when we are using the main.go, main.go should always reads this program and runs like very similar to the main.go file functionality
+    -- so main.go basically will just always call this file no matter whether its a project/program or a script
+    -- doesnt matter no what, this will make in the future to make the language more powerful to use and edit at the same time while keeping the main.go source clean
+    -- so if this file is deleted entire programming language will fail which should be the intended behaviour
+    -- also this file will be useless because some functions of stdlib are not imported
+    -- we need to have stdlib implemented for this program to actually work
+    -- so first we will implement every feature, clean up and polish every features
+    -- implement every stdlib modules so that in the future any klang program can use the stdlib functions
+    -- make sure the runtime is powerful also otherwise this program is basically fcking useless
+}

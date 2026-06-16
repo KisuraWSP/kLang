@@ -13,3 +13,4 @@
     - If the user deletes the draft release then don't make a new one until the next cycle
 
 - Make each releases have patch notes and information of any new features in it
+- Make sure releases are not made every time if there is no new commit

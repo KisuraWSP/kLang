@@ -1,0 +1,3 @@
+-- this module contains functions which are used by the runtime
+-- basically we will do a like a similar implementation of our programming language like what we did with the go code
+-- so basically we are making this module an api in which future klang programs can use for there own code usage but we will keep the golang implementation as we are not planning to self host this language
