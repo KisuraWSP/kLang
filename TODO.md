@@ -3,19 +3,20 @@
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
 - add support for stdlib modules where in which if defined as a global namespace the programming language will be automattically able to call said code without a namespace or any import
- stage
-   ```lua
-      global namespace alloc {
-       -- any code written here will be existed by the programming language and can be called without import or namespace statement
-       function name(){}
-}
+   - for this to work we need to keep a special Symbol table of all the information which cannot be accessed by the programmer only the programming langauage
+```lua
+   global namespace alloc {
+      -- any code written here will be existed by the programming language and can be called without import or namespace statement
+      function name(){}
+   }
 
 -- no need to do 
 alloc.name();
 -- can directyl do 
 name();
-and it just works
-   ```
+-- and it just works
+```
+
 - add this below
    - basically this scope when the program reads it, it gives first priority to it and executes at compilation stage
    ```lua
