@@ -11,3 +11,5 @@
     - Make the releases contain executable binaries for respective os
     - Make the release have a name convention of dev-<month>
     - If the user deletes the draft release then don't make a new one until the next cycle
+
+- Make each releases have patch notes and information of any new features in it
