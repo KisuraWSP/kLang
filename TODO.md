@@ -2,6 +2,20 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- add support for stdlib modules where in which if defined as a global namespace the programming language will be automattically able to call said code without a namespace or any import
+ stage
+   ```lua
+      global namespace alloc {
+       -- any code written here will be existed by the programming language and can be called without import or namespace statement
+       function name(){}
+}
+
+-- no need to do 
+alloc.name();
+-- can directyl do 
+name();
+and it just works
+   ```
 - add this below
    - basically this scope when the program reads it, it gives first priority to it and executes at compilation stage
    ```lua
