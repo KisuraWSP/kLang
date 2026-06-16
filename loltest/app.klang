@@ -1,10 +1,20 @@
-import "runtime"; -- this code will fail because module is disabled 
+-- import "runtime"; -- this code will fail because module is disabled 
                 --  but it will not fail right now because module contains garbage code actually
 
 namespace App {
     #set_entry_point_to_here
     function Start() : Int {
         print("Welcome to loltest");
+
+        local Table tabel = {"name" : "hallo"};
+        local Int int;
+        local String string;
+        local Float float = 6.999;
+
+        print(tabel.name);
+        print(int);
+        print("string= [",string, "]");
+        print(float);
         return 0;
     }
 }
