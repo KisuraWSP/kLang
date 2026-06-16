@@ -46,6 +46,10 @@ name();
       }
 
    ```
+   - also make it support as a keyword so that functions are able to do this too
+   ```lua
+   run TEst(); -- function gets first priority call when executed
+   ```
 
 - Make The types that the Langauge implements as Parent Types
    - To make the parent return a child type we do the below
