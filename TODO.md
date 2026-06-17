@@ -2,6 +2,9 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- Ability to read hexadecimal, octal, binary numbers and also 0xAAAA like numbers
+- Add support for negative numbers
+- Add support for sinhala character & emojis variables, function arguments/parameters (not gonna be a feature used in the api but will be implemented for other peoples usage)
 - Allow support of assigning values to variables if a function supports multiple return types
 - allow support for hot/cold programs
    - this is the basis for a hot reloading code runtime environment/system
