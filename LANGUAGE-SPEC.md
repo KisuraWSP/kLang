@@ -43,6 +43,7 @@
 43. Multiline comments use `(* ... *)` delimiters and may span lines.
 44. Numeric parent types support child-width types through `.child(bits)` and globally available aliases such as `i8`, `u32`, `float64`, and `complex128`.
 45. The checker reports warnings for unused local variables and unused function parameters.
+46. Qualified module calls can infer imports; `list.append(...)` loads a resolvable `list` module even without an explicit import.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -71,6 +72,7 @@ Rules
 - `spawn(functionValue, [args...])` starts a child interpreter worker and returns `Thread[T]`; `join(thread)` waits and returns `T`.
 - Threaded workers share loaded functions, globals, memory tracking, and output. Use `Atomic[T]` for shared mutable values that need safe read-modify-write behavior.
 - Each standalone script or project is resolved as its own workspace. Resolver caches speed repeated imports without sharing visited-state between workspaces.
+- `import` statements may appear anywhere in a source file. Qualified module calls such as `math.Add(...)` also infer an import when `math` resolves to a local or stdlib module.
 - Stdlib imports are selectively collected by default. For example, `import "html";` plus `html.Document(...)` collects `html.Document` and its same-module helper dependencies, not every function in `stdlib/html.klang`.
 - Place `module_caller(call_entire_module : True);` in a source file to make its stdlib imports load complete modules.
 - Place `module(disabled : True);` in a module source to make the resolver reject imports of that module.

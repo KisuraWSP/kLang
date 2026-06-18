@@ -106,11 +106,11 @@ func TestResolveProgramKeepsAlreadyLoadedProjectImportDeduped(t *testing.T) {
 	if !report.Passed() {
 		t.Fatalf("expected test21 imports to resolve, got %#v", report.Errors)
 	}
-	if len(resolved.Files) != 2 {
-		t.Fatalf("expected already-loaded local import to stay deduped, got %d files", len(resolved.Files))
+	if len(resolved.Files) != 3 {
+		t.Fatalf("expected already-loaded local import plus inferred random import, got %d files", len(resolved.Files))
 	}
-	if len(report.Modules) != 1 || report.Modules[0].Kind != ImportLocal {
-		t.Fatalf("expected one local module report, got %#v", report.Modules)
+	if len(report.Modules) != 2 || report.Modules[0].Kind != ImportLocal || report.Modules[1].Name != "random" {
+		t.Fatalf("expected local module report plus inferred random module, got %#v", report.Modules)
 	}
 }
 
@@ -355,6 +355,98 @@ function Main() : Int {
 	}
 	if resolved.Files[1].ModuleFunctionFilter != nil {
 		t.Fatalf("expected full module import to have no function filter, got %#v", resolved.Files[1].ModuleFunctionFilter)
+	}
+}
+
+func TestResolveProgramInfersStdlibImportFromModuleCall(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "tools.klang", `
+namespace tools {
+    function Used() : Int { return Helper(); }
+    function Helper() : Int { return 7; }
+    function Unused() : Int { return 99; }
+}
+`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `
+function Main() : Int {
+    return tools.Used();
+}
+`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolved, report := NewResolver(stdlibRoot).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected inferred stdlib import to pass, got %#v", report.Errors)
+	}
+	if len(resolved.Files) != 2 {
+		t.Fatalf("expected inferred stdlib import to add one file, got %d", len(resolved.Files))
+	}
+	if len(report.Modules) != 1 || report.Modules[0].Name != "tools" || report.Modules[0].Kind != ImportStdlib {
+		t.Fatalf("expected inferred stdlib module report, got %#v", report.Modules)
+	}
+	filter := resolved.Files[1].ModuleFunctionFilter
+	if !filter["tools.Used"] || !filter["tools.Helper"] || filter["tools.Unused"] {
+		t.Fatalf("unexpected inferred stdlib function filter: %#v", filter)
+	}
+}
+
+func TestResolveProgramInfersLocalImportFromModuleCall(t *testing.T) {
+	root := t.TempDir()
+	appRoot := filepath.Join(root, "app")
+	writeModuleTestFile(t, appRoot, "math.klang", `
+namespace math {
+    function Add(left : Int, right : Int) : Int { return left + right; }
+}
+`)
+	programPath := writeModuleTestFile(t, appRoot, "main.klang", `
+function Main() : Int {
+    return math.Add(1, 2);
+}
+`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolved, report := NewResolver(filepath.Join(root, "stdlib")).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected inferred local import to pass, got %#v", report.Errors)
+	}
+	if len(resolved.Files) != 2 {
+		t.Fatalf("expected inferred local import to add one file, got %d", len(resolved.Files))
+	}
+	if len(report.Modules) != 1 || report.Modules[0].Name != "math" || report.Modules[0].Kind != ImportLocal {
+		t.Fatalf("expected inferred local module report, got %#v", report.Modules)
+	}
+}
+
+func TestResolveProgramDoesNotInferMissingModuleFromOrdinarySelectorCall(t *testing.T) {
+	root := t.TempDir()
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `
+function Main() : Int {
+    local Table data = {"run": 1};
+    data.run();
+    return 0;
+}
+`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolved, report := NewResolver(filepath.Join(root, "stdlib")).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected unresolved selector module inference to be ignored, got %#v", report.Errors)
+	}
+	if len(resolved.Files) != 1 || len(report.Modules) != 0 {
+		t.Fatalf("did not expect inferred import, got files=%d modules=%#v", len(resolved.Files), report.Modules)
 	}
 }
 

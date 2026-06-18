@@ -254,6 +254,10 @@ local String renderedPage = html.Document(
     html.Main([html.Class("page")], html.H1([], html.Text("Hello from kLang")))
 );
 
+-- imports can appear anywhere, and a qualified call can infer a matching import.
+-- The call below resolves stdlib/list without writing import "list"; first.
+local List[Int] copiedNumbers = list.copy([1, 2, 3]);
+
 -- stdlib imports collect only the referenced module functions by default.
 -- This source collects html.Document, html.Main, html.Class, html.H1, html.Text,
 -- and same-module helper functions reached from those functions.

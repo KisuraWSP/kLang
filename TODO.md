@@ -9,7 +9,6 @@ klang doc --sourcefile=["test.klang", "file.klang"]
 ```
 - add pass by reference and pass by value sementaics in the langauge
 - add a new flag to allow user to add there own functions to the stdlib via new command like —new_std_lib=["test”, “processor”]
-- allow import statements to be called any where in the program no matter where it is declared, if the langauge detects the call it does an import
 - Ability to read hexadecimal, octal, binary numbers and also 0xAAAA like numbers
 - Add support for negative numbers
 - Add support for sinhala character & emojis variables, function arguments/parameters (not gonna be a feature used in the api but will be implemented for other peoples usage)

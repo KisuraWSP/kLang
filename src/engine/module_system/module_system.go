@@ -226,7 +226,7 @@ func (resolver *Resolver) resolveSource(state *resolutionState, program *file.Pr
 	state.resolving[sourceKey] = true
 	defer delete(state.resolving, sourceKey)
 
-	imports, errors := resolver.importsFor(source)
+	imports, errors := resolver.importsFor(source, *program)
 	for _, parseError := range errors {
 		report.Errors = append(report.Errors, Error{
 			File:    source.Path,
@@ -381,12 +381,97 @@ func (resolver *Resolver) addModuleReport(state *resolutionState, report *Report
 	report.Modules = append(report.Modules, module)
 }
 
-func (resolver *Resolver) importsFor(source file.SourceFile) ([]parser.ImportStatement, []parser.Error) {
+func (resolver *Resolver) importsFor(source file.SourceFile, program file.Program) ([]parser.ImportStatement, []parser.Error) {
 	metadata, errors := resolver.metadataFor(source)
 	if len(errors) != 0 {
 		return nil, errors
 	}
-	return metadata.Imports, nil
+	return resolver.importsWithInferredModuleCalls(source, program, metadata), nil
+}
+
+func (resolver *Resolver) importsWithInferredModuleCalls(source file.SourceFile, program file.Program, metadata sourceMetadata) []parser.ImportStatement {
+	imports := append([]parser.ImportStatement(nil), metadata.Imports...)
+	seen := map[string]bool{}
+	for _, importStmt := range imports {
+		seen[importStmt.Path] = true
+	}
+	for _, path := range resolver.inferredModuleImports(source, program) {
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		imports = append(imports, parser.ImportStatement{
+			Pos:              parser.Position{Line: 1, Column: 1},
+			Path:             path,
+			CallEntireModule: metadata.CallEntireModule,
+		})
+	}
+	return imports
+}
+
+func (resolver *Resolver) inferredModuleImports(source file.SourceFile, program file.Program) []string {
+	parsed := parser.ParseSource(source)
+	if len(parsed.Errors) != 0 {
+		return nil
+	}
+	candidates := collectCalledModuleNames(parsed.Program.Statements)
+	if len(candidates) == 0 {
+		return nil
+	}
+	var imports []string
+	for _, moduleName := range candidates {
+		if moduleName == "" {
+			continue
+		}
+		imported, _, err := resolver.resolveImport(source.Path, moduleName)
+		if err != nil {
+			continue
+		}
+		if programContainsSource(imported, source.Path, resolver) {
+			continue
+		}
+		if programContainsAnySource(imported, program, resolver) {
+			continue
+		}
+		imports = append(imports, moduleName)
+	}
+	sort.Strings(imports)
+	return imports
+}
+
+func programContainsSource(program file.Program, path string, resolver *Resolver) bool {
+	key := resolver.pathKey(path)
+	for _, source := range program.Files {
+		if samePathKey(resolver.pathKey(source.Path), key) {
+			return true
+		}
+	}
+	return false
+}
+
+func programContainsAnySource(imported file.Program, program file.Program, resolver *Resolver) bool {
+	projectSources := map[string]bool{}
+	for _, source := range program.Files {
+		projectSources[resolver.pathKey(source.Path)] = true
+	}
+	for _, source := range imported.Files {
+		sourceKey := resolver.pathKey(source.Path)
+		if projectSources[sourceKey] {
+			return true
+		}
+		for projectKey := range projectSources {
+			if samePathKey(projectKey, sourceKey) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func samePathKey(left string, right string) bool {
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	return left == right || strings.EqualFold(left, right)
 }
 
 func (resolver *Resolver) metadataFor(source file.SourceFile) (sourceMetadata, []parser.Error) {
@@ -565,6 +650,26 @@ func collectCalledModuleFunctions(statements []parser.Statement, moduleName stri
 		}
 	})
 	return selected
+}
+
+func collectCalledModuleNames(statements []parser.Statement) []string {
+	names := map[string]bool{}
+	collectStatementCalls(statements, func(name string) {
+		if !strings.Contains(name, ".") {
+			return
+		}
+		moduleName := strings.TrimSpace(strings.SplitN(name, ".", 2)[0])
+		if moduleName == "" {
+			return
+		}
+		names[moduleName] = true
+	})
+	result := make([]string, 0, len(names))
+	for name := range names {
+		result = append(result, name)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func collectFunctionDefinitions(statements []parser.Statement, namespace string, definitions map[string]parser.FunctionStatement) {
