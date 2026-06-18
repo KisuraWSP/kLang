@@ -2,6 +2,8 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- make here strings return a string value in variables
+   - this usage should increase more once the language is in a powerful state
 - in the doc toolchain command
    - make it that it will show the code
 - make progrramming language api data oriented

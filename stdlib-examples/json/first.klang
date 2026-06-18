@@ -1,0 +1,334 @@
+import "json";
+
+function Divider(title : String) : Int {
+    print("");
+    print("------------------------------------------------------------");
+    print(title);
+    print("------------------------------------------------------------");
+    return len(title);
+}
+
+function RequireString(name : String, actual : String, expected : String) : Int {
+    print("check", name, actual, expected);
+    assert actual == expected;
+    return len(actual);
+}
+
+function RequireInt(name : String, actual : Int, expected : Int) : Int {
+    print("check", name, actual, expected);
+    assert actual == expected;
+    return actual;
+}
+
+function RequireBool(name : String, actual : Bool, expected : Bool) : Int {
+    print("check", name, actual, expected);
+    assert actual == expected;
+    if actual == expected {
+        return 1;
+    }
+    return 0;
+}
+
+function RequireOkString(name : String, result : Result[String, String], expected : String) : Int {
+    print("check", name, result);
+    assert result.ok;
+    local String value = result.value;
+    assert value == expected;
+    return len(value);
+}
+
+function RequireErrString(name : String, result : Result[String, String], expected : String) : Int {
+    print("check", name, result);
+    assert not result.ok;
+    local String value = result.value;
+    assert value == expected;
+    return len(value);
+}
+
+function RawString(value : String) : String {
+    return value;
+}
+
+function AngleString(value : String) : String {
+    _ = value;
+    return "<" + value + ">";
+}
+
+function BracketString(value : String) : String {
+    _ = value;
+    return "[" + value + "]";
+}
+
+function ShowPrimitiveEncoders() : Int {
+    Divider("primitive JSON encoders");
+
+    local String nullValue = json.Null();
+    local String trueValue = json.Bool(True);
+    local String falseValue = json.Bool(False);
+    local String quoted = json.String("klang");
+    local String binary = json.encode_binary("tea");
+    local String escaped = json.encode_binary_escape_all("milk");
+    local String atom = json.encode_atom(True);
+    local String integer = json.encode_integer(42);
+    local String negative = json.encode_integer(0 - 7);
+    local String floating = json.encode_float(3.5);
+    local String pair = json.PairString("name", "kLang");
+    local String object = json.Object1(pair);
+
+    print("nullValue", nullValue);
+    print("trueValue", trueValue);
+    print("falseValue", falseValue);
+    print("quoted", quoted);
+    print("binary", binary);
+    print("escaped", escaped);
+    print("atom", atom);
+    print("integer", integer);
+    print("negative", negative);
+    print("floating", floating);
+    print("pair", pair);
+    print("object", object);
+
+    RequireString("Null", nullValue, "null");
+    RequireString("Bool true", trueValue, "true");
+    RequireString("Bool false", falseValue, "false");
+    RequireString("String", quoted, "\"klang\"");
+    RequireString("encode_binary", binary, "\"tea\"");
+    RequireString("encode_binary_escape_all", escaped, "\"milk\"");
+    RequireString("encode_atom", atom, "true");
+    RequireString("encode_integer", integer, "42");
+    RequireString("encode_integer negative", negative, "-7");
+    RequireString("encode_float", floating, "3.5");
+    RequireString("PairString", pair, "\"name\":\"kLang\"");
+    RequireString("Object1", object, "{\"name\":\"kLang\"}");
+
+    return len(nullValue) + len(trueValue) + len(falseValue) + len(quoted) + len(object);
+}
+
+function ShowFunctionBuilders() : Int {
+    Divider("array/object builder functions");
+
+    local Function[String] arrayStart = json.array_start_fun();
+    local Function[String, String, String] arrayPush = json.array_push_fun();
+    local Function[String, String] arrayFinish = json.array_finish_fun();
+
+    local mut String arrayState = arrayStart();
+    arrayState = arrayPush(arrayState, json.encode_integer(1));
+    arrayState = arrayPush(arrayState, json.encode_integer(2));
+    arrayState = arrayPush(arrayState, json.encode_integer(3));
+    local String arrayJson = arrayFinish(arrayState);
+
+    local Function[String] objectStart = json.object_start_fun();
+    local Function[String, String, String, String] objectPush = json.object_push_fun();
+    local Function[String, String] objectFinish = json.object_finish_fun();
+
+    local mut String objectState = objectStart();
+    objectState = objectPush(objectState, "name", json.encode_binary("kLang"));
+    objectState = objectPush(objectState, "active", json.Bool(True));
+    local String objectJson = objectFinish(objectState);
+
+    print("arrayState", arrayState);
+    print("arrayJson", arrayJson);
+    print("objectState", objectState);
+    print("objectJson", objectJson);
+
+    RequireString("array builder", arrayJson, "[1,2,3]");
+    RequireString("object builder", objectJson, "{\"name\":\"kLang\",\"active\":true}");
+
+    return len(arrayJson) + len(objectJson);
+}
+
+function ShowListAndObjectEncoding() : Int {
+    Divider("list, key/value list, and map encoders");
+
+    local List[String] names = ["alpha", "beta", "gamma"];
+    local String encodedNames = json.encode_list(names, json.encode_binary);
+    local String rawNames = json.encode_list(names, RawString);
+
+    local mut List[Table] pairs;
+    pairs[len(pairs)] = {"key": "name", "value": "kLang"};
+    pairs[len(pairs)] = {"key": "mode", "value": "stdlib"};
+    pairs[len(pairs)] = {"key": "status", "value": "experimental"};
+    local String encodedPairs = json.encode_key_value_list(pairs, json.encode_binary);
+    local Result[String, String] checkedPairs = json.encode_key_value_list_checked(pairs, json.encode_binary);
+
+    local mut List[Table] brokenPairs;
+    brokenPairs[len(brokenPairs)] = {"key": "missing-value"};
+    local Result[String, String] brokenPairsResult = json.encode_key_value_list_checked(brokenPairs, json.encode_binary);
+
+    local Table pair = {"key": "language", "value": "kLang"};
+    local Table brokenMap = {"key": "language"};
+    local String encodedMap = json.encode_map(pair, json.encode_binary);
+    local String emptyMap = json.encode_map(brokenMap, json.encode_binary);
+    local Result[String, String] checkedMap = json.encode_map_checked(pair, json.encode_binary);
+    local Result[String, String] brokenMapResult = json.encode_map_checked(brokenMap, json.encode_binary);
+
+    print("encodedNames", encodedNames);
+    print("rawNames", rawNames);
+    print("encodedPairs", encodedPairs);
+    print("checkedPairs", checkedPairs);
+    print("brokenPairsResult", brokenPairsResult);
+    print("encodedMap", encodedMap);
+    print("emptyMap", emptyMap);
+    print("checkedMap", checkedMap);
+    print("brokenMapResult", brokenMapResult);
+
+    RequireString("encode_list quoted", encodedNames, "[\"alpha\",\"beta\",\"gamma\"]");
+    RequireString("encode_list raw", rawNames, "[alpha,beta,gamma]");
+    RequireString("encode_key_value_list", encodedPairs, "{\"name\":\"kLang\",\"mode\":\"stdlib\",\"status\":\"experimental\"}");
+    RequireOkString("encode_key_value_list_checked ok", checkedPairs, encodedPairs);
+    RequireErrString("encode_key_value_list_checked error", brokenPairsResult, "json object pair is missing value");
+    RequireString("encode_map", encodedMap, "{\"language\":\"kLang\"}");
+    RequireString("encode_map missing fields", emptyMap, "{}");
+    RequireOkString("encode_map_checked ok", checkedMap, encodedMap);
+    RequireErrString("encode_map_checked error", brokenMapResult, "json map requires key and value fields");
+
+    return len(encodedNames) + len(encodedPairs) + len(encodedMap) + len(emptyMap);
+}
+
+function ShowGenericEncoderHooks() : Int {
+    Divider("generic encode hooks");
+
+    local Function[T, String] defaultEncoder = json.encoder();
+    local Function[T, String] defaultFormatter = json.formatter();
+
+    local String defaultEncodedString = json.encode("plain", defaultEncoder);
+    local String defaultEncodedInt = json.encode(77, defaultEncoder);
+    local String customEncodedString = json.encode("quoted", json.encode_binary);
+    local String encodedViaValue = json.encode_value("angle", AngleString);
+    local String formattedDefault = json.format("pretty", defaultEncoder, json.format_options());
+    local String formattedWithCustom = json.format("pretty", json.encode_binary, json.format_options("    "));
+    local String formatterResult = defaultFormatter("format-me");
+
+    print("defaultEncodedString", defaultEncodedString);
+    print("defaultEncodedInt", defaultEncodedInt);
+    print("customEncodedString", customEncodedString);
+    print("encodedViaValue", encodedViaValue);
+    print("formattedDefault", formattedDefault);
+    print("formattedWithCustom", formattedWithCustom);
+    print("formatterResult", formatterResult);
+
+    RequireString("default encoder string", defaultEncodedString, "plain");
+    RequireString("default encoder int", defaultEncodedInt, "77");
+    RequireString("custom encoder", customEncodedString, "\"quoted\"");
+    RequireString("encode_value", encodedViaValue, "<angle>");
+    RequireString("format default", formattedDefault, "pretty");
+    RequireString("format custom", formattedWithCustom, "\"pretty\"");
+    RequireString("formatter function", formatterResult, "format-me");
+
+    return len(defaultEncodedString) + len(defaultEncodedInt) + len(customEncodedString) + len(encodedViaValue) + len(formattedWithCustom);
+}
+
+function ShowFormattingHelpers() : Int {
+    Divider("format options and checked formatting helpers");
+
+    local Table twoSpace = json.format_options();
+    local Table fourSpace = json.format_options("    ");
+    local mut List[Table] pairs;
+    pairs[len(pairs)] = {"key": "left", "value": "L"};
+    pairs[len(pairs)] = {"key": "right", "value": "R"};
+    local mut List[Table] broken;
+    broken[len(broken)] = {"value": "R"};
+
+    local String formattedPairs = json.format_key_value_list(pairs, json.encode_binary, twoSpace);
+    local Result[String, String] checkedPairs = json.format_key_value_list_checked(pairs, json.encode_binary, fourSpace);
+    local Result[String, String] brokenPairs = json.format_key_value_list_checked(broken, json.encode_binary, fourSpace);
+    local String formattedValue = json.format_value("boxed", BracketString, twoSpace);
+    local String formattedValueNoIndent = json.format_value("boxed", BracketString, {});
+
+    print("twoSpace", twoSpace);
+    print("fourSpace", fourSpace);
+    print("formattedPairs", formattedPairs);
+    print("checkedPairs", checkedPairs);
+    print("brokenPairs", brokenPairs);
+    print("formattedValue", formattedValue);
+    print("formattedValueNoIndent", formattedValueNoIndent);
+
+    RequireString("format_options indent", twoSpace["indent"] as String, "  ");
+    RequireString("format_options custom indent", fourSpace["indent"] as String, "    ");
+    RequireString("format_options newline", twoSpace["newline"] as String, "\n");
+    RequireString("format_key_value_list", formattedPairs, "{\"left\":\"L\",\"right\":\"R\"}");
+    RequireOkString("format_key_value_list_checked ok", checkedPairs, formattedPairs);
+    RequireErrString("format_key_value_list_checked error", brokenPairs, "json object pair is missing key");
+    RequireString("format_value", formattedValue, "[boxed]");
+    RequireString("format_value no indent", formattedValueNoIndent, "[boxed]");
+
+    return len(formattedPairs) + len(formattedValue) + len(fourSpace["indent"] as String);
+}
+
+function ShowDecoderHelpers() : Int {
+    Divider("decode helpers and continuation state");
+
+    local Function[String, String] fromBinary = json.from_binary_fun();
+    local Table decoderTable = json.decoders();
+    local Table customDecoders = {
+        "from_binary": fromBinary,
+        "decode_value": json.decode_value
+    };
+
+    local String raw = fromBinary("{\"ok\":true}");
+    local Result[String, String] valueOk = json.decode_value(raw);
+    local Result[String, String] valueErr = json.decode_value("");
+    local Result[String, String] decoded = json.decode("\"tail\"", "{\"head\":", decoderTable);
+    local Result[String, String] decodedCustom = json.decode("42", "", customDecoders);
+
+    local Table continuation = json.continuation_state("{\"stream\":");
+    local Table startedEmpty = json.decode_start("", "", decoderTable);
+    local Table started = json.decode_start("{\"ready\":", "", decoderTable);
+    local Table continued = json.decode_continue(started, "true}");
+
+    print("raw", raw);
+    print("valueOk", valueOk);
+    print("valueErr", valueErr);
+    print("decoded", decoded);
+    print("decodedCustom", decodedCustom);
+    print("continuation", continuation);
+    print("startedEmpty", startedEmpty);
+    print("started", started);
+    print("continued", continued);
+
+    RequireBool("decoders has from_binary", table_has(decoderTable, "from_binary"), True);
+    RequireBool("decoders has decode_value", table_has(decoderTable, "decode_value"), True);
+    RequireString("from_binary", raw, "{\"ok\":true}");
+    RequireOkString("decode_value ok", valueOk, "{\"ok\":true}");
+    RequireErrString("decode_value error", valueErr, "json decode expected a value");
+    RequireOkString("decode with accumulator", decoded, "{\"head\":\"tail\"");
+    RequireOkString("decode custom table", decodedCustom, "42");
+    RequireString("continuation input", continuation["input"] as String, "{\"stream\":");
+    RequireInt("continuation offset", continuation["offset"] as Int, 0);
+    RequireBool("continuation done", continuation["done"] as Bool, False);
+    RequireString("continuation value", continuation["value"] as String, "");
+    RequireBool("decode_start empty done", startedEmpty["done"] as Bool, False);
+    RequireBool("decode_start non-empty done", started["done"] as Bool, True);
+    RequireString("decode_continue input", continued["input"] as String, "{\"ready\":true}");
+    RequireBool("decode_continue done", continued["done"] as Bool, True);
+
+    return len(raw) + len(decoded.value) + continued.count + continuation.count;
+}
+
+function Main() : Int {
+    Divider("json.klang complete example");
+    print("This example covers the current typed JSON helper API.");
+    print("It returns 0 only after all assertions pass.");
+
+    local Int primitives = ShowPrimitiveEncoders();
+    local Int builders = ShowFunctionBuilders();
+    local Int listsAndMaps = ShowListAndObjectEncoding();
+    local Int hooks = ShowGenericEncoderHooks();
+    local Int formatting = ShowFormattingHelpers();
+    local Int decoding = ShowDecoderHelpers();
+
+    local Int total = primitives + builders + listsAndMaps + hooks + formatting + decoding;
+
+    print("");
+    print("summary");
+    print("primitives", primitives);
+    print("builders", builders);
+    print("listsAndMaps", listsAndMaps);
+    print("hooks", hooks);
+    print("formatting", formatting);
+    print("decoding", decoding);
+    print("total", total);
+
+    assert total == 326;
+    return 0;
+}

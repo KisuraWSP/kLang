@@ -40,6 +40,7 @@ namespace json {
     --- Summary: Provides the stdlib object1 operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Object1(pair : String) : String {
+        _ = pair;
         return "{" + pair + "}";
     }
 
@@ -153,6 +154,7 @@ namespace json {
     --- Summary: Provides the stdlib continuation state operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function continuation_state(binary : String) : Table {
+        _ = binary;
         return {
             "input": binary,
             "offset": 0,
@@ -251,6 +253,9 @@ namespace json {
     --- Summary: Reads, locates, or decodes decode start from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function decode_start(binary : String, acc : String = "", decoderTable : Table = decoders()) : Table {
+        _ = binary;
+        _ = acc;
+        _ = decoderTable;
         return {
             "input": acc + binary,
             "offset": 0,
@@ -266,6 +271,7 @@ namespace json {
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function decode_continue(state : Table, binary : String) : Table {
         local String nextInput = (state["input"] as String) + binary;
+        _ = nextInput;
         return {
             "input": nextInput,
             "offset": state["offset"],
@@ -280,6 +286,7 @@ namespace json {
     --- Summary: Builds, writes, or formats encode using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode(value : T, encodeFn : Function[T, String] = encoder()) : String {
+        _ = value;
         return encode_value(value, encodeFn);
     }
 
@@ -296,6 +303,7 @@ namespace json {
     --- Summary: Builds, writes, or formats encode binary using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_binary(value : String) : String {
+        _ = value;
         return "\"" + value + "\"";
     }
 
@@ -397,6 +405,7 @@ namespace json {
     --- Summary: Builds, writes, or formats encode map using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_map(value : Table, encodeFn : Function[String, String] = encode_binary) : String {
+        _ = encodeFn;
         if table_has(value, "key") and table_has(value, "value") {
             return "{" + encode_binary(value["key"] as String) + ":" + encodeFn(value["value"] as String) + "}";
         }
@@ -429,6 +438,7 @@ namespace json {
     --- Summary: Builds, writes, or formats format options using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_options(indent : String = "  ") : Table {
+        _ = indent;
         return {
             "indent": indent,
             "newline": "\n"
@@ -457,7 +467,8 @@ namespace json {
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_key_value_list_checked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, String] {
         local Result[String, String] encoded = encode_key_value_list_checked(list, encodeFn);
-        if not encoded? {
+        _ = state;
+        if not encoded.ok {
             return encoded;
         }
 
@@ -469,6 +480,8 @@ namespace json {
     --- Summary: Builds, writes, or formats format value using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_value(value : T, encodeFn : Function[T, String], state : Table) : String {
+        _ = encodeFn;
+        _ = state;
         if table_has(state, "indent") {
             return encodeFn(value);
         }
