@@ -722,6 +722,12 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		}
 	case parser.ThrowStatement:
 		checker.checkSemanticExpression(fn, current.Expression, locals, line)
+	case parser.AssertStatement:
+		checker.checkSemanticExpression(fn, current.Expression, locals, line)
+		exprType := checker.inferExpression(expressionSource(current.Expression), locals, fn.File, line)
+		if !isAssignable("Bool", exprType) {
+			checker.addError(fn.File, line, fmt.Sprintf("assert expects Bool, got %s", exprType))
+		}
 	case parser.AssignmentStatement:
 		assignment := assignmentStatement{Target: expressionSource(current.Target), Op: current.Operator, Expr: expressionSource(current.Expression)}
 		checker.checkAssignment(assignment, locals, fn.File, line)
@@ -994,6 +1000,8 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 				checker.checkNullSafetyExpression(expr.Node, env, source, baseLine)
 			}
 		case parser.ThrowStatement:
+			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
+		case parser.AssertStatement:
 			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
 		case parser.ExpressionStatement:
 			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
@@ -2067,6 +2075,18 @@ func (checker *TypeChecker) enumVariantExists(enumName string, variantName strin
 
 func (checker *TypeChecker) selectorFieldType(targetType string, fieldName string) (string, bool) {
 	targetType = normalizeType(targetType)
+	if targetType == "Type" {
+		switch fieldName {
+		case "name", "type_name", "category", "kind":
+			return "String", true
+		case "size", "alignment", "footprint", "field_count":
+			return "Int", true
+		case "fields", "serialization", "introspection", "layout":
+			return "Table", true
+		case "supports_serialization", "supports_introspection", "supports_memory_layout":
+			return "Bool", true
+		}
+	}
 	if methodType, ok := checker.aliasMethodType(targetType, fieldName); ok {
 		return methodType, true
 	}
@@ -2134,6 +2154,18 @@ func builtinProtocolMethodType(targetType string, methodName string) (string, bo
 		}
 	}
 	return "", false
+}
+
+func runtimeTypeInfoCallTarget(name string) (string, bool) {
+	const suffix = ".get_runtime_type_info"
+	if !strings.HasSuffix(name, suffix) {
+		return "", false
+	}
+	target := normalizeType(strings.TrimSuffix(name, suffix))
+	if target == "" {
+		return "", false
+	}
+	return target, true
 }
 
 func (checker *TypeChecker) checkDeclaredType(typeName string, source string, line int) {
@@ -2309,6 +2341,15 @@ func (checker *TypeChecker) inferListComprehension(valueExpr string, iterator st
 func (checker *TypeChecker) checkCall(name string, args []string, locals map[string]variableSymbol, source string, line int) string {
 	name = strings.TrimPrefix(strings.TrimSpace(name), "call ")
 	name = checker.resolveAliasPath(normalizeNamespaceAccess(name))
+	if typeName, ok := runtimeTypeInfoCallTarget(name); ok {
+		if len(args) != 0 {
+			checker.addError(source, line, fmt.Sprintf("%s expects 0 arguments", name))
+		}
+		if !isKnownType(typeName) {
+			checker.addError(source, line, fmt.Sprintf("unknown type %s", typeName))
+		}
+		return "Type"
+	}
 	switch name {
 	case "print":
 		for _, arg := range args {
@@ -2771,6 +2812,12 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 	fn, ok := checker.lookupFunction(name)
 	if !ok {
 		if targetExpr, methodName, selectorOK := splitIdentifierSelectorCallName(name); selectorOK {
+			if typeName := normalizeType(targetExpr); isKnownType(typeName) && methodName == "get_runtime_type_info" {
+				if len(args) != 0 {
+					checker.addError(source, line, fmt.Sprintf("%s expects 0 arguments", name))
+				}
+				return "Type"
+			}
 			targetSymbol, targetOK := checker.lookupVariable(targetExpr, locals)
 			if !targetOK {
 				checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
@@ -3484,7 +3531,7 @@ func isKnownType(typeName string) bool {
 		return true
 	}
 	if typeName == anyType || typeName == dynamicAnyType || typeName == "Int" || typeName == "UInt" || typeName == "String" ||
-		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" ||
+		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" || typeName == "Type" ||
 		typeName == "Table" || typeName == "Program" || typeName == "BuildSystem" || typeName == "WorkSpace" ||
 		typeName == "JSModule" || typeName == "JSCall" || typeName == "Context" || typeName == "ErrorContext" {
 		return true

@@ -278,12 +278,33 @@ func (resolver *Resolver) resolveSource(state *resolutionState, program *file.Pr
 		resolver.addModuleReport(state, report, module)
 		for _, importedSource := range imported.Files {
 			if resolver.isVisited(state, importedSource.Path) {
+				resolver.mergeVisitedSourceFilter(program, importedSource)
 				continue
 			}
 			resolver.markVisited(state, importedSource.Path)
 			program.Files = append(program.Files, importedSource)
 			resolver.resolveSource(state, program, report, importedSource)
 		}
+	}
+}
+
+func (resolver *Resolver) mergeVisitedSourceFilter(program *file.Program, importedSource file.SourceFile) {
+	if importedSource.ModuleFunctionFilter == nil {
+		return
+	}
+	importedKey := resolver.pathKey(importedSource.Path)
+	for index := range program.Files {
+		if resolver.pathKey(program.Files[index].Path) != importedKey {
+			continue
+		}
+		if program.Files[index].ModuleFunctionFilter == nil {
+			program.Files[index].ModuleFunctionFilter = cloneBoolMap(importedSource.ModuleFunctionFilter)
+			return
+		}
+		for name := range importedSource.ModuleFunctionFilter {
+			program.Files[index].ModuleFunctionFilter[name] = true
+		}
+		return
 	}
 }
 
@@ -295,10 +316,14 @@ func (resolver *Resolver) resolveImport(importedBy string, importPath string) (f
 			if err != nil {
 				return file.Program{}, Module{}, err
 			}
+			kind := ImportLocal
+			if resolver.pathInsideStdlib(candidate) {
+				kind = ImportStdlib
+			}
 			return program, Module{
 				Name:       importPath,
 				Path:       candidate,
-				Kind:       ImportLocal,
+				Kind:       kind,
 				ImportedBy: importedBy,
 			}, nil
 		}
@@ -361,6 +386,22 @@ func (resolver *Resolver) pathKey(path string) string {
 		return filepath.Clean(path)
 	}
 	return filepath.Clean(absolute)
+}
+
+func (resolver *Resolver) pathInsideStdlib(path string) bool {
+	if resolver.StdlibRoot == "" {
+		return false
+	}
+	pathKey := resolver.pathKey(path)
+	stdlibKey := resolver.pathKey(resolver.StdlibRoot)
+	if pathKey == stdlibKey {
+		return true
+	}
+	relative, err := filepath.Rel(stdlibKey, pathKey)
+	if err != nil {
+		return false
+	}
+	return relative != "." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && relative != ".."
 }
 
 func (resolver *Resolver) moduleIsResolving(state *resolutionState, program file.Program) bool {
@@ -715,6 +756,8 @@ func collectStatementCalls(statements []parser.Statement, add func(string)) {
 				collectExpressionCalls(value.Node, add)
 			}
 		case parser.ThrowStatement:
+			collectExpressionCalls(current.Expression.Node, add)
+		case parser.AssertStatement:
 			collectExpressionCalls(current.Expression.Node, add)
 		case parser.AssignmentStatement:
 			collectExpressionCalls(current.Target.Node, add)

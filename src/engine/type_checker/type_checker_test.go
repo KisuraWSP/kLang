@@ -30,6 +30,31 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsAssertAndRuntimeTypeInfo(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Type info = Int.get_runtime_type_info();
+    assert info.name == "Int";
+    assert info.size == Int.sizeof;
+    local Table layout = info.layout;
+    return layout.size;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected assert and Type metadata program to type check, got: %v", report.Errors)
+	}
+
+	badAssert := programFromSource(`
+function Main() : Int {
+    assert 1;
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(badAssert), "assert expects Bool, got Int")
+}
+
 func TestCheckProgramAcceptsUnicodeIdentifiersAndNumericLiteralBases(t *testing.T) {
 	program := programFromSource(`
 function එකතු(අගය : Int, 😀 : Int) : Int {

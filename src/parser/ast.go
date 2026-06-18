@@ -208,6 +208,11 @@ type ThrowStatement struct {
 	Expression Expression
 }
 
+type AssertStatement struct {
+	Pos        Position
+	Expression Expression
+}
+
 type BreakStatement struct {
 	Pos Position
 }
@@ -402,6 +407,7 @@ func (stmt DestructuringStatement) statementNode() {
 }
 func (stmt ReturnStatement) statementNode()     {}
 func (stmt ThrowStatement) statementNode()      {}
+func (stmt AssertStatement) statementNode()     {}
 func (stmt BreakStatement) statementNode()      {}
 func (stmt ContinueStatement) statementNode()   {}
 func (stmt AssignmentStatement) statementNode() {}
@@ -441,6 +447,7 @@ func (stmt DestructuringStatement) Position() Position {
 }
 func (stmt ReturnStatement) Position() Position     { return stmt.Pos }
 func (stmt ThrowStatement) Position() Position      { return stmt.Pos }
+func (stmt AssertStatement) Position() Position     { return stmt.Pos }
 func (stmt BreakStatement) Position() Position      { return stmt.Pos }
 func (stmt ContinueStatement) Position() Position   { return stmt.Pos }
 func (stmt AssignmentStatement) Position() Position { return stmt.Pos }

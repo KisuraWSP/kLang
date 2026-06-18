@@ -777,6 +777,18 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 			return signal{}, err
 		}
 		return signal{kind: signalThrow, value: value}, nil
+	case parser.AssertStatement:
+		value, err := runtime.evalExpression(current.Expression.Node, env)
+		if err != nil {
+			return signal{}, err
+		}
+		if value.Kind != ValueBool {
+			return signal{}, errorAt(current.Pos, fmt.Sprintf("assert expects Bool, got %s", value.Kind))
+		}
+		if !value.Data.(bool) {
+			return signal{}, errorAt(current.Pos, "assertion failed")
+		}
+		return signal{kind: signalNone}, nil
 	case parser.BreakStatement:
 		if !inLoop {
 			return signal{}, errorAt(current.Pos, "break is only allowed inside a loop")
@@ -1103,10 +1115,69 @@ func typeSizeof(typeName string) (int, bool) {
 		return 8, true
 	case "Complex":
 		return 16, true
-	case "String", "List", "Map", "Table", "T", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic", "Context", "ErrorContext":
+	case "String", "List", "Map", "Table", "T", "Type", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic", "Context", "ErrorContext":
 		return 16, true
 	default:
 		return 0, false
+	}
+}
+
+func runtimeTypeInfoCallTarget(name string) (string, bool) {
+	const suffix = ".get_runtime_type_info"
+	if !strings.HasSuffix(name, suffix) {
+		return "", false
+	}
+	typeName := normalizeRuntimeType(strings.TrimSuffix(name, suffix))
+	if typeName == "" {
+		return "", false
+	}
+	return typeName, true
+}
+
+func typeInfoValue(typeName string) Value {
+	typeName = normalizeRuntimeType(typeName)
+	size, ok := typeSizeof(typeName)
+	if !ok {
+		size = 0
+	}
+	alignment := size
+	if alignment > 8 {
+		alignment = 8
+	}
+	if alignment <= 0 {
+		alignment = 1
+	}
+	return objectValue("Type", map[string]Value{
+		"name":                   StringValue(typeName),
+		"type_name":              StringValue(typeName),
+		"category":               StringValue(typeMetadataCategory(typeName)),
+		"size":                   IntValue(size),
+		"alignment":              IntValue(alignment),
+		"footprint":              IntValue(size),
+		"fields":                 TableValue(map[string]Value{}),
+		"field_count":            IntValue(0),
+		"supports_serialization": BoolValue(true),
+		"supports_introspection": BoolValue(true),
+		"supports_memory_layout": BoolValue(true),
+		"serialization":          TableValue(map[string]Value{"pack": StringValue("metadata"), "unpack": StringValue("metadata")}),
+		"introspection":          TableValue(map[string]Value{"fields": TableValue(map[string]Value{})}),
+		"layout":                 TableValue(map[string]Value{"size": IntValue(size), "alignment": IntValue(alignment), "footprint": IntValue(size)}),
+	})
+}
+
+func typeMetadataCategory(typeName string) string {
+	if _, ok := runtimeChildType(typeName); ok {
+		return "child"
+	}
+	switch {
+	case strings.HasPrefix(typeName, "List["), strings.HasPrefix(typeName, "Map["), typeName == "Table":
+		return "collection"
+	case strings.HasPrefix(typeName, "Function["):
+		return "function"
+	case strings.HasPrefix(typeName, "Option["), strings.HasPrefix(typeName, "Result["):
+		return "sum"
+	default:
+		return "builtin"
 	}
 }
 
@@ -2017,6 +2088,15 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 
 func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bool) (Value, error) {
 	name = runtime.resolveAliasPath(name)
+	if typeName, ok := runtimeTypeInfoCallTarget(name); ok {
+		if len(args) != 0 {
+			return NullValue(), Error{Message: fmt.Sprintf("%s expects no arguments", name)}
+		}
+		if _, ok := typeSizeof(typeName); !ok {
+			return NullValue(), Error{Message: fmt.Sprintf("unknown type %s", typeName)}
+		}
+		return typeInfoValue(typeName), nil
+	}
 	switch name {
 	case "print":
 		values := make([]string, 0, len(args))

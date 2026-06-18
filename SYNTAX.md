@@ -66,6 +66,13 @@ const byteSize = Int.child(8).sizeof;
 -- The optional size marker maps the declaration type to Int.
 let size intSizeAlias = Int.sizeof;
 
+-- Type metadata is available for every language type.
+local Type intInfo = Int.get_runtime_type_info();
+local Type stringInfo = String.get_runtime_type_info();
+local String typeName = intInfo.name;
+local Int typeBytes = intInfo.size;
+local Table layout = intInfo.layout;
+
 -- Numeric parent types can be restricted to child widths.
 local x : Int.child(8) = 127;
 local i16 smallCount = x;
@@ -85,6 +92,9 @@ function එකතු(අගය : Int, 😀 : Int) : Int {
     return අගය + 😀;
 }
 local Int මුළු = එකතු(1, 2);
+
+-- assert checks runtime invariants. The condition must be Bool.
+assert මුළු == 3;
 
 -- shared builtin protocols
 -- Collection-like values expose the same .count property.

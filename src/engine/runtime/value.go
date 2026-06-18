@@ -111,6 +111,8 @@ func zeroValue(typeName string) Value {
 		}
 	}
 	switch typeName {
+	case "Type":
+		return typeInfoValue("T")
 	case "Int", "UInt":
 		return IntValue(0)
 	case "Float":
@@ -977,6 +979,8 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Kind == ValueChar
 	case typeName == "Complex":
 		return value.Kind == ValueComplex
+	case typeName == "Type":
+		return value.Kind == ValueObject && value.Data.(ObjectData).Type == "Type"
 	case value.Kind == ValueEnum:
 		return value.Data.(EnumData).Type == typeName
 	case typeName == "Table":

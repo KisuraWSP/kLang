@@ -20,24 +20,11 @@ klang doc --sourcefile=["test.klang", "file.klang"]
       report test();
    ```
 - add lsp plugin for vscode
-- builtin assert keyword to the language
 - In the programming language i want you to do this
 So whenever we start a program tell the go code to always run a .klang file called default_program.klang this is the main entry point program that is given first priority to users (do these once enough features are there to make it powerful)
 - First workspace in the language is the default_program.klang
 The language will generate the user porgram as second workspace
 Workspace and meta programming types like Program, BuildSystem, Workspace, etc… allows for parallel code wide execution so for this to happen we need to use threads/channels in the golang code
-- allow importing of modules within other modules
-   - this would reduce the usage of reimplementing existing functions
-- add a new builtin type called **"Type"**, this type is a parent type of all the data types in our programming langauge every type in this langauge conforms to it
-   - it stores the following
-   - Automated Serialization: Relying on stored type metadata to automatically encode (pack) and decode (unpack) complex data structures into byte streams for network transmission or file storage, eliminating the need for hardcoded parsing logic.
-   - Data Introspection: The capacity of a program to query its own primitive structures or records during execution. This includes discovering the names, types, and memory offsets of fields within a struct or record without knowing them at compile time.
-   - Memory Layout Interpretation: Using runtime metadata to determine the exact byte size, alignment, and memory footprint of an arbitrary piece of data before attempting to read, copy, or manipulate it.
-   - all of these above information can only be accessed for any type via the method 
-   ```lua
-      -- applicable for every data type for this langauage
-      const info = Int.get_runtime_type_info();
-   ```
 
 - add call site to the langauge for relating to functions, variables, structs, function aliases, etc...
 

@@ -448,7 +448,7 @@ func TestLexerTokenizesNullSafetyOperator(t *testing.T) {
 }
 
 func TestLexerTokenizesBooleanOperators(t *testing.T) {
-	input := `if not ready and active xor failed or fallback { return 1; }`
+	input := `if not ready and active xor failed or fallback { assert ready; return 1; }`
 
 	assertTokens(t, input, []Token{
 		{Type: TokenIf, Literal: "if"},
@@ -461,6 +461,9 @@ func TestLexerTokenizesBooleanOperators(t *testing.T) {
 		{Type: TokenOr, Literal: "or"},
 		{Type: TokenIdentifier, Literal: "fallback"},
 		{Type: TokenScopeBegin, Literal: "{"},
+		{Type: TokenAssert, Literal: "assert"},
+		{Type: TokenIdentifier, Literal: "ready"},
+		{Type: TokenSemicolon, Literal: ";"},
 		{Type: TokenReturn, Literal: "return"},
 		{Type: TokenInt, Literal: "1"},
 		{Type: TokenSemicolon, Literal: ";"},

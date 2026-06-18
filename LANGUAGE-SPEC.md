@@ -45,6 +45,9 @@
 45. The checker reports warnings for unused local variables and unused function parameters.
 46. Qualified module calls can infer imports; `list.append(...)` loads a resolvable `list` module even without an explicit import.
 47. Integer literals support optional leading `-` and base prefixes `0x`/`0X`, `0o`/`0O`, and `0b`/`0B`. Identifiers may use Unicode letters, marks, and symbols, including Sinhala text and emoji, but may not begin with a digit.
+48. Modules may import other modules. Stdlib-to-stdlib imports remain stdlib imports, so selective function loading still applies to dependency modules.
+49. `Type` is the parent runtime metadata type for all language types. `SomeType.get_runtime_type_info()` returns metadata for serialization, data introspection, and memory layout interpretation.
+50. `assert expression;` is a builtin statement keyword. The expression must be `Bool`; runtime execution fails with an assertion error when it is false.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -74,6 +77,7 @@ Rules
 - Threaded workers share loaded functions, globals, memory tracking, and output. Use `Atomic[T]` for shared mutable values that need safe read-modify-write behavior.
 - Each standalone script or project is resolved as its own workspace. Resolver caches speed repeated imports without sharing visited-state between workspaces.
 - `import` statements may appear anywhere in a source file. Qualified module calls such as `math.Add(...)` also infer an import when `math` resolves to a local or stdlib module.
+- Imported modules may contain their own `import` statements. The resolver loads these recursively, reports cycles, and treats sibling imports under the stdlib root as stdlib modules so function lookup filters continue to apply.
 - Stdlib imports are selectively collected by default. For example, `import "html";` plus `html.Document(...)` collects `html.Document` and its same-module helper dependencies, not every function in `stdlib/html.klang`.
 - Place `module_caller(call_entire_module : True);` in a source file to make its stdlib imports load complete modules.
 - Place `module(disabled : True);` in a module source to make the resolver reject imports of that module.
@@ -83,6 +87,8 @@ Rules
 - `Int.child(8)`, `UInt.child(16)`, `Float.child(32)`, and `Complex.child(128)` restrict values to the requested parent type width. The aliases in the builtin `types` namespace are available without imports.
 - Integer literals are decimal by default and may be written as hexadecimal (`0x2A`), octal (`0o52`), or binary (`0b101010`). Signed integer and float literals may use a leading `-`; exponentiation keeps unary-minus precedence, so `-2 ** 3` is parsed as `-(2 ** 3)`.
 - Variable names, function names, and function parameter names may contain Unicode identifier characters, Sinhala letters and marks, and emoji symbols. Identifiers cannot begin with a digit.
+- Use `TypeName.get_runtime_type_info()` to obtain a `Type` object. Its fields describe automated serialization hooks, introspection data such as field tables, and layout values such as byte size, alignment, and footprint.
+- Use `assert condition;` for runtime invariants. The checker requires the condition to be `Bool`.
 - Alias functions may contain trait and impl declarations in addition to hooks and extension methods.
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.
 - CLI `package` checks a program and writes a compact source bundle with `klang-build.json`.

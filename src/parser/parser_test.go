@@ -743,6 +743,25 @@ module_caller(call_entire_module : True);
 	}
 }
 
+func TestParseAssertStatement(t *testing.T) {
+	program, errors := Parse(`
+function Main() : Int {
+    assert 1 < 2;
+    return 1;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn := program.Statements[0].(FunctionStatement)
+	assertStmt, ok := fn.Body[0].(AssertStatement)
+	if !ok {
+		t.Fatalf("expected assert statement, got %T", fn.Body[0])
+	}
+	if assertStmt.Expression.Literal() != "1 < 2" {
+		t.Fatalf("unexpected assert expression: %q", assertStmt.Expression.Literal())
+	}
+}
+
 func TestParseChainedNamespaceAliasAndNamespaceAccess(t *testing.T) {
 	program, errors := Parse(`
 namespace std {

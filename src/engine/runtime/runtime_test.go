@@ -28,6 +28,34 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesAssertAndRuntimeTypeInfo(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Type info = Int.get_runtime_type_info();
+    assert info.name == "Int";
+    assert info.supports_serialization;
+    assert info.supports_introspection;
+    assert info.supports_memory_layout;
+    return info.size + info.alignment + info.layout.footprint;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 24 {
+		t.Fatalf("expected runtime Type metadata program to return 24, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsFailedAssert(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    assert False;
+    return 0;
+}
+`)
+
+	assertRuntimeErrorContains(t, err, "assertion failed")
+}
+
 func TestRuntimeEvaluatesSignedAndPrefixedNumberLiteralsWithUnicodeIdentifiers(t *testing.T) {
 	result := runParsedSource(t, `
 function එකතු(අගය : Int, 😀 : Int) : Int {

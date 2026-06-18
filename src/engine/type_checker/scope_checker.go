@@ -248,6 +248,8 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		}
 	case parser.ThrowStatement:
 		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
+	case parser.AssertStatement:
+		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
 	case parser.BreakStatement:
 		if !inLoop {
 			checker.addError(source, current.Pos.Line, "break is only allowed inside a loop")
@@ -696,6 +698,9 @@ func (checker *TypeChecker) selectorFunctionExists(expr parser.SelectorExpressio
 		return false
 	}
 	resolved := checker.resolveAliasPath(path)
+	if typeName, ok := runtimeTypeInfoCallTarget(resolved); ok && isKnownType(typeName) {
+		return true
+	}
 	if isBuiltinFunctionName(resolved) {
 		return true
 	}

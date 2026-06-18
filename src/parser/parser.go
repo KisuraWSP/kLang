@@ -121,6 +121,8 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseReturn()
 	case lexer.TokenThrow:
 		return parser.parseThrow()
+	case lexer.TokenAssert:
+		return parser.parseAssert()
 	case lexer.TokenDefer:
 		return parser.parseDefer()
 	case lexer.TokenRun:
@@ -1307,6 +1309,16 @@ func (parser *Parser) parseThrow() Statement {
 	}
 }
 
+func (parser *Parser) parseAssert() Statement {
+	start := parser.consume(lexer.TokenAssert, "expected assert")
+	expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
+	parser.consumeOptionalSemicolon()
+	return AssertStatement{
+		Pos:        positionFromToken(start),
+		Expression: expr,
+	}
+}
+
 func (parser *Parser) parseDefer() Statement {
 	start := parser.consume(lexer.TokenDefer, "expected defer")
 	if parser.check(lexer.TokenScopeBegin) {
@@ -1817,7 +1829,7 @@ func (parser *Parser) synchronize() {
 		}
 		switch parser.current().Type {
 		case lexer.TokenFunc, lexer.TokenFuncGroup, lexer.TokenInner, lexer.TokenGlobal, lexer.TokenLocal, lexer.TokenExport, lexer.TokenReturn,
-			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCatch, lexer.TokenRun,
+			lexer.TokenThrow, lexer.TokenAssert, lexer.TokenTry, lexer.TokenCatch, lexer.TokenRun,
 			lexer.TokenIf, lexer.TokenUnless, lexer.TokenFor, lexer.TokenWhile,
 			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenAlias, lexer.TokenLazy,
 			lexer.TokenTrait, lexer.TokenImpl, lexer.TokenNameSpace:

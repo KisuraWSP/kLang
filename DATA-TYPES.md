@@ -38,6 +38,7 @@
 37. Enum // User-defined typed ordinal enum values declared with `enum`
 38. Context // Compiler/runtime source context for a workspace, including files, entry point, backend, and diagnostics
 39. ErrorContext // Source-aware diagnostic containing phase, file, line, column, rule, message, hint, and source line
+40. Type // Runtime metadata for every language type, returned by `SomeType.get_runtime_type_info()`
 
 All builtin type names expose a compile-time size query through `.sizeof`, which returns an `Int`.
 For example, `Int.sizeof` returns the runtime size used for an `Int` value.
@@ -45,6 +46,8 @@ For example, `Int.sizeof` returns the runtime size used for an `Int` value.
 Numeric parent types expose child-width types through `.child(bits)`. `Int` and `UInt` default to 64 bits and support 8, 16, 32, and 64 bit children. `Float` defaults to 64 bits and supports 32 and 64 bit children. `Complex` defaults to 128 bits and supports 64 and 128 bit children. The builtin aliases `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `float32`, `float64`, `complex64`, and `complex128` are globally available through the internal `types` namespace without imports.
 
 Integer values may be written in decimal, hexadecimal (`0x`/`0X`), octal (`0o`/`0O`), or binary (`0b`/`0B`) form. Signed integer and float literals use a leading `-`, and child-width range checks apply after the literal is parsed.
+
+Every builtin and user-visible type conforms to the parent `Type` metadata model. `SomeType.get_runtime_type_info()` returns a `Type` object with fields such as `name`, `size`, `alignment`, `footprint`, `fields`, `field_count`, `serialization`, `introspection`, `layout`, `supports_serialization`, `supports_introspection`, and `supports_memory_layout`.
 
 Builtin values expose a small shared protocol surface through selector syntax:
 - `String`, `List[T]`, `Map[K, V]`, `Table`, `SIMD[T]`, and `Iterator[T]` provide `.count : Int`.

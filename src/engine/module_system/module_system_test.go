@@ -162,6 +162,52 @@ func TestResolveProgramRecursivelyLoadsImportedModuleImports(t *testing.T) {
 	}
 }
 
+func TestResolveProgramLoadsStdlibImportsInsideStdlibModulesWithFilters(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "a.klang", `
+import "b";
+namespace a {
+    function A() : Int { return b.B(); }
+    function Hidden() : Int { return 99; }
+}
+`)
+	writeModuleTestFile(t, stdlibRoot, "b.klang", `
+namespace b {
+    function B() : Int { return 1; }
+    function Hidden() : Int { return 99; }
+}
+`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `
+import "a";
+function Main() : Int { return a.A(); }
+`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolved, report := NewResolver(stdlibRoot).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected nested stdlib module resolution to pass, got %#v", report.Errors)
+	}
+	if len(resolved.Files) != 3 {
+		t.Fatalf("expected app plus two stdlib modules, got %d", len(resolved.Files))
+	}
+
+	filters := map[string]map[string]bool{}
+	for _, source := range resolved.Files {
+		filters[filepath.Base(source.Path)] = source.ModuleFunctionFilter
+	}
+	if !filters["a.klang"]["a.A"] || filters["a.klang"]["a.Hidden"] {
+		t.Fatalf("expected module a filter to include only a.A, got %#v", filters["a.klang"])
+	}
+	if !filters["b.klang"]["b.B"] || filters["b.klang"]["b.Hidden"] {
+		t.Fatalf("expected module b filter to include only b.B, got %#v", filters["b.klang"])
+	}
+}
+
 func TestResolveProgramReportsDuplicateImportOnce(t *testing.T) {
 	root := t.TempDir()
 	stdlibRoot := filepath.Join(root, "stdlib")
