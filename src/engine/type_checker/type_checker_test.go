@@ -196,6 +196,43 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsChildNumericTypes(t *testing.T) {
+	program := file.Program{Files: []file.SourceFile{{
+		Path: "main.klang",
+		Lines: strings.Split(`
+global namespace types {
+    alias i8 = Int.child(8);
+}
+
+function Main() : Int {
+    local x : Int.child(8) = 127;
+    local i16 y = x;
+    local types.u8 z = 255;
+    const byteSize = Int.child(8).sizeof;
+    const complexSize = complex128.sizeof;
+    return x + y + z + byteSize + complexSize;
+}
+`, "\n"),
+	}}}
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected child numeric types to pass, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsOutOfRangeChildIntegerLiteral(t *testing.T) {
+	program := file.Program{Files: []file.SourceFile{{
+		Path: "main.klang",
+		Lines: strings.Split(`
+function Main() : Int {
+    local i8 value = 128;
+    return value;
+}
+`, "\n"),
+	}}}
+	assertTypeError(t, CheckProgram(program), "literal 128 does not fit in Int.child(8)")
+}
+
 func TestCheckProgramAcceptsLocalTypeInference(t *testing.T) {
 	program := programFromSource(`
 function MakeName() : String {

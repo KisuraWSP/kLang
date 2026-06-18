@@ -1,0 +1,102 @@
+function ShowSignedTypes() : Int {
+    local i8 tiny = 127;
+    local i16 wider = tiny;
+    local i32 direct = 32000;
+    local i64 parentSized = direct;
+    local explicit : Int.child(8) = 64;
+
+    print("signed aliases");
+    print("i8 max", tiny);
+    print("i16 from i8", wider);
+    print("i32 literal", direct);
+    print("i64 from i32", parentSized);
+    print("explicit Int.child(8)", explicit);
+    print("i8.sizeof", i8.sizeof);
+    print("Int.child(16).sizeof", Int.child(16).sizeof);
+
+    return tiny + wider + explicit;
+}
+
+function ShowUnsignedTypes() : Int {
+    local u8 byte = 255;
+    local types.u16 port = byte;
+    local u32 packetCount = 1024;
+    local UInt parent = packetCount;
+
+    print("unsigned aliases");
+    print("u8 max", byte);
+    print("types.u16 from u8", port);
+    print("u32 count", packetCount);
+    print("UInt parent", parent);
+    print("types.u8.sizeof", types.u8.sizeof);
+    print("UInt.child(32).sizeof", UInt.child(32).sizeof);
+
+    return (byte + port + packetCount) as Int;
+}
+
+function ShowFloatAndComplexTypes() : Int {
+    local float32 ratio = 1.5;
+    local float64 precise = 3.75;
+    local complex64 point = Complex(1, 2);
+    local complex128 widePoint = point + Complex(3, 1);
+
+    print("floating and complex aliases");
+    print("float32 ratio", ratio);
+    print("float64 precise", precise);
+    print("complex64 point", point);
+    print("complex128 widePoint", widePoint);
+    print("float32.sizeof", float32.sizeof);
+    print("complex128.sizeof", complex128.sizeof);
+
+    return float32.sizeof + float64.sizeof + complex64.sizeof + complex128.sizeof;
+}
+
+function ShowParentInterop() : Int {
+    local i8 steps = 3;
+    local mut Int last = 0;
+
+    function Remember(index : Int) : Int {
+        last = index;
+        return index;
+    }
+
+    steps.times(Remember);
+
+    local Int parentInt = steps;
+    local Float parentFloat = steps;
+    local u8 unsignedByte = 10;
+    local UInt parentUInt = unsignedByte;
+
+    print("parent interop");
+    print("i8 can call Int.times", last);
+    print("i8 assigned to Int", parentInt);
+    print("i8 assigned to Float", parentFloat);
+    print("u8 assigned to UInt", parentUInt);
+
+    return parentInt + last + parentUInt;
+}
+
+function Main() : Int {
+    print("types stdlib feature tour");
+    print("no import is required for i8, types.u8, float32, or complex128");
+
+    local Int signed = ShowSignedTypes();
+    local Int unsigned = ShowUnsignedTypes();
+    local Int wide = ShowFloatAndComplexTypes();
+    local Int interop = ShowParentInterop();
+    print("Sizeof Int is",Int.sizeof);
+
+    (*
+       Range checks are enforced by the language.
+       Uncomment either declaration to see the checker/runtime reject it:
+
+       local i8 tooLarge = 128;
+       local u8 negative = -1;
+    *)
+
+    if signed == 318 and unsigned == 1534 and wide == 36 and interop == 15 {
+        return 0;
+    }
+
+    return 1;
+}

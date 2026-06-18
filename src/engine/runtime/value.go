@@ -99,7 +99,17 @@ func CoroutineValue(function string) Value {
 }
 
 func zeroValue(typeName string) Value {
-	typeName = strings.TrimSpace(typeName)
+	typeName = normalizeRuntimeType(typeName)
+	if spec, ok := runtimeChildType(typeName); ok {
+		switch spec.Parent {
+		case "Int", "UInt":
+			return IntValue(0)
+		case "Float":
+			return FloatValue(0)
+		case "Complex":
+			return ComplexValue(0, 0)
+		}
+	}
 	switch typeName {
 	case "Int", "UInt":
 		return IntValue(0)
@@ -305,12 +315,33 @@ func literalValue(expr parser.LiteralExpression) (Value, error) {
 }
 
 func castValue(value Value, typeName string) (Value, error) {
-	typeName = strings.TrimSpace(typeName)
+	typeName = normalizeRuntimeType(typeName)
 	if typeName == "" || typeName == "T" {
 		return value, nil
 	}
 	if valueMatchesType(value, typeName) {
 		return value, nil
+	}
+
+	if spec, ok := runtimeChildType(typeName); ok {
+		switch spec.Parent {
+		case "Int", "UInt":
+			cast, err := castToInt(value, spec.Parent)
+			if err != nil {
+				return NullValue(), err
+			}
+			if !valueMatchesType(cast, typeName) {
+				return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to %s: value out of range", value.Kind, typeName)}
+			}
+			return cast, nil
+		case "Float":
+			return castToFloat(value)
+		case "Complex":
+			if value.Kind == ValueComplex {
+				return value, nil
+			}
+			return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to %s", value.Kind, typeName)}
+		}
 	}
 
 	switch typeName {
@@ -900,7 +931,7 @@ func mapKey(value Value) (string, error) {
 }
 
 func valueMatchesType(value Value, typeName string) bool {
-	typeName = strings.TrimSpace(typeName)
+	typeName = normalizeRuntimeType(typeName)
 	if tupleTypes, ok := tupleRuntimeTypes(typeName); ok {
 		if value.Kind != ValueList {
 			return false
@@ -923,6 +954,9 @@ func valueMatchesType(value Value, typeName string) bool {
 			}
 		}
 		return false
+	}
+	if spec, ok := runtimeChildType(typeName); ok {
+		return valueMatchesRuntimeChildType(value, spec)
 	}
 	switch {
 	case typeName == "" || typeName == "T" || typeName == "Any":
@@ -1003,6 +1037,124 @@ func valueMatchesType(value Value, typeName string) bool {
 		}
 		return true
 	}
+}
+
+type runtimeChildTypeSpec struct {
+	Parent string
+	Bits   int
+}
+
+var runtimeChildTypeAliases = map[string]string{
+	"i8":         "Int.child(8)",
+	"i16":        "Int.child(16)",
+	"i32":        "Int.child(32)",
+	"i64":        "Int.child(64)",
+	"u8":         "UInt.child(8)",
+	"u16":        "UInt.child(16)",
+	"u32":        "UInt.child(32)",
+	"u64":        "UInt.child(64)",
+	"float32":    "Float.child(32)",
+	"float64":    "Float.child(64)",
+	"complex64":  "Complex.child(64)",
+	"complex128": "Complex.child(128)",
+}
+
+func normalizeRuntimeType(typeName string) string {
+	typeName = strings.ReplaceAll(strings.TrimSpace(typeName), " ", "")
+	if alias, ok := runtimeChildTypeAliases[typeName]; ok {
+		return alias
+	}
+	if strings.HasPrefix(typeName, "types.") {
+		if alias, ok := runtimeChildTypeAliases[strings.TrimPrefix(typeName, "types.")]; ok {
+			return alias
+		}
+	}
+	if parent, bits, ok := parseRuntimeChildType(typeName); ok && isAllowedRuntimeChildType(parent, bits) {
+		return fmt.Sprintf("%s.child(%d)", parent, bits)
+	}
+	return typeName
+}
+
+func runtimeChildType(typeName string) (runtimeChildTypeSpec, bool) {
+	parent, bits, ok := parseRuntimeChildType(normalizeRuntimeType(typeName))
+	if !ok || !isAllowedRuntimeChildType(parent, bits) {
+		return runtimeChildTypeSpec{}, false
+	}
+	return runtimeChildTypeSpec{Parent: parent, Bits: bits}, true
+}
+
+func parseRuntimeChildType(typeName string) (string, int, bool) {
+	open := strings.Index(typeName, ".child(")
+	if open == -1 || !strings.HasSuffix(typeName, ")") {
+		return "", 0, false
+	}
+	parent := typeName[:open]
+	switch parent {
+	case "int":
+		parent = "Int"
+	case "uint":
+		parent = "UInt"
+	case "float":
+		parent = "Float"
+	case "complex":
+		parent = "Complex"
+	}
+	bits, err := strconv.Atoi(typeName[open+len(".child(") : len(typeName)-1])
+	if err != nil {
+		return "", 0, false
+	}
+	return parent, bits, true
+}
+
+func isAllowedRuntimeChildType(parent string, bits int) bool {
+	switch parent {
+	case "Int", "UInt":
+		return bits == 8 || bits == 16 || bits == 32 || bits == 64
+	case "Float":
+		return bits == 32 || bits == 64
+	case "Complex":
+		return bits == 64 || bits == 128
+	default:
+		return false
+	}
+}
+
+func valueMatchesRuntimeChildType(value Value, spec runtimeChildTypeSpec) bool {
+	switch spec.Parent {
+	case "Int":
+		if value.Kind != ValueInt {
+			return false
+		}
+		min, max := runtimeSignedBitRange(spec.Bits)
+		current := int64(value.Data.(int))
+		return current >= min && current <= max
+	case "UInt":
+		if value.Kind != ValueInt || value.Data.(int) < 0 {
+			return false
+		}
+		return uint64(value.Data.(int)) <= runtimeUnsignedBitMax(spec.Bits)
+	case "Float":
+		return value.Kind == ValueFloat || value.Kind == ValueInt
+	case "Complex":
+		return value.Kind == ValueComplex
+	default:
+		return false
+	}
+}
+
+func runtimeSignedBitRange(bits int) (int64, int64) {
+	if bits >= 64 {
+		return math.MinInt64, math.MaxInt64
+	}
+	max := int64(1)<<(bits-1) - 1
+	return -int64(1) << (bits - 1), max
+}
+
+func runtimeUnsignedBitMax(bits int) uint64 {
+	if bits >= 64 {
+		return math.MaxUint64
+	}
+	return uint64(1)<<bits - 1
 }
 
 func tupleRuntimeTypes(typeName string) ([]string, bool) {

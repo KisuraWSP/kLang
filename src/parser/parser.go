@@ -203,28 +203,16 @@ func (parser *Parser) parseAlias() Statement {
 	parser.consume(lexer.TokenAssign, "expected '=' after alias name")
 
 	var parts []string
-	expectName := true
 	for !parser.check(lexer.TokenSemicolon) && !parser.atEnd() {
-		if expectName {
-			part := parser.consume(lexer.TokenIdentifier, "expected namespace name in alias target")
-			parts = append(parts, part.Literal)
-			expectName = false
-			continue
-		}
-		if !parser.match(lexer.TokenDot) {
-			break
-		}
-		expectName = true
-	}
-	if expectName && len(parts) > 0 {
-		parser.addError(parser.previous(), "expected namespace name after '.' in alias target")
+		parts = append(parts, parser.current().Literal)
+		parser.advance()
 	}
 	parser.consumeOptionalSemicolon()
 
 	return AliasStatement{
 		Pos:    positionFromToken(start),
 		Name:   name.Literal,
-		Target: strings.Join(parts, "."),
+		Target: strings.Join(parts, ""),
 	}
 }
 
@@ -1098,6 +1086,30 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 	if parser.check(lexer.TokenLeftSquareBrace) || parser.check(lexer.TokenScopeBegin) {
 		return parser.parseDestructuringFromStart(start, scope, exported, mutable, lazy)
 	}
+	if parser.checkIdentifierLike() && parser.peek().Type == lexer.TokenInferReturn {
+		name := parser.consumeIdentifierLike("expected variable name")
+		parser.consume(lexer.TokenInferReturn, "expected ':' after variable name")
+		typeName := parser.parseType()
+		var expr Expression
+		if parser.match(lexer.TokenAssign) {
+			expr = parser.parseExpressionUntil(lexer.TokenSemicolon)
+		}
+		if lazy && expr.Node == nil {
+			parser.addError(parser.current(), "lazy variable declarations require an initializer")
+		}
+		parser.consumeOptionalSemicolon()
+
+		return VariableStatement{
+			Pos:        positionFromToken(start),
+			Scope:      scope,
+			Exported:   exported,
+			Mutable:    mutable,
+			Lazy:       lazy,
+			Type:       typeName,
+			Name:       name.Literal,
+			Expression: expr,
+		}
+	}
 	if scope == "local" && parser.checkIdentifierLike() && parser.peek().Type == lexer.TokenAssign {
 		name := parser.consumeIdentifierLike("expected variable name")
 		parser.consume(lexer.TokenAssign, "expected '=' after inferred local variable name")
@@ -1560,14 +1572,15 @@ func (parser *Parser) parseType() string {
 		return parser.parseRestrictedType(start.Literal)
 	}
 	var parts []string
-	depth := 0
+	squareDepth := 0
+	parenDepth := 0
 	for !parser.atEnd() {
 		token := parser.current()
-		if depth == 0 && (token.Type == lexer.TokenIdentifier || token.Type == lexer.TokenBool || token.Type == lexer.TokenRegion) && len(parts) > 0 &&
-			parts[len(parts)-1] != ":" && parts[len(parts)-1] != "|" {
+		if squareDepth == 0 && parenDepth == 0 && (token.Type == lexer.TokenIdentifier || token.Type == lexer.TokenBool || token.Type == lexer.TokenRegion) && len(parts) > 0 &&
+			parts[len(parts)-1] != ":" && parts[len(parts)-1] != "|" && parts[len(parts)-1] != "." {
 			break
 		}
-		if depth == 0 && (token.Type == lexer.TokenComma || token.Type == lexer.TokenRightBrace ||
+		if squareDepth == 0 && parenDepth == 0 && (token.Type == lexer.TokenComma || token.Type == lexer.TokenRightBrace ||
 			token.Type == lexer.TokenAssign || token.Type == lexer.TokenScopeBegin) {
 			break
 		}
@@ -1575,19 +1588,32 @@ func (parser *Parser) parseType() string {
 		switch token.Type {
 		case lexer.TokenIdentifier, lexer.TokenRegion:
 			parts = append(parts, token.Literal)
+		case lexer.TokenInt:
+			parts = append(parts, token.Literal)
 		case lexer.TokenInferReturn:
 			parts = append(parts, token.Literal)
 		case lexer.TokenTypeUnion:
 			parts = append(parts, token.Literal)
+		case lexer.TokenDot:
+			parts = append(parts, token.Literal)
+		case lexer.TokenLeftBrace:
+			parenDepth++
+			parts = append(parts, token.Literal)
+		case lexer.TokenRightBrace:
+			if parenDepth == 0 {
+				return strings.Join(parts, "")
+			}
+			parenDepth--
+			parts = append(parts, token.Literal)
 		case lexer.TokenLeftSquareBrace:
-			depth++
+			squareDepth++
 			parts = append(parts, token.Literal)
 		case lexer.TokenRightSquareBrace:
-			if depth == 0 {
+			if squareDepth == 0 {
 				parser.addError(token, "unexpected ']' in type")
 				return strings.Join(parts, "")
 			}
-			depth--
+			squareDepth--
 			parts = append(parts, token.Literal)
 		case lexer.TokenComma:
 			parts = append(parts, token.Literal)
@@ -1596,15 +1622,19 @@ func (parser *Parser) parseType() string {
 				parser.addError(token, "expected type")
 				return ""
 			}
-			if depth != 0 {
+			if squareDepth != 0 {
 				parser.addError(token, "expected ']' to close type")
+			}
+			if parenDepth != 0 {
+				parser.addError(token, "expected ')' to close type")
 			}
 			return strings.Join(parts, "")
 		}
 		parser.advance()
-		if depth == 0 && len(parts) > 0 && !parser.check(lexer.TokenLeftSquareBrace) &&
+		if squareDepth == 0 && parenDepth == 0 && len(parts) > 0 && !parser.check(lexer.TokenLeftSquareBrace) &&
 			!parser.check(lexer.TokenInferReturn) && !parser.check(lexer.TokenTypeUnion) &&
-			parts[len(parts)-1] != ":" && parts[len(parts)-1] != "|" {
+			!parser.check(lexer.TokenDot) && !parser.check(lexer.TokenLeftBrace) &&
+			parts[len(parts)-1] != ":" && parts[len(parts)-1] != "|" && parts[len(parts)-1] != "." {
 			break
 		}
 	}
@@ -1613,8 +1643,11 @@ func (parser *Parser) parseType() string {
 		parser.addError(start, "expected type")
 		return ""
 	}
-	if depth != 0 {
+	if squareDepth != 0 {
 		parser.addError(start, "expected ']' to close type")
+	}
+	if parenDepth != 0 {
+		parser.addError(start, "expected ')' to close type")
 	}
 	return strings.Join(parts, "")
 }

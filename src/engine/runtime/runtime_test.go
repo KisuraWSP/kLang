@@ -256,6 +256,36 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesChildNumericTypes(t *testing.T) {
+	result := runSource(t, `
+function Main() : Int {
+    local x : Int.child(8) = 127;
+    local i16 y = x;
+    local types.u8 z = 255;
+    return x + y + z + Int.child(8).sizeof + complex128.sizeof;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 526 {
+		t.Fatalf("expected child numeric program to return 526, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsOutOfRangeChildInteger(t *testing.T) {
+	_, err := runSourceWithError(`
+function Build() : Int {
+    return 128;
+}
+
+function Main() : Int {
+    local i8 value = Build();
+    return value;
+}
+`)
+
+	assertRuntimeErrorContains(t, err, `cannot assign Int to Int.child(8) variable "value"`)
+}
+
 func TestRuntimeRejectsImmutableParameterMutation(t *testing.T) {
 	_, err := runSourceWithError(`
 function Mutate(value : Int) : Int {

@@ -470,6 +470,9 @@ func (checker *TypeChecker) collectAliasStatements(statements []parser.Statement
 				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias %q is missing a namespace target", current.Name))
 				continue
 			}
+			if isKnownType(normalizeType(current.Target)) {
+				continue
+			}
 			if _, exists := checker.aliases[current.Name]; exists {
 				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias %q is already defined", current.Name))
 				continue
@@ -666,6 +669,9 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 			}
 			if !isAssignable(typeName, exprType) {
 				checker.addError(fn.File, line, fmt.Sprintf("cannot assign %s to local %s %s", exprType, typeName, current.Name))
+			}
+			if !childTypeLiteralFits(typeName, exprSource) {
+				checker.addError(fn.File, line, fmt.Sprintf("literal %s does not fit in %s", exprSource, typeName))
 			}
 			if !current.Inferred && typeName == anyType && exprType != anyType {
 				inferredType = exprType
@@ -1571,11 +1577,43 @@ func isCompileTimeConstantNode(node parser.ExpressionNode) bool {
 		}
 		return true
 	case parser.SelectorExpression:
-		target, ok := current.Target.(parser.IdentifierExpression)
-		return ok && current.Field == "sizeof" && isKnownType(target.Name)
+		if current.Field != "sizeof" {
+			return false
+		}
+		_, ok := typeExpressionNameFromNode(current.Target)
+		return ok
 	default:
 		return false
 	}
+}
+
+func typeExpressionNameFromNode(expr parser.ExpressionNode) (string, bool) {
+	switch current := expr.(type) {
+	case parser.IdentifierExpression:
+		typeName := normalizeType(current.Name)
+		return typeName, isKnownType(typeName)
+	case parser.SelectorExpression:
+		if target, ok := current.Target.(parser.IdentifierExpression); ok {
+			typeName := normalizeType(target.Name + "." + current.Field)
+			return typeName, isKnownType(typeName)
+		}
+	case parser.CallExpression:
+		selector, ok := current.Callee.(parser.SelectorExpression)
+		if !ok || selector.Field != "child" || len(current.Arguments) != 1 {
+			return "", false
+		}
+		target, ok := selector.Target.(parser.IdentifierExpression)
+		if !ok {
+			return "", false
+		}
+		literal, ok := current.Arguments[0].(parser.LiteralExpression)
+		if !ok || literal.Kind != "Int" {
+			return "", false
+		}
+		typeName := normalizeType(target.Name + ".child(" + literal.Value + ")")
+		return typeName, isKnownType(typeName)
+	}
+	return "", false
 }
 
 func parseAssignment(stmt string) (assignmentStatement, bool) {
@@ -1707,6 +1745,9 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 	}
 	if !isAssignable(targetType, exprType) {
 		checker.addError(source, line, fmt.Sprintf("cannot assign %s to %s", exprType, targetType))
+	}
+	if !childTypeLiteralFits(targetType, assignment.Expr) {
+		checker.addError(source, line, fmt.Sprintf("literal %s does not fit in %s", assignment.Expr, targetType))
 	}
 	if !strings.Contains(assignment.Target, "[") {
 		if variable, ok := locals[assignment.Target]; ok && variable.Type == anyType && exprType != anyType {
@@ -2050,6 +2091,9 @@ func builtinProtocolFieldType(targetType string, fieldName string) (string, bool
 
 func builtinProtocolMethodType(targetType string, methodName string) (string, bool) {
 	targetType = normalizeType(targetType)
+	if child, ok := childType(targetType); ok {
+		targetType = child.Parent
+	}
 	switch methodName {
 	case "uppercase", "lowercase":
 		if targetType == "String" || targetType == "Char" {
@@ -2908,29 +2952,58 @@ func (checker *TypeChecker) addWarning(source string, line int, message string) 
 
 func stripComments(input string) string {
 	var output strings.Builder
-	for _, line := range strings.Split(input, "\n") {
-		inString := false
-		inChar := false
-		cut := len(line)
-		for index := 0; index+1 < len(line); index++ {
-			switch line[index] {
-			case '"':
-				if !inChar {
-					inString = !inString
-				}
-			case '\'':
-				if !inString {
-					inChar = !inChar
-				}
-			case '-':
-				if !inString && !inChar && line[index+1] == '-' {
-					cut = index
-					index = len(line)
-				}
+	inString := false
+	inChar := false
+	blockDepth := 0
+	for index := 0; index < len(input); index++ {
+		current := input[index]
+		next := byte(0)
+		if index+1 < len(input) {
+			next = input[index+1]
+		}
+		if blockDepth > 0 {
+			if current == '(' && next == '*' {
+				blockDepth++
+				index++
+				continue
+			}
+			if current == '*' && next == ')' {
+				blockDepth--
+				index++
+				continue
+			}
+			if current == '\n' {
+				output.WriteByte('\n')
+			}
+			continue
+		}
+		switch current {
+		case '"':
+			if !inChar {
+				inString = !inString
+			}
+		case '\'':
+			if !inString {
+				inChar = !inChar
 			}
 		}
-		output.WriteString(line[:cut])
-		output.WriteByte('\n')
+		if !inString && !inChar {
+			if current == '-' && next == '-' {
+				for index < len(input) && input[index] != '\n' {
+					index++
+				}
+				if index < len(input) {
+					output.WriteByte('\n')
+				}
+				continue
+			}
+			if current == '(' && next == '*' {
+				blockDepth = 1
+				index++
+				continue
+			}
+		}
+		output.WriteByte(current)
 	}
 	return output.String()
 }
@@ -3205,9 +3278,23 @@ func splitTypeAndName(input string) (string, string, bool) {
 
 func normalizeType(input string) string {
 	input = strings.TrimSpace(input)
+	input = strings.ReplaceAll(input, " ", "")
+	if alias, ok := builtinChildTypeAliases[input]; ok {
+		return alias
+	}
+	if strings.HasPrefix(input, "types.") {
+		if alias, ok := builtinChildTypeAliases[strings.TrimPrefix(input, "types.")]; ok {
+			return alias
+		}
+	}
+	if child, ok := canonicalChildType(input); ok {
+		return child
+	}
 	switch input {
 	case "int", "size":
 		return "Int"
+	case "uint":
+		return "UInt"
 	case "bool":
 		return "Bool"
 	case "string":
@@ -3220,7 +3307,71 @@ func normalizeType(input string) string {
 	if canonical, ok := canonicalRestrictedType(input); ok {
 		return canonical
 	}
-	return strings.ReplaceAll(input, " ", "")
+	return input
+}
+
+var builtinChildTypeAliases = map[string]string{
+	"i8":         "Int.child(8)",
+	"i16":        "Int.child(16)",
+	"i32":        "Int.child(32)",
+	"i64":        "Int.child(64)",
+	"u8":         "UInt.child(8)",
+	"u16":        "UInt.child(16)",
+	"u32":        "UInt.child(32)",
+	"u64":        "UInt.child(64)",
+	"float32":    "Float.child(32)",
+	"float64":    "Float.child(64)",
+	"complex64":  "Complex.child(64)",
+	"complex128": "Complex.child(128)",
+}
+
+type childTypeSpec struct {
+	Parent string
+	Bits   int
+}
+
+func canonicalChildType(input string) (string, bool) {
+	parent, bits, ok := parseChildType(input)
+	if !ok || !isAllowedChildType(parent, bits) {
+		return "", false
+	}
+	return fmt.Sprintf("%s.child(%d)", parent, bits), true
+}
+
+func parseChildType(input string) (string, int, bool) {
+	input = strings.TrimSpace(input)
+	open := strings.Index(input, ".child(")
+	if open == -1 || !strings.HasSuffix(input, ")") {
+		return "", 0, false
+	}
+	parent := normalizeType(input[:open])
+	bitsText := strings.TrimSpace(input[open+len(".child(") : len(input)-1])
+	bits, err := strconv.Atoi(bitsText)
+	if err != nil {
+		return "", 0, false
+	}
+	return parent, bits, true
+}
+
+func childType(input string) (childTypeSpec, bool) {
+	parent, bits, ok := parseChildType(normalizeType(input))
+	if !ok || !isAllowedChildType(parent, bits) {
+		return childTypeSpec{}, false
+	}
+	return childTypeSpec{Parent: parent, Bits: bits}, true
+}
+
+func isAllowedChildType(parent string, bits int) bool {
+	switch parent {
+	case "Int", "UInt":
+		return bits == 8 || bits == 16 || bits == 32 || bits == 64
+	case "Float":
+		return bits == 32 || bits == 64
+	case "Complex":
+		return bits == 64 || bits == 128
+	default:
+		return false
+	}
 }
 
 func canonicalRestrictedType(input string) (string, bool) {
@@ -3286,6 +3437,9 @@ func isKnownType(typeName string) bool {
 				return false
 			}
 		}
+		return true
+	}
+	if _, ok := childType(typeName); ok {
 		return true
 	}
 	if typeName == anyType || typeName == dynamicAnyType || typeName == "Int" || typeName == "UInt" || typeName == "String" ||
@@ -3563,6 +3717,19 @@ func isAssignable(target string, source string) bool {
 	if target == source {
 		return true
 	}
+	if targetChild, ok := childType(target); ok {
+		if sourceChild, sourceOK := childType(source); sourceOK {
+			return targetChild.Parent == sourceChild.Parent && targetChild.Bits >= sourceChild.Bits
+		}
+		return source == targetChild.Parent ||
+			(targetChild.Parent == "UInt" && source == "Int") ||
+			(targetChild.Parent == "Float" && (source == "Int" || source == "UInt"))
+	}
+	if sourceChild, ok := childType(source); ok {
+		return target == sourceChild.Parent ||
+			(target == "Float" && (sourceChild.Parent == "Int" || sourceChild.Parent == "UInt")) ||
+			(target == "Complex" && sourceChild.Parent == "Complex")
+	}
 	if target == "Table" && (source == "Map[T,T]" || strings.HasPrefix(source, "Map[")) {
 		return true
 	}
@@ -3802,16 +3969,32 @@ func canCast(source string, target string) bool {
 }
 
 func isScalarType(typeName string) bool {
+	typeName = normalizeType(typeName)
+	if _, ok := childType(typeName); ok {
+		return true
+	}
 	return typeName == "Int" || typeName == "UInt" || typeName == "String" ||
 		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex"
 }
 
 func isNumeric(typeName string) bool {
+	typeName = normalizeType(typeName)
+	if _, ok := childType(typeName); ok {
+		return true
+	}
 	return typeName == "Int" || typeName == "UInt" || typeName == "Float" || typeName == "Complex" ||
 		typeName == anyType || strings.HasPrefix(typeName, "SIMD[")
 }
 
 func numericResult(left string, right string) string {
+	left = normalizeType(left)
+	right = normalizeType(right)
+	if child, ok := childType(left); ok {
+		left = child.Parent
+	}
+	if child, ok := childType(right); ok {
+		right = child.Parent
+	}
 	if left == anyType || right == anyType {
 		return anyType
 	}
@@ -4123,10 +4306,14 @@ func splitSizeofExpression(expr string) (string, bool) {
 		return "", false
 	}
 	target := strings.TrimSpace(strings.TrimSuffix(expr, ".sizeof"))
-	if target == "" || !isIdentifier(target) {
+	if target == "" {
 		return "", false
 	}
-	return normalizeType(target), true
+	typeName := normalizeType(target)
+	if !isKnownType(typeName) {
+		return "", false
+	}
+	return typeName, true
 }
 
 func splitIdentifierSelectorCallName(name string) (string, string, bool) {
@@ -4484,4 +4671,57 @@ func isFloatLiteral(input string) bool {
 		seenDigit = true
 	}
 	return seenDot && seenDigit
+}
+
+func childTypeLiteralFits(typeName string, expr string) bool {
+	spec, ok := childType(typeName)
+	if !ok {
+		return true
+	}
+	expr = strings.TrimSpace(expr)
+	switch spec.Parent {
+	case "Int":
+		if !isIntegerLiteral(expr) {
+			return true
+		}
+		value, err := strconv.ParseInt(expr, 10, 64)
+		if err != nil {
+			return false
+		}
+		min, max := signedBitRange(spec.Bits)
+		return value >= min && value <= max
+	case "UInt":
+		if !isIntegerLiteral(expr) {
+			return true
+		}
+		if strings.HasPrefix(expr, "-") {
+			return false
+		}
+		value, err := strconv.ParseUint(expr, 10, 64)
+		if err != nil {
+			return false
+		}
+		return value <= unsignedBitMax(spec.Bits)
+	case "Float":
+		return isIntegerLiteral(expr) || isFloatLiteral(expr)
+	case "Complex":
+		return true
+	default:
+		return true
+	}
+}
+
+func signedBitRange(bits int) (int64, int64) {
+	if bits >= 64 {
+		return -1 << 63, 1<<63 - 1
+	}
+	max := int64(1)<<(bits-1) - 1
+	return -int64(1) << (bits - 1), max
+}
+
+func unsignedBitMax(bits int) uint64 {
+	if bits >= 64 {
+		return ^uint64(0)
+	}
+	return uint64(1)<<bits - 1
 }

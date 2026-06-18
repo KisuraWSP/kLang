@@ -470,6 +470,9 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 		if current.Target == "" {
 			return errorAt(current.Pos, fmt.Sprintf("alias %q is missing a namespace target", current.Name))
 		}
+		if _, ok := typeSizeof(current.Target); ok {
+			return nil
+		}
 		if _, exists := runtime.aliases[current.Name]; exists {
 			return errorAt(current.Pos, fmt.Sprintf("alias %q is already defined", current.Name))
 		}
@@ -726,6 +729,7 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		if current.Inferred && typeName == "T" && !current.Lazy {
 			typeName = runtimeTypeName(value)
 		}
+		typeName = normalizeRuntimeType(typeName)
 		if !valueMatchesType(value, typeName) {
 			return signal{}, errorAt(current.Pos, fmt.Sprintf("cannot assign %s to %s variable %q", value.Kind, typeName, current.Name))
 		}
@@ -1088,11 +1092,17 @@ func valuesEqual(left Value, right Value) bool {
 }
 
 func typeSizeof(typeName string) (int, bool) {
+	typeName = normalizeRuntimeType(typeName)
+	if spec, ok := runtimeChildType(typeName); ok {
+		return spec.Bits / 8, true
+	}
 	switch typeName {
 	case "Bool", "Char":
 		return 1, true
-	case "Int", "UInt", "Float", "Complex":
+	case "Int", "UInt", "Float":
 		return 8, true
+	case "Complex":
+		return 16, true
 	case "String", "List", "Map", "Table", "T", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic", "Context", "ErrorContext":
 		return 16, true
 	default:
@@ -1113,6 +1123,7 @@ func (runtime *Runtime) defineValue(env *Environment, name string, mutable bool,
 }
 
 func (runtime *Runtime) defineValueInRegion(env *Environment, name string, mutable bool, typeName string, value Value, region MemoryRegion) error {
+	typeName = normalizeRuntimeType(typeName)
 	snapshot := shareValue(value)
 	return env.Define(name, mutable, typeName, snapshot, runtime.memory.Allocate(snapshot, region))
 }
@@ -1447,8 +1458,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 	case parser.CallExpression:
 		return runtime.evalCall(current, env)
 	case parser.SelectorExpression:
-		if target, ok := current.Target.(parser.IdentifierExpression); ok && current.Field == "sizeof" {
-			if size, ok := typeSizeof(target.Name); ok {
+		if current.Field == "sizeof" {
+			if typeName, ok := builtinTypeExpressionName(current.Target); ok {
+				size, _ := typeSizeof(typeName)
 				return IntValue(size), nil
 			}
 		}
@@ -1603,6 +1615,41 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported expression %T", expr)}
 	}
+}
+
+func builtinTypeExpressionName(expr parser.ExpressionNode) (string, bool) {
+	switch current := expr.(type) {
+	case parser.IdentifierExpression:
+		typeName := normalizeRuntimeType(current.Name)
+		if _, ok := typeSizeof(typeName); ok {
+			return typeName, true
+		}
+	case parser.SelectorExpression:
+		if target, ok := current.Target.(parser.IdentifierExpression); ok {
+			typeName := normalizeRuntimeType(target.Name + "." + current.Field)
+			if _, ok := typeSizeof(typeName); ok {
+				return typeName, true
+			}
+		}
+	case parser.CallExpression:
+		selector, ok := current.Callee.(parser.SelectorExpression)
+		if !ok || selector.Field != "child" || len(current.Arguments) != 1 {
+			return "", false
+		}
+		target, ok := selector.Target.(parser.IdentifierExpression)
+		if !ok {
+			return "", false
+		}
+		literal, ok := current.Arguments[0].(parser.LiteralExpression)
+		if !ok || literal.Kind != "Int" {
+			return "", false
+		}
+		typeName := normalizeRuntimeType(target.Name + ".child(" + literal.Value + ")")
+		if _, ok := typeSizeof(typeName); ok {
+			return typeName, true
+		}
+	}
+	return "", false
 }
 
 func (runtime *Runtime) evalListComprehension(expr parser.ListComprehensionExpression, env *Environment) (Value, error) {

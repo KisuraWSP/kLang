@@ -58,10 +58,18 @@ sharedMaybeCount = Some(11);
 
 -- const values are strictly immutable and must be resolved before runtime.
 const intSize = Int.sizeof;
+const byteSize = Int.child(8).sizeof;
 
 -- Type.sizeof returns the size of a builtin type as Int.
 -- The optional size marker maps the declaration type to Int.
 let size intSizeAlias = Int.sizeof;
+
+-- Numeric parent types can be restricted to child widths.
+local x : Int.child(8) = 127;
+local i16 smallCount = x;
+local types.u8 byteCount = 255;
+local float32 sampleRatio = 1.5;
+local complex128 zed = Complex(1, 2);
 
 -- shared builtin protocols
 -- Collection-like values expose the same .count property.

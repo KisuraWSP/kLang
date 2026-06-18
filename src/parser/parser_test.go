@@ -269,6 +269,27 @@ local Int after = 2;
 	}
 }
 
+func TestParseChildTypeDeclarations(t *testing.T) {
+	program, errors := Parse(`
+local x : Int.child(8) = 1;
+local i16 y = 2;
+alias i8 = Int.child(8);
+`)
+	assertNoParseErrors(t, errors)
+	first, ok := program.Statements[0].(VariableStatement)
+	if !ok || first.Name != "x" || first.Type != "Int.child(8)" {
+		t.Fatalf("expected colon child type declaration, got %#v", program.Statements[0])
+	}
+	second, ok := program.Statements[1].(VariableStatement)
+	if !ok || second.Name != "y" || second.Type != "i16" {
+		t.Fatalf("expected alias type declaration, got %#v", program.Statements[1])
+	}
+	alias, ok := program.Statements[2].(AliasStatement)
+	if !ok || alias.Name != "i8" || alias.Target != "Int.child(8)" {
+		t.Fatalf("expected child type alias, got %#v", program.Statements[2])
+	}
+}
+
 func TestParseFunctionCallbackParameterType(t *testing.T) {
 	program, errors := Parse(`
 function Apply(value : Int, callback : Function[Int, Int]) : Int {

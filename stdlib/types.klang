@@ -1,3 +1,6 @@
+-- Builtin child-width aliases for parent numeric types.
+-- The compiler/runtime expose these aliases globally; no import is required.
+
 global namespace types {
     alias i8 = Int.child(8);
     alias i16 = Int.child(16);
@@ -9,8 +12,8 @@ global namespace types {
     alias u32 = UInt.child(32);
     alias u64 = UInt.child(64);
 
-    alias float32 = 
-    alias float64 = 
+    alias float32 = Float.child(32);
+    alias float64 = Float.child(64);
 
     alias complex64 = Complex.child(64);
     alias complex128 = Complex.child(128);

@@ -540,7 +540,7 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 		checker.checkScopeExpression(current.Index, scope, namespace, source, line)
 	case parser.SelectorExpression:
 		if current.Field == "sizeof" {
-			if target, ok := current.Target.(parser.IdentifierExpression); ok && isKnownType(normalizeType(target.Name)) {
+			if _, ok := typeExpressionNameFromNode(current.Target); ok {
 				return
 			}
 		}
