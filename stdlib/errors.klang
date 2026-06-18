@@ -85,7 +85,7 @@ namespace errors {
     --- Summary: Provides the stdlib table message operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TableMessage(err : Table) : String {
-        if err["message"]? {
+        if table_has(err, "message") {
             return err["message"] as String;
         }
 
@@ -97,7 +97,7 @@ namespace errors {
     --- Summary: Provides the stdlib table kind operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TableKind(err : Table) : String {
-        if err["kind"]? {
+        if table_has(err, "kind") {
             return err["kind"] as String;
         }
 
@@ -208,7 +208,7 @@ namespace errors {
     --- Summary: Provides the stdlib unwrap operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Unwrap(err : Table) : Any {
-        if err["cause"]? {
+        if table_has(err, "cause") {
             return err["cause"];
         }
 

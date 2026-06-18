@@ -1733,6 +1733,40 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsCoreTableHelpers(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut Table data = {"name": "klang", 1: 10, True: 20, 'x': 30};
+    data[1] = 11;
+    local Bool hasName = table_has(data, "name");
+    local Table deleted = table_delete(data, "name");
+    local List[T] keys = table_keys(deleted);
+    local List[T] values = table_values(deleted);
+    local List[Table] entries = table_entries(deleted);
+    local Iterator[Table] iterator = iter(deleted);
+    local Option[Table] first = next(iterator);
+    local Int sequential = table_sequence_count(deleted);
+    local Table parent = {"fallback": 1};
+    local Table child = table_set_fallback(deleted, parent);
+    return child.count + sequential + len(keys) + len(values) + len(entries);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected core table helper program to type check, got %#v", report.Errors)
+	}
+
+	badKey := programFromSource(`
+function Main() : Int {
+    local mut Table data = {};
+    data[[1]] = 1;
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(badKey), "Table index expects String, Int, UInt, Float, Bool, or Char key")
+}
+
 func TestCheckProgramRejectsAwaitOnNonAwaitable(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

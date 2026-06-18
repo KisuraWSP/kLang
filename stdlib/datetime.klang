@@ -499,7 +499,7 @@ namespace datetime {
     --- Summary: Provides the stdlib year operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Year(time : Table) : Int {
-        if time["year"]? {
+        if table_has(time, "year") {
             return time["year"] as Int;
         }
 
@@ -564,7 +564,7 @@ namespace datetime {
     --- Summary: Provides the stdlib timer stop operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function TimerStop(timer : Table) : Bool {
-        return timer["running"]?;
+        return table_has(timer, "running") and timer["running"] as Bool;
     }
 
     --- Signature: function UnixFromParts(year : Int, month : Int, day : Int, hour : Int, minute : Int, second : Int) : Int

@@ -98,6 +98,22 @@ type AtomicData struct {
 	Value Value
 }
 
+type TableKey struct {
+	Kind ValueKind
+	Repr string
+}
+
+type TableData struct {
+	Entries  map[TableKey]Value
+	Order    []TableKey
+	Fallback *TableData
+}
+
+type TableEntryData struct {
+	Key   Value
+	Value Value
+}
+
 type EnumData struct {
 	Type    string
 	Variant string
@@ -724,6 +740,13 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		}
 		if current.Type == "Table" && value.Kind == ValueMap {
 			value = TableValue(value.Data.(map[string]Value))
+		}
+		if strings.HasPrefix(normalizeRuntimeType(current.Type), "Map[") && value.Kind == ValueTable {
+			items, err := tableToStringMap(value.Data.(TableData))
+			if err != nil {
+				return signal{}, errorAt(current.Pos, err.Error())
+			}
+			value = Value{Kind: ValueMap, Data: items}
 		}
 		typeName := current.Type
 		if current.Inferred && typeName == "T" && !current.Lazy {
@@ -1446,13 +1469,13 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 			}
 			items[position] = next
 			runtime.storeBindingValueLocked(binding, Value{Kind: ValueList, Data: items})
-		case ValueMap, ValueTable:
+		case ValueMap:
 			keyType, valueType, hasMapTypes := mapTypes(binding.Type)
 			items := make(map[string]Value, len(binding.Value.Data.(map[string]Value)))
 			for existingKey, existingValue := range binding.Value.Data.(map[string]Value) {
 				items[existingKey] = existingValue
 			}
-			if binding.Value.Kind == ValueMap && hasMapTypes && !valueMatchesType(index, keyType) {
+			if hasMapTypes && !valueMatchesType(index, keyType) {
 				return Error{Message: fmt.Sprintf("cannot use %s as map key type %s", index.Kind, keyType)}
 			}
 			key, err := mapKey(index)
@@ -1469,11 +1492,32 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 			if err != nil {
 				return err
 			}
-			if binding.Value.Kind == ValueMap && hasMapTypes && !valueMatchesType(next, valueType) {
+			if hasMapTypes && !valueMatchesType(next, valueType) {
 				return Error{Message: fmt.Sprintf("cannot assign %s to map value type %s", next.Kind, valueType)}
 			}
 			items[key] = next
 			runtime.storeBindingValueLocked(binding, Value{Kind: binding.Value.Kind, Data: items})
+		case ValueTable:
+			table := cloneTableData(binding.Value.Data.(TableData))
+			key, err := tableKey(index)
+			if err != nil {
+				return err
+			}
+			if operator != "=" {
+				if !tableHas(table, key) {
+					return Error{Message: fmt.Sprintf("compound assignment requires existing table key %s", valueString(tableKeyValue(key)))}
+				}
+			}
+			current, ok := tableGet(table, key)
+			if !ok {
+				current = NullValue()
+			}
+			next, err := applyAssignmentOperator(current, operator, value)
+			if err != nil {
+				return err
+			}
+			tableSet(&table, key, next)
+			runtime.storeBindingValueLocked(binding, Value{Kind: ValueTable, Data: table})
 		default:
 			return Error{Message: fmt.Sprintf("%s is not index-assignable", binding.Value.Kind)}
 		}
@@ -1544,7 +1588,21 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 		if err == nil && value.Kind == ValueFunction {
 			return FunctionValue(runtime.resolveAliasPath(value.Data.(string)) + "." + current.Field), nil
 		}
-		if err == nil && (value.Kind == ValueMap || value.Kind == ValueTable) {
+		if err == nil && value.Kind == ValueTable {
+			if field, ok := builtinProtocolField(value, current.Field); ok {
+				return field, nil
+			}
+			if builtinProtocolMethodExists(value, current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
+			}
+			key := TableKey{Kind: ValueString, Repr: current.Field}
+			field, ok := tableGet(value.Data.(TableData), key)
+			if !ok {
+				return NullValue(), Error{Message: fmt.Sprintf("table key %q does not exist", current.Field)}
+			}
+			return field, nil
+		}
+		if err == nil && value.Kind == ValueMap {
 			fields := value.Data.(map[string]Value)
 			field, ok := fields[current.Field]
 			if !ok {
@@ -1653,7 +1711,7 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 	case parser.ListComprehensionExpression:
 		return runtime.evalListComprehension(current, env)
 	case parser.MapExpression:
-		items := map[string]Value{}
+		entries := []TableEntryData{}
 		for _, entry := range current.Entries {
 			key, err := runtime.evalExpression(entry.Key, env)
 			if err != nil {
@@ -1663,13 +1721,12 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			if err != nil {
 				return NullValue(), err
 			}
-			mapKeyValue, err := mapKey(key)
-			if err != nil {
+			if _, err := tableKey(key); err != nil {
 				return NullValue(), err
 			}
-			items[mapKeyValue] = value
+			entries = append(entries, TableEntryData{Key: key, Value: value})
 		}
-		return Value{Kind: ValueMap, Data: items}, nil
+		return TableValueFromEntries(entries), nil
 	case parser.LambdaExpression:
 		name, err := runtime.defineLocalFunction(parser.FunctionStatement{
 			Name:       "lambda",
@@ -1785,12 +1842,7 @@ func iterableValues(value Value) ([]Value, error) {
 		}
 		return values, nil
 	case ValueTable:
-		fields := value.Data.(map[string]Value)
-		values := make([]Value, 0, len(fields))
-		for _, item := range fields {
-			values = append(values, item)
-		}
-		return values, nil
+		return tableEntries(value.Data.(TableData)), nil
 	default:
 		return nil, Error{Message: fmt.Sprintf("list comprehension cannot iterate over %s", value.Kind)}
 	}
@@ -2066,7 +2118,7 @@ func (runtime *Runtime) evalIndex(expr parser.IndexExpression, env *Environment)
 			return NullValue(), Error{Message: fmt.Sprintf("list index %d is out of bounds", position)}
 		}
 		return items[position], nil
-	case ValueMap, ValueTable:
+	case ValueMap:
 		items := target.Data.(map[string]Value)
 		key, err := mapKey(index)
 		if err != nil {
@@ -2075,6 +2127,16 @@ func (runtime *Runtime) evalIndex(expr parser.IndexExpression, env *Environment)
 		value, ok := items[key]
 		if !ok {
 			return NullValue(), Error{Message: fmt.Sprintf("map key %q does not exist", key)}
+		}
+		return value, nil
+	case ValueTable:
+		key, err := tableKey(index)
+		if err != nil {
+			return NullValue(), err
+		}
+		value, ok := tableGet(target.Data.(TableData), key)
+		if !ok {
+			return NullValue(), Error{Message: fmt.Sprintf("table key %s does not exist", valueString(tableKeyValue(key)))}
 		}
 		return value, nil
 	default:
@@ -2135,6 +2197,75 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 			return NullValue(), err
 		}
 		return IntValue(length), nil
+	case "table_has", "has_key":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: name + " expects two arguments"}
+		}
+		if args[0].Kind != ValueTable {
+			return NullValue(), Error{Message: name + " expects a Table as the first argument"}
+		}
+		key, err := tableKey(args[1])
+		if err != nil {
+			return NullValue(), err
+		}
+		return BoolValue(tableHas(args[0].Data.(TableData), key)), nil
+	case "table_delete":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "table_delete expects two arguments"}
+		}
+		if args[0].Kind != ValueTable {
+			return NullValue(), Error{Message: "table_delete expects a Table as the first argument"}
+		}
+		key, err := tableKey(args[1])
+		if err != nil {
+			return NullValue(), err
+		}
+		table := cloneTableData(args[0].Data.(TableData))
+		tableDelete(&table, key)
+		return Value{Kind: ValueTable, Data: table}, nil
+	case "table_keys":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "table_keys expects one argument"}
+		}
+		if args[0].Kind != ValueTable {
+			return NullValue(), Error{Message: "table_keys expects a Table"}
+		}
+		return Value{Kind: ValueList, Data: tableKeys(args[0].Data.(TableData))}, nil
+	case "table_values":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "table_values expects one argument"}
+		}
+		if args[0].Kind != ValueTable {
+			return NullValue(), Error{Message: "table_values expects a Table"}
+		}
+		return Value{Kind: ValueList, Data: tableValues(args[0].Data.(TableData))}, nil
+	case "table_entries":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "table_entries expects one argument"}
+		}
+		if args[0].Kind != ValueTable {
+			return NullValue(), Error{Message: "table_entries expects a Table"}
+		}
+		return Value{Kind: ValueList, Data: tableEntries(args[0].Data.(TableData))}, nil
+	case "table_sequence_count":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "table_sequence_count expects one argument"}
+		}
+		if args[0].Kind != ValueTable {
+			return NullValue(), Error{Message: "table_sequence_count expects a Table"}
+		}
+		return IntValue(tableSequenceCount(args[0].Data.(TableData))), nil
+	case "table_set_fallback":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "table_set_fallback expects two arguments"}
+		}
+		if args[0].Kind != ValueTable || args[1].Kind != ValueTable {
+			return NullValue(), Error{Message: "table_set_fallback expects two Tables"}
+		}
+		table := cloneTableData(args[0].Data.(TableData))
+		fallback := cloneTableData(args[1].Data.(TableData))
+		table.Fallback = &fallback
+		return Value{Kind: ValueTable, Data: table}, nil
 	case "range":
 		if len(args) != 1 {
 			return NullValue(), Error{Message: "range expects one argument"}
@@ -2191,7 +2322,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 			return NullValue(), Error{Message: "Table expects zero or one argument"}
 		}
 		if len(args) == 0 {
-			return TableValue(map[string]Value{}), nil
+			return Value{Kind: ValueTable, Data: newTableData()}, nil
 		}
 		if args[0].Kind == ValueTable {
 			return args[0], nil
@@ -3169,6 +3300,7 @@ func isBuiltinFunction(name string) bool {
 	switch name {
 	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
+		"table_has", "has_key", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",
 		"runtime_debug_loc", "runtime_debug_file", "runtime_debug_line", "runtime_debug_module", "runtime_debug_pos", "runtime_debug_function",

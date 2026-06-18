@@ -199,8 +199,8 @@ func TestRuntimeExecutesVariableDestructuring(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {
     local [first, [second, third]] = [1, [2, 3]];
-    local Table data = {"name": "klang", "count": 4};
-    local {name, count: total} = data;
+    local Table data = {"name": "klang", "total": 4};
+    local {name, total} = data;
     return first + second + third + total + len(name);
 }
 `)
@@ -1608,6 +1608,70 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesStdlibTableCompatibilityHelpers(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd failed: %v", err)
+		}
+	}()
+
+	result := runSource(t, `
+import "basic";
+import "builtin";
+import "reflect";
+import "errors";
+import "datetime";
+import "json";
+import "exceptions";
+import "metasystem";
+
+function Main() : Int {
+    local mut Table data = {"name": "klang", "count": 99};
+    if not basic.TableHas(data, "name") or basic.TableHas(data, "missing") {
+        return 0;
+    }
+    local Option[T] found = basic.TableGet(data, "name");
+    local Option[Any] reflected = reflect.Field(data, "name");
+    data = builtin.delete(data, "name");
+    if basic.TableHas(data, "name") or not found.some or not reflected.some {
+        return 0;
+    }
+
+    local String message = errors.TableMessage({"message": "ok"});
+    local String kind = errors.TableKind({});
+    local Any cause = errors.Unwrap({});
+    local Bool stopped = datetime.TimerStop({});
+    local Table pair = {"key": "a", "value": "b"};
+    local Result[String, String] encoded = json.encode_map_checked(pair, json.encode_binary);
+    local Table exceptionOptions = exceptions.format_options();
+    local String formatted = exceptions.format_exception("E", "why", [], exceptionOptions);
+    local WorkSpace workspace = metasystem.workspace.UserDefinedWorkspace("demo", ["app"], ["first.klang"], "Standalone");
+    local Table loop = metasystem.build.message_loop(workspace, [{"kind": "COMPLETE"}]);
+
+    if message != "ok" or kind != "error" or debug_type(cause) != "String" or stopped {
+        return 0;
+    }
+    if not encoded.ok or not loop["complete"] as Bool {
+        return 0;
+    }
+
+    return len(encoded.value) + len(formatted) + data.count + data["count"] as Int;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 131 {
+		t.Fatalf("expected stdlib table compatibility helpers to return 131, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesStdlibDSAModule(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -2161,6 +2225,55 @@ function Main() : Int {
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 57 {
 		t.Fatalf("expected table/async/iterator/coroutine program to return 57, got %#v", result.Value)
 	}
+}
+
+func TestRuntimeExecutesCoreTableSemantics(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local mut Table data = {"name": "klang", 0: 9, 1: 10, "1": 20, True: 30, 'x': 40, "count": 99};
+    local Table snapshot = data;
+    data[1] = 11;
+    data = table_delete(data, "name");
+
+    local Table parent = {"fallback": 7};
+    local Table child = table_set_fallback(data, parent);
+    local List[Table] entries = table_entries(child);
+    local Iterator[Table] iterator = iter(child);
+    local Option[Table] first = next(iterator);
+
+    assert table_has(child, 1);
+    assert not table_has(child, "name");
+    assert child.count == 6;
+    assert child["count"] == 99;
+    assert table_sequence_count(child) == 2;
+    assert child.fallback == 7;
+
+    return data[1] + snapshot[1] + data["1"] + data[True] + data['x'] + len(entries) + first.value.value;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 126 {
+		t.Fatalf("expected core table semantics program to return 126, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsInvalidAndMissingTableKeys(t *testing.T) {
+	_, invalidErr := runParsedSourceWithError(`
+function Main() : Int {
+    local mut Table data = {};
+    data[[1]] = 1;
+    return 0;
+}
+`)
+	assertRuntimeErrorContains(t, invalidErr, "List cannot be used as a table key")
+
+	_, missingErr := runParsedSourceWithError(`
+function Main() : Int {
+    local Table data = {};
+    return data["missing"];
+}
+`)
+	assertRuntimeErrorContains(t, missingErr, "table key missing does not exist")
 }
 
 func TestRuntimeRejectsAwaitOnNonAwaitable(t *testing.T) {

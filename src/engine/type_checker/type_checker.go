@@ -2236,6 +2236,9 @@ func (checker *TypeChecker) checkIndexExpression(targetType string, indexType st
 		}
 		return valueType
 	case targetType == "Table":
+		if !isTableKeyType(indexType) {
+			checker.addError(source, line, fmt.Sprintf("Table index expects String, Int, UInt, Float, Bool, or Char key, got %s", indexType))
+		}
 		return anyType
 	default:
 		checker.addError(source, line, fmt.Sprintf("%s is not indexable", targetType))
@@ -2270,6 +2273,9 @@ func (checker *TypeChecker) checkIndexedAssignmentTarget(targetType string, inde
 		}
 		return valueType
 	case targetType == "Table":
+		if !isTableKeyType(indexType) {
+			checker.addError(source, line, fmt.Sprintf("Table index expects String, Int, UInt, Float, Bool, or Char key, got %s", indexType))
+		}
 		return anyType
 	default:
 		checker.addError(source, line, fmt.Sprintf("%s is not index-assignable", targetType))
@@ -2435,6 +2441,78 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		}
 		for _, arg := range args {
 			checker.inferExpression(arg, locals, source, line)
+		}
+		return "Table"
+	case "table_has", "has_key":
+		if len(args) != 2 {
+			checker.addError(source, line, name+" expects 2 arguments")
+			return "Bool"
+		}
+		tableType := checker.inferExpression(args[0], locals, source, line)
+		keyType := checker.inferExpression(args[1], locals, source, line)
+		if normalizeType(tableType) != "Table" && tableType != anyType {
+			checker.addError(source, line, fmt.Sprintf("%s expects Table as first argument, got %s", name, tableType))
+		}
+		if !isTableKeyType(keyType) {
+			checker.addError(source, line, fmt.Sprintf("%s key expects String, Int, UInt, Float, Bool, or Char, got %s", name, keyType))
+		}
+		return "Bool"
+	case "table_delete":
+		if len(args) != 2 {
+			checker.addError(source, line, "table_delete expects 2 arguments")
+			return "Table"
+		}
+		tableType := checker.inferExpression(args[0], locals, source, line)
+		keyType := checker.inferExpression(args[1], locals, source, line)
+		if normalizeType(tableType) != "Table" && tableType != anyType {
+			checker.addError(source, line, fmt.Sprintf("table_delete expects Table as first argument, got %s", tableType))
+		}
+		if !isTableKeyType(keyType) {
+			checker.addError(source, line, fmt.Sprintf("table_delete key expects String, Int, UInt, Float, Bool, or Char, got %s", keyType))
+		}
+		return "Table"
+	case "table_keys", "table_values":
+		if len(args) != 1 {
+			checker.addError(source, line, name+" expects 1 argument")
+			return "List[T]"
+		}
+		tableType := checker.inferExpression(args[0], locals, source, line)
+		if normalizeType(tableType) != "Table" && tableType != anyType {
+			checker.addError(source, line, fmt.Sprintf("%s expects Table, got %s", name, tableType))
+		}
+		return "List[T]"
+	case "table_entries":
+		if len(args) != 1 {
+			checker.addError(source, line, "table_entries expects 1 argument")
+			return "List[Table]"
+		}
+		tableType := checker.inferExpression(args[0], locals, source, line)
+		if normalizeType(tableType) != "Table" && tableType != anyType {
+			checker.addError(source, line, fmt.Sprintf("table_entries expects Table, got %s", tableType))
+		}
+		return "List[Table]"
+	case "table_sequence_count":
+		if len(args) != 1 {
+			checker.addError(source, line, "table_sequence_count expects 1 argument")
+			return "Int"
+		}
+		tableType := checker.inferExpression(args[0], locals, source, line)
+		if normalizeType(tableType) != "Table" && tableType != anyType {
+			checker.addError(source, line, fmt.Sprintf("table_sequence_count expects Table, got %s", tableType))
+		}
+		return "Int"
+	case "table_set_fallback":
+		if len(args) != 2 {
+			checker.addError(source, line, "table_set_fallback expects 2 arguments")
+			return "Table"
+		}
+		leftType := checker.inferExpression(args[0], locals, source, line)
+		rightType := checker.inferExpression(args[1], locals, source, line)
+		if normalizeType(leftType) != "Table" && leftType != anyType {
+			checker.addError(source, line, fmt.Sprintf("table_set_fallback expects Table as first argument, got %s", leftType))
+		}
+		if normalizeType(rightType) != "Table" && rightType != anyType {
+			checker.addError(source, line, fmt.Sprintf("table_set_fallback expects Table as second argument, got %s", rightType))
 		}
 		return "Table"
 	case "iter":
@@ -3769,6 +3847,14 @@ func isIntegerIndexType(typeName string) bool {
 	return typeName == anyType || typeName == "Int" || typeName == "UInt"
 }
 
+func isTableKeyType(typeName string) bool {
+	typeName = normalizeType(typeName)
+	return typeName == anyType || typeName == "String" || typeName == "Int" || typeName == "UInt" ||
+		typeName == "Float" || typeName == "Bool" || typeName == "Char" ||
+		strings.HasPrefix(typeName, "Int.child(") || strings.HasPrefix(typeName, "UInt.child(") ||
+		strings.HasPrefix(typeName, "Float.child(")
+}
+
 func isAssignable(target string, source string) bool {
 	target = normalizeType(target)
 	source = normalizeType(source)
@@ -4114,7 +4200,7 @@ func iterableItemType(typeName string) (string, bool) {
 	case typeName == "Int" || typeName == "UInt":
 		return "Int", true
 	case typeName == "Table":
-		return anyType, true
+		return "Table", true
 	case strings.HasPrefix(typeName, "List[") && strings.HasSuffix(typeName, "]"):
 		return typeName[5 : len(typeName)-1], true
 	case strings.HasPrefix(typeName, "Iterator[") && strings.HasSuffix(typeName, "]"):

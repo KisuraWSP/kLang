@@ -140,8 +140,7 @@ namespace builtin {
     --- Summary: Removes or normalizes Klang value(s) for the delete operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function delete(mut value : Table, key : String) : Table {
-        value[key] = "";
-        return value;
+        return table_delete(value, key);
     }
 
     --- Signature: function imag(value : Complex) : Float

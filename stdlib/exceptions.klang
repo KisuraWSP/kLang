@@ -169,7 +169,7 @@ namespace exceptions {
         local String stackText = format_stack(stackTrace);
         local mut Int startColumn = column();
 
-        if options["column"]? {
+        if table_has(options, "column") {
             startColumn = options["column"] as Int;
         }
 

@@ -167,6 +167,28 @@ local Int total = scores["total"];
 local mut Table data = {"name": "klang", 1: True};
 data["count"] = 3;
 local String tableName = data.name;
+local Int tableEntries = data.count;      -- builtin protocol count
+local Int userCount = data["count"];      -- user field named "count"
+local Bool hasName = table_has(data, "name");
+data = table_delete(data, "name");        -- None()/Null values do not delete
+
+-- Table keys compare by primitive kind and value, so these are distinct.
+data[1] = "numeric";
+data["1"] = "string";
+data['1'] = "char";
+
+-- Table iteration yields insertion-order entry tables with key and value fields.
+local Iterator[Table] tableIterator = iter(data);
+local Option[Table] firstEntry = next(tableIterator);
+local List[T] tableKeys = table_keys(data);
+local List[T] tableValues = table_values(data);
+local List[Table] tableEntriesList = table_entries(data);
+local Int sequenceLength = table_sequence_count(data);
+
+-- Fallback tables provide controlled prototype-style missing-key lookup.
+local Table parent = {"kind": "base"};
+local Table child = table_set_fallback({}, parent);
+local String inheritedKind = child.kind;
 
 -- user-defined memory regions for arrays and slices
 -- T[RegionName] stores a zero-initialized region-backed array/slice value.

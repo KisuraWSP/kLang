@@ -71,11 +71,171 @@ func SIMDValue(lanes []Value) Value {
 }
 
 func TableValue(items map[string]Value) Value {
-	copied := make(map[string]Value, len(items))
+	table := newTableData()
 	for key, item := range items {
-		copied[key] = cloneValue(item)
+		tableSet(&table, TableKey{Kind: ValueString, Repr: key}, cloneValue(item))
 	}
-	return Value{Kind: ValueTable, Data: copied}
+	return Value{Kind: ValueTable, Data: table}
+}
+
+func TableValueFromEntries(entries []TableEntryData) Value {
+	table := newTableData()
+	for _, entry := range entries {
+		key, err := tableKey(entry.Key)
+		if err != nil {
+			continue
+		}
+		tableSet(&table, key, cloneValue(entry.Value))
+	}
+	return Value{Kind: ValueTable, Data: table}
+}
+
+func newTableData() TableData {
+	return TableData{Entries: map[TableKey]Value{}, Order: []TableKey{}}
+}
+
+func cloneTableData(table TableData) TableData {
+	cloned := TableData{
+		Entries: map[TableKey]Value{},
+		Order:   append([]TableKey(nil), table.Order...),
+	}
+	for key, item := range table.Entries {
+		cloned.Entries[key] = cloneValue(item)
+	}
+	if table.Fallback != nil {
+		fallback := cloneTableData(*table.Fallback)
+		cloned.Fallback = &fallback
+	}
+	return cloned
+}
+
+func shareTableData(table TableData) TableData {
+	shared := TableData{
+		Entries: map[TableKey]Value{},
+		Order:   append([]TableKey(nil), table.Order...),
+	}
+	for key, item := range table.Entries {
+		shared.Entries[key] = shareValue(item)
+	}
+	if table.Fallback != nil {
+		fallback := shareTableData(*table.Fallback)
+		shared.Fallback = &fallback
+	}
+	return shared
+}
+
+func tableSet(table *TableData, key TableKey, value Value) {
+	if _, ok := table.Entries[key]; !ok {
+		table.Order = append(table.Order, key)
+	}
+	table.Entries[key] = value
+}
+
+func tableDelete(table *TableData, key TableKey) bool {
+	if _, ok := table.Entries[key]; !ok {
+		return false
+	}
+	delete(table.Entries, key)
+	nextOrder := table.Order[:0]
+	for _, existing := range table.Order {
+		if existing != key {
+			nextOrder = append(nextOrder, existing)
+		}
+	}
+	table.Order = nextOrder
+	return true
+}
+
+func tableGet(table TableData, key TableKey) (Value, bool) {
+	if value, ok := table.Entries[key]; ok {
+		return value, true
+	}
+	if table.Fallback != nil {
+		return tableGet(*table.Fallback, key)
+	}
+	return NullValue(), false
+}
+
+func tableHas(table TableData, key TableKey) bool {
+	_, ok := tableGet(table, key)
+	return ok
+}
+
+func tableKeyValue(key TableKey) Value {
+	switch key.Kind {
+	case ValueInt:
+		parsed, _ := strconv.Atoi(key.Repr)
+		return IntValue(parsed)
+	case ValueFloat:
+		parsed, _ := strconv.ParseFloat(key.Repr, 64)
+		return FloatValue(parsed)
+	case ValueBool:
+		return BoolValue(key.Repr == "true")
+	case ValueChar:
+		return CharValue(key.Repr)
+	default:
+		return StringValue(key.Repr)
+	}
+}
+
+func tableKeys(table TableData) []Value {
+	values := make([]Value, 0, len(table.Order))
+	for _, key := range table.Order {
+		if _, ok := table.Entries[key]; ok {
+			values = append(values, tableKeyValue(key))
+		}
+	}
+	return values
+}
+
+func tableValues(table TableData) []Value {
+	values := make([]Value, 0, len(table.Order))
+	for _, key := range table.Order {
+		if value, ok := table.Entries[key]; ok {
+			values = append(values, cloneValue(value))
+		}
+	}
+	return values
+}
+
+func tableEntries(table TableData) []Value {
+	entries := make([]Value, 0, len(table.Order))
+	for _, key := range table.Order {
+		value, ok := table.Entries[key]
+		if !ok {
+			continue
+		}
+		entries = append(entries, TableValue(map[string]Value{
+			"key":   tableKeyValue(key),
+			"value": cloneValue(value),
+		}))
+	}
+	return entries
+}
+
+func tableSequenceCount(table TableData) int {
+	count := 0
+	for {
+		if _, ok := table.Entries[TableKey{Kind: ValueInt, Repr: strconv.Itoa(count)}]; !ok {
+			return count
+		}
+		count++
+	}
+}
+
+func tableToStringMap(table TableData) (map[string]Value, error) {
+	items := make(map[string]Value, len(table.Entries))
+	for _, key := range table.Order {
+		value, ok := table.Entries[key]
+		if !ok {
+			continue
+		}
+		if key.Kind != ValueString {
+			return nil, Error{Message: fmt.Sprintf("%s table key cannot be used as a Map key", key.Kind)}
+		}
+		items[key.Repr] = cloneValue(value)
+	}
+	return items, nil
 }
 
 func AwaitableValue(function string, args []Value) Value {
@@ -138,7 +298,7 @@ func zeroValue(typeName string) Value {
 		return Value{Kind: ValueMap, Data: map[string]Value{}}
 	}
 	if typeName == "Table" {
-		return TableValue(map[string]Value{})
+		return Value{Kind: ValueTable, Data: newTableData()}
 	}
 	if typeName == "Context" || typeName == "ErrorContext" {
 		return Value{Kind: ValueObject, Data: ObjectData{Type: typeName, Fields: map[string]Value{}}}
@@ -182,7 +342,7 @@ func cloneValue(value Value) Value {
 		}
 		return Value{Kind: ValueMap, Data: cloned}
 	case ValueTable:
-		return TableValue(value.Data.(map[string]Value))
+		return Value{Kind: ValueTable, Data: cloneTableData(value.Data.(TableData))}
 	case ValueOption:
 		option := value.Data.(OptionData)
 		option.Value = cloneValue(option.Value)
@@ -221,6 +381,8 @@ func shareValue(value Value) Value {
 		result := value.Data.(ResultData)
 		result.Value = shareValue(result.Value)
 		return Value{Kind: ValueResult, Data: result}
+	case ValueTable:
+		return Value{Kind: ValueTable, Data: shareTableData(value.Data.(TableData))}
 	case ValueAwaitable:
 		data := value.Data.(*AwaitableData)
 		args := make([]Value, 0, len(data.Args))
@@ -786,9 +948,13 @@ func valueString(value Value) string {
 		}
 		return "SIMD[" + strings.Join(parts, ", ") + "]"
 	case ValueTable:
-		parts := make([]string, 0, len(value.Data.(map[string]Value)))
-		for key, item := range value.Data.(map[string]Value) {
-			parts = append(parts, key+": "+valueString(item))
+		table := value.Data.(TableData)
+		parts := make([]string, 0, len(table.Entries))
+		for _, key := range table.Order {
+			item, ok := table.Entries[key]
+			if ok {
+				parts = append(parts, valueString(tableKeyValue(key))+": "+valueString(item))
+			}
 		}
 		return "Table{" + strings.Join(parts, ", ") + "}"
 	case ValueAwaitable:
@@ -859,8 +1025,12 @@ func valueSize(value Value) int {
 		return size
 	case ValueTable:
 		size := 48
-		for key, item := range value.Data.(map[string]Value) {
-			size += len(key) + valueSize(item)
+		table := value.Data.(TableData)
+		for key, item := range table.Entries {
+			size += len(key.Repr) + valueSize(item)
+		}
+		if table.Fallback != nil {
+			size += valueSize(Value{Kind: ValueTable, Data: *table.Fallback})
 		}
 		return size
 	case ValueOption:
@@ -915,7 +1085,7 @@ func valueLen(value Value) (int, error) {
 	case ValueMap:
 		return len(value.Data.(map[string]Value)), nil
 	case ValueTable:
-		return len(value.Data.(map[string]Value)), nil
+		return len(value.Data.(TableData).Entries), nil
 	case ValueSIMD:
 		return len(value.Data.(SIMDData).Lanes), nil
 	default:
@@ -929,6 +1099,26 @@ func mapKey(value Value) (string, error) {
 		return valueString(value), nil
 	default:
 		return "", Error{Message: fmt.Sprintf("%s cannot be used as a map key", value.Kind)}
+	}
+}
+
+func tableKey(value Value) (TableKey, error) {
+	switch value.Kind {
+	case ValueString:
+		return TableKey{Kind: ValueString, Repr: value.Data.(string)}, nil
+	case ValueInt:
+		return TableKey{Kind: ValueInt, Repr: strconv.Itoa(value.Data.(int))}, nil
+	case ValueFloat:
+		return TableKey{Kind: ValueFloat, Repr: strconv.FormatFloat(value.Data.(float64), 'g', -1, 64)}, nil
+	case ValueBool:
+		if value.Data.(bool) {
+			return TableKey{Kind: ValueBool, Repr: "true"}, nil
+		}
+		return TableKey{Kind: ValueBool, Repr: "false"}, nil
+	case ValueChar:
+		return TableKey{Kind: ValueChar, Repr: value.Data.(string)}, nil
+	default:
+		return TableKey{}, Error{Message: fmt.Sprintf("%s cannot be used as a table key", value.Kind)}
 	}
 }
 

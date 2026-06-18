@@ -264,7 +264,7 @@ namespace metasystem {
 
             while index < len(messages) and not complete {
                 local Table message = messages[index];
-                if message["kind"]? and message["kind"] as String == "COMPLETE" {
+                if table_has(message, "kind") and message["kind"] as String == "COMPLETE" {
                     complete = True;
                 }
                 index += 1;

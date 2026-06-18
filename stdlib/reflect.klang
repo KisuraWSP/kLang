@@ -70,7 +70,7 @@ namespace reflect {
     --- Summary: Provides the stdlib field operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Field(value : Table, name : String) : Option[Any] {
-        if value[name]? {
+        if table_has(value, name) {
             return Some(value[name]);
         }
         return None();

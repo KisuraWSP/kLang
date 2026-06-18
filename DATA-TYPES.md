@@ -58,4 +58,15 @@ User-defined `enum` declarations create typed ordinal values inspired by Go `con
 
 Aggregate collection values use copy-on-write storage for ordinary assignment. Shared `List`, `Map`, `Table`, and `SIMD` storage is detached when a mutable binding is written, while explicit `copy` and `clone` still create eager clones.
 
+`Table` is the only fully dynamic container. It stores mixed values and accepts only primitive value keys: `String`, `Int`, `UInt`, `Float`, `Bool`, and `Char`. Keys compare by their normalized primitive kind plus value, so `1`, `"1"`, and `'1'` are distinct keys. Unsafe dynamic keys such as `Table`, `List`, functions, refs, allocator objects, and other runtime objects are rejected. `table["name"]` reads a user field and reports a missing-key diagnostic when absent; reads never create fields. Indexed mutation detaches shared storage before writing. `data.count` is the builtin protocol count for the table's own entries, while `data["count"]` reads the user field named `"count"`. Other non-conflicting selectors such as `data.name` remain sugar for `data["name"]`.
+
+Table helper builtins are available without imports:
+- `table_has(table, key)` and `has_key(table, key)` return `Bool`.
+- `table_delete(table, key)` returns a new `Table` without the key; assigning the result applies deletion.
+- `table_keys(table)`, `table_values(table)`, and `table_entries(table)` return insertion-order lists. Entries are `Table` records with `key` and `value` fields.
+- `table_sequence_count(table)` returns the contiguous zero-based numeric length and never replaces `table.count`.
+- `table_set_fallback(child, parent)` returns a `Table` that reads missing keys from `parent`.
+
+`iter(table)` yields insertion-order `{key, value}` entry tables. Table iteration order is deterministic insertion order for own entries; fallback entries are visible through lookup but are not included in `.count`, `table_keys`, `table_values`, `table_entries`, or direct iteration.
+
 The language engine builds a `Context` for each loaded workspace and reports failures through `ErrorContext`. This diagnostic context is used by module resolution, parsing, type checking, runtime execution, packaging, and WASM backend generation.

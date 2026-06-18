@@ -238,7 +238,7 @@ namespace json {
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, String] {
         local mut String input = acc0 + binary;
-        if decoderTable["from_binary"]? {
+        if table_has(decoderTable, "from_binary") {
             local Function[String, String] fromBinary = decoderTable["from_binary"];
             input = fromBinary(input);
         }
@@ -357,10 +357,10 @@ namespace json {
 
         while index < len(list) {
             local Table pair = list[index];
-            if not pair["key"]? {
+            if not table_has(pair, "key") {
                 return Err("json object pair is missing key");
             }
-            if not pair["value"]? {
+            if not table_has(pair, "value") {
                 return Err("json object pair is missing value");
             }
             index += 1;
@@ -397,7 +397,7 @@ namespace json {
     --- Summary: Builds, writes, or formats encode map using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_map(value : Table, encodeFn : Function[String, String] = encode_binary) : String {
-        if value["key"]? and value["value"]? {
+        if table_has(value, "key") and table_has(value, "value") {
             return "{" + encode_binary(value["key"] as String) + ":" + encodeFn(value["value"] as String) + "}";
         }
 
@@ -409,7 +409,7 @@ namespace json {
     --- Summary: Builds, writes, or formats encode map checked using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_map_checked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
-        if value["key"]? and value["value"]? {
+        if table_has(value, "key") and table_has(value, "value") {
             return Ok(encode_map(value, encodeFn));
         }
 
@@ -469,7 +469,7 @@ namespace json {
     --- Summary: Builds, writes, or formats format value using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function format_value(value : T, encodeFn : Function[T, String], state : Table) : String {
-        if state["indent"]? {
+        if table_has(state, "indent") {
             return encodeFn(value);
         }
 

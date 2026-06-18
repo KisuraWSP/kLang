@@ -71,7 +71,13 @@ Rules
 - Region-backed array types use the `ElementType[RegionName]` form and must reference an existing `region`.
 - Region-backed arrays grow through indexed assignment, but an index must be inside the region count.
 - Alias-created objects and allocator wrapper objects are heap allocations for runtime memory tracking.
-- Table values allow mixed primitive keys and mixed value types.
+- Table values allow mixed values and primitive keys only: `String`, `Int`, `UInt`, `Float`, `Bool`, and `Char`. Keys compare by normalized primitive kind plus value, so numeric, string, and char spellings do not collide.
+- Table reads report a missing-key diagnostic when the key is absent and never create fields. Indexed mutation detaches shared copy-on-write storage before writing.
+- `table["count"]` always means the user field named `"count"`. `table.count` is the builtin count protocol and returns the number of own entries. Other non-reserved selectors such as `table.name` are sugar for `table["name"]`.
+- Use `table_has(table, key)` or `has_key(table, key)` to test presence, and assign the result of `table_delete(table, key)` to remove a key.
+- `table_keys(table)`, `table_values(table)`, and `table_entries(table)` return insertion-order own-entry lists. `iter(table)` yields insertion-order entry tables with `key` and `value` fields.
+- `table_sequence_count(table)` returns the contiguous zero-based numeric length. It is separate from `table.count`, which counts all own entries.
+- `table_set_fallback(child, parent)` returns a table that reads missing keys from `parent`. Fallback keys do not affect own-entry count or iteration.
 - `next(iterator)` returns Option[T], with None when the iterator is exhausted.
 - `resume(coroutine)` returns Option[T], with None after the coroutine has completed.
 - `spawn(functionValue, [args...])` starts a child interpreter worker and returns `Thread[T]`; `join(thread)` waits and returns `T`.
@@ -102,4 +108,5 @@ Rules
 - Shared builtin protocols are statically checked and runtime-backed. `.count` is available on `String`, `List`, `Map`, `Table`, `SIMD`, and `Iterator`; `.uppercase()` and `.lowercase()` are available on `String` and `Char`; `.times(callback)` is available on `Int` and `UInt` and invokes the callback with indexes from `0` to `receiver - 1`.
 - Enum variants are selected with `EnumName.Variant`, have the enum name as their static type, and can be used in pattern matches. Enum values expose `.ordinal : Int`, `.name : String`, and `.variant : String`; values from different enum types are not assignable to each other.
 - Ordinary assignment of aggregate collection values such as `List`, `Map`, `Table`, and `SIMD` may share storage until one binding is mutated. Indexed mutation detaches the mutated binding first, preserving referential transparency for the other binding. Explicit `copy` and `clone` still request an eager cloned value.
+- Table mutation respects mutable bindings. `None()` and `Null` are stored as ordinary values and do not delete keys. Invalid key types such as `Table`, `List`, functions, refs, allocator values, and runtime objects produce diagnostics.
 - `Context` tracks the program name, entry point, selected backend, source files, and collected diagnostics. `ErrorContext` includes the failing phase (`SOURCE`, `MODULE`, `PARSE`, `TYPE`, `RUNTIME`, `BACKEND`, or `WASM`), location, source line, rule, message, and fix hint. CLI `check`, `run`, `package`, and WASM packaging must report through this structure.
