@@ -2,6 +2,18 @@
 -- Klang region arrays require a concrete region, so this stdlib module exposes
 -- portable array-style operations over List[T] values.
 
+alias function Array[T: Any](region : #region(), size := region.sizeof, container : List[T]) : type = struct {
+    #extend {
+        function count() : Int {
+            return len(this.items);
+        }
+
+        function empty() : Bool {
+            return len(this.items) == 0;
+        }
+    }
+}
+
 namespace array {
     --- Signature: function empty(values : List[T]) : Bool
     --- Returns: Bool.
