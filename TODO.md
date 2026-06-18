@@ -2,6 +2,15 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- make progrramming language api data oriented
+- add support for a new command line flag that will do like generating a documentation based on what source file u provide and it will have a nice ui
+```
+klang doc --sourcefile=["test.klang", "file.klang"]
+```
+- report unused variables in the programming langauge
+- add pass by reference and pass by value sementaics in the langauge
+- add a new flag to allow user to add there own functions to the stdlib via new command like —new_std_lib=["test”, “processor”]
+- allow import statements to be called any where in the program no matter where it is declared, if the langauge detects the call it does an import
 - Ability to read hexadecimal, octal, binary numbers and also 0xAAAA like numbers
 - Add support for negative numbers
 - Add support for sinhala character & emojis variables, function arguments/parameters (not gonna be a feature used in the api but will be implemented for other peoples usage)
