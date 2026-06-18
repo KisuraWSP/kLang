@@ -138,6 +138,29 @@ func TestLexerTokenizesPrivateInlineDeferAndHereString(t *testing.T) {
 	}
 }
 
+func TestLexerSkipsMultilineComments(t *testing.T) {
+	input := `local Int before = 1;
+(*
+   This is a multi line comment
+   (* nested comment *)
+*)
+local Int after = 2;`
+
+	tokens := New(input).Tokenize()
+	var identifiers []string
+	for _, token := range tokens {
+		if token.Type == TokenIdentifier {
+			identifiers = append(identifiers, token.Literal)
+		}
+		if token.Type == TokenIllegal {
+			t.Fatalf("unexpected illegal token %#v", token)
+		}
+	}
+	if strings.Join(identifiers, ",") != "Int,before,Int,after" {
+		t.Fatalf("unexpected identifiers after multiline comment skip: %#v", identifiers)
+	}
+}
+
 func TestLexerTokenizesFunctionAndControlFlowSyntax(t *testing.T) {
 	input := `
 -- comments are skipped

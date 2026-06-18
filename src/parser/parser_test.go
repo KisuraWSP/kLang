@@ -248,6 +248,27 @@ function Boot() {}
 	}
 }
 
+func TestParseSkipsMultilineComments(t *testing.T) {
+	program, errors := Parse(`
+local Int before = 1;
+(*
+    This is a multi line comment
+    (* nested comment *)
+*)
+local Int after = 2;
+`)
+	assertNoParseErrors(t, errors)
+	if len(program.Statements) != 2 {
+		t.Fatalf("expected two statements, got %d", len(program.Statements))
+	}
+	if first, ok := program.Statements[0].(VariableStatement); !ok || first.Name != "before" {
+		t.Fatalf("expected before variable, got %#v", program.Statements[0])
+	}
+	if second, ok := program.Statements[1].(VariableStatement); !ok || second.Name != "after" {
+		t.Fatalf("expected after variable, got %#v", program.Statements[1])
+	}
+}
+
 func TestParseFunctionCallbackParameterType(t *testing.T) {
 	program, errors := Parse(`
 function Apply(value : Int, callback : Function[Int, Int]) : Int {

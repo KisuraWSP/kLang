@@ -5,6 +5,10 @@
 -- local variable
 local Int x = 10;
 
+(* 
+   This is a multi line comment
+*)
+
 -- zero initialized variables
 -- If no initializer is given, the declared type receives its zero value.
 local Int zeroCount;

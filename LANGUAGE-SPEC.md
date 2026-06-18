@@ -40,6 +40,7 @@
 40. A module source may declare `module(disabled : True);` to reject imports of that module until the directive is removed or set to false.
 41. Stdlib modules may declare `global namespace Name { ... }`; functions inside that namespace are loaded into an internal compiler/runtime symbol table and can be called without an import or namespace qualifier.
 42. `run` marks a block or single statement as a priority runtime action that executes before ordinary statements in the same block.
+43. Multiline comments use `(* ... *)` delimiters and may span lines.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -72,6 +73,7 @@ Rules
 - Place `module(disabled : True);` in a module source to make the resolver reject imports of that module.
 - Place `global namespace Name { ... }` in a stdlib module to expose the namespace's functions as unqualified calls through the language's internal symbol table. The symbol table is not accessible from Klang source.
 - Use `run { ... }` or `run FunctionName();` to execute initialization code before ordinary statements in the same runtime block. A `run` action cannot return, break, or continue.
+- Use `(* ... *)` for multiline comments. Multiline comments are ignored by the lexer before parsing.
 - Alias functions may contain trait and impl declarations in addition to hooks and extension methods.
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.
 - CLI `package` checks a program and writes a compact source bundle with `klang-build.json`.

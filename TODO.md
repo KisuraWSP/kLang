@@ -195,12 +195,6 @@ Deterministic diagnostics through ErrorContext.
 Optional fallback table/prototype lookup.
 Only later: metatable/operator/call hooks.
 My design instinct: keep Table as a safe dynamic record/map first, then grow Lua-like behavior behind explicit APIs. That gives you Lua’s flexibility without letting dynamic table magic leak into every part of the runtime.
-- add support for multiline comments via the below
-```fsharp
-(* 
-   THis is a multi line comment
-*)
-```
     
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project under 10 seconds

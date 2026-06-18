@@ -151,7 +151,34 @@ func (lexer *Lexer) skipWhitespaceAndComments() {
 			continue
 		}
 
+		if lexer.ch == '(' && lexer.peekChar() == '*' {
+			lexer.skipMultilineComment()
+			continue
+		}
+
 		return
+	}
+}
+
+func (lexer *Lexer) skipMultilineComment() {
+	depth := 0
+	for lexer.ch != 0 {
+		if lexer.ch == '(' && lexer.peekChar() == '*' {
+			depth++
+			lexer.readChar()
+			lexer.readChar()
+			continue
+		}
+		if lexer.ch == '*' && lexer.peekChar() == ')' {
+			depth--
+			lexer.readChar()
+			lexer.readChar()
+			if depth == 0 {
+				return
+			}
+			continue
+		}
+		lexer.readChar()
 	}
 }
 
