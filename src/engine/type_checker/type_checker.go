@@ -728,6 +728,8 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		if !isAssignable("Bool", exprType) {
 			checker.addError(fn.File, line, fmt.Sprintf("assert expects Bool, got %s", exprType))
 		}
+	case parser.ReportStatement:
+		checker.checkSemanticExpression(fn, current.Expression, locals, line)
 	case parser.AssignmentStatement:
 		assignment := assignmentStatement{Target: expressionSource(current.Target), Op: current.Operator, Expr: expressionSource(current.Expression)}
 		checker.checkAssignment(assignment, locals, fn.File, line)
@@ -1002,6 +1004,8 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 		case parser.ThrowStatement:
 			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
 		case parser.AssertStatement:
+			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
+		case parser.ReportStatement:
 			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
 		case parser.ExpressionStatement:
 			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)

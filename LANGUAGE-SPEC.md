@@ -49,6 +49,7 @@
 49. `Type` is the parent runtime metadata type for all language types. `SomeType.get_runtime_type_info()` returns metadata for serialization, data introspection, and memory layout interpretation.
 50. `assert expression;` is a builtin statement keyword. The expression must be `Bool`; runtime execution fails with an assertion error when it is false.
 51. CLI `doc --sourcefile=[...]` generates a static HTML documentation UI for one or more Klang source files.
+52. `report expression;` is a builtin runtime reporting statement. It evaluates the expression, prints the expression text, value, runtime type, and current stack trace, then continues execution.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -96,6 +97,7 @@ Rules
 - Variable names, function names, and function parameter names may contain Unicode identifier characters, Sinhala letters and marks, and emoji symbols. Identifiers cannot begin with a digit.
 - Use `TypeName.get_runtime_type_info()` to obtain a `Type` object. Its fields describe automated serialization hooks, introspection data such as field tables, and layout values such as byte size, alignment, and footprint.
 - Use `assert condition;` for runtime invariants. The checker requires the condition to be `Bool`.
+- Use `report value;` or `report FunctionCall();` to emit a live diagnostic report containing the evaluated value, runtime type, and stack frames. `report` accepts any expression, respects ordinary expression errors, and does not mutate the reported value.
 - Alias functions may contain trait and impl declarations in addition to hooks and extension methods.
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.
 - CLI `package` checks a program and writes a compact source bundle with `klang-build.json`.
@@ -110,3 +112,4 @@ Rules
 - Ordinary assignment of aggregate collection values such as `List`, `Map`, `Table`, and `SIMD` may share storage until one binding is mutated. Indexed mutation detaches the mutated binding first, preserving referential transparency for the other binding. Explicit `copy` and `clone` still request an eager cloned value.
 - Table mutation respects mutable bindings. `None()` and `Null` are stored as ordinary values and do not delete keys. Invalid key types such as `Table`, `List`, functions, refs, allocator values, and runtime objects produce diagnostics.
 - `Context` tracks the program name, entry point, selected backend, source files, and collected diagnostics. `ErrorContext` includes the failing phase (`SOURCE`, `MODULE`, `PARSE`, `TYPE`, `RUNTIME`, `BACKEND`, or `WASM`), location, source line, rule, message, and fix hint. CLI `check`, `run`, `package`, and WASM packaging must report through this structure.
+- Runtime errors raised inside function calls include a stack trace before the error leaves the active call stack. Loaded source files are parsed concurrently by the Go implementation and merged in source order before execution.

@@ -123,6 +123,8 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseThrow()
 	case lexer.TokenAssert:
 		return parser.parseAssert()
+	case lexer.TokenReport:
+		return parser.parseReport()
 	case lexer.TokenDefer:
 		return parser.parseDefer()
 	case lexer.TokenRun:
@@ -1319,6 +1321,16 @@ func (parser *Parser) parseAssert() Statement {
 	}
 }
 
+func (parser *Parser) parseReport() Statement {
+	start := parser.consume(lexer.TokenReport, "expected report")
+	expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
+	parser.consumeOptionalSemicolon()
+	return ReportStatement{
+		Pos:        positionFromToken(start),
+		Expression: expr,
+	}
+}
+
 func (parser *Parser) parseDefer() Statement {
 	start := parser.consume(lexer.TokenDefer, "expected defer")
 	if parser.check(lexer.TokenScopeBegin) {
@@ -1507,7 +1519,7 @@ func inlineStatementStart(tokens []lexer.Token) int {
 	for index, token := range tokens {
 		switch token.Type {
 		case lexer.TokenBreak, lexer.TokenContinue, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport,
-			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenAsync, lexer.TokenInline,
+			lexer.TokenThrow, lexer.TokenReport, lexer.TokenTry, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenAsync, lexer.TokenInline,
 			lexer.TokenPrivate, lexer.TokenDefer, lexer.TokenRun, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
 			return index
 		}
@@ -1829,7 +1841,7 @@ func (parser *Parser) synchronize() {
 		}
 		switch parser.current().Type {
 		case lexer.TokenFunc, lexer.TokenFuncGroup, lexer.TokenInner, lexer.TokenGlobal, lexer.TokenLocal, lexer.TokenExport, lexer.TokenReturn,
-			lexer.TokenThrow, lexer.TokenAssert, lexer.TokenTry, lexer.TokenCatch, lexer.TokenRun,
+			lexer.TokenThrow, lexer.TokenAssert, lexer.TokenReport, lexer.TokenTry, lexer.TokenCatch, lexer.TokenRun,
 			lexer.TokenIf, lexer.TokenUnless, lexer.TokenFor, lexer.TokenWhile,
 			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenAlias, lexer.TokenLazy,
 			lexer.TokenTrait, lexer.TokenImpl, lexer.TokenNameSpace:

@@ -250,6 +250,8 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
 	case parser.AssertStatement:
 		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
+	case parser.ReportStatement:
+		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
 	case parser.BreakStatement:
 		if !inLoop {
 			checker.addError(source, current.Pos.Line, "break is only allowed inside a loop")

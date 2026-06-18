@@ -2,6 +2,7 @@ package parser
 
 import (
 	"strings"
+	"sync"
 
 	sourcefile "kLang/src/engine/file"
 )
@@ -32,12 +33,18 @@ func ParseSource(source sourcefile.SourceFile) ParsedSource {
 func ParseLoadedProgram(program sourcefile.Program) ParsedProgram {
 	parsed := ParsedProgram{
 		Name:    program.Name,
-		Sources: make([]ParsedSource, 0, len(program.Files)),
+		Sources: make([]ParsedSource, len(program.Files)),
 	}
 
-	for _, source := range program.Files {
-		parsed.Sources = append(parsed.Sources, ParseSource(source))
+	var wait sync.WaitGroup
+	for index, source := range program.Files {
+		wait.Add(1)
+		go func(index int, source sourcefile.SourceFile) {
+			defer wait.Done()
+			parsed.Sources[index] = ParseSource(source)
+		}(index, source)
 	}
+	wait.Wait()
 	for _, source := range parsed.Sources {
 		if entry := entryPointFromStatements(source.Program.Statements, ""); entry != "" {
 			parsed.EntryPoint = entry

@@ -94,6 +94,7 @@ const (
 	TokenDefer      // defer
 	TokenRun        // run
 	TokenAssert     // assert
+	TokenReport     // report
 	TokenInner      // inner
 	TokenTrait      // trait
 	TokenImpl       // impl
@@ -161,6 +162,7 @@ var Keywords = map[string]TokenType{
 	"defer":          TokenDefer,
 	"run":            TokenRun,
 	"assert":         TokenAssert,
+	"report":         TokenReport,
 	"inner":          TokenInner,
 	"trait":          TokenTrait,
 	"impl":           TokenImpl,

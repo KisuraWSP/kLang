@@ -762,6 +762,33 @@ function Main() : Int {
 	}
 }
 
+func TestParseReportStatement(t *testing.T) {
+	program, errors := Parse(`
+function Main() : Int {
+    report value;
+    report BuildValue();
+    return 1;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn := program.Statements[0].(FunctionStatement)
+	first, ok := fn.Body[0].(ReportStatement)
+	if !ok {
+		t.Fatalf("expected report statement, got %T", fn.Body[0])
+	}
+	if first.Expression.Literal() != "value" {
+		t.Fatalf("unexpected report expression: %q", first.Expression.Literal())
+	}
+	second, ok := fn.Body[1].(ReportStatement)
+	if !ok {
+		t.Fatalf("expected second report statement, got %T", fn.Body[1])
+	}
+	if second.Expression.Literal() != "BuildValue ( )" {
+		t.Fatalf("unexpected second report expression: %q", second.Expression.Literal())
+	}
+}
+
 func TestParseChainedNamespaceAliasAndNamespaceAccess(t *testing.T) {
 	program, errors := Parse(`
 namespace std {

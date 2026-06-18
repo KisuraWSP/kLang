@@ -10,13 +10,6 @@
 - Allow support of assigning values to variables if a function supports multiple return types
 - allow support for hot/cold programs
    - this is the basis for a hot reloading code runtime environment/system
-- implement a new keyword "report" and langauage wide stack tracing for errors
-   ```lua
-      -- the report keyword can be used with either variables, functions, functions parameters/arguments
-      -- what this keyword does is that during the execution of the program it will give a live stack trace in which the data values of said item which u mentioned to report will show in a nice stack trace interface like the below and it displays it live
-      report t;
-      report test();
-   ```
 - add lsp plugin for vscode
 - In the programming language i want you to do this
 So whenever we start a program tell the go code to always run a .klang file called default_program.klang this is the main entry point program that is given first priority to users (do these once enough features are there to make it powerful)

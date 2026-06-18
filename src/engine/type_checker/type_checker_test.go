@@ -55,6 +55,34 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(badAssert), "assert expects Bool, got Int")
 }
 
+func TestCheckProgramAcceptsReportStatement(t *testing.T) {
+	program := programFromSource(`
+function BuildValue() : Int {
+    return 7;
+}
+
+function Main() : Int {
+    local Int value = 3;
+    report value;
+    report BuildValue();
+    return value;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected report program to type check, got: %v", report.Errors)
+	}
+
+	badReport := programFromSource(`
+function Main() : Int {
+    report missing;
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(badReport), `unknown identifier "missing"`)
+}
+
 func TestCheckProgramAcceptsUnicodeIdentifiersAndNumericLiteralBases(t *testing.T) {
 	program := programFromSource(`
 function එකතු(අගය : Int, 😀 : Int) : Int {

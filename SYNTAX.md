@@ -96,6 +96,10 @@ local Int මුළු = එකතු(1, 2);
 -- assert checks runtime invariants. The condition must be Bool.
 assert මුළු == 3;
 
+-- report prints a runtime diagnostic block with value, type, and stack frames.
+report මුළු;
+report එකතු(1, 2);
+
 -- shared builtin protocols
 -- Collection-like values expose the same .count property.
 local Int textCount = "hallo".count;

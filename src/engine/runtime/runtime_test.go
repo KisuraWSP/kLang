@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1608,6 +1609,47 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesStdlibArrayAlias(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd failed: %v", err)
+		}
+	}()
+
+	result := runSource(t, `
+import "array";
+
+function Main() : Int {
+    local List[Int] values = [1, 2, 3];
+    local T created = Array(values, len(values), 3);
+    local Array pushed = created.push(4);
+    local Array inserted = pushed.insert(1, 9);
+    local Array grown = inserted.set(0, 8);
+    local Array sliced = grown.slice(1, 4);
+    local Array removed = sliced.remove(2);
+    local Array window = removed.reverse();
+    local Option[Int] front = window.front();
+    local Option[Int] missing = window.fetch(20);
+    if not front.some or missing.some {
+        return 0;
+    }
+    return window.count() + window.get(0) + window.index_of(9) + grown.occurrences(9) + created.capacity_value();
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 10 {
+		t.Fatalf("expected stdlib Array alias program to return 10, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesStdlibTableCompatibilityHelpers(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -2047,6 +2089,53 @@ function Main() : Int {
 	assertRuntimeErrorContains(t, err, "uncaught exception: boom")
 }
 
+func TestRuntimeExecutesReportStatement(t *testing.T) {
+	result := runParsedSource(t, `
+function BuildValue() : Int {
+    local Int innerValue = 7;
+    report innerValue;
+    return innerValue;
+}
+
+function Main() : Int {
+    local Int value = 3;
+    report value;
+    report BuildValue();
+    return value;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 3 {
+		t.Fatalf("expected report program to return 3, got %#v", result.Value)
+	}
+	output := strings.Join(result.Output, "\n")
+	if !strings.Contains(output, "[report] value = 3 :: Int") {
+		t.Fatalf("expected report output for value, got %#v", result.Output)
+	}
+	if !strings.Contains(output, "[report] innerValue = 7 :: Int") || !strings.Contains(output, "BuildValue") {
+		t.Fatalf("expected report output with BuildValue stack frame, got %#v", result.Output)
+	}
+	if !strings.Contains(output, "[report] BuildValue ( ) = 7 :: Int") {
+		t.Fatalf("expected report output for function call, got %#v", result.Output)
+	}
+}
+
+func TestRuntimeAddsStackTraceToErrors(t *testing.T) {
+	_, err := runSourceWithError(`
+function Boom() : Int {
+    local List[Int] values = [1];
+    return values[4];
+}
+
+function Main() : Int {
+    return Boom();
+}
+`)
+	assertRuntimeErrorContains(t, err, "Stack trace:")
+	assertRuntimeErrorContains(t, err, "Boom")
+	assertRuntimeErrorContains(t, err, "Main")
+}
+
 func TestRuntimeExecutesAliasFunctionExtensionMethod(t *testing.T) {
 	result := runParsedSource(t, `
 alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
@@ -2379,7 +2468,7 @@ func runParsedSource(t *testing.T, source string) Result {
 func runParsedSourceWithError(source string) (Result, error) {
 	parsedProgram, errors := parser.Parse(source)
 	if len(errors) != 0 {
-		return Result{}, Error{Message: "parse failed"}
+		return Result{}, Error{Message: fmt.Sprintf("parse failed: %#v", errors)}
 	}
 
 	return New().Run(parser.ParsedProgram{

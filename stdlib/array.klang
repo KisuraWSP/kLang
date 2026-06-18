@@ -1,15 +1,215 @@
 -- List-backed array helpers.
 -- Klang region arrays require a concrete region, so this stdlib module exposes
--- portable array-style operations over List[T] values.
+-- portable array-style operations over List[T] values and an Array alias object
+-- that carries length/capacity metadata beside the underlying items.
 
-alias function Array[T: Any](region : #region(), size := region.sizeof, container : List[T]) : type = struct {
+alias function Array[T: Any](items : List[T], length : Int, capacity : Int, allocator = .DEFAULT) : type = struct {
     #extend {
         function count() : Int {
             return len(this.items);
         }
 
+        function len() : Int {
+            return len(this.items);
+        }
+
+        function capacity_value() : Int {
+            return this.capacity;
+        }
+
         function empty() : Bool {
             return len(this.items) == 0;
+        }
+
+        function values() : List[T] {
+            return clone (this.items as List[T]);
+        }
+
+        function get(index : Int) : T {
+            local List[T] items = this.items as List[T];
+            return items[index];
+        }
+
+        function fetch(index : Int) : Option[T] {
+            local List[T] items = this.items as List[T];
+            if index < 0 or index >= len(items) {
+                return None();
+            }
+            return Some(items[index]);
+        }
+
+        function front() : Option[T] {
+            return this.fetch(0);
+        }
+
+        function back() : Option[T] {
+            return this.fetch(len(this.items) - 1);
+        }
+
+        function clear() : Array {
+            local List[T] items;
+            return Array(items, 0, this.capacity, this.allocator);
+        }
+
+        function set(index : Int, value : T) : Array {
+            local mut List[T] items = clone (this.items as List[T]);
+            if index >= 0 and index < len(items) {
+                items[index] = value;
+            }
+            return Array(items, len(items), this.capacity, this.allocator);
+        }
+
+        function push(value : T) : Array {
+            local mut List[T] items = clone (this.items as List[T]);
+            items[len(items)] = value;
+            local mut Int nextCapacity = this.capacity;
+            if len(items) > nextCapacity {
+                nextCapacity = len(items);
+            }
+            return Array(items, len(items), nextCapacity, this.allocator);
+        }
+
+        function append(value : T) : Array {
+            return this.push(value);
+        }
+
+        function extend(extra : List[T]) : Array {
+            local mut List[T] items = clone (this.items as List[T]);
+            local mut Int index = 0;
+            while index < len(extra) {
+                items[len(items)] = extra[index];
+                index += 1;
+            }
+            local mut Int nextCapacity = this.capacity;
+            if len(items) > nextCapacity {
+                nextCapacity = len(items);
+            }
+            return Array(items, len(items), nextCapacity, this.allocator);
+        }
+
+        function insert(index : Int, value : T) : Array {
+            local List[T] source = this.items as List[T];
+            local mut List[T] items;
+            local mut Bool inserted = False;
+            local mut Int current = 0;
+
+            if index <= 0 {
+                items[len(items)] = value;
+                inserted = True;
+            }
+
+            while current < len(source) {
+                if not inserted and current == index {
+                    items[len(items)] = value;
+                    inserted = True;
+                }
+                items[len(items)] = source[current];
+                current += 1;
+            }
+
+            if not inserted {
+                items[len(items)] = value;
+            }
+
+            local mut Int nextCapacity = this.capacity;
+            if len(items) > nextCapacity {
+                nextCapacity = len(items);
+            }
+            return Array(items, len(items), nextCapacity, this.allocator);
+        }
+
+        function remove_at(index : Int) : Array {
+            local List[T] source = this.items as List[T];
+            local mut List[T] items;
+            local mut Int current = 0;
+            while current < len(source) {
+                if current != index {
+                    items[len(items)] = source[current];
+                }
+                current += 1;
+            }
+            return Array(items, len(items), this.capacity, this.allocator);
+        }
+
+        function remove(value : T) : Array {
+            local List[T] source = this.items as List[T];
+            local mut List[T] items;
+            local mut Bool removed = False;
+            local mut Int index = 0;
+            while index < len(source) {
+                if not removed and source[index] == value {
+                    removed = True;
+                } else {
+                    items[len(items)] = source[index];
+                }
+                index += 1;
+            }
+            return Array(items, len(items), this.capacity, this.allocator);
+        }
+
+        function pop() : Array {
+            if len(this.items) == 0 {
+                return this.clear();
+            }
+            return this.remove_at(len(this.items) - 1);
+        }
+
+        function slice(start : Int, stop : Int) : Array {
+            local List[T] source = this.items as List[T];
+            local mut List[T] items;
+            local mut Int index = start;
+            local mut Int limit = stop;
+            if index < 0 {
+                index = 0;
+            }
+            if limit > len(source) {
+                limit = len(source);
+            }
+            while index < limit {
+                items[len(items)] = source[index];
+                index += 1;
+            }
+            return Array(items, len(items), this.capacity, this.allocator);
+        }
+
+        function reverse() : Array {
+            local List[T] source = this.items as List[T];
+            local mut List[T] items;
+            local mut Int index = len(source) - 1;
+            while index >= 0 {
+                items[len(items)] = source[index];
+                index -= 1;
+            }
+            return Array(items, len(items), this.capacity, this.allocator);
+        }
+
+        function index_of(value : T) : Int {
+            local List[T] items = this.items as List[T];
+            local mut Int index = 0;
+            while index < len(items) {
+                if items[index] == value {
+                    return index;
+                }
+                index += 1;
+            }
+            return 0 - 1;
+        }
+
+        function contains(value : T) : Bool {
+            return this.index_of(value) >= 0;
+        }
+
+        function occurrences(value : T) : Int {
+            local List[T] items = this.items as List[T];
+            local mut Int total = 0;
+            local mut Int index = 0;
+            while index < len(items) {
+                if items[index] == value {
+                    total += 1;
+                }
+                index += 1;
+            }
+            return total;
         }
     }
 }
@@ -20,6 +220,7 @@ namespace array {
     --- Summary: Returns True when values has no elements.
     --- Contract: Preserve this function-style API; array operations are not methods.
     function empty(values : List[T]) : Bool {
+        _ = values;
         return len(values) == 0;
     }
 
@@ -36,6 +237,7 @@ namespace array {
     --- Summary: Returns the usable capacity for the List-backed array.
     --- Contract: List-backed arrays expose their current length as capacity.
     function capacity(values : List[T]) : Int {
+        _ = values;
         return len(values);
     }
 
@@ -44,6 +246,7 @@ namespace array {
     --- Summary: Returns an eager copy of values.
     --- Contract: Preserve this function-style API; array operations are not methods.
     function copy(values : List[T]) : List[T] {
+        _ = values;
         return copy values;
     }
 
@@ -52,6 +255,7 @@ namespace array {
     --- Summary: Returns an empty array with the same element type.
     --- Contract: Preserve this function-style API; array operations are not methods.
     function clear(values : List[T]) : List[T] {
+        _ = values;
         local List[T] result;
         return result;
     }

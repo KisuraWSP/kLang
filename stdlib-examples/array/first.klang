@@ -1,0 +1,546 @@
+import "array";
+
+function PrintDivider(title : String) : Int {
+    print("");
+    print("============================================================");
+    print(title);
+    print("============================================================");
+    return len(title);
+}
+
+function PrintIntList(label : String, values : List[Int]) : Int {
+    print(label, values);
+    return len(values);
+}
+
+function PrintStringList(label : String, values : List[String]) : Int {
+    print(label, values);
+    return len(values);
+}
+
+function RequireInt(name : String, actual : Int, expected : Int) : Int {
+    print("check", name, actual, expected);
+    assert actual == expected;
+    return actual;
+}
+
+function RequireBool(name : String, actual : Bool, expected : Bool) : Int {
+    print("check", name, actual, expected);
+    assert actual == expected;
+    if actual == expected {
+        return 1;
+    }
+    return 0;
+}
+
+function RequireString(name : String, actual : String, expected : String) : Int {
+    print("check", name, actual, expected);
+    assert actual == expected;
+    return len(actual);
+}
+
+function RequireSomeInt(name : String, item : Option[Int], expected : Int) : Int {
+    print("check", name, item);
+    if item.some {
+        local Int value = item.value;
+        assert value == expected;
+        return value;
+    }
+    assert False;
+    return 0;
+}
+
+function RequireNoneInt(name : String, item : Option[Int]) : Int {
+    print("check", name, item);
+    assert not item.some;
+    return 0;
+}
+
+function RequireSomeString(name : String, item : Option[String], expected : String) : Int {
+    print("check", name, item);
+    if item.some {
+        local String value = item.value;
+        assert value == expected;
+        return len(value);
+    }
+    assert False;
+    return 0;
+}
+
+function RequireNoneString(name : String, item : Option[String]) : Int {
+    print("check", name, item);
+    assert not item.some;
+    return 0;
+}
+
+function ShowNamespaceBasics() : Int {
+    PrintDivider("namespace helpers: basic shape and safe reads");
+
+    local List[Int] emptyValues;
+    local List[Int] values = [4, 2, 4, 8];
+    local List[Int] copied = array.copy(values);
+    local List[Int] cleared = array.clear(values);
+
+    PrintIntList("emptyValues", emptyValues);
+    PrintIntList("values", values);
+    PrintIntList("copied", copied);
+    PrintIntList("cleared", cleared);
+
+    RequireBool("array.empty(emptyValues)", array.empty(emptyValues), True);
+    RequireBool("array.empty(values)", array.empty(values), False);
+    RequireInt("array.len(emptyValues)", array.len(emptyValues), 0);
+    RequireInt("array.len(values)", array.len(values), 4);
+    RequireInt("array.capacity(values)", array.capacity(values), 4);
+    RequireInt("array.capacity(cleared)", array.capacity(cleared), 0);
+    RequireInt("array.get(values, 0)", array.get(values, 0), 4);
+    RequireInt("array.get(values, 3)", array.get(values, 3), 8);
+    RequireSomeInt("array.fetch(values, 1)", array.fetch(values, 1), 2);
+    RequireNoneInt("array.fetch(values, -1)", array.fetch(values, -1));
+    RequireNoneInt("array.fetch(values, 99)", array.fetch(values, 99));
+    RequireSomeInt("array.front(values)", array.front(values), 4);
+    RequireSomeInt("array.back(values)", array.back(values), 8);
+    RequireNoneInt("array.front(emptyValues)", array.front(emptyValues));
+    RequireNoneInt("array.back(emptyValues)", array.back(emptyValues));
+
+    local mut Int total = 0;
+    total += array.len(values);
+    total += array.len(copied);
+    total += array.len(cleared);
+    total += array.get(copied, 0);
+    total += array.get(copied, 3);
+
+    return total;
+}
+
+function ShowNamespaceMutationReturns() : Int {
+    PrintDivider("namespace helpers: mutation-style operations return new lists");
+
+    local List[Int] original = [10, 20, 30];
+    local List[Int] pushed = array.push(original, 40);
+    local List[Int] appended = array.append(pushed, 50);
+    local List[Int] extended = array.extend(appended, [60, 70]);
+    local List[Int] insertedFront = array.insert(extended, 0, 5);
+    local List[Int] insertedMiddle = array.insert(insertedFront, 3, 25);
+    local List[Int] insertedBack = array.insert(insertedMiddle, 99, 80);
+    local List[Int] setFirst = array.set(insertedBack, 0, 1);
+    local List[Int] unchangedSet = array.set(setFirst, 99, 999);
+
+    PrintIntList("original", original);
+    PrintIntList("pushed", pushed);
+    PrintIntList("appended", appended);
+    PrintIntList("extended", extended);
+    PrintIntList("insertedFront", insertedFront);
+    PrintIntList("insertedMiddle", insertedMiddle);
+    PrintIntList("insertedBack", insertedBack);
+    PrintIntList("setFirst", setFirst);
+    PrintIntList("unchangedSet", unchangedSet);
+
+    RequireInt("original length remains 3", array.len(original), 3);
+    RequireInt("pushed appends 40", array.back(pushed).value, 40);
+    RequireInt("appended appends 50", array.back(appended).value, 50);
+    RequireInt("extended appends final 70", array.back(extended).value, 70);
+    RequireInt("front insert", array.get(insertedFront, 0), 5);
+    RequireInt("middle insert", array.get(insertedMiddle, 3), 25);
+    RequireInt("back insert", array.back(insertedBack).value, 80);
+    RequireInt("set first", array.get(setFirst, 0), 1);
+    RequireInt("out-of-bounds set keeps length", array.len(unchangedSet), array.len(setFirst));
+
+    local mut Int score = 0;
+    score += array.len(original);
+    score += array.len(pushed);
+    score += array.len(appended);
+    score += array.len(extended);
+    score += array.len(insertedFront);
+    score += array.len(insertedMiddle);
+    score += array.len(insertedBack);
+    score += array.get(setFirst, 0);
+
+    return score;
+}
+
+function ShowNamespaceRemovalAndSearch() : Int {
+    PrintDivider("namespace helpers: removal, slicing, reversing, and searching");
+
+    local List[Int] values = [1, 9, 2, 9, 3, 9, 4];
+    local List[Int] withoutIndex = array.remove_at(values, 2);
+    local List[Int] withoutMissingIndex = array.remove_at(values, 99);
+    local List[Int] withoutFirstNine = array.remove(values, 9);
+    local List[Int] withoutMissingValue = array.remove(values, 42);
+    local List[Int] popped = array.pop(values);
+    local List[Int] poppedEmpty = array.pop(array.clear(values));
+    local List[Int] sliceMiddle = array.slice(values, 1, 5);
+    local List[Int] sliceClamped = array.slice(values, -10, 3);
+    local List[Int] sliceEmpty = array.slice(values, 5, 2);
+    local List[Int] reversed = array.reverse(values);
+
+    PrintIntList("values", values);
+    PrintIntList("withoutIndex", withoutIndex);
+    PrintIntList("withoutMissingIndex", withoutMissingIndex);
+    PrintIntList("withoutFirstNine", withoutFirstNine);
+    PrintIntList("withoutMissingValue", withoutMissingValue);
+    PrintIntList("popped", popped);
+    PrintIntList("poppedEmpty", poppedEmpty);
+    PrintIntList("sliceMiddle", sliceMiddle);
+    PrintIntList("sliceClamped", sliceClamped);
+    PrintIntList("sliceEmpty", sliceEmpty);
+    PrintIntList("reversed", reversed);
+
+    RequireInt("withoutIndex length", array.len(withoutIndex), 6);
+    RequireInt("withoutIndex removed value at index 2", array.get(withoutIndex, 2), 9);
+    RequireInt("withoutMissingIndex unchanged", array.len(withoutMissingIndex), 7);
+    RequireInt("withoutFirstNine length", array.len(withoutFirstNine), 6);
+    RequireInt("withoutFirstNine new index 1", array.get(withoutFirstNine, 1), 2);
+    RequireInt("withoutMissingValue unchanged", array.len(withoutMissingValue), 7);
+    RequireInt("popped length", array.len(popped), 6);
+    RequireInt("popped last", array.back(popped).value, 9);
+    RequireInt("poppedEmpty length", array.len(poppedEmpty), 0);
+    RequireInt("sliceMiddle length", array.len(sliceMiddle), 4);
+    RequireInt("sliceMiddle first", array.get(sliceMiddle, 0), 9);
+    RequireInt("sliceClamped length", array.len(sliceClamped), 3);
+    RequireInt("sliceEmpty length", array.len(sliceEmpty), 0);
+    RequireInt("reversed first", array.get(reversed, 0), 4);
+    RequireInt("reversed last", array.back(reversed).value, 1);
+    RequireInt("index_of first nine", array.index_of(values, 9), 1);
+    RequireInt("index_of missing", array.index_of(values, 42), 0 - 1);
+    RequireBool("contains present", array.contains(values, 3), True);
+    RequireBool("contains missing", array.contains(values, 42), False);
+    RequireInt("count nines", array.count(values, 9), 3);
+
+    local mut Int score = 0;
+    score += array.len(withoutIndex);
+    score += array.len(withoutFirstNine);
+    score += array.len(popped);
+    score += array.len(sliceMiddle);
+    score += array.len(reversed);
+    score += array.count(values, 9);
+
+    return score;
+}
+
+function ShowStringArrays() : Int {
+    PrintDivider("namespace helpers: strings and generic values");
+
+    local List[String] names = ["kirin", "mango", "kirin"];
+    local List[String] withTea = array.push(names, "tea");
+    local List[String] inserted = array.insert(withTea, 1, "coconut");
+    local List[String] withoutMango = array.remove(inserted, "mango");
+    local List[String] reversed = array.reverse(withoutMango);
+    local List[String] window = array.slice(reversed, 1, 3);
+
+    PrintStringList("names", names);
+    PrintStringList("withTea", withTea);
+    PrintStringList("inserted", inserted);
+    PrintStringList("withoutMango", withoutMango);
+    PrintStringList("reversed", reversed);
+    PrintStringList("window", window);
+
+    RequireString("front name", array.front(names).value, "kirin");
+    RequireString("back withTea", array.back(withTea).value, "tea");
+    RequireString("inserted coconut", array.get(inserted, 1), "coconut");
+    RequireString("withoutMango index 2", array.get(withoutMango, 2), "kirin");
+    RequireString("reversed first", array.get(reversed, 0), "tea");
+    RequireString("window first", array.get(window, 0), "kirin");
+    RequireSomeString("fetch string", array.fetch(window, 1), "coconut");
+    RequireNoneString("fetch string missing", array.fetch(window, 10));
+    RequireInt("string index_of", array.index_of(withoutMango, "kirin"), 0);
+    RequireInt("string count", array.count(withoutMango, "kirin"), 2);
+    RequireBool("string contains tea", array.contains(reversed, "tea"), True);
+
+    return array.len(names) + array.len(withTea) + array.len(inserted) + array.len(withoutMango) + array.len(reversed) + array.len(window);
+}
+
+function ShowAliasBasics() : Int {
+    PrintDivider("Array alias: constructor, metadata, reads, and safe fetches");
+
+    local List[Int] seed = [3, 6, 9];
+    local T created = Array(seed, len(seed), 8);
+    local List[Int] snapshot = created.values();
+    local Array cleared = created.clear();
+
+    PrintIntList("seed", seed);
+    PrintIntList("snapshot", snapshot);
+    PrintIntList("cleared.values", cleared.values());
+
+    RequireInt("created.count()", created.count(), 3);
+    RequireInt("created.len()", created.len(), 3);
+    RequireInt("created.capacity_value()", created.capacity_value(), 8);
+    RequireBool("created.empty()", created.empty(), False);
+    RequireBool("cleared.empty()", cleared.empty(), True);
+    RequireInt("cleared keeps capacity metadata", cleared.capacity_value(), 8);
+    RequireInt("created.get(0)", created.get(0), 3);
+    RequireInt("created.get(2)", created.get(2), 9);
+    RequireSomeInt("created.fetch(1)", created.fetch(1), 6);
+    RequireNoneInt("created.fetch(-1)", created.fetch(0 - 1));
+    RequireNoneInt("created.fetch(20)", created.fetch(20));
+    RequireSomeInt("created.front()", created.front(), 3);
+    RequireSomeInt("created.back()", created.back(), 9);
+    RequireNoneInt("cleared.front()", cleared.front());
+    RequireNoneInt("cleared.back()", cleared.back());
+
+    local mut Int score = 0;
+    score += created.count();
+    score += created.len();
+    score += created.capacity_value();
+    score += cleared.len();
+    score += created.get(0);
+    score += created.get(2);
+
+    return score;
+}
+
+function ShowAliasFunctionalUpdates() : Int {
+    PrintDivider("Array alias: functional updates and copy-on-write style");
+
+    local List[Int] seed = [2, 4, 6];
+    local T base = Array(seed, len(seed), 3);
+    local Array pushed = base.push(8);
+    local Array appended = pushed.append(10);
+    local Array extended = appended.extend([12, 14]);
+    local Array insertedFront = extended.insert(0, 1);
+    local Array insertedMiddle = insertedFront.insert(4, 7);
+    local Array insertedBack = insertedMiddle.insert(99, 16);
+    local Array setFirst = insertedBack.set(0, 100);
+    local Array unchangedSet = setFirst.set(999, 0);
+
+    PrintIntList("base.values", base.values());
+    PrintIntList("pushed.values", pushed.values());
+    PrintIntList("appended.values", appended.values());
+    PrintIntList("extended.values", extended.values());
+    PrintIntList("insertedFront.values", insertedFront.values());
+    PrintIntList("insertedMiddle.values", insertedMiddle.values());
+    PrintIntList("insertedBack.values", insertedBack.values());
+    PrintIntList("setFirst.values", setFirst.values());
+    PrintIntList("unchangedSet.values", unchangedSet.values());
+
+    RequireInt("base remains length 3", base.len(), 3);
+    RequireInt("pushed length", pushed.len(), 4);
+    RequireInt("appended length", appended.len(), 5);
+    RequireInt("extended length", extended.len(), 7);
+    RequireInt("insertedFront first", insertedFront.get(0), 1);
+    RequireInt("insertedMiddle index 4", insertedMiddle.get(4), 7);
+    RequireInt("insertedBack last", insertedBack.back().value, 16);
+    RequireInt("setFirst first", setFirst.get(0), 100);
+    RequireInt("unchangedSet length", unchangedSet.len(), setFirst.len());
+    RequireInt("capacity grows after push", pushed.capacity_value(), 4);
+    RequireInt("capacity grows after extend", extended.capacity_value(), 7);
+
+    local mut Int score = 0;
+    score += base.len();
+    score += pushed.len();
+    score += appended.len();
+    score += extended.len();
+    score += insertedFront.len();
+    score += insertedMiddle.len();
+    score += insertedBack.len();
+    score += setFirst.get(0);
+
+    return score;
+}
+
+function ShowAliasRemovalAndSearch() : Int {
+    PrintDivider("Array alias: removal, slices, reverse, and search");
+
+    local List[Int] seed = [5, 1, 5, 2, 5, 3, 5];
+    local T base = Array(seed, len(seed), 7);
+    local Array withoutIndex = base.remove_at(3);
+    local Array withoutMissingIndex = base.remove_at(99);
+    local Array withoutFirstFive = base.remove(5);
+    local Array withoutMissingValue = base.remove(100);
+    local Array popped = base.pop();
+    local Array empty = base.clear();
+    local Array poppedEmpty = empty.pop();
+    local Array sliceMiddle = base.slice(1, 5);
+    local Array sliceClamped = base.slice(0 - 20, 2);
+    local Array sliceEmpty = base.slice(5, 2);
+    local Array reversed = base.reverse();
+
+    PrintIntList("base.values", base.values());
+    PrintIntList("withoutIndex.values", withoutIndex.values());
+    PrintIntList("withoutMissingIndex.values", withoutMissingIndex.values());
+    PrintIntList("withoutFirstFive.values", withoutFirstFive.values());
+    PrintIntList("withoutMissingValue.values", withoutMissingValue.values());
+    PrintIntList("popped.values", popped.values());
+    PrintIntList("poppedEmpty.values", poppedEmpty.values());
+    PrintIntList("sliceMiddle.values", sliceMiddle.values());
+    PrintIntList("sliceClamped.values", sliceClamped.values());
+    PrintIntList("sliceEmpty.values", sliceEmpty.values());
+    PrintIntList("reversed.values", reversed.values());
+
+    RequireInt("withoutIndex length", withoutIndex.len(), 6);
+    RequireInt("withoutIndex index 3 shifted", withoutIndex.get(3), 5);
+    RequireInt("withoutMissingIndex unchanged", withoutMissingIndex.len(), 7);
+    RequireInt("withoutFirstFive length", withoutFirstFive.len(), 6);
+    RequireInt("withoutFirstFive first", withoutFirstFive.get(0), 1);
+    RequireInt("withoutMissingValue unchanged", withoutMissingValue.len(), 7);
+    RequireInt("popped length", popped.len(), 6);
+    RequireInt("popped back", popped.back().value, 3);
+    RequireInt("poppedEmpty length", poppedEmpty.len(), 0);
+    RequireInt("sliceMiddle length", sliceMiddle.len(), 4);
+    RequireInt("sliceMiddle front", sliceMiddle.front().value, 1);
+    RequireInt("sliceClamped length", sliceClamped.len(), 2);
+    RequireInt("sliceEmpty length", sliceEmpty.len(), 0);
+    RequireInt("reversed first", reversed.get(0), 5);
+    RequireInt("reversed second", reversed.get(1), 3);
+    RequireInt("index_of 2", base.index_of(2), 3);
+    RequireInt("index_of missing", base.index_of(44), 0 - 1);
+    RequireBool("contains present", base.contains(3), True);
+    RequireBool("contains missing", base.contains(44), False);
+    RequireInt("occurrences 5", base.occurrences(5), 4);
+
+    local mut Int score = 0;
+    score += withoutIndex.len();
+    score += withoutFirstFive.len();
+    score += popped.len();
+    score += sliceMiddle.len();
+    score += reversed.len();
+    score += base.occurrences(5);
+
+    return score;
+}
+
+function ShowAliasStringWorkflow() : Int {
+    PrintDivider("Array alias: strings and generic workflow");
+
+    local List[String] seed = ["red", "green", "blue"];
+    local T colors = Array(seed, len(seed), 3);
+    local Array withAmber = colors.push("amber");
+    local Array inserted = withAmber.insert(1, "white");
+    local Array renamed = inserted.set(2, "lime");
+    local Array withoutRed = renamed.remove("red");
+    local Array reversed = withoutRed.reverse();
+    local Array window = reversed.slice(1, 3);
+
+    PrintStringList("colors.values", colors.values());
+    PrintStringList("withAmber.values", withAmber.values());
+    PrintStringList("inserted.values", inserted.values());
+    PrintStringList("renamed.values", renamed.values());
+    PrintStringList("withoutRed.values", withoutRed.values());
+    PrintStringList("reversed.values", reversed.values());
+    PrintStringList("window.values", window.values());
+
+    RequireString("colors front", colors.front().value, "red");
+    RequireString("withAmber back", withAmber.back().value, "amber");
+    RequireString("inserted index 1", inserted.get(1), "white");
+    RequireString("renamed index 2", renamed.get(2), "lime");
+    RequireString("withoutRed first", withoutRed.get(0), "white");
+    RequireString("reversed first", reversed.get(0), "amber");
+    RequireSomeString("window fetch 0", window.fetch(0), "blue");
+    RequireSomeString("window fetch 1", window.fetch(1), "lime");
+    RequireNoneString("window missing", window.fetch(99));
+    RequireInt("index_of amber", reversed.index_of("amber"), 0);
+    RequireBool("contains white", window.contains("lime"), True);
+    RequireInt("occurrences lime", window.occurrences("lime"), 1);
+
+    return colors.len() + withAmber.len() + inserted.len() + renamed.len() + withoutRed.len() + reversed.len() + window.len();
+}
+
+function ShowInteroperability() : Int {
+    PrintDivider("interoperability: move between Array objects and array.* helpers");
+
+    local List[Int] raw = [11, 22, 33, 44];
+    local T object = Array(raw, len(raw), 4);
+    local List[Int] objectValues = object.values();
+    local List[Int] helperPushed = array.push(objectValues, 55);
+    local Array objectAgain = Array(helperPushed, array.len(helperPushed), array.capacity(helperPushed));
+    local Array objectReversed = objectAgain.reverse();
+    local List[Int] listAgain = objectReversed.values();
+    local List[Int] helperSlice = array.slice(listAgain, 1, 4);
+    local Array finalObject = Array(helperSlice, array.len(helperSlice), objectReversed.capacity_value());
+
+    PrintIntList("raw", raw);
+    PrintIntList("objectValues", objectValues);
+    PrintIntList("helperPushed", helperPushed);
+    PrintIntList("objectAgain.values", objectAgain.values());
+    PrintIntList("objectReversed.values", objectReversed.values());
+    PrintIntList("listAgain", listAgain);
+    PrintIntList("helperSlice", helperSlice);
+    PrintIntList("finalObject.values", finalObject.values());
+
+    RequireInt("object count", object.count(), 4);
+    RequireInt("helper pushed length", array.len(helperPushed), 5);
+    RequireInt("objectAgain back", objectAgain.back().value, 55);
+    RequireInt("objectReversed front", objectReversed.front().value, 55);
+    RequireInt("helperSlice first", array.get(helperSlice, 0), 44);
+    RequireInt("finalObject length", finalObject.len(), 3);
+    RequireInt("finalObject capacity carries metadata", finalObject.capacity_value(), 5);
+
+    return object.len() + array.len(helperPushed) + objectAgain.len() + objectReversed.len() + array.len(helperSlice) + finalObject.len();
+}
+
+function ShowEdgeCases() : Int {
+    PrintDivider("edge cases: empty values, negative indexes, and absent items");
+
+    local List[Int] emptyList;
+    local List[Int] numbers = [7, 8];
+    local T emptyObject = Array(emptyList, 0, 0);
+    local T numberObject = Array(numbers, len(numbers), 2);
+    local List[Int] sliceNegative = array.slice(numbers, 0 - 99, 1);
+    local List[Int] slicePastEnd = array.slice(numbers, 1, 99);
+    local Array objectSliceNegative = numberObject.slice(0 - 99, 1);
+    local Array objectSlicePastEnd = numberObject.slice(1, 99);
+
+    PrintIntList("emptyList", emptyList);
+    PrintIntList("numbers", numbers);
+    PrintIntList("sliceNegative", sliceNegative);
+    PrintIntList("slicePastEnd", slicePastEnd);
+    PrintIntList("emptyObject.values", emptyObject.values());
+    PrintIntList("objectSliceNegative.values", objectSliceNegative.values());
+    PrintIntList("objectSlicePastEnd.values", objectSlicePastEnd.values());
+
+    RequireBool("array.empty(emptyList)", array.empty(emptyList), True);
+    RequireNoneInt("array.front(emptyList)", array.front(emptyList));
+    RequireNoneInt("array.back(emptyList)", array.back(emptyList));
+    RequireNoneInt("array.fetch(emptyList, 0)", array.fetch(emptyList, 0));
+    RequireInt("array.index_of empty", array.index_of(emptyList, 7), 0 - 1);
+    RequireBool("array.contains empty", array.contains(emptyList, 7), False);
+    RequireInt("array.count empty", array.count(emptyList, 7), 0);
+    RequireInt("sliceNegative first", array.get(sliceNegative, 0), 7);
+    RequireInt("slicePastEnd first", array.get(slicePastEnd, 0), 8);
+    RequireBool("emptyObject.empty()", emptyObject.empty(), True);
+    RequireNoneInt("emptyObject.front()", emptyObject.front());
+    RequireNoneInt("emptyObject.back()", emptyObject.back());
+    RequireNoneInt("emptyObject.fetch(0)", emptyObject.fetch(0));
+    RequireInt("emptyObject.index_of(7)", emptyObject.index_of(7), 0 - 1);
+    RequireBool("emptyObject.contains(7)", emptyObject.contains(7), False);
+    RequireInt("emptyObject.occurrences(7)", emptyObject.occurrences(7), 0);
+    RequireInt("objectSliceNegative first", objectSliceNegative.get(0), 7);
+    RequireInt("objectSlicePastEnd first", objectSlicePastEnd.get(0), 8);
+
+    return array.len(sliceNegative) + array.len(slicePastEnd) + objectSliceNegative.len() + objectSlicePastEnd.len();
+}
+
+function Main() : Int {
+    PrintDivider("array.klang complete example");
+    print("This program covers the namespace helpers and the Array alias object.");
+    print("It returns 0 when every assertion succeeds.");
+
+    local Int namespaceBasics = ShowNamespaceBasics();
+    local Int namespaceMutations = ShowNamespaceMutationReturns();
+    local Int namespaceRemoval = ShowNamespaceRemovalAndSearch();
+    local Int strings = ShowStringArrays();
+    local Int aliasBasics = ShowAliasBasics();
+    local Int aliasUpdates = ShowAliasFunctionalUpdates();
+    local Int aliasRemoval = ShowAliasRemovalAndSearch();
+    local Int aliasStrings = ShowAliasStringWorkflow();
+    local Int interoperability = ShowInteroperability();
+    local Int edgeCases = ShowEdgeCases();
+
+    local Int total = namespaceBasics + namespaceMutations + namespaceRemoval + strings + aliasBasics + aliasUpdates + aliasRemoval + aliasStrings + interoperability + edgeCases;
+
+    print("");
+    print("summary");
+    print("namespaceBasics", namespaceBasics);
+    print("namespaceMutations", namespaceMutations);
+    print("namespaceRemoval", namespaceRemoval);
+    print("strings", strings);
+    print("aliasBasics", aliasBasics);
+    print("aliasUpdates", aliasUpdates);
+    print("aliasRemoval", aliasRemoval);
+    print("aliasStrings", aliasStrings);
+    print("interoperability", interoperability);
+    print("edgeCases", edgeCases);
+    print("total", total);
+
+    assert total == 382;
+    return 0;
+}

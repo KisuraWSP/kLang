@@ -360,6 +360,62 @@ func (runtime *Runtime) outputLines() []string {
 	return append([]string(nil), runtime.output.Lines...)
 }
 
+func (runtime *Runtime) reportValue(label string, value Value, pos parser.Position) {
+	if strings.TrimSpace(label) == "" {
+		label = "<expression>"
+	}
+	lines := []string{
+		fmt.Sprintf("[report] %s = %s :: %s", label, valueString(value), runtimeTypeName(value)),
+	}
+	frames := runtime.stackTraceLines(pos)
+	if len(frames) == 0 {
+		lines = append(lines, "  at <top-level>")
+	} else {
+		for _, frame := range frames {
+			lines = append(lines, "  at "+frame)
+		}
+	}
+	runtime.appendOutput(strings.Join(lines, "\n"))
+}
+
+func (runtime *Runtime) errorWithStack(err error) error {
+	if err == nil {
+		return nil
+	}
+	message := err.Error()
+	if strings.Contains(message, "Stack trace:") {
+		return err
+	}
+	frames := runtime.stackTraceLines(parser.Position{})
+	if len(frames) == 0 {
+		return err
+	}
+	return Error{Message: message + "\nStack trace:\n  at " + strings.Join(frames, "\n  at ")}
+}
+
+func (runtime *Runtime) stackTraceLines(pos parser.Position) []string {
+	frames := make([]string, 0, len(runtime.callStack)+1)
+	if len(runtime.callStack) == 0 {
+		if pos.Line > 0 {
+			frames = append(frames, fmt.Sprintf("<top-level>:%d:%d", pos.Line, pos.Column))
+		}
+		return frames
+	}
+	for index := len(runtime.callStack) - 1; index >= 0; index-- {
+		name := runtime.callStack[index]
+		file := runtime.functionFiles[name]
+		frame := name
+		if file != "" {
+			frame += " (" + file + ")"
+		}
+		frames = append(frames, frame)
+	}
+	if pos.Line > 0 {
+		frames = append(frames, fmt.Sprintf("<report>:%d:%d", pos.Line, pos.Column))
+	}
+	return frames
+}
+
 func (runtime *Runtime) childRuntime() *Runtime {
 	child := &Runtime{
 		memory:          runtime.memory,
@@ -811,6 +867,13 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		if !value.Data.(bool) {
 			return signal{}, errorAt(current.Pos, "assertion failed")
 		}
+		return signal{kind: signalNone}, nil
+	case parser.ReportStatement:
+		value, err := runtime.evalExpression(current.Expression.Node, env)
+		if err != nil {
+			return signal{}, err
+		}
+		runtime.reportValue(current.Expression.Literal(), value, current.Pos)
 		return signal{kind: signalNone}, nil
 	case parser.BreakStatement:
 		if !inLoop {
@@ -2148,7 +2211,7 @@ func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
 	return runtime.callFunctionMode(name, args, true)
 }
 
-func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bool) (Value, error) {
+func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bool) (result Value, err error) {
 	name = runtime.resolveAliasPath(name)
 	if typeName, ok := runtimeTypeInfoCallTarget(name); ok {
 		if len(args) != 0 {
@@ -2710,6 +2773,9 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 	runtime.callDepth++
 	runtime.callStack = append(runtime.callStack, resolvedName)
 	defer func() {
+		if err != nil {
+			err = runtime.errorWithStack(err)
+		}
 		runtime.callDepth--
 		runtime.callStack = runtime.callStack[:len(runtime.callStack)-1]
 	}()
