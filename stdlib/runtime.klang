@@ -1,4 +1,4 @@
-module(disabled : True);
+module(disabled : False);
 
 -- Runtime helpers around debugger, concurrency, atomic, and workspace builtins.
 
@@ -141,10 +141,77 @@ namespace runtime {
     }
 
     namespace debug {
-        -- The call-site magic names are runtime builtins:
-        -- runtime.debug.__LOC__(), __FILE__(), __LINE__(), __MODULE__(),
-        -- __POS__(), __FUNCTION__(), __LOC_OF__(value), __LINE_OF__(value),
-        -- and __POS_OF__(value).
+        --- Signature: function __LOC__() : String
+        --- Returns: String.
+        --- Summary: Returns a formatted location for this call site.
+        --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        function __LOC__() : String {
+            return runtime_debug_loc();
+        }
+
+        --- Signature: function __FILE__() : String
+        --- Returns: String.
+        --- Summary: Returns the source file for this call site.
+        --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        function __FILE__() : String {
+            return runtime_debug_file();
+        }
+
+        --- Signature: function __LINE__() : Int
+        --- Returns: Int.
+        --- Summary: Returns the source line for this call site.
+        --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        function __LINE__() : Int {
+            return runtime_debug_line();
+        }
+
+        --- Signature: function __MODULE__() : String
+        --- Returns: String.
+        --- Summary: Returns the module name for this call site.
+        --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        function __MODULE__() : String {
+            return runtime_debug_module();
+        }
+
+        --- Signature: function __POS__() : Table
+        --- Returns: Table.
+        --- Summary: Returns file, line, start_column, and end_column for this call site.
+        --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        function __POS__() : Table {
+            return runtime_debug_pos();
+        }
+
+        --- Signature: function __FUNCTION__() : String
+        --- Returns: String.
+        --- Summary: Returns the current function name for this call site.
+        --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        function __FUNCTION__() : String {
+            return runtime_debug_function();
+        }
+
+        --- Signature: function __LOC_OF__(value : T) : Table
+        --- Returns: Table.
+        --- Summary: Returns a table containing loc and value for this call site.
+        --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        function __LOC_OF__(value : T) : Table {
+            return runtime_debug_loc_of(value);
+        }
+
+        --- Signature: function __LINE_OF__(value : T) : Table
+        --- Returns: Table.
+        --- Summary: Returns a table containing line and value for this call site.
+        --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        function __LINE_OF__(value : T) : Table {
+            return runtime_debug_line_of(value);
+        }
+
+        --- Signature: function __POS_OF__(value : T) : Table
+        --- Returns: Table.
+        --- Summary: Returns a table containing pos and value for this call site.
+        --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        function __POS_OF__(value : T) : Table {
+            return runtime_debug_pos_of(value);
+        }
 
         --- Signature: function Loc() : String
         --- Returns: String.
