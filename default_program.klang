@@ -1,20 +1,460 @@
--- this code is always executed by the go compiler which passes into our runtime and 
--- will do the same behave as the main functions in both the wasm main and the normal
--- main made by the go lang
--- only do this once the runtime is powerful enough and has features
+-- Default Klang program that mirrors the Go CLI entrypoint in main.go and the
+-- browser/WASM bridge in cmd/klang-wasm/main.go.
+--
+-- This file intentionally returns structured Table plans for host operations
+-- that still belong to Go today: filesystem access, process exit, HTTP serving,
+-- WASM registration, and JSON serialization. As the runtime grows, those plan
+-- records can become the language-owned implementation without changing the
+-- public command surface.
 
--- why this code is going to be in run scope because we want the programming langauge to give priority to this during execution of code
+const cliName = "kLang";
+
+function CommandOptions(shouldRun : Bool = False, verbose : Bool = False, rawLang : Bool = False, programArgs : List[String] = []) : Table {
+    return {
+        "run": shouldRun,
+        "verbose": verbose,
+        "raw_lang": rawLang,
+        "program_args": programArgs
+    };
+}
+
+function EntrySpec(name : String = "", returnType : String = "") : Table {
+    return {
+        "name": name,
+        "type": returnType
+    };
+}
+
+function PackageOptions(backend : String = "Standalone", out : String = "", serve : Bool = False, host : String = "127.0.0.1", port : Int = 8080, portSet : Bool = False) : Table {
+    return {
+        "backend": backend,
+        "out": out,
+        "serve": serve,
+        "host": host,
+        "port": port,
+        "port_set": portSet
+    };
+}
+
+function DocOptions(sourceFiles : List[String] = [], out : String = "klang-docs.html") : Table {
+    return {
+        "source_files": sourceFiles,
+        "out": out
+    };
+}
+
+function BrowserError(stage : String, message : String, file : String = "", line : Int = 0, column : Int = 0) : Table {
+    return {
+        "stage": stage,
+        "file": file,
+        "line": line,
+        "column": column,
+        "message": message
+    };
+}
+
+function Response(ok : Bool, value : Any, output : List[String], errors : List[Table], meta : Table) : Table {
+    return {
+        "ok": ok,
+        "value": value,
+        "output": output,
+        "errors": errors,
+        "meta": meta
+    };
+}
+
+function HostAction(actionName : String, payload : Table) : Table {
+    return {
+        "kind": "host_action",
+        "name": actionName,
+        "payload": payload
+    };
+}
+
+function ErrorPlan(message : String) : Table {
+    return {
+        "ok": False,
+        "error": message
+    };
+}
+
+function HasFlag(args : List[String], flag : String) : Bool {
+    local mut Int index = 0;
+    while index < args.count {
+        if args[index] == flag {
+            return True;
+        }
+        index += 1;
+    }
+    return False;
+}
+
+function CommandName(args : List[String]) : String {
+    if args.count == 0 {
+        return "help";
+    }
+    return args[0];
+}
+
+function RestArgs(args : List[String]) : List[String] {
+    local mut List[String] rest = [];
+    local mut Int index = 1;
+    while index < args.count {
+        rest[index - 1] = args[index];
+        index += 1;
+    }
+    return rest;
+}
+
+function PositionalArgs(args : List[String]) : List[String] {
+    local mut List[String] values = [];
+    local mut Int index = 0;
+    local mut Int count = 0;
+    while index < args.count {
+        local String arg = args[index];
+        if arg == "--entry" or arg == "--backend" or arg == "--out" or arg == "--host" or arg == "--port" or arg == "--sourcefile" {
+            index += 2;
+        } else if arg[0] == '-' {
+            index += 1;
+        } else {
+            values[count] = arg;
+            count += 1;
+            index += 1;
+        }
+    }
+    return values;
+}
+
+function UsageText() : String {
+    return "Klang CLI\n\nUsage:\n  kLang new <project-path>\n  kLang run <file-or-folder>\n  kLang check <file-or-folder>\n  kLang package <file-or-folder>\n  kLang serve <file-or-folder>\n  kLang doc --sourcefile=[file.klang,...]\n  kLang test <tests-folder>\n  kLang file <file.klang>\n";
+}
+
+function ParseEntryFlag(args : List[String]) : Table {
+    local mut Int index = 0;
+    while index < args.count {
+        local String arg = args[index];
+        if arg == "--entry" and index + 1 < args.count {
+            return EntrySpec(args[index + 1], "");
+        }
+        index += 1;
+    }
+    return EntrySpec();
+}
+
+function ParsePackageOptions(args : List[String]) : Table {
+    local mut Table options = PackageOptions();
+    local mut Int index = 0;
+    while index < args.count {
+        local String arg = args[index];
+        if arg == "--serve" {
+            options["serve"] = True;
+        }
+        if arg == "--backend" and index + 1 < args.count {
+            options["backend"] = args[index + 1];
+            index += 1;
+        }
+        if arg == "--out" and index + 1 < args.count {
+            options["out"] = args[index + 1];
+            index += 1;
+        }
+        if arg == "--host" and index + 1 < args.count {
+            options["host"] = args[index + 1];
+            index += 1;
+        }
+        index += 1;
+    }
+    return options;
+}
+
+function ParseDocOptions(args : List[String]) : Table {
+    local mut List[String] files = [];
+    local mut String out = "klang-docs.html";
+    local mut Int fileCount = 0;
+    local mut Int index = 0;
+    while index < args.count {
+        local String arg = args[index];
+        if arg == "--sourcefile" and index + 1 < args.count {
+            files[fileCount] = args[index + 1];
+            fileCount += 1;
+            index += 1;
+        }
+        if arg == "--out" and index + 1 < args.count {
+            out = args[index + 1];
+            index += 1;
+        }
+        index += 1;
+    }
+    return DocOptions(files, out);
+}
+
+function RunCLI(args : List[String]) : Table {
+    if args.count == 0 or HasFlag(args, "--help") or HasFlag(args, "-h") {
+        local Table payload = {"text": UsageText()};
+        return HostAction("print_usage", payload);
+    }
+
+    local Table legacy = RunLegacyFlags(args);
+    if legacy.handled {
+        return legacy;
+    }
+
+    local String command = CommandName(args);
+    local List[String] rest = RestArgs(args);
+    local List[String] values = PositionalArgs(rest);
+    local mut Table options = CommandOptions(HasFlag(rest, "--run"), HasFlag(rest, "--verbose") or HasFlag(rest, "-v"), HasFlag(rest, "--raw-lang"), []);
+
+    if command == "new" or command == "init" {
+        if values.count != 1 {
+            return ErrorPlan(cliName + " " + command + " expects a project path");
+        }
+        return CreateProject(values[0], ParseEntryFlag(rest));
+    }
+    if command == "run" {
+        if values.count < 1 {
+            return ErrorPlan(cliName + " run expects a .klang file or project folder");
+        }
+        options["run"] = True;
+        options["program_args"] = RestArgs(values);
+        return ExecutePrograms([LoadProgramPlan(values[0])], options);
+    }
+    if command == "check" {
+        if values.count != 1 {
+            return ErrorPlan(cliName + " check expects a .klang file or project folder");
+        }
+        return ExecutePrograms([LoadProgramPlan(values[0])], options);
+    }
+    if command == "package" or command == "build" {
+        if values.count != 1 {
+            return ErrorPlan(cliName + " " + command + " expects a .klang file or project folder");
+        }
+        return PackageProgram(LoadProgramPlan(values[0]), ParsePackageOptions(rest), options);
+    }
+    if command == "serve" or command == "web" {
+        if values.count != 1 {
+            return ErrorPlan(cliName + " " + command + " expects a .klang file or project folder");
+        }
+        local mut Table packagePlan = ParsePackageOptions(rest);
+        packagePlan["backend"] = "WASM";
+        packagePlan["serve"] = True;
+        return PackageProgram(LoadProgramPlan(values[0]), packagePlan, options);
+    }
+    if command == "doc" or command == "docs" {
+        return GenerateDocumentation(ParseDocOptions(rest));
+    }
+    if command == "test" or command == "tests" {
+        if values.count != 1 {
+            return ErrorPlan(cliName + " test expects a folder containing .klang tests");
+        }
+        local Table payload = {
+            "path": values[0],
+            "options": options
+        };
+        return HostAction("discover_and_execute_tests", payload);
+    }
+    if command == "file" or command == "show" {
+        if values.count != 1 {
+            return ErrorPlan(cliName + " " + command + " expects a .klang file path");
+        }
+        local Table payload = {"path": values[0]};
+        return HostAction("print_file", payload);
+    }
+    return ErrorPlan("unknown command " + command);
+}
+
+function RunLegacyFlags(args : List[String]) : Table {
+    if HasFlag(args, "--tests") {
+        return {"handled": True, "action": "legacy_tests", "args": args};
+    }
+    if HasFlag(args, "--program") {
+        return {"handled": True, "action": "legacy_program", "args": args};
+    }
+    if HasFlag(args, "--file") {
+        return {"handled": True, "action": "legacy_file", "args": args};
+    }
+    return {"handled": False};
+}
+
+function LoadProgramPlan(path : String) : Table {
+    local Table payload = {"path": path};
+    return HostAction("load_program", payload);
+}
+
+function CreateProject(projectPath : String, entry : Table) : Table {
+    local Table payload = {
+        "project_path": projectPath,
+        "entry": entry,
+        "files": ["first.klang", "app.klang"]
+    };
+    return HostAction("create_project", payload);
+}
+
+function ExecutePrograms(programs : List[Table], options : Table) : Table {
+    local Table payload = {
+        "programs": programs,
+        "options": options,
+        "phases": ["resolve_modules", "type_check", "parse", "optional_run"]
+    };
+    return HostAction("execute_programs", payload);
+}
+
+function PackageProgram(program : Table, packageOptions : Table, options : Table) : Table {
+    local mut String backend = packageOptions.backend;
+    if packageOptions.serve {
+        backend = "WASM";
+    }
+    local Table payload = {
+        "program": program,
+        "package_options": packageOptions,
+        "command_options": options,
+        "backend": backend,
+        "outputs": ["klang-build.json", "src", "optional_wasm_browser_bundle"]
+    };
+    return HostAction("package_program", payload);
+}
+
+function GenerateDocumentation(options : Table) : Table {
+    local Table payload = {
+        "source_files": options.source_files,
+        "out": options.out,
+        "format": "standalone_html"
+    };
+    return HostAction("generate_documentation", payload);
+}
+
+function ServeBundle(bundleDir : String, options : Table) : Table {
+    local Table payload = {
+        "bundle": bundleDir,
+        "host": options.host,
+        "port": options.port
+    };
+    return HostAction("serve_bundle", payload);
+}
+
+function BrowserMemory(stackObjects : Int, heapObjects : Int, stackBytes : Int, heapBytes : Int) : Table {
+    return {
+        "stack_objects": stackObjects,
+        "heap_objects": heapObjects,
+        "stack_bytes": stackBytes,
+        "heap_bytes": heapBytes,
+        "total_objects": stackObjects + heapObjects,
+        "total_bytes": stackBytes + heapBytes
+    };
+}
+
+namespace wasm {
+    function RegisterBridge() : Table {
+        local List[String] functions = ["klangRun", "klangCheck", "klangRunProject", "klangCheckProject"];
+        local Table payload = {"functions": functions};
+        return HostAction("js_register", payload);
+    }
+
+    function RunSource(source : String, args : List[String] = []) : Table {
+        if source == "" {
+            local List[Table] errors = [BrowserError("input", "klangRun expects source text")];
+            local Table response = Response(False, None(), [], errors, {});
+            return JsonResponse(response);
+        }
+        local Table program = SingleSourceProgram(source);
+        return JsonResponse(Run(program, args));
+    }
+
+    function CheckSource(source : String) : Table {
+        if source == "" {
+            local List[Table] errors = [BrowserError("input", "klangCheck expects source text")];
+            local Table response = Response(False, None(), [], errors, {});
+            return JsonResponse(response);
+        }
+        return JsonResponse(Check(SingleSourceProgram(source)));
+    }
+
+    function RunProject(project : Table, args : List[String] = []) : Table {
+        if project? == False {
+            local List[Table] errors = [BrowserError("input", "klangRunProject expects a project object")];
+            local Table response = Response(False, None(), [], errors, {});
+            return JsonResponse(response);
+        }
+        local Table program = ProgramFromJSProject(project);
+        return JsonResponse(Run(program, args));
+    }
+
+    function CheckProject(project : Table) : Table {
+        if project? == False {
+            local List[Table] errors = [BrowserError("input", "klangCheckProject expects a project object")];
+            local Table response = Response(False, None(), [], errors, {});
+            return JsonResponse(response);
+        }
+        return JsonResponse(Check(ProgramFromJSProject(project)));
+    }
+
+    function Run(program : Table, args : List[String]) : Table {
+        local Table checked = Check(program);
+        if checked.ok == False {
+            return checked;
+        }
+        local Table value = {"kind": "runtime_value"};
+        local Table meta = {
+            "project": program.name,
+            "entry": program.entry,
+            "args": args
+        };
+        return Response(True, value, [], [], meta);
+    }
+
+    function Check(program : Table) : Table {
+        local Table meta = {
+            "project": program.name,
+            "entry": program.entry,
+            "phases": "type,parse"
+        };
+        return Response(True, None(), [], [], meta);
+    }
+
+    function SingleSourceProgram(source : String) : Table {
+        return {
+            "name": "browser",
+            "root": ".",
+            "entry": "browser.klang",
+            "files": {"browser.klang": source}
+        };
+    }
+
+    function ProgramFromJSProject(project : Table) : Table {
+        local mut String name = "browser-project";
+        if project["name"]? {
+            name = project.name;
+        }
+        local mut String entry = "";
+        if project["entry"]? {
+            entry = project.entry;
+        }
+        return {
+            "name": name,
+            "root": ".",
+            "entry": entry,
+            "files": project.files
+        };
+    }
+
+    function JsonResponse(value : Table) : Table {
+        local Table payload = {"value": value};
+        return HostAction("json_response", payload);
+    }
+
+    function EncodeValue(value : Any) : Table {
+        return {
+            "kind": debug_type(value),
+            "value": value
+        };
+    }
+}
+
 run {
-    -- once the features are finalized lets do little by little implement this system until we can do it
-    -- we might be able to do the wasm main if we have enough features in the programming langauge
-    -- lets see
-    -- but this program when we are using the main.go, main.go should always reads this program and runs like very similar to the main.go file functionality
-    -- so main.go basically will just always call this file no matter whether its a project/program or a script
-    -- doesnt matter no what, this will make in the future to make the language more powerful to use and edit at the same time while keeping the main.go source clean
-    -- so if this file is deleted entire programming language will fail which should be the intended behaviour
-    -- also this file will be useless because some functions of stdlib are not imported
-    -- we need to have stdlib implemented for this program to actually work
-    -- so first we will implement every feature, clean up and polish every features
-    -- implement every stdlib modules so that in the future any klang program can use the stdlib functions
-    -- make sure the runtime is powerful also otherwise this program is basically fcking useless
+    local Table cliInfo = {
+        "entrypoint": "RunCLI",
+        "commands": ["new", "run", "check", "package", "serve", "doc", "test", "file"],
+        "legacy_flags": ["--program", "--tests", "--file"]
+    };
+    local Table wasmInfo = wasm.RegisterBridge();
+    assert cliInfo.commands.count == 8;
+    assert wasmInfo.name == "js_register";
 }
