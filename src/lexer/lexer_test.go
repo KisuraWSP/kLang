@@ -93,6 +93,82 @@ func TestLexerTokenizesNumberSelectors(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesSignedAndPrefixedNumberLiterals(t *testing.T) {
+	input := `local Int negative = -42; local Int hex = 0xAAAA; local Int octal = 0o755; local Int binary = 0b1010; local Int negativeHex = -0xA; local Int delta = 1 - 2; local Int powered = -0x2 ** 3;`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "negative"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "-42"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "hex"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "0xAAAA"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "octal"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "0o755"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "binary"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "0b1010"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "negativeHex"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "-0xA"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "delta"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "1"},
+		{Type: TokenMinus, Literal: "-"},
+		{Type: TokenInt, Literal: "2"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "powered"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenMinus, Literal: "-"},
+		{Type: TokenInt, Literal: "0x2"},
+		{Type: TokenExponent, Literal: "**"},
+		{Type: TokenInt, Literal: "3"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
+func TestLexerTokenizesUnicodeIdentifiers(t *testing.T) {
+	input := `function එකතු(අගය : Int, 😀 : Int) : Int { return අගය + 😀; }`
+
+	tokens := New(input).Tokenize()
+	for _, token := range tokens {
+		if token.Type == TokenIllegal {
+			t.Fatalf("unexpected illegal token %#v", token)
+		}
+	}
+
+	var identifiers []string
+	for _, token := range tokens {
+		if token.Type == TokenIdentifier {
+			identifiers = append(identifiers, token.Literal)
+		}
+	}
+	if strings.Join(identifiers, ",") != "එකතු,අගය,Int,😀,Int,Int,අගය,😀" {
+		t.Fatalf("unexpected unicode identifiers: %#v", identifiers)
+	}
+}
+
 func TestLexerTokenizesEnumDeclarations(t *testing.T) {
 	input := `enum Color { Red; Blue = 4; Green; }`
 
@@ -423,8 +499,7 @@ func TestLexerTokenizesLiteralsNamespaceCallsAndOperators(t *testing.T) {
 		{Type: TokenDot, Literal: "."},
 		{Type: TokenIdentifier, Literal: "RandomRange"},
 		{Type: TokenLeftBrace, Literal: "("},
-		{Type: TokenMinus, Literal: "-"},
-		{Type: TokenInt, Literal: "2"},
+		{Type: TokenInt, Literal: "-2"},
 		{Type: TokenComma, Literal: ","},
 		{Type: TokenFloat, Literal: "3.5"},
 		{Type: TokenRightBrace, Literal: ")"},
@@ -599,7 +674,7 @@ func TestLexerReportsIllegalUnterminatedString(t *testing.T) {
 }
 
 func TestLexerReportsMalformedNumbers(t *testing.T) {
-	for _, input := range []string{`123abc`, `1.2.3`, `10.`} {
+	for _, input := range []string{`123abc`, `1.2.3`, `10.`, `0x`, `0xG`, `0b102`, `0o789`} {
 		tokens := New(input).Tokenize()
 		if tokens[0].Type != TokenIllegal {
 			t.Fatalf("%q: expected malformed number to be illegal, got %#v", input, tokens[0])

@@ -28,6 +28,27 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeEvaluatesSignedAndPrefixedNumberLiteralsWithUnicodeIdentifiers(t *testing.T) {
+	result := runParsedSource(t, `
+function එකතු(අගය : Int, 😀 : Int) : Int {
+    local Int hex = 0x2A;
+    local Int octal = 0o10;
+    local Int binary = 0b101;
+    local Int negative = -5;
+    local Int negativeHex = -0xA;
+    return අගය + 😀 + hex + octal + binary + negative + negativeHex;
+}
+
+function Main() : Int {
+    return එකතු(1, 2);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 43 {
+		t.Fatalf("expected unicode numeric literal program to return 43, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesMutableVariablesAndWhileLoop(t *testing.T) {
 	result := runSource(t, `
 function Main() : Int {

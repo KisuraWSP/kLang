@@ -73,6 +73,19 @@ local types.u8 byteCount = 255;
 local float32 sampleRatio = 1.5;
 local complex128 zed = Complex(1, 2);
 
+-- Numeric literals may be signed and may use explicit bases.
+local Int debt = -42;
+local Int hexMask = 0xAAAA;
+local Int octalMode = 0o755;
+local Int binaryFlags = 0b1010;
+local Int negativeHex = -0xA;
+
+-- Unicode identifiers are allowed for variables, functions, and parameters.
+function එකතු(අගය : Int, 😀 : Int) : Int {
+    return අගය + 😀;
+}
+local Int මුළු = එකතු(1, 2);
+
 -- shared builtin protocols
 -- Collection-like values expose the same .count property.
 local Int textCount = "hallo".count;

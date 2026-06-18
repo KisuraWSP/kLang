@@ -44,6 +44,7 @@
 44. Numeric parent types support child-width types through `.child(bits)` and globally available aliases such as `i8`, `u32`, `float64`, and `complex128`.
 45. The checker reports warnings for unused local variables and unused function parameters.
 46. Qualified module calls can infer imports; `list.append(...)` loads a resolvable `list` module even without an explicit import.
+47. Integer literals support optional leading `-` and base prefixes `0x`/`0X`, `0o`/`0O`, and `0b`/`0B`. Identifiers may use Unicode letters, marks, and symbols, including Sinhala text and emoji, but may not begin with a digit.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -80,6 +81,8 @@ Rules
 - Use `run { ... }` or `run FunctionName();` to execute initialization code before ordinary statements in the same runtime block. A `run` action cannot return, break, or continue.
 - Use `(* ... *)` for multiline comments. Multiline comments are ignored by the lexer before parsing.
 - `Int.child(8)`, `UInt.child(16)`, `Float.child(32)`, and `Complex.child(128)` restrict values to the requested parent type width. The aliases in the builtin `types` namespace are available without imports.
+- Integer literals are decimal by default and may be written as hexadecimal (`0x2A`), octal (`0o52`), or binary (`0b101010`). Signed integer and float literals may use a leading `-`; exponentiation keeps unary-minus precedence, so `-2 ** 3` is parsed as `-(2 ** 3)`.
+- Variable names, function names, and function parameter names may contain Unicode identifier characters, Sinhala letters and marks, and emoji symbols. Identifiers cannot begin with a digit.
 - Alias functions may contain trait and impl declarations in addition to hooks and extension methods.
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.
 - CLI `package` checks a program and writes a compact source bundle with `klang-build.json`.

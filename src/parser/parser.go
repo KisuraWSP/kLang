@@ -727,11 +727,11 @@ func (parser *Parser) parseEnum() Statement {
 		ordinal := nextOrdinal
 		if parser.match(lexer.TokenAssign) {
 			value := parser.consume(lexer.TokenInt, "expected integer ordinal after '='")
-			parsed, err := strconv.Atoi(value.Literal)
+			parsed, err := strconv.ParseInt(value.Literal, 0, 0)
 			if err != nil {
 				parser.addError(value, "expected integer ordinal after '='")
 			} else {
-				ordinal = parsed
+				ordinal = int(parsed)
 			}
 		}
 		variants = append(variants, EnumVariant{

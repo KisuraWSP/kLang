@@ -58,7 +58,7 @@ func (lexer *Lexer) NextToken() Token {
 		})
 	}
 
-	if isDigit(lexer.ch) {
+	if isDigit(lexer.ch) || (lexer.ch == '-' && isDigit(lexer.peekChar()) && lexer.canStartSignedNumber() && !lexer.signedNumberWouldBindPower()) {
 		literal, tokenType := lexer.readNumber()
 		return lexer.emit(Token{
 			Type:    tokenType,
@@ -194,6 +194,33 @@ func (lexer *Lexer) readNumber() (string, TokenType) {
 	position := lexer.position
 	tokenType := TokenInt
 
+	if lexer.ch == '-' {
+		lexer.readChar()
+	}
+
+	if lexer.ch == '0' && isBasePrefix(lexer.peekChar()) {
+		prefix := lexer.peekChar()
+		lexer.readChar()
+		lexer.readChar()
+		digitsStart := lexer.position
+		for isDigitForBase(lexer.ch, prefix) {
+			lexer.readChar()
+		}
+		if lexer.position == digitsStart {
+			for isLetter(lexer.ch) || isDigit(lexer.ch) {
+				lexer.readChar()
+			}
+			return lexer.input[position:lexer.position], TokenIllegal
+		}
+		if isLetter(lexer.ch) || isDigit(lexer.ch) || lexer.ch == '.' {
+			for isLetter(lexer.ch) || isDigit(lexer.ch) || lexer.ch == '.' {
+				lexer.readChar()
+			}
+			return lexer.input[position:lexer.position], TokenIllegal
+		}
+		return lexer.input[position:lexer.position], TokenInt
+	}
+
 	for isDigit(lexer.ch) {
 		lexer.readChar()
 	}
@@ -218,6 +245,60 @@ func (lexer *Lexer) readNumber() (string, TokenType) {
 	}
 
 	return lexer.input[position:lexer.position], tokenType
+}
+
+func (lexer *Lexer) canStartSignedNumber() bool {
+	switch lexer.lastSignificant {
+	case 0, TokenAssign, TokenEvaluationAssign, TokenReturn, TokenComma, TokenLeftBrace, TokenLeftSquareBrace,
+		TokenScopeBegin, TokenInferReturn, TokenPlus, TokenMinus, TokenMultiplication, TokenDivision, TokenModulus,
+		TokenExponent, TokenFloorDivision, TokenPipe, TokenTypeUnion, TokenStrictEquality, TokenNotEqual,
+		TokenGreaterThan, TokenLessThan, TokenGreaterThanOrEqualTo, TokenLessThanOrEqualTo, TokenArrow:
+		return true
+	default:
+		return false
+	}
+}
+
+func (lexer *Lexer) signedNumberWouldBindPower() bool {
+	position := lexer.readPosition
+	if position+1 < len(lexer.input) && lexer.input[position] == '0' && isBasePrefix(lexer.input[position+1]) {
+		prefix := lexer.input[position+1]
+		position += 2
+		for position < len(lexer.input) && isDigitForBase(lexer.input[position], prefix) {
+			position++
+		}
+	} else {
+		for position < len(lexer.input) && isDigit(lexer.input[position]) {
+			position++
+		}
+		if position < len(lexer.input) && lexer.input[position] == '.' {
+			position++
+			for position < len(lexer.input) && isDigit(lexer.input[position]) {
+				position++
+			}
+		}
+	}
+	for position < len(lexer.input) && (lexer.input[position] == ' ' || lexer.input[position] == '\t' || lexer.input[position] == '\n' || lexer.input[position] == '\r') {
+		position++
+	}
+	return position+1 < len(lexer.input) && lexer.input[position] == '*' && lexer.input[position+1] == '*'
+}
+
+func isBasePrefix(ch byte) bool {
+	return ch == 'x' || ch == 'X' || ch == 'o' || ch == 'O' || ch == 'b' || ch == 'B'
+}
+
+func isDigitForBase(ch byte, prefix byte) bool {
+	switch prefix {
+	case 'b', 'B':
+		return ch == '0' || ch == '1'
+	case 'o', 'O':
+		return '0' <= ch && ch <= '7'
+	case 'x', 'X':
+		return ('0' <= ch && ch <= '9') || ('a' <= ch && ch <= 'f') || ('A' <= ch && ch <= 'F')
+	default:
+		return false
+	}
 }
 
 func (lexer *Lexer) readString() (string, bool) {
@@ -332,7 +413,7 @@ func lookupIdentifier(literal string) TokenType {
 }
 
 func isLetter(ch byte) bool {
-	return ch == '_' || ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z')
+	return ch == '_' || ch >= 0x80 || ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z')
 }
 
 func isDigit(ch byte) bool {

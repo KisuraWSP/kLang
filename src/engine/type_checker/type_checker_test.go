@@ -30,6 +30,28 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsUnicodeIdentifiersAndNumericLiteralBases(t *testing.T) {
+	program := programFromSource(`
+function එකතු(අගය : Int, 😀 : Int) : Int {
+    local Int hex = 0x2A;
+    local Int octal = 0o10;
+    local Int binary = 0b101;
+    local Int negative = -5;
+    return අගය + 😀 + hex + octal + binary + negative;
+}
+
+function Main() : Int {
+    local Int මුළු = එකතු(1, 2);
+    return මුළු;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected unicode and numeric literal program to type check, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramRejectsVariableTypeMismatch(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

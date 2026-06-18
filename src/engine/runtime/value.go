@@ -292,11 +292,11 @@ func runtimeTypeName(value Value) string {
 func literalValue(expr parser.LiteralExpression) (Value, error) {
 	switch expr.Kind {
 	case "Int":
-		value, err := strconv.Atoi(expr.Value)
+		parsed, err := strconv.ParseInt(expr.Value, 0, 0)
 		if err != nil {
 			return NullValue(), err
 		}
-		return IntValue(value), nil
+		return IntValue(int(parsed)), nil
 	case "Float":
 		value, err := strconv.ParseFloat(expr.Value, 64)
 		if err != nil {
@@ -377,11 +377,11 @@ func castToInt(value Value, typeName string) (Value, error) {
 			result = 1
 		}
 	case ValueString, ValueChar:
-		parsed, err := strconv.Atoi(value.Data.(string))
+		parsed, err := strconv.ParseInt(value.Data.(string), 0, 0)
 		if err != nil {
 			return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s %q to %s", value.Kind, value.Data.(string), typeName)}
 		}
-		result = parsed
+		result = int(parsed)
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to %s", value.Kind, typeName)}
 	}

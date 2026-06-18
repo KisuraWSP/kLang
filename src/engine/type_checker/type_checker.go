@@ -4238,7 +4238,7 @@ func isSimpleIdentifier(input string) bool {
 	}
 	for index, char := range input {
 		if index == 0 {
-			if !unicode.IsLetter(char) && char != '_' {
+			if unicode.IsDigit(char) || !isIdentifierRune(char) {
 				return false
 			}
 			continue
@@ -4677,22 +4677,12 @@ func isIdentifier(input string) bool {
 }
 
 func isIdentifierRune(char rune) bool {
-	return unicode.IsLetter(char) || unicode.IsDigit(char) || char == '_'
+	return unicode.IsLetter(char) || unicode.IsDigit(char) || unicode.IsMark(char) || unicode.IsSymbol(char) || char == '_'
 }
 
 func isIntegerLiteral(input string) bool {
-	if strings.HasPrefix(input, "-") {
-		input = input[1:]
-	}
-	if input == "" {
-		return false
-	}
-	for _, char := range input {
-		if !unicode.IsDigit(char) {
-			return false
-		}
-	}
-	return true
+	_, err := strconv.ParseInt(input, 0, 64)
+	return err == nil
 }
 
 func isFloatLiteral(input string) bool {
@@ -4725,7 +4715,7 @@ func childTypeLiteralFits(typeName string, expr string) bool {
 		if !isIntegerLiteral(expr) {
 			return true
 		}
-		value, err := strconv.ParseInt(expr, 10, 64)
+		value, err := strconv.ParseInt(expr, 0, 64)
 		if err != nil {
 			return false
 		}
@@ -4738,7 +4728,7 @@ func childTypeLiteralFits(typeName string, expr string) bool {
 		if strings.HasPrefix(expr, "-") {
 			return false
 		}
-		value, err := strconv.ParseUint(expr, 10, 64)
+		value, err := strconv.ParseUint(expr, 0, 64)
 		if err != nil {
 			return false
 		}

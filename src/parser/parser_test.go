@@ -112,6 +112,41 @@ let size intSize = Int.sizeof;
 	}
 }
 
+func TestParseUnicodeIdentifiersAndPrefixedNumberLiterals(t *testing.T) {
+	program, errors := Parse(`
+function එකතු(අගය : Int, 😀 : Int) : Int {
+    local Int hex = 0x2A;
+    local Int negative = -42;
+    return අගය + 😀 + hex + negative;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	if fn.Name != "එකතු" || len(fn.Params) != 2 || fn.Params[0].Name != "අගය" || fn.Params[1].Name != "😀" {
+		t.Fatalf("unexpected unicode function signature: %#v", fn)
+	}
+
+	hexDecl, ok := fn.Body[0].(VariableStatement)
+	if !ok {
+		t.Fatalf("expected hex variable declaration, got %T", fn.Body[0])
+	}
+	if literal, ok := hexDecl.Expression.Node.(LiteralExpression); !ok || literal.Kind != "Int" || literal.Value != "0x2A" {
+		t.Fatalf("expected hex int literal, got %#v", hexDecl.Expression.Node)
+	}
+
+	negativeDecl, ok := fn.Body[1].(VariableStatement)
+	if !ok {
+		t.Fatalf("expected negative variable declaration, got %T", fn.Body[1])
+	}
+	if literal, ok := negativeDecl.Expression.Node.(LiteralExpression); !ok || literal.Kind != "Int" || literal.Value != "-42" {
+		t.Fatalf("expected negative int literal, got %#v", negativeDecl.Expression.Node)
+	}
+}
+
 func TestParseLocalInferredVariableDeclaration(t *testing.T) {
 	program, errors := Parse(`
 local count = 1;
