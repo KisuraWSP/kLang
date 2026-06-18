@@ -48,6 +48,7 @@
 48. Modules may import other modules. Stdlib-to-stdlib imports remain stdlib imports, so selective function loading still applies to dependency modules.
 49. `Type` is the parent runtime metadata type for all language types. `SomeType.get_runtime_type_info()` returns metadata for serialization, data introspection, and memory layout interpretation.
 50. `assert expression;` is a builtin statement keyword. The expression must be `Bool`; runtime execution fails with an assertion error when it is false.
+51. CLI `doc --sourcefile=[...]` generates a static HTML documentation UI for one or more Klang source files.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -92,6 +93,7 @@ Rules
 - Alias functions may contain trait and impl declarations in addition to hooks and extension methods.
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.
 - CLI `package` checks a program and writes a compact source bundle with `klang-build.json`.
+- CLI `doc --sourcefile=["file.klang"] --out=docs.html` parses the provided source files and writes a standalone HTML documentation page listing imports, modules, namespaces, functions, aliases, enums, globals, and parse diagnostics.
 - `BuildSystem` backend is restricted to `WASM`, `JS`, or `Standalone`; `Standalone` means the packaged program runs through the interpreter engine.
 - `WASM` packaging compiles the Go interpreter/runtime to browser WebAssembly, writes `klang.wasm`, `wasm_exec.js`, `klang_browser.js`, and loads resolved Klang source files from the package manifest.
 - CLI `serve` and package `--serve` start a built-in static web server for the generated WASM runtime bundle so users can run projects in a browser without manually shipping files first.

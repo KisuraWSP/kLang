@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net"
 	"net/http"
 	"os"
@@ -43,6 +44,27 @@ type packageOptions struct {
 	Host    string
 	Port    int
 	PortSet bool
+}
+
+type docOptions struct {
+	SourceFiles []string
+	Out         string
+}
+
+type docFile struct {
+	Path       string
+	Name       string
+	LineCount  int
+	Items      []docItem
+	ParseError []parser.Error
+}
+
+type docItem struct {
+	Kind      string
+	Name      string
+	Signature string
+	Detail    string
+	Line      int
 }
 
 func main() {
@@ -140,6 +162,12 @@ func runCLI(args []string) error {
 			packageOptions.Out = tempRoot
 		}
 		return packageProgram(program, packageOptions, commandOptions{Verbose: options.Verbose, RawLang: options.RawLang})
+	case "doc", "docs":
+		docOptions, err := parseDocOptions(rest)
+		if err != nil {
+			return err
+		}
+		return generateDocumentation(docOptions)
 	case "test", "tests":
 		if len(values) != 1 {
 			return fmt.Errorf("%s test expects a folder containing .klang tests", cliName)
@@ -383,6 +411,188 @@ func bundleSourcePath(root string, sourcePath string) string {
 		return filepath.Base(sourcePath)
 	}
 	return filepath.Clean(relativePath)
+}
+
+func generateDocumentation(options docOptions) error {
+	if len(options.SourceFiles) == 0 {
+		return fmt.Errorf("%s doc expects --sourcefile=[file.klang,...]", cliName)
+	}
+	outPath := strings.TrimSpace(options.Out)
+	if outPath == "" {
+		outPath = "klang-docs.html"
+	}
+
+	files := make([]docFile, 0, len(options.SourceFiles))
+	totalItems := 0
+	for _, sourcePath := range options.SourceFiles {
+		sourcePath = filepath.Clean(sourcePath)
+		contents, err := os.ReadFile(sourcePath)
+		if err != nil {
+			return fmt.Errorf("read source file %s: %w", sourcePath, err)
+		}
+		lines := strings.Split(strings.ReplaceAll(string(contents), "\r\n", "\n"), "\n")
+		if len(lines) > 0 && lines[len(lines)-1] == "" {
+			lines = lines[:len(lines)-1]
+		}
+		parsed, errors := parser.Parse(strings.Join(lines, "\n"))
+		doc := docFile{
+			Path:      sourcePath,
+			Name:      filepath.Base(sourcePath),
+			LineCount: len(lines),
+		}
+		if len(errors) != 0 {
+			doc.ParseError = errors
+		} else {
+			doc.Items = collectDocItems(parsed.Statements, "")
+			totalItems += len(doc.Items)
+		}
+		files = append(files, doc)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(filepath.Clean(outPath)), 0755); err != nil && filepath.Dir(filepath.Clean(outPath)) != "." {
+		return err
+	}
+	htmlText := renderDocumentationHTML(files, totalItems)
+	if err := os.WriteFile(outPath, []byte(htmlText), 0644); err != nil {
+		return err
+	}
+	fmt.Printf("generated Klang documentation\n")
+	fmt.Printf("  sources: %d\n", len(files))
+	fmt.Printf("  items: %d\n", totalItems)
+	fmt.Printf("  output: %s\n", outPath)
+	return nil
+}
+
+func collectDocItems(statements []parser.Statement, namespace string) []docItem {
+	var items []docItem
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.ImportStatement:
+			items = append(items, docItem{Kind: "import", Name: current.Path, Signature: fmt.Sprintf(`import "%s"`, current.Path), Line: current.Pos.Line})
+		case parser.ModuleDirectiveStatement:
+			items = append(items, docItem{Kind: "module", Name: current.Name, Signature: moduleDirectiveSignature(current), Line: current.Pos.Line})
+		case parser.AliasStatement:
+			items = append(items, docItem{Kind: "alias", Name: current.Name, Signature: fmt.Sprintf("alias %s = %s", current.Name, current.Target), Line: current.Pos.Line})
+		case parser.RegionStatement:
+			items = append(items, docItem{Kind: "region", Name: current.Name, Signature: fmt.Sprintf("region %s(%s, ...)", current.Name, current.TypeName), Detail: "Region-backed array storage", Line: current.Pos.Line})
+		case parser.NamespaceStatement:
+			name := namespace + current.Name
+			scope := "namespace"
+			if current.Global {
+				scope = "global namespace"
+			}
+			items = append(items, docItem{Kind: "namespace", Name: name, Signature: scope + " " + name, Line: current.Pos.Line})
+			items = append(items, collectDocItems(current.Body, name+".")...)
+		case parser.TraitStatement:
+			items = append(items, docItem{Kind: "trait", Name: namespace + current.Name, Signature: fmt.Sprintf("trait %s (%d method(s))", namespace+current.Name, len(current.Methods)), Line: current.Pos.Line})
+		case parser.ImplStatement:
+			items = append(items, docItem{Kind: "impl", Name: current.Trait + " for " + current.Type, Signature: fmt.Sprintf("impl %s for %s", current.Trait, current.Type), Detail: fmt.Sprintf("%d method(s)", len(current.Methods)), Line: current.Pos.Line})
+		case parser.EnumStatement:
+			items = append(items, docItem{Kind: "enum", Name: namespace + current.Name, Signature: fmt.Sprintf("enum %s", namespace+current.Name), Detail: enumVariantSummary(current.Variants), Line: current.Pos.Line})
+		case parser.FunctionGroupStatement:
+			items = append(items, docItem{Kind: "function group", Name: namespace + current.Name, Signature: fmt.Sprintf("function_group %s", namespace+current.Name), Detail: fmt.Sprintf("%d function(s)", len(current.Functions)), Line: current.Pos.Line})
+		case parser.FunctionStatement:
+			items = append(items, docItem{Kind: functionDocKind(current), Name: namespace + current.Name, Signature: functionDocSignature(namespace, current), Line: current.Pos.Line})
+			items = append(items, collectDocItems(current.Body, namespace)...)
+		case parser.AliasFunctionStatement:
+			items = append(items, docItem{Kind: "alias function", Name: namespace + current.Name, Signature: aliasFunctionDocSignature(namespace, current), Detail: aliasFunctionDetail(current), Line: current.Pos.Line})
+			items = append(items, collectDocItems(current.Body, namespace)...)
+			for _, method := range current.Methods {
+				items = append(items, docItem{Kind: "extension method", Name: namespace + current.Name + "." + method.Name, Signature: functionDocSignature(namespace+current.Name+".", method), Line: method.Pos.Line})
+			}
+		case parser.VariableStatement:
+			if current.Scope == "global" || current.Scope == "const" || current.Exported {
+				items = append(items, docItem{Kind: variableDocKind(current), Name: namespace + current.Name, Signature: variableDocSignature(namespace, current), Line: current.Pos.Line})
+			}
+		}
+	}
+	return items
+}
+
+func renderDocumentationHTML(files []docFile, totalItems int) string {
+	var builder strings.Builder
+	builder.WriteString(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Klang Source Documentation</title>
+  <style>
+    :root { color-scheme: light; --ink: #17202a; --muted: #5d6d7e; --line: #d7dde5; --panel: #ffffff; --paper: #f5f7fb; --accent: #0f766e; --accent-2: #334155; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--paper); color: var(--ink); }
+    header { background: #102a43; color: #f8fafc; padding: 32px clamp(18px, 4vw, 56px); }
+    header h1 { margin: 0 0 10px; font-size: 34px; line-height: 1.1; letter-spacing: 0; }
+    header p { margin: 0; color: #cbd5e1; max-width: 820px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 24px clamp(14px, 3vw, 32px) 48px; }
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: -44px; margin-bottom: 22px; }
+    .metric { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08); }
+    .metric strong { display: block; font-size: 26px; }
+    .metric span { color: var(--muted); font-size: 13px; }
+    section.file { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin-top: 18px; overflow: hidden; }
+    .file-head { display: flex; justify-content: space-between; gap: 16px; padding: 18px 20px; background: #eef3f8; border-bottom: 1px solid var(--line); }
+    .file-head h2 { margin: 0; font-size: 19px; letter-spacing: 0; }
+    .file-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+    .badge { align-self: start; white-space: nowrap; color: #0f172a; background: #dbeafe; border: 1px solid #bfdbfe; border-radius: 999px; padding: 5px 9px; font-size: 12px; }
+    .items { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; padding: 16px; }
+    .item { border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #fff; min-width: 0; }
+    .item-kind { color: var(--accent); font-weight: 700; font-size: 12px; text-transform: uppercase; }
+    .item h3 { margin: 8px 0; font-size: 17px; letter-spacing: 0; overflow-wrap: anywhere; }
+    code { display: block; white-space: pre-wrap; overflow-wrap: anywhere; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; color: var(--accent-2); }
+    .detail, .line { color: var(--muted); font-size: 13px; }
+    .empty { padding: 20px; color: var(--muted); }
+    .error { margin: 16px; border: 1px solid #fecaca; background: #fff1f2; border-radius: 8px; padding: 14px; color: #991b1b; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Klang Source Documentation</h1>
+    <p>Generated from Klang source files. Use the cards below to scan public declarations, module shape, and type surfaces.</p>
+  </header>
+  <main>
+`)
+	builder.WriteString(fmt.Sprintf(`    <div class="summary"><div class="metric"><strong>%d</strong><span>source files</span></div><div class="metric"><strong>%d</strong><span>documented items</span></div></div>`, len(files), totalItems))
+	for _, file := range files {
+		builder.WriteString(`<section class="file">`)
+		builder.WriteString(`<div class="file-head"><div>`)
+		builder.WriteString(`<h2>` + html.EscapeString(file.Name) + `</h2>`)
+		builder.WriteString(`<p>` + html.EscapeString(file.Path) + `</p>`)
+		builder.WriteString(`</div><span class="badge">` + fmt.Sprintf("%d line(s)", file.LineCount) + `</span></div>`)
+		if len(file.ParseError) != 0 {
+			for _, parseErr := range file.ParseError {
+				builder.WriteString(`<div class="error">`)
+				builder.WriteString(fmt.Sprintf("Parse error at %d:%d: %s", parseErr.Line, parseErr.Column, html.EscapeString(parseErr.Message)))
+				builder.WriteString(`</div>`)
+			}
+			builder.WriteString(`</section>`)
+			continue
+		}
+		if len(file.Items) == 0 {
+			builder.WriteString(`<div class="empty">No documentable declarations found.</div></section>`)
+			continue
+		}
+		builder.WriteString(`<div class="items">`)
+		for _, item := range file.Items {
+			builder.WriteString(`<article class="item">`)
+			builder.WriteString(`<div class="item-kind">` + html.EscapeString(item.Kind) + `</div>`)
+			builder.WriteString(`<h3>` + html.EscapeString(item.Name) + `</h3>`)
+			builder.WriteString(`<code>` + html.EscapeString(item.Signature) + `</code>`)
+			if item.Detail != "" {
+				builder.WriteString(`<p class="detail">` + html.EscapeString(item.Detail) + `</p>`)
+			}
+			if item.Line > 0 {
+				builder.WriteString(fmt.Sprintf(`<p class="line">line %d</p>`, item.Line))
+			}
+			builder.WriteString(`</article>`)
+		}
+		builder.WriteString(`</div></section>`)
+	}
+	builder.WriteString(`
+  </main>
+</body>
+</html>
+`)
+	return builder.String()
 }
 
 func writeWASMBrowserBundle(bundleDir string) error {
@@ -841,6 +1051,166 @@ func parsePackageOptions(args []string) (packageOptions, error) {
 	return options, nil
 }
 
+func parseDocOptions(args []string) (docOptions, error) {
+	options := docOptions{}
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		switch {
+		case strings.HasPrefix(arg, "--sourcefile="):
+			files, err := parseDocSourceFiles(strings.TrimSpace(strings.TrimPrefix(arg, "--sourcefile=")))
+			if err != nil {
+				return docOptions{}, err
+			}
+			options.SourceFiles = append(options.SourceFiles, files...)
+		case arg == "--sourcefile" && index+1 < len(args):
+			index++
+			files, err := parseDocSourceFiles(args[index])
+			if err != nil {
+				return docOptions{}, err
+			}
+			options.SourceFiles = append(options.SourceFiles, files...)
+		case strings.HasPrefix(arg, "--out="):
+			options.Out = strings.TrimSpace(strings.TrimPrefix(arg, "--out="))
+		case arg == "--out" && index+1 < len(args):
+			index++
+			options.Out = strings.TrimSpace(args[index])
+		}
+	}
+	if len(options.SourceFiles) == 0 {
+		return docOptions{}, fmt.Errorf("%s doc expects --sourcefile=[file.klang,...]", cliName)
+	}
+	return options, nil
+}
+
+func parseDocSourceFiles(value string) ([]string, error) {
+	value = strings.TrimSpace(value)
+	value = strings.Trim(value, "[]")
+	value = strings.ReplaceAll(value, `"`, "")
+	value = strings.ReplaceAll(value, `'`, "")
+	if value == "" {
+		return nil, fmt.Errorf("--sourcefile expects at least one .klang file")
+	}
+	parts := strings.Split(value, ",")
+	files := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		files = append(files, part)
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("--sourcefile expects at least one .klang file")
+	}
+	return files, nil
+}
+
+func moduleDirectiveSignature(stmt parser.ModuleDirectiveStatement) string {
+	parts := make([]string, 0, len(stmt.Options))
+	for key, value := range stmt.Options {
+		parts = append(parts, fmt.Sprintf("%s : %t", key, value))
+	}
+	return fmt.Sprintf("%s(%s)", stmt.Name, strings.Join(parts, ", "))
+}
+
+func functionDocKind(fn parser.FunctionStatement) string {
+	if fn.Private {
+		return "private function"
+	}
+	if fn.Async {
+		return "async function"
+	}
+	if fn.Lazy {
+		return "lazy function"
+	}
+	if fn.Inline {
+		return "inline function"
+	}
+	return "function"
+}
+
+func functionDocSignature(namespace string, fn parser.FunctionStatement) string {
+	prefix := ""
+	if fn.Private {
+		prefix += "private "
+	}
+	if fn.Inline {
+		prefix += "inline "
+	}
+	if fn.Lazy {
+		prefix += "lazy "
+	}
+	if fn.Async {
+		prefix += "async "
+	}
+	params := make([]string, 0, len(fn.Params))
+	for _, param := range fn.Params {
+		mut := ""
+		if param.Mutable {
+			mut = "mut "
+		}
+		params = append(params, fmt.Sprintf("%s%s : %s", mut, param.Name, param.Type))
+	}
+	return fmt.Sprintf("%sfunction %s(%s) : %s", prefix, namespace+fn.Name, strings.Join(params, ", "), fn.ReturnType)
+}
+
+func aliasFunctionDocSignature(namespace string, alias parser.AliasFunctionStatement) string {
+	params := make([]string, 0, len(alias.Params))
+	for _, param := range alias.Params {
+		params = append(params, fmt.Sprintf("%s : %s", param.Name, param.Type))
+	}
+	return fmt.Sprintf("alias function %s(%s) : %s", namespace+alias.Name, strings.Join(params, ", "), alias.ReturnType)
+}
+
+func aliasFunctionDetail(alias parser.AliasFunctionStatement) string {
+	parts := []string{}
+	if alias.Struct {
+		parts = append(parts, "struct")
+	}
+	if alias.Inline {
+		parts = append(parts, "inline")
+	}
+	if alias.Private {
+		parts = append(parts, "private")
+	}
+	if len(alias.Methods) != 0 {
+		parts = append(parts, fmt.Sprintf("%d extension method(s)", len(alias.Methods)))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func variableDocKind(stmt parser.VariableStatement) string {
+	if stmt.Scope == "const" {
+		return "const"
+	}
+	if stmt.Exported {
+		return "exported variable"
+	}
+	return "global variable"
+}
+
+func variableDocSignature(namespace string, stmt parser.VariableStatement) string {
+	mut := ""
+	if stmt.Mutable {
+		mut = "mut "
+	}
+	if stmt.Scope == "const" {
+		return fmt.Sprintf("const %s", namespace+stmt.Name)
+	}
+	if stmt.Exported {
+		return fmt.Sprintf("export %s %s%s %s", stmt.Scope, mut, stmt.Type, namespace+stmt.Name)
+	}
+	return fmt.Sprintf("%s %s%s %s", stmt.Scope, mut, stmt.Type, namespace+stmt.Name)
+}
+
+func enumVariantSummary(variants []parser.EnumVariant) string {
+	parts := make([]string, 0, len(variants))
+	for _, variant := range variants {
+		parts = append(parts, fmt.Sprintf("%s=%d", variant.Name, variant.Ordinal))
+	}
+	return strings.Join(parts, ", ")
+}
+
 func isBuildBackend(value string) bool {
 	switch value {
 	case "WASM", "JS", "Standalone":
@@ -911,6 +1281,7 @@ Usage:
   kLang check <file-or-folder>                Resolve modules, type check, and parse
   kLang package <file-or-folder>              Package checked source into a compact bundle
   kLang serve <file-or-folder>                Package and serve a browser WASM runtime bundle
+  kLang doc --sourcefile=[file.klang,...]     Generate static HTML source documentation
   kLang test <tests-folder>                   Check every Klang program in a folder
   kLang test <tests-folder> --run             Check and run every discovered program
   kLang file <file.klang>                     Print a Klang source file with line labels
@@ -920,6 +1291,7 @@ Options:
   --entry=[Name,Type]              Set generated project entry point for new projects
   --backend=Standalone|JS|WASM      Select package backend metadata
   --out=<folder>                    Select package output folder
+  --sourcefile=[file.klang,...]      Select one or more source files for docs
   --serve                         Serve a WASM browser bundle after packaging
   --host=<host>                    Host for the built-in web server, default 127.0.0.1
   --port=<port>                    Port for the built-in web server, default 8080

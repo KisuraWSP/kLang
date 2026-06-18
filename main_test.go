@@ -89,6 +89,53 @@ func TestRunCLIPackagesProjectWithManifest(t *testing.T) {
 	}
 }
 
+func TestParseDocSourceFilesAcceptsListSyntax(t *testing.T) {
+	files, err := parseDocSourceFiles(`["test.klang", "file.klang"]`)
+	if err != nil {
+		t.Fatalf("parse source files failed: %v", err)
+	}
+	if strings.Join(files, ",") != "test.klang,file.klang" {
+		t.Fatalf("unexpected source files: %#v", files)
+	}
+}
+
+func TestRunCLIGeneratesDocumentationHTML(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "api.klang")
+	outPath := filepath.Join(root, "docs.html")
+	source := `
+import "math";
+
+global Int Version = 1;
+
+namespace api {
+    enum Status { Ready; Done; }
+
+    function Add(left : Int, right : Int) : Int {
+        return left + right;
+    }
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	if err := runCLI([]string{"doc", "--sourcefile=[" + sourcePath + "]", "--out", outPath}); err != nil {
+		t.Fatalf("doc command failed: %v", err)
+	}
+
+	html, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read generated docs failed: %v", err)
+	}
+	text := string(html)
+	for _, expected := range []string{"Klang Source Documentation", "api.Add", "enum api.Status", "global Int Version"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected generated docs to contain %q, got:\n%s", expected, text)
+		}
+	}
+}
+
 func TestParsePackageOptionsAcceptsServeHostAndPort(t *testing.T) {
 	options, err := parsePackageOptions([]string{"--backend=WASM", "--serve", "--host", "0.0.0.0", "--port=9090"})
 	if err != nil {

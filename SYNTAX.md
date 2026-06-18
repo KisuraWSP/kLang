@@ -873,4 +873,5 @@ impl Printable for Int {
 kLang run examples/helloworld
 kLang run examples/helloworld first second
 kLang check examples/helloworld --raw-lang
+kLang doc --sourcefile=["test.klang", "file.klang"] --out=docs.html
 ```

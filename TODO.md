@@ -3,10 +3,6 @@
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
 - make progrramming language api data oriented
-- add support for a new command line flag that will do like generating a documentation based on what source file u provide and it will have a nice ui
-```
-klang doc --sourcefile=["test.klang", "file.klang"]
-```
 - add pass by reference and pass by value sementaics in the langauge
 - add a new flag to allow user to add there own functions to the stdlib via new command like —new_std_lib=["test”, “processor”]
 - Allow support of assigning values to variables if a function supports multiple return types
@@ -22,6 +18,8 @@ klang doc --sourcefile=["test.klang", "file.klang"]
 - add lsp plugin for vscode
 - In the programming language i want you to do this
 So whenever we start a program tell the go code to always run a .klang file called default_program.klang this is the main entry point program that is given first priority to users (do these once enough features are there to make it powerful)
+   - This code will behave similar as the main.go and same as the cmd/klang-wasm/main.go
+   - we want this behaviour on this file as it is the main file we intend to implement and will be used as the programming language becomes powerful over time and once we have a stable runtime and a powerful standard library
 - First workspace in the language is the default_program.klang
 The language will generate the user porgram as second workspace
 Workspace and meta programming types like Program, BuildSystem, Workspace, etc… allows for parallel code wide execution so for this to happen we need to use threads/channels in the golang code
