@@ -233,6 +233,53 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "literal 128 does not fit in Int.child(8)")
 }
 
+func TestCheckProgramWarnsAboutUnusedVariablesAndParameters(t *testing.T) {
+	program := programFromSource(`
+function Add(left : Int, right : Int, unusedParam : Int) : Int {
+    local Int unusedLocal = 10;
+    local mut Int assignedOnly = 1;
+    assignedOnly = 2;
+    local _ = unusedLocal;
+    return left + right;
+}
+
+function Main() : Int {
+    return Add(1, 2, 3);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected program to pass with warnings, got %#v", report.Errors)
+	}
+	assertTypeWarning(t, report, `unused parameter "unusedParam"`)
+	assertTypeWarning(t, report, `unused variable "assignedOnly"`)
+}
+
+func TestCheckProgramDoesNotWarnForReadVariablesOrDiscard(t *testing.T) {
+	program := programFromSource(`
+function Add(value : Int, _ : Int) : Int {
+    local Int used = value + 1;
+    local _ = 99;
+    return used;
+}
+
+function Main() : Int {
+    return Add(1, 2);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected program to pass, got %#v", report.Errors)
+	}
+	for _, warning := range report.Warnings {
+		if strings.Contains(warning.Message, "unused") {
+			t.Fatalf("did not expect unused warning, got %#v", report.Warnings)
+		}
+	}
+}
+
 func TestCheckProgramAcceptsLocalTypeInference(t *testing.T) {
 	program := programFromSource(`
 function MakeName() : String {

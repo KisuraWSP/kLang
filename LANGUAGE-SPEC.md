@@ -42,6 +42,7 @@
 42. `run` marks a block or single statement as a priority runtime action that executes before ordinary statements in the same block.
 43. Multiline comments use `(* ... *)` delimiters and may span lines.
 44. Numeric parent types support child-width types through `.child(bits)` and globally available aliases such as `i8`, `u32`, `float64`, and `complex128`.
+45. The checker reports warnings for unused local variables and unused function parameters.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -53,6 +54,7 @@ Rules
 - `lazy local`, `lazy global`, `lazy let`, `lazy val`, and `lazy var` declarations require an initializer and evaluate it on first access, caching the result afterward.
 - Destructuring declarations must have an initializer and lower to ordinary inferred declarations before semantic checking and runtime execution.
 - `_ = expression;` evaluates and discards an expression result. Declarations and destructuring bindings named `_` also discard their values instead of entering scope.
+- Unused local variables and function parameters produce warnings. Use `_` for intentionally ignored values.
 - Multiple return signatures use `(name : Type, mut OtherType)` syntax and return values with `return left, right;`.
 - Named return values are zero-initialized in the function body.
 - `private { ... }` creates a private lexical block.

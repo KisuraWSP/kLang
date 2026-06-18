@@ -7,7 +7,6 @@
 ```
 klang doc --sourcefile=["test.klang", "file.klang"]
 ```
-- report unused variables in the programming langauge
 - add pass by reference and pass by value sementaics in the langauge
 - add a new flag to allow user to add there own functions to the stdlib via new command like —new_std_lib=["test”, “processor”]
 - allow import statements to be called any where in the program no matter where it is declared, if the langauge detects the call it does an import

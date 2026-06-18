@@ -108,6 +108,8 @@ type variableSymbol struct {
 	InferredType string
 	KnownSome    bool
 	Mutable      bool
+	Used         bool
+	Parameter    bool
 	Default      string
 	File         string
 	Line         int
@@ -572,8 +574,16 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 	}()
 
 	locals := map[string]variableSymbol{}
+	declared := map[string]bool{}
 	for _, param := range fn.Params {
+		param.Parameter = true
+		if param.Line == 0 {
+			param.Line = fn.Line
+		}
 		locals[param.Name] = param
+		if !isDiscardIdentifier(param.Name) {
+			declared[param.Name] = true
+		}
 	}
 	for _, returnValue := range fn.ReturnTypes {
 		if returnValue.Name == "" {
@@ -595,6 +605,7 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 		if param.Default == "" {
 			continue
 		}
+		param.Parameter = true
 		defaultType := checker.inferExpression(param.Default, locals, fn.File, fn.Line)
 		if param.Type == anyType {
 			param.Type = defaultType
@@ -606,7 +617,7 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 	}
 	checker.checkFunctionNullSafety(fn)
 	if parsedFn, ok := parseFunctionBodyForSemanticCheck(fn); ok {
-		checker.checkSemanticStatements(fn, parsedFn.Body, locals, map[string]bool{})
+		checker.checkSemanticStatements(fn, parsedFn.Body, locals, declared)
 	}
 }
 
@@ -643,6 +654,7 @@ func (checker *TypeChecker) checkSemanticStatements(fn functionSymbol, statement
 	for _, stmt := range statements {
 		checker.checkSemanticStatement(fn, stmt, locals, declared)
 	}
+	checker.reportUnusedDeclaredSymbols(fn, locals, declared)
 }
 
 func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parser.Statement, locals map[string]variableSymbol, declared map[string]bool) {
@@ -837,6 +849,23 @@ func (checker *TypeChecker) checkSemanticChildBlockWithLocals(fn functionSymbol,
 		if _, exists := parent[name]; exists {
 			parent[name] = variable
 		}
+	}
+}
+
+func (checker *TypeChecker) reportUnusedDeclaredSymbols(fn functionSymbol, locals map[string]variableSymbol, declared map[string]bool) {
+	for name := range declared {
+		if isDiscardIdentifier(name) {
+			continue
+		}
+		variable, ok := locals[name]
+		if !ok || variable.Used {
+			continue
+		}
+		if variable.Parameter {
+			checker.addWarning(fn.File, variable.Line, fmt.Sprintf("unused parameter %q", name))
+			continue
+		}
+		checker.addWarning(fn.File, variable.Line, fmt.Sprintf("unused variable %q", name))
 	}
 }
 
@@ -1722,7 +1751,7 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 			checker.addError(source, line, "assignment target must be an lvalue")
 			return
 		}
-		variable, ok := checker.lookupVariable(baseName, locals)
+		variable, ok := checker.lookupVariableNoUse(baseName, locals)
 		if !ok {
 			checker.addError(source, line, fmt.Sprintf("cannot assign to unknown variable %q", baseName))
 			return
@@ -2878,6 +2907,18 @@ func (checker *TypeChecker) inferGenericCallReturn(fn functionSymbol, args []str
 }
 
 func (checker *TypeChecker) lookupVariable(name string, locals map[string]variableSymbol) (variableSymbol, bool) {
+	if variable, ok := locals[name]; ok {
+		variable.Used = true
+		locals[name] = variable
+		return variable, true
+	}
+	if variable, ok := checker.globals[name]; ok {
+		return variable, true
+	}
+	return variableSymbol{}, false
+}
+
+func (checker *TypeChecker) lookupVariableNoUse(name string, locals map[string]variableSymbol) (variableSymbol, bool) {
 	if variable, ok := locals[name]; ok {
 		return variable, true
 	}

@@ -46,6 +46,8 @@ local mut [head, [left, right]] = pairs;
 
 -- discard identifier
 -- _ evaluates and ignores a value without creating a binding, and can be reused.
+-- Use _ when a value is intentionally ignored; ordinary unused variables and
+-- function parameters are reported as checker warnings.
 _ = LogEvent();
 local _ = BuildTemporaryValue();
 local [_, selected, _] = [1, 2, 3];
