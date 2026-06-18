@@ -84,6 +84,11 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 				checker.collectASTGlobalsFromStatements([]parser.Statement{current.Stmt}, source, false)
 			}
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
+		case parser.RunStatement:
+			if current.Stmt != nil {
+				checker.collectASTGlobalsFromStatements([]parser.Statement{current.Stmt}, source, false)
+			}
+			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		}
 	}
 }
@@ -151,6 +156,17 @@ func filterModuleFunctions(statements []parser.Statement, namespace string, filt
 			}
 		case parser.NamespaceStatement:
 			current.Body = filterModuleFunctions(current.Body, namespace+current.Name+".", filter)
+			filtered = append(filtered, current)
+		case parser.RunStatement:
+			if current.Stmt != nil {
+				filteredStmt := filterModuleFunctions([]parser.Statement{current.Stmt}, namespace, filter)
+				if len(filteredStmt) == 1 {
+					current.Stmt = filteredStmt[0]
+				} else {
+					current.Stmt = nil
+				}
+			}
+			current.Body = filterModuleFunctions(current.Body, namespace, filter)
 			filtered = append(filtered, current)
 		default:
 			filtered = append(filtered, current)
@@ -262,6 +278,13 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		catchScope.define(variableSymbol{Name: current.ErrorName, Type: anyType, File: source, Line: current.Pos.Line})
 		checker.checkScopeStatements(current.CatchBody, catchScope, namespace, source, inLoop, false)
 	case parser.DeferStatement:
+		if current.Stmt != nil {
+			checker.checkScopeStatement(current.Stmt, scope, namespace, source, inLoop, topLevel)
+		}
+		if len(current.Body) != 0 {
+			checker.checkScopeStatements(current.Body, newLexicalScope(scope), namespace, source, inLoop, false)
+		}
+	case parser.RunStatement:
 		if current.Stmt != nil {
 			checker.checkScopeStatement(current.Stmt, scope, namespace, source, inLoop, topLevel)
 		}

@@ -123,6 +123,8 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseThrow()
 	case lexer.TokenDefer:
 		return parser.parseDefer()
+	case lexer.TokenRun:
+		return parser.parseRun()
 	case lexer.TokenBreak:
 		return parser.parseBreak()
 	case lexer.TokenContinue:
@@ -1302,6 +1304,15 @@ func (parser *Parser) parseDefer() Statement {
 	return DeferStatement{Pos: positionFromToken(start), Stmt: stmt}
 }
 
+func (parser *Parser) parseRun() Statement {
+	start := parser.consume(lexer.TokenRun, "expected run")
+	if parser.check(lexer.TokenScopeBegin) {
+		return RunStatement{Pos: positionFromToken(start), Body: parser.parseBlock()}
+	}
+	stmt := parser.parseStatement()
+	return RunStatement{Pos: positionFromToken(start), Stmt: stmt}
+}
+
 func (parser *Parser) parseBreak() Statement {
 	start := parser.consume(lexer.TokenBreak, "expected break")
 	parser.consumeOptionalSemicolon()
@@ -1473,7 +1484,7 @@ func inlineStatementStart(tokens []lexer.Token) int {
 		switch token.Type {
 		case lexer.TokenBreak, lexer.TokenContinue, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport,
 			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenAsync, lexer.TokenInline,
-			lexer.TokenPrivate, lexer.TokenDefer, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
+			lexer.TokenPrivate, lexer.TokenDefer, lexer.TokenRun, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
 			return index
 		}
 	}
@@ -1773,7 +1784,7 @@ func (parser *Parser) synchronize() {
 		}
 		switch parser.current().Type {
 		case lexer.TokenFunc, lexer.TokenFuncGroup, lexer.TokenInner, lexer.TokenGlobal, lexer.TokenLocal, lexer.TokenExport, lexer.TokenReturn,
-			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCatch,
+			lexer.TokenThrow, lexer.TokenTry, lexer.TokenCatch, lexer.TokenRun,
 			lexer.TokenIf, lexer.TokenUnless, lexer.TokenFor, lexer.TokenWhile,
 			lexer.TokenDoWhile, lexer.TokenImport, lexer.TokenAlias, lexer.TokenLazy,
 			lexer.TokenTrait, lexer.TokenImpl, lexer.TokenNameSpace:

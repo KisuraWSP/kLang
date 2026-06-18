@@ -77,6 +77,18 @@ func (lowerer *destructuringLowerer) lowerStatement(stmt Statement) []Statement 
 			}
 		}
 		return []Statement{current}
+	case RunStatement:
+		current.Body = lowerer.lowerStatements(current.Body)
+		if current.Stmt != nil {
+			lowered := lowerer.lowerStatement(current.Stmt)
+			if len(lowered) == 1 {
+				current.Stmt = lowered[0]
+			} else if len(lowered) > 1 {
+				current.Stmt = nil
+				current.Body = lowered
+			}
+		}
+		return []Statement{current}
 	case PrivateBlockStatement:
 		current.Body = lowerer.lowerStatements(current.Body)
 		return []Statement{current}

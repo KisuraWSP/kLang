@@ -259,6 +259,17 @@ global namespace alloc {
         return 1;
     }
 }
+
+-- run blocks and run calls execute before ordinary statements in the same block.
+function Boot() {
+    print("boot");
+}
+
+run {
+    print("Yay this code gets executed");
+}
+
+run Boot();
 ```
 
 2. Functions

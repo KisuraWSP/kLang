@@ -551,7 +551,8 @@ func (checker *TypeChecker) checkTopLevelCalls(unit sourceUnit) {
 	for _, stmt := range splitStatements(text) {
 		current := trimStatementPrefix(stmt.Text)
 		if strings.HasPrefix(current, "global ") || strings.HasPrefix(current, "import ") || strings.HasPrefix(current, "alias ") ||
-			strings.HasPrefix(current, "module(") || strings.HasPrefix(current, "module_caller(") || current == "" {
+			strings.HasPrefix(current, "module(") || strings.HasPrefix(current, "module_caller(") ||
+			strings.HasPrefix(current, "run ") || strings.HasPrefix(current, "run{") || strings.HasPrefix(current, "run {") || current == "" {
 			continue
 		}
 		if looksLikeCall(current) {
@@ -730,6 +731,11 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		catchLocals[current.ErrorName] = variableSymbol{Name: current.ErrorName, Type: anyType, File: fn.File, Line: line}
 		checker.checkSemanticChildBlockWithLocals(fn, current.CatchBody, locals, catchLocals, map[string]bool{current.ErrorName: true})
 	case parser.DeferStatement:
+		if current.Stmt != nil {
+			checker.checkSemanticChildBlock(fn, []parser.Statement{current.Stmt}, locals)
+		}
+		checker.checkSemanticChildBlock(fn, current.Body, locals)
+	case parser.RunStatement:
 		if current.Stmt != nil {
 			checker.checkSemanticChildBlock(fn, []parser.Statement{current.Stmt}, locals)
 		}
@@ -990,6 +996,11 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 			catchEnv[current.ErrorName] = nullSafetySymbol{Type: anyType}
 			checker.checkNullSafetyStatements(current.CatchBody, catchEnv, source, baseLine)
 		case parser.DeferStatement:
+			checker.checkNullSafetyStatements(current.Body, copyNullSafetyEnv(env), source, baseLine)
+			if current.Stmt != nil {
+				checker.checkNullSafetyStatements([]parser.Statement{current.Stmt}, copyNullSafetyEnv(env), source, baseLine)
+			}
+		case parser.RunStatement:
 			checker.checkNullSafetyStatements(current.Body, copyNullSafetyEnv(env), source, baseLine)
 			if current.Stmt != nil {
 				checker.checkNullSafetyStatements([]parser.Statement{current.Stmt}, copyNullSafetyEnv(env), source, baseLine)

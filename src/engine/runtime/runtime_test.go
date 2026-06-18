@@ -228,6 +228,34 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesRunStatementsBeforeNormalStatementsAndMain(t *testing.T) {
+	result := runSource(t, `
+function Boot() {
+    print("boot");
+}
+
+run {
+    print("block");
+}
+
+print("normal");
+run Boot();
+
+function Main() : Int {
+    print("main");
+    return 7;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 7 {
+		t.Fatalf("expected return 7, got %#v", result.Value)
+	}
+	expectedOutput := []string{"block", "boot", "normal", "main"}
+	if strings.Join(result.Output, ",") != strings.Join(expectedOutput, ",") {
+		t.Fatalf("expected output %v, got %v", expectedOutput, result.Output)
+	}
+}
+
 func TestRuntimeRejectsImmutableParameterMutation(t *testing.T) {
 	_, err := runSourceWithError(`
 function Mutate(value : Int) : Int {

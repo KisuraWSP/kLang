@@ -45,20 +45,6 @@ Workspace and meta programming types like Program, BuildSystem, Workspace, etcâ€
    ```
 
 
-- add this below
-   - basically this scope when the program reads it, it gives first priority to it and executes at compilation stage
-   ```lua
-      -- a scope that gets the first priority when running
-      run {
-         print("Yay this code gets executed");
-      }
-
-   ```
-   - also make it support as a keyword so that functions are able to do this too
-   ```lua
-   run TEst(); -- function gets first priority call when executed
-   ```
-
 - Make The types that the Langauge implements as Parent Types
    - To make the parent return a child type we do the below
    ```go

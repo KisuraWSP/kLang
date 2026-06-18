@@ -314,6 +314,17 @@ func filterRuntimeModuleFunctions(statements []parser.Statement, namespace strin
 		case parser.NamespaceStatement:
 			current.Body = filterRuntimeModuleFunctions(current.Body, namespace+current.Name+".", filter)
 			filtered = append(filtered, current)
+		case parser.RunStatement:
+			if current.Stmt != nil {
+				filteredStmt := filterRuntimeModuleFunctions([]parser.Statement{current.Stmt}, namespace, filter)
+				if len(filteredStmt) == 1 {
+					current.Stmt = filteredStmt[0]
+				} else {
+					current.Stmt = nil
+				}
+			}
+			current.Body = filterRuntimeModuleFunctions(current.Body, namespace, filter)
+			filtered = append(filtered, current)
 		default:
 			filtered = append(filtered, current)
 		}
@@ -522,6 +533,17 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 				return err
 			}
 		}
+	case parser.RunStatement:
+		if current.Stmt != nil {
+			if err := runtime.collectFunctions(current.Stmt, namespace, filter, sourcePath, globalNamespace); err != nil {
+				return err
+			}
+		}
+		for _, nested := range current.Body {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -545,10 +567,16 @@ type signal struct {
 }
 
 func (runtime *Runtime) executeBlock(statements []parser.Statement, env *Environment, inLoop bool) (signal, error) {
+	if err := runtime.executeRunStatements(statements, env, inLoop); err != nil {
+		return signal{}, err
+	}
 	var deferred []parser.DeferStatement
 	for _, stmt := range statements {
 		if deferStmt, ok := stmt.(parser.DeferStatement); ok {
 			deferred = append(deferred, deferStmt)
+			continue
+		}
+		if _, ok := stmt.(parser.RunStatement); ok {
 			continue
 		}
 		currentSignal, err := runtime.executeStatement(stmt, env, inLoop)
@@ -566,6 +594,32 @@ func (runtime *Runtime) executeBlock(statements []parser.Statement, env *Environ
 		return signal{}, err
 	}
 	return signal{kind: signalNone}, nil
+}
+
+func (runtime *Runtime) executeRunStatements(statements []parser.Statement, env *Environment, inLoop bool) error {
+	for _, stmt := range statements {
+		current, ok := stmt.(parser.RunStatement)
+		if !ok {
+			continue
+		}
+		var currentSignal signal
+		var err error
+		if len(current.Body) != 0 {
+			currentSignal, err = runtime.executeBlock(current.Body, NewEnvironment(env), inLoop)
+		} else if current.Stmt != nil {
+			currentSignal, err = runtime.executeStatement(current.Stmt, env, inLoop)
+		}
+		if err != nil {
+			return err
+		}
+		if currentSignal.kind == signalThrow {
+			return Error{Message: "run threw exception: " + valueString(currentSignal.value)}
+		}
+		if currentSignal.kind != signalNone {
+			return Error{Message: "run cannot return, break, or continue"}
+		}
+	}
+	return nil
 }
 
 func (runtime *Runtime) executeDeferred(deferred []parser.DeferStatement, env *Environment, inLoop bool, existing error) error {
@@ -708,6 +762,8 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		}
 		return signal{kind: signalReturn, value: value}, nil
 	case parser.DeferStatement:
+		return signal{kind: signalNone}, nil
+	case parser.RunStatement:
 		return signal{kind: signalNone}, nil
 	case parser.PrivateBlockStatement:
 		return runtime.executeBlock(current.Body, NewEnvironment(env), inLoop)

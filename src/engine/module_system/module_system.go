@@ -479,6 +479,11 @@ func collectSourceMetadataInto(statements []parser.Statement, namespace string, 
 			for _, matchCase := range current.Cases {
 				collectSourceMetadataInto(matchCase.Body, namespace, global, metadata, imports)
 			}
+		case parser.RunStatement:
+			if current.Stmt != nil {
+				collectSourceMetadataInto([]parser.Statement{current.Stmt}, namespace, global, metadata, imports)
+			}
+			collectSourceMetadataInto(current.Body, namespace, global, metadata, imports)
 		}
 	}
 }
@@ -631,6 +636,11 @@ func collectStatementCalls(statements []parser.Statement, add func(string)) {
 			collectStatementCalls(current.TryBody, add)
 			collectStatementCalls(current.CatchBody, add)
 		case parser.DeferStatement:
+			if current.Stmt != nil {
+				collectStatementCalls([]parser.Statement{current.Stmt}, add)
+			}
+			collectStatementCalls(current.Body, add)
+		case parser.RunStatement:
 			if current.Stmt != nil {
 				collectStatementCalls([]parser.Statement{current.Stmt}, add)
 			}

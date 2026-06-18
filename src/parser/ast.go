@@ -271,6 +271,12 @@ type DeferStatement struct {
 	Body []Statement
 }
 
+type RunStatement struct {
+	Pos  Position
+	Stmt Statement
+	Body []Statement
+}
+
 type PrivateBlockStatement struct {
 	Pos  Position
 	Body []Statement
@@ -405,6 +411,7 @@ func (stmt MatchStatement) statementNode()      {}
 func (stmt LoopStatement) statementNode()       {}
 func (stmt TryCatchStatement) statementNode()   {}
 func (stmt DeferStatement) statementNode()      {}
+func (stmt RunStatement) statementNode()        {}
 func (stmt PrivateBlockStatement) statementNode() {
 }
 
@@ -443,6 +450,7 @@ func (stmt MatchStatement) Position() Position      { return stmt.Pos }
 func (stmt LoopStatement) Position() Position       { return stmt.Pos }
 func (stmt TryCatchStatement) Position() Position   { return stmt.Pos }
 func (stmt DeferStatement) Position() Position      { return stmt.Pos }
+func (stmt RunStatement) Position() Position        { return stmt.Pos }
 func (stmt PrivateBlockStatement) Position() Position {
 	return stmt.Pos
 }

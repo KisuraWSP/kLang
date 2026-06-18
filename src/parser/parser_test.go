@@ -225,6 +225,29 @@ private {
 	}
 }
 
+func TestParseRunStatements(t *testing.T) {
+	program, errors := Parse(`
+run {
+    print("first");
+}
+run Boot();
+function Boot() {}
+`)
+	assertNoParseErrors(t, errors)
+
+	blockRun, ok := program.Statements[0].(RunStatement)
+	if !ok || len(blockRun.Body) != 1 {
+		t.Fatalf("expected block run statement, got %#v", program.Statements[0])
+	}
+	callRun, ok := program.Statements[1].(RunStatement)
+	if !ok || callRun.Stmt == nil {
+		t.Fatalf("expected call run statement, got %#v", program.Statements[1])
+	}
+	if _, ok := callRun.Stmt.(ExpressionStatement); !ok {
+		t.Fatalf("expected run call expression statement, got %T", callRun.Stmt)
+	}
+}
+
 func TestParseFunctionCallbackParameterType(t *testing.T) {
 	program, errors := Parse(`
 function Apply(value : Int, callback : Function[Int, Int]) : Int {
