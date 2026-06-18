@@ -358,6 +358,45 @@ function Main() : Int {
 	}
 }
 
+func TestResolveProgramAutoLoadsStdlibGlobalNamespace(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "alloc.klang", `
+global namespace alloc {
+    function New() : Int { return 7; }
+    function Helper() : Int { return 1; }
+}
+namespace hidden {
+    function Secret() : Int { return 99; }
+}
+`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `
+function Main() : Int {
+    return New();
+}
+`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+
+	resolved, report := NewResolver(stdlibRoot).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected module resolution to pass, got %#v", report.Errors)
+	}
+	if len(resolved.Files) != 2 {
+		t.Fatalf("expected global namespace stdlib file to be loaded, got %d file(s)", len(resolved.Files))
+	}
+	filter := resolved.Files[1].ModuleFunctionFilter
+	if !filter["alloc.New"] || !filter["alloc.Helper"] {
+		t.Fatalf("expected global namespace functions in filter, got %#v", filter)
+	}
+	if filter["hidden.Secret"] {
+		t.Fatalf("did not expect non-global namespace function in filter, got %#v", filter)
+	}
+}
+
 func TestResolveProgramRawLangStillAllowsLocalImports(t *testing.T) {
 	root := t.TempDir()
 	appRoot := filepath.Join(root, "app")

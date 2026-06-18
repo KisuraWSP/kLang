@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"kLang/src/engine/file"
+	modulesystem "kLang/src/engine/module_system"
+	typechecker "kLang/src/engine/type_checker"
 	"kLang/src/parser"
 )
 
@@ -1664,6 +1666,60 @@ function Main() : Int {
 
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 29 {
 		t.Fatalf("expected stdlib runtime debug helpers to return 29, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeAutoLoadsStdlibGlobalNamespaceFunctions(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	appRoot := filepath.Join(root, "app")
+	if err := os.MkdirAll(stdlibRoot, 0o755); err != nil {
+		t.Fatalf("create stdlib dir failed: %v", err)
+	}
+	if err := os.MkdirAll(appRoot, 0o755); err != nil {
+		t.Fatalf("create app dir failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(stdlibRoot, "alloc.klang"), []byte(`
+global namespace alloc {
+    function New() : Int { return 7; }
+    function Add(left : Int, right : Int) : Int { return left + right; }
+}
+namespace hidden {
+    function Secret() : Int { return 99; }
+}
+`), 0o644); err != nil {
+		t.Fatalf("write stdlib fixture failed: %v", err)
+	}
+	programPath := filepath.Join(appRoot, "main.klang")
+	if err := os.WriteFile(programPath, []byte(`
+function Main() : Int {
+    return Add(New(), 5);
+}
+`), 0o644); err != nil {
+		t.Fatalf("write app fixture failed: %v", err)
+	}
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("load program failed: %v", err)
+	}
+	resolved, moduleReport := modulesystem.NewResolver(stdlibRoot).ResolveProgram(program)
+	if !moduleReport.Passed() {
+		t.Fatalf("module resolution failed: %#v", moduleReport.Errors)
+	}
+	typeReport := typechecker.CheckProgram(resolved)
+	if !typeReport.Passed() {
+		t.Fatalf("type check failed: %#v", typeReport.Errors)
+	}
+	parsed := parser.ParseLoadedProgram(resolved)
+	if !parsed.Passed() {
+		t.Fatalf("parse failed: %#v", parsed.Errors())
+	}
+	result, err := New().Run(parsed)
+	if err != nil {
+		t.Fatalf("runtime failed: %v", err)
+	}
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 12 {
+		t.Fatalf("expected global namespace function program to return 12, got %#v", result.Value)
 	}
 }
 

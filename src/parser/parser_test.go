@@ -694,6 +694,26 @@ std_lib::LuaInit();
 	}
 }
 
+func TestParseGlobalNamespace(t *testing.T) {
+	program, errors := Parse(`
+global namespace alloc {
+    function New() : Int {
+        return 1;
+    }
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	namespace, ok := program.Statements[0].(NamespaceStatement)
+	if !ok || namespace.Name != "alloc" || !namespace.Global {
+		t.Fatalf("expected global namespace alloc, got %#v", program.Statements[0])
+	}
+	fn, ok := namespace.Body[0].(FunctionStatement)
+	if !ok || fn.Name != "New" {
+		t.Fatalf("expected function New in global namespace, got %#v", namespace.Body[0])
+	}
+}
+
 func TestParseConditionalsAndLoops(t *testing.T) {
 	program, errors := Parse(`
 function Main() : Int {

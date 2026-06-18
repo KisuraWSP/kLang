@@ -77,6 +77,7 @@ type NamespaceStatement struct {
 	Pos     Position
 	Name    string
 	Private bool
+	Global  bool
 	Body    []Statement
 }
 

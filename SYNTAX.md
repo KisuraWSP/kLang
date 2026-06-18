@@ -250,6 +250,15 @@ import "runtime";
 
 -- inside a module source, reject imports until the directive is removed
 module(disabled : True);
+
+-- inside a stdlib module, expose functions through the language's internal
+-- global namespace symbol table. User code can call New() without importing
+-- this module or writing alloc.New().
+global namespace alloc {
+    function New() : Int {
+        return 1;
+    }
+}
 ```
 
 2. Functions

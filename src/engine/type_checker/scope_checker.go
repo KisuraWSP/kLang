@@ -626,12 +626,29 @@ func (checker *TypeChecker) functionExists(name string, namespace string) bool {
 	if _, ok := checker.functions[name]; ok {
 		return true
 	}
+	if _, ok, _ := checker.resolveGlobalFunction(name); ok {
+		return true
+	}
 	if namespace != "" {
 		if _, ok := checker.functions[namespace+name]; ok {
 			return true
 		}
 	}
 	return false
+}
+
+func (checker *TypeChecker) resolveGlobalFunction(name string) (string, bool, string) {
+	if strings.Contains(name, ".") {
+		return "", false, ""
+	}
+	matches := checker.globalFunctions[name]
+	if len(matches) == 0 {
+		return "", false, ""
+	}
+	if len(matches) > 1 {
+		return "", false, fmt.Sprintf("ambiguous global namespace function %q matches %s", name, strings.Join(matches, ", "))
+	}
+	return matches[0], true, ""
 }
 
 func (checker *TypeChecker) namespaceExists(name string) bool {

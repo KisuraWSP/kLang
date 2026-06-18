@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"kLang/src/engine/file"
@@ -67,6 +68,7 @@ type sourceMetadata struct {
 	Imports          []parser.ImportStatement
 	ModuleDisabled   bool
 	CallEntireModule bool
+	GlobalFunctions  map[string]bool
 }
 
 func NewResolver(stdlibRoot string) *Resolver {
@@ -111,8 +113,112 @@ func (resolver *Resolver) ResolveProgram(program file.Program) (file.Program, Re
 	for _, source := range program.Files {
 		resolver.resolveSource(state, &resolved, &report, source)
 	}
+	resolver.resolveStdlibGlobalNamespaces(state, &resolved, &report)
 
 	return resolved, report
+}
+
+func (resolver *Resolver) resolveStdlibGlobalNamespaces(state *resolutionState, program *file.Program, report *Report) {
+	if resolver.DisableStdlib {
+		return
+	}
+	paths, err := resolver.globalStdlibCandidates()
+	if err != nil {
+		report.Errors = append(report.Errors, Error{Message: err.Error()})
+		return
+	}
+	for _, path := range paths {
+		if state.visited[resolver.pathKey(path)] {
+			continue
+		}
+		imported, err := resolver.loadProgram(path)
+		if err != nil {
+			report.Errors = append(report.Errors, Error{File: path, Message: err.Error()})
+			continue
+		}
+		if resolver.moduleDisabled(imported) {
+			continue
+		}
+		selected := resolver.globalNamespaceFunctionFilter(imported)
+		if len(selected) == 0 {
+			continue
+		}
+		if resolver.mergeVisitedGlobalNamespaceFilter(program, imported, selected) {
+			continue
+		}
+		for _, importedSource := range imported.Files {
+			key := resolver.pathKey(importedSource.Path)
+			if state.visited[key] {
+				continue
+			}
+			importedSource.ModuleFunctionFilter = cloneBoolMap(selected)
+			state.visited[key] = true
+			program.Files = append(program.Files, importedSource)
+			resolver.resolveSource(state, program, report, importedSource)
+		}
+	}
+}
+
+func (resolver *Resolver) mergeVisitedGlobalNamespaceFilter(program *file.Program, imported file.Program, selected map[string]bool) bool {
+	merged := false
+	for _, importedSource := range imported.Files {
+		importedKey := resolver.pathKey(importedSource.Path)
+		for index := range program.Files {
+			if resolver.pathKey(program.Files[index].Path) != importedKey {
+				continue
+			}
+			if program.Files[index].ModuleFunctionFilter != nil {
+				for name := range selected {
+					program.Files[index].ModuleFunctionFilter[name] = true
+				}
+			}
+			merged = true
+		}
+	}
+	return merged
+}
+
+func (resolver *Resolver) globalStdlibCandidates() ([]string, error) {
+	if !resolver.pathExists(resolver.StdlibRoot) {
+		return nil, nil
+	}
+	var paths []string
+	entries, err := os.ReadDir(resolver.StdlibRoot)
+	if err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		path := filepath.Join(resolver.StdlibRoot, entry.Name())
+		if filepath.Ext(path) != file.KlangExtension {
+			continue
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		if strings.Contains(string(contents), "global namespace") {
+			paths = append(paths, filepath.Clean(path))
+		}
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func (resolver *Resolver) globalNamespaceFunctionFilter(program file.Program) map[string]bool {
+	selected := map[string]bool{}
+	for _, source := range program.Files {
+		metadata, errors := resolver.metadataFor(source)
+		if len(errors) != 0 {
+			continue
+		}
+		for name := range metadata.GlobalFunctions {
+			selected[name] = true
+		}
+	}
+	return selected
 }
 
 func (resolver *Resolver) resolveSource(state *resolutionState, program *file.Program, report *Report, source file.SourceFile) {
@@ -318,13 +424,22 @@ func collectImports(statements []parser.Statement) []parser.ImportStatement {
 }
 
 func collectSourceMetadata(statements []parser.Statement) sourceMetadata {
-	metadata := sourceMetadata{}
+	metadata := sourceMetadata{GlobalFunctions: map[string]bool{}}
 	var imports []parser.ImportStatement
+	collectSourceMetadataInto(statements, "", false, &metadata, &imports)
+	for index := range imports {
+		imports[index].CallEntireModule = metadata.CallEntireModule
+	}
+	metadata.Imports = imports
+	return metadata
+}
+
+func collectSourceMetadataInto(statements []parser.Statement, namespace string, global bool, metadata *sourceMetadata, imports *[]parser.ImportStatement) {
 	for _, stmt := range statements {
 		switch current := stmt.(type) {
 		case parser.ImportStatement:
 			current.CallEntireModule = metadata.CallEntireModule
-			imports = append(imports, current)
+			*imports = append(*imports, current)
 		case parser.ModuleDirectiveStatement:
 			switch current.Name {
 			case "module":
@@ -337,47 +452,35 @@ func collectSourceMetadata(statements []parser.Statement) sourceMetadata {
 				}
 			}
 		case parser.NamespaceStatement:
-			nested := collectSourceMetadata(current.Body)
-			imports = append(imports, nested.Imports...)
+			collectSourceMetadataInto(current.Body, namespace+current.Name+".", global || current.Global, metadata, imports)
 		case parser.FunctionStatement:
-			nested := collectSourceMetadata(current.Body)
-			imports = append(imports, nested.Imports...)
+			if global {
+				metadata.GlobalFunctions[namespace+current.Name] = true
+			}
+			collectSourceMetadataInto(current.Body, namespace, false, metadata, imports)
 		case parser.AliasFunctionStatement:
-			nested := collectSourceMetadata(current.Body)
-			imports = append(imports, nested.Imports...)
+			collectSourceMetadataInto(current.Body, namespace, global, metadata, imports)
 			for _, method := range current.Methods {
-				methodMetadata := collectSourceMetadata(method.Body)
-				imports = append(imports, methodMetadata.Imports...)
+				collectSourceMetadataInto(method.Body, namespace, global, metadata, imports)
 			}
 		case parser.ImplStatement:
 			for _, method := range current.Methods {
-				methodMetadata := collectSourceMetadata(method.Body)
-				imports = append(imports, methodMetadata.Imports...)
+				collectSourceMetadataInto(method.Body, namespace, global, metadata, imports)
 			}
 		case parser.IfStatement:
-			consequence := collectSourceMetadata(current.Consequence)
-			alternative := collectSourceMetadata(current.Alternative)
-			imports = append(imports, consequence.Imports...)
-			imports = append(imports, alternative.Imports...)
+			collectSourceMetadataInto(current.Consequence, namespace, global, metadata, imports)
+			collectSourceMetadataInto(current.Alternative, namespace, global, metadata, imports)
 			if current.ElseIf != nil {
-				elseIf := collectSourceMetadata([]parser.Statement{*current.ElseIf})
-				imports = append(imports, elseIf.Imports...)
+				collectSourceMetadataInto([]parser.Statement{*current.ElseIf}, namespace, global, metadata, imports)
 			}
 		case parser.LoopStatement:
-			nested := collectSourceMetadata(current.Body)
-			imports = append(imports, nested.Imports...)
+			collectSourceMetadataInto(current.Body, namespace, global, metadata, imports)
 		case parser.MatchStatement:
 			for _, matchCase := range current.Cases {
-				matchMetadata := collectSourceMetadata(matchCase.Body)
-				imports = append(imports, matchMetadata.Imports...)
+				collectSourceMetadataInto(matchCase.Body, namespace, global, metadata, imports)
 			}
 		}
 	}
-	for index := range imports {
-		imports[index].CallEntireModule = metadata.CallEntireModule
-	}
-	metadata.Imports = imports
-	return metadata
 }
 
 func (resolver *Resolver) moduleDisabled(program file.Program) bool {

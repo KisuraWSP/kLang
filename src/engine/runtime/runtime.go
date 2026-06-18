@@ -179,25 +179,26 @@ func thrownValue(err error) (Value, bool) {
 }
 
 type Runtime struct {
-	mu             sync.Mutex
-	memory         *Memory
-	global         *Environment
-	functions      map[string]parser.FunctionStatement
-	functionFiles  map[string]string
-	aliasFunctions map[string]parser.AliasFunctionStatement
-	enums          map[string]parser.EnumStatement
-	regions        map[string]RegionData
-	groups         map[string][]string
-	closures       map[string]*Environment
-	aliases        map[string]string
-	output         *RuntimeOutput
-	callDepth      int
-	maxDepth       int
-	callStack      []string
-	callSites      []callSite
-	nextFunc       int
-	innerSets      []map[string]Value
-	args           []string
+	mu              sync.Mutex
+	memory          *Memory
+	global          *Environment
+	functions       map[string]parser.FunctionStatement
+	functionFiles   map[string]string
+	globalFunctions map[string][]string
+	aliasFunctions  map[string]parser.AliasFunctionStatement
+	enums           map[string]parser.EnumStatement
+	regions         map[string]RegionData
+	groups          map[string][]string
+	closures        map[string]*Environment
+	aliases         map[string]string
+	output          *RuntimeOutput
+	callDepth       int
+	maxDepth        int
+	callStack       []string
+	callSites       []callSite
+	nextFunc        int
+	innerSets       []map[string]Value
+	args            []string
 }
 
 type RuntimeOutput struct {
@@ -209,18 +210,19 @@ const defaultMaxCallDepth = 1024
 
 func New() *Runtime {
 	return &Runtime{
-		memory:         NewMemory(),
-		global:         NewEnvironment(nil),
-		functions:      map[string]parser.FunctionStatement{},
-		functionFiles:  map[string]string{},
-		aliasFunctions: map[string]parser.AliasFunctionStatement{},
-		enums:          map[string]parser.EnumStatement{},
-		regions:        map[string]RegionData{},
-		groups:         map[string][]string{},
-		closures:       map[string]*Environment{},
-		aliases:        map[string]string{},
-		output:         &RuntimeOutput{},
-		maxDepth:       defaultMaxCallDepth,
+		memory:          NewMemory(),
+		global:          NewEnvironment(nil),
+		functions:       map[string]parser.FunctionStatement{},
+		functionFiles:   map[string]string{},
+		globalFunctions: map[string][]string{},
+		aliasFunctions:  map[string]parser.AliasFunctionStatement{},
+		enums:           map[string]parser.EnumStatement{},
+		regions:         map[string]RegionData{},
+		groups:          map[string][]string{},
+		closures:        map[string]*Environment{},
+		aliases:         map[string]string{},
+		output:          &RuntimeOutput{},
+		maxDepth:        defaultMaxCallDepth,
 	}
 }
 
@@ -259,7 +261,7 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 	}
 	for _, source := range program.Sources {
 		for _, stmt := range source.Program.Statements {
-			if err := runtime.collectFunctions(stmt, "", source.ModuleFunctionFilter, source.Path); err != nil {
+			if err := runtime.collectFunctions(stmt, "", source.ModuleFunctionFilter, source.Path, false); err != nil {
 				return Result{}, err
 			}
 		}
@@ -333,19 +335,20 @@ func (runtime *Runtime) outputLines() []string {
 
 func (runtime *Runtime) childRuntime() *Runtime {
 	child := &Runtime{
-		memory:         runtime.memory,
-		global:         runtime.global,
-		functions:      cloneFunctionMap(runtime.functions),
-		functionFiles:  cloneStringMap(runtime.functionFiles),
-		aliasFunctions: cloneAliasFunctionMap(runtime.aliasFunctions),
-		enums:          cloneEnumMap(runtime.enums),
-		regions:        cloneRegionMap(runtime.regions),
-		groups:         cloneGroupMap(runtime.groups),
-		closures:       cloneClosureMap(runtime.closures),
-		aliases:        cloneStringMap(runtime.aliases),
-		output:         runtime.output,
-		maxDepth:       runtime.maxDepth,
-		args:           append([]string(nil), runtime.args...),
+		memory:          runtime.memory,
+		global:          runtime.global,
+		functions:       cloneFunctionMap(runtime.functions),
+		functionFiles:   cloneStringMap(runtime.functionFiles),
+		globalFunctions: cloneGroupMap(runtime.globalFunctions),
+		aliasFunctions:  cloneAliasFunctionMap(runtime.aliasFunctions),
+		enums:           cloneEnumMap(runtime.enums),
+		regions:         cloneRegionMap(runtime.regions),
+		groups:          cloneGroupMap(runtime.groups),
+		closures:        cloneClosureMap(runtime.closures),
+		aliases:         cloneStringMap(runtime.aliases),
+		output:          runtime.output,
+		maxDepth:        runtime.maxDepth,
+		args:            append([]string(nil), runtime.args...),
 	}
 	return child
 }
@@ -414,7 +417,7 @@ func (runtime *Runtime) defineArgs() error {
 	return runtime.defineValueInRegion(runtime.global, "Args", false, "List[String]", Value{Kind: ValueList, Data: values}, MemoryHeap)
 }
 
-func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string, filter map[string]bool, sourcePath string) error {
+func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string, filter map[string]bool, sourcePath string, globalNamespace bool) error {
 	switch current := stmt.(type) {
 	case parser.RegionStatement:
 		runtime.regions[current.Name] = RegionData{Name: current.Name, TypeName: current.TypeName}
@@ -438,6 +441,10 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 		}
 		runtime.functions[name] = current
 		runtime.functionFiles[name] = sourcePath
+		if globalNamespace {
+			shortName := unqualifiedRuntimeFunctionName(name)
+			runtime.globalFunctions[shortName] = append(runtime.globalFunctions[shortName], name)
+		}
 	case parser.FunctionGroupStatement:
 		name := namespace + current.Name
 		if _, exists := runtime.groups[name]; exists {
@@ -458,60 +465,60 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 		runtime.aliases[current.Name] = current.Target
 	case parser.NamespaceStatement:
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace+current.Name+".", filter, sourcePath); err != nil {
+			if err := runtime.collectFunctions(nested, namespace+current.Name+".", filter, sourcePath, globalNamespace || current.Global); err != nil {
 				return err
 			}
 		}
 	case parser.MatchStatement:
 		for _, matchCase := range current.Cases {
 			for _, nested := range matchCase.Body {
-				if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
+				if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
 					return err
 				}
 			}
 		}
 	case parser.IfStatement:
 		for _, nested := range current.Consequence {
-			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
 				return err
 			}
 		}
 		for _, nested := range current.Alternative {
-			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
 				return err
 			}
 		}
 	case parser.LoopStatement:
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
 				return err
 			}
 		}
 	case parser.TryCatchStatement:
 		for _, nested := range current.TryBody {
-			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
 				return err
 			}
 		}
 		for _, nested := range current.CatchBody {
-			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
 				return err
 			}
 		}
 	case parser.PrivateBlockStatement:
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
 				return err
 			}
 		}
 	case parser.DeferStatement:
 		if current.Stmt != nil {
-			if err := runtime.collectFunctions(current.Stmt, namespace, filter, sourcePath); err != nil {
+			if err := runtime.collectFunctions(current.Stmt, namespace, filter, sourcePath, globalNamespace); err != nil {
 				return err
 			}
 		}
 		for _, nested := range current.Body {
-			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath); err != nil {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
 				return err
 			}
 		}
@@ -2912,6 +2919,12 @@ func (runtime *Runtime) resolveFunctionName(name string) (string, error) {
 	if _, ok := runtime.functions[name]; ok {
 		return name, nil
 	}
+	if resolved, ok, err := runtime.resolveGlobalFunctionName(name); ok || err != nil {
+		if err != nil {
+			return "", err
+		}
+		return resolved, nil
+	}
 	var matches []string
 	for functionName := range runtime.functions {
 		if strings.HasSuffix(functionName, "."+name) {
@@ -2925,6 +2938,27 @@ func (runtime *Runtime) resolveFunctionName(name string) (string, error) {
 		return matches[0], nil
 	}
 	return "", nil
+}
+
+func (runtime *Runtime) resolveGlobalFunctionName(name string) (string, bool, error) {
+	if strings.Contains(name, ".") {
+		return "", false, nil
+	}
+	matches := runtime.globalFunctions[name]
+	if len(matches) == 0 {
+		return "", false, nil
+	}
+	if len(matches) > 1 {
+		return "", false, Error{Message: fmt.Sprintf("ambiguous global namespace function %q matches %s", name, strings.Join(matches, ", "))}
+	}
+	return matches[0], true, nil
+}
+
+func unqualifiedRuntimeFunctionName(name string) string {
+	if index := strings.LastIndex(name, "."); index != -1 {
+		return name[index+1:]
+	}
+	return name
 }
 
 func (runtime *Runtime) isLazyFunction(name string) bool {

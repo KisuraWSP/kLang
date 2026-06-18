@@ -103,6 +103,9 @@ func (parser *Parser) parseStatement() Statement {
 	case lexer.TokenExport:
 		return parser.parseExport()
 	case lexer.TokenGlobal:
+		if parser.peek().Type == lexer.TokenNameSpace {
+			return parser.parseGlobalNamespace()
+		}
 		return parser.parseVariable("global", false)
 	case lexer.TokenLocal:
 		return parser.parseVariable("local", false)
@@ -589,6 +592,20 @@ func (parser *Parser) parseNamespace() Statement {
 		Pos:     positionFromToken(start),
 		Name:    name.Literal,
 		Private: false,
+		Body:    body,
+	}
+}
+
+func (parser *Parser) parseGlobalNamespace() Statement {
+	start := parser.consume(lexer.TokenGlobal, "expected global")
+	parser.consume(lexer.TokenNameSpace, "expected namespace")
+	name := parser.consume(lexer.TokenIdentifier, "expected namespace name")
+	body := parser.parseBlock()
+	return NamespaceStatement{
+		Pos:     positionFromToken(start),
+		Name:    name.Literal,
+		Private: false,
+		Global:  true,
 		Body:    body,
 	}
 }

@@ -38,17 +38,18 @@ func (report Report) Passed() bool {
 }
 
 type TypeChecker struct {
-	functions      map[string]functionSymbol
-	aliasFunctions map[string]parser.AliasFunctionStatement
-	regions        map[string]parser.RegionStatement
-	groups         map[string][]string
-	globals        map[string]variableSymbol
-	aliases        map[string]string
-	traits         map[string]traitSymbol
-	enums          map[string]enumSymbol
-	errors         []Error
-	warnings       []Warning
-	namespace      string
+	functions       map[string]functionSymbol
+	globalFunctions map[string][]string
+	aliasFunctions  map[string]parser.AliasFunctionStatement
+	regions         map[string]parser.RegionStatement
+	groups          map[string][]string
+	globals         map[string]variableSymbol
+	aliases         map[string]string
+	traits          map[string]traitSymbol
+	enums           map[string]enumSymbol
+	errors          []Error
+	warnings        []Warning
+	namespace       string
 }
 
 type functionSymbol struct {
@@ -120,14 +121,15 @@ type sourceUnit struct {
 
 func CheckProgram(program file.Program) Report {
 	checker := &TypeChecker{
-		functions:      map[string]functionSymbol{},
-		aliasFunctions: map[string]parser.AliasFunctionStatement{},
-		regions:        map[string]parser.RegionStatement{},
-		groups:         map[string][]string{},
-		globals:        map[string]variableSymbol{},
-		aliases:        map[string]string{},
-		traits:         map[string]traitSymbol{},
-		enums:          map[string]enumSymbol{},
+		functions:       map[string]functionSymbol{},
+		globalFunctions: map[string][]string{},
+		aliasFunctions:  map[string]parser.AliasFunctionStatement{},
+		regions:         map[string]parser.RegionStatement{},
+		groups:          map[string][]string{},
+		globals:         map[string]variableSymbol{},
+		aliases:         map[string]string{},
+		traits:          map[string]traitSymbol{},
+		enums:           map[string]enumSymbol{},
 	}
 
 	units := make([]sourceUnit, 0, len(program.Files))
@@ -140,7 +142,7 @@ func CheckProgram(program file.Program) Report {
 	}
 
 	for _, unit := range units {
-		checker.collectFunctions(unit, "")
+		checker.collectFunctions(unit, "", false)
 	}
 	checker.collectTraits(program)
 	checker.collectEnums(program)
@@ -228,7 +230,7 @@ func (checker *TypeChecker) collectFunctionGroupStatements(statements []parser.S
 	}
 }
 
-func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string) {
+func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string, globalNamespace bool) {
 	index := 0
 	for index < len(unit.Text) {
 		nextNamespace := findKeyword(unit.Text, "namespace", index)
@@ -267,7 +269,7 @@ func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string) 
 			}
 
 			body := unit.Text[openBrace+1 : closeBrace]
-			checker.collectFunctions(sourceUnit{Path: unit.Path, Text: body, ModuleFunctionFilter: unit.ModuleFunctionFilter}, namespace+name+".")
+			checker.collectFunctions(sourceUnit{Path: unit.Path, Text: body, ModuleFunctionFilter: unit.ModuleFunctionFilter}, namespace+name+".", globalNamespace || isGlobalNamespaceAt(unit.Text, nextNamespace))
 			index = closeBrace + 1
 			continue
 		}
@@ -296,6 +298,9 @@ func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string) 
 			checker.addError(fn.File, fn.Line, fmt.Sprintf("function %q is already defined", fn.Name))
 		} else if unit.ModuleFunctionFilter == nil || unit.ModuleFunctionFilter[fn.Name] {
 			checker.functions[fn.Name] = fn
+			if globalNamespace {
+				checker.globalFunctions[unqualifiedFunctionName(fn.Name)] = append(checker.globalFunctions[unqualifiedFunctionName(fn.Name)], fn.Name)
+			}
 		}
 		index = end
 	}
@@ -1416,7 +1421,26 @@ func parseVariableDeclaration(stmt string, scope string) (variableDeclaration, b
 	}, true
 }
 
+func isGlobalNamespaceAt(text string, namespaceIndex int) bool {
+	prefix := strings.TrimSpace(text[:namespaceIndex])
+	if prefix == "" {
+		return false
+	}
+	fields := strings.Fields(prefix)
+	return len(fields) > 0 && fields[len(fields)-1] == "global"
+}
+
+func unqualifiedFunctionName(name string) string {
+	if index := strings.LastIndex(name, "."); index != -1 {
+		return name[index+1:]
+	}
+	return name
+}
+
 func parseGlobalLikeDeclaration(stmt string) (variableDeclaration, bool) {
+	if strings.HasPrefix(trimStatementPrefix(stmt), "global namespace ") {
+		return variableDeclaration{}, false
+	}
 	if decl, ok := parseVariableDeclaration(stmt, "global"); ok {
 		return decl, true
 	}
@@ -2651,6 +2675,13 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.inferExpression(arg, locals, source, line)
 		}
 		return anyType
+	}
+	if resolved, ok, err := checker.resolveGlobalFunction(name); ok || err != "" {
+		if err != "" {
+			checker.addError(source, line, err)
+			return anyType
+		}
+		name = resolved
 	}
 
 	fn, ok := checker.lookupFunction(name)
