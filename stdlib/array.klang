@@ -3,7 +3,7 @@
 -- portable array-style operations over List[T] values and an Array alias object
 -- that carries length/capacity metadata beside the underlying items.
 
-alias function Array[T: Any](items : List[T], length : Int, capacity : Int, allocator = .DEFAULT) : type = struct {
+alias function Array[T](items : List[T], length : Int, capacity : Int, allocator = .DEFAULT) : type = struct {
     #extend {
         function count() : Int {
             return len(this.items);

@@ -203,11 +203,11 @@ namespace builtin {
         return {};
     }
 
-    --- Signature: function max[T restrict[Int, Float, String]](left : T, right : T) : T
+    --- Signature: function max[T comparable](left : T, right : T) : T
     --- Returns: T.
     --- Summary: Provides the stdlib max operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function max[T restrict[Int, Float, String]](left : T, right : T) : T {
+    function max[T comparable](left : T, right : T) : T {
         if left > right {
             return left;
         }
@@ -215,11 +215,11 @@ namespace builtin {
         return right;
     }
 
-    --- Signature: function min[T restrict[Int, Float, String]](left : T, right : T) : T
+    --- Signature: function min[T comparable](left : T, right : T) : T
     --- Returns: T.
     --- Summary: Provides the stdlib min operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function min[T restrict[Int, Float, String]](left : T, right : T) : T {
+    function min[T comparable](left : T, right : T) : T {
         if left < right {
             return left;
         }

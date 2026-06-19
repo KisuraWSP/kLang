@@ -1,7 +1,7 @@
 -- Data structure helpers built from Klang's current List, Table, Option, and
 -- alias-function object support.
 
-alias function Stack[T: Any](items : List[T]) : type = struct {
+alias function Stack[T](items : List[T]) : type = struct {
     #extend {
         function count() : Int {
             return len(this.items);
@@ -13,7 +13,7 @@ alias function Stack[T: Any](items : List[T]) : type = struct {
     }
 }
 
-alias function Queue[T: Any](items : List[T]) : type = struct {
+alias function Queue[T](items : List[T]) : type = struct {
     #extend {
         function count() : Int {
             return len(this.items);
@@ -25,7 +25,7 @@ alias function Queue[T: Any](items : List[T]) : type = struct {
     }
 }
 
-alias function OrderedMap[T: Any](keys : List[T], values : List[T]) : type = struct {
+alias function OrderedMap[T hashable](keys : List[T], values : List[T]) : type = struct {
     #extend {
         function count() : Int {
             return len(this.keys);

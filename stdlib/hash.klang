@@ -113,11 +113,11 @@ namespace hash {
         return Int(0);
     }
 
-    --- Signature: function Stable[T restrict[String, Int, Bool]](value : T) : Int
+    --- Signature: function Stable[T hashable](value : T) : Int
     --- Returns: Int.
     --- Summary: Provides the stdlib stable operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Stable[T restrict[String, Int, Bool]](value : T) : Int {
+    function Stable[T hashable](value : T) : Int {
         if debug_type(value) == "String" {
             return StringHash(value as String);
         }

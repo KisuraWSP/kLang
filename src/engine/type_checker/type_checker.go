@@ -46,6 +46,7 @@ type TypeChecker struct {
 	globals         map[string]variableSymbol
 	aliases         map[string]string
 	traits          map[string]traitSymbol
+	traitImpls      map[string]map[string]bool
 	enums           map[string]enumSymbol
 	errors          []Error
 	warnings        []Warning
@@ -132,6 +133,7 @@ func CheckProgram(program file.Program) Report {
 		globals:         map[string]variableSymbol{},
 		aliases:         map[string]string{},
 		traits:          map[string]traitSymbol{},
+		traitImpls:      map[string]map[string]bool{},
 		enums:           map[string]enumSymbol{},
 	}
 
@@ -421,6 +423,11 @@ func (checker *TypeChecker) checkImplStatements(statements []parser.Statement, s
 				checker.addError(source, current.Pos.Line, fmt.Sprintf("impl %s uses unknown type %s", current.Trait, current.Type))
 				continue
 			}
+			implType := normalizeType(current.Type)
+			if checker.traitImpls[current.Trait] == nil {
+				checker.traitImpls[current.Trait] = map[string]bool{}
+			}
+			checker.traitImpls[current.Trait][implType] = true
 			implemented := map[string]parser.FunctionStatement{}
 			for _, method := range current.Methods {
 				implemented[method.Name] = method
@@ -2968,7 +2975,7 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		for index, arg := range args {
 			argType := checker.inferExpression(arg, locals, source, line)
 			param := alias.Params[index]
-			if !isAssignable(param.Type, argType) {
+			if !checker.isAssignable(param.Type, argType) {
 				checker.addError(source, line, fmt.Sprintf("alias function %s argument %d expects %s, got %s", name, index+1, param.Type, argType))
 			}
 		}
@@ -3061,7 +3068,7 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 				checker.addError(source, line, fmt.Sprintf("function %s reference argument %d expects a variable", name, index+1))
 			}
 		}
-		if !isAssignable(param.Type, argType) {
+		if !checker.isAssignable(param.Type, argType) {
 			checker.addError(source, line, fmt.Sprintf("function %s argument %d expects %s, got %s", name, index+1, param.Type, argType))
 		}
 	}
@@ -3139,7 +3146,7 @@ func requiredAliasParamCount(params []parser.Parameter) int {
 }
 
 func (checker *TypeChecker) inferGenericCallReturn(fn functionSymbol, args []string, locals map[string]variableSymbol, source string, line int) string {
-	solver := newConstraintSolver()
+	solver := checker.newConstraintSolver()
 	for index, param := range fn.Params {
 		if index >= len(args) && param.Default == "" {
 			continue
@@ -3567,6 +3574,9 @@ func splitTypeAndName(input string) (string, string, bool) {
 
 func normalizeType(input string) string {
 	input = strings.TrimSpace(input)
+	if canonical, ok := canonicalRestrictedType(input); ok {
+		return canonical
+	}
 	input = strings.ReplaceAll(input, " ", "")
 	if alias, ok := builtinChildTypeAliases[input]; ok {
 		return alias
@@ -3593,10 +3603,36 @@ func normalizeType(input string) string {
 	case "Any":
 		return dynamicAnyType
 	}
-	if canonical, ok := canonicalRestrictedType(input); ok {
-		return canonical
-	}
 	return input
+}
+
+func normalizeGenericArgumentSeparators(input string) string {
+	if !strings.Contains(input, ":") || !strings.Contains(input, "[") {
+		return input
+	}
+	var builder strings.Builder
+	depth := 0
+	for _, char := range input {
+		switch char {
+		case '[':
+			depth++
+			builder.WriteRune(char)
+		case ']':
+			if depth > 0 {
+				depth--
+			}
+			builder.WriteRune(char)
+		case ':':
+			if depth > 0 {
+				builder.WriteRune(',')
+			} else {
+				builder.WriteRune(char)
+			}
+		default:
+			builder.WriteRune(char)
+		}
+	}
+	return builder.String()
 }
 
 var builtinChildTypeAliases = map[string]string{
@@ -3665,6 +3701,9 @@ func isAllowedChildType(parent string, bits int) bool {
 
 func canonicalRestrictedType(input string) (string, bool) {
 	input = strings.TrimSpace(input)
+	if name, constraint, ok := splitNamedGenericConstraint(input); ok {
+		return name + ":" + normalizeConstraintName(constraint), true
+	}
 	if !strings.Contains(input, " restrict[") {
 		return "", false
 	}
@@ -3684,6 +3723,45 @@ func canonicalRestrictedType(input string) (string, bool) {
 	return name + ":" + strings.Join(allowed, "|"), true
 }
 
+func splitNamedGenericConstraint(input string) (string, string, bool) {
+	input = strings.TrimSpace(input)
+	fields := strings.Fields(input)
+	if len(fields) != 2 || fields[0] == "" || fields[1] == "" || fields[1] == "restrict" {
+		return "", "", false
+	}
+	if strings.ContainsAny(fields[0], "[],:|.") || strings.ContainsAny(fields[1], "[],:|.") {
+		return "", "", false
+	}
+	if !isGenericConstraintName(fields[1]) && !isTraitConstraintName(fields[1]) {
+		return "", "", false
+	}
+	return normalizeType(fields[0]), fields[1], true
+}
+
+func normalizeConstraintName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "allocator-like" {
+		return "allocator_like"
+	}
+	return name
+}
+
+func isGenericConstraintName(name string) bool {
+	switch normalizeConstraintName(name) {
+	case "numeric", "comparable", "hashable", "iterable", "allocator_like":
+		return true
+	default:
+		return false
+	}
+}
+
+func isTraitConstraintName(name string) bool {
+	if name == "" {
+		return false
+	}
+	return unicode.IsUpper(rune(name[0]))
+}
+
 func parseTypeRestrictions(input string) (map[string]string, error) {
 	restrictions := map[string]string{}
 	if strings.TrimSpace(input) == "" {
@@ -3692,7 +3770,7 @@ func parseTypeRestrictions(input string) (map[string]string, error) {
 	for _, part := range splitTopLevel(input, ',') {
 		canonical, ok := canonicalRestrictedType(part)
 		if !ok {
-			return nil, fmt.Errorf("generic restriction %q must be written as T restrict[Type,...]", strings.TrimSpace(part))
+			return nil, fmt.Errorf("generic restriction %q must be written as T restrict[Type,...] or T constraint", strings.TrimSpace(part))
 		}
 		name, _, ok := restrictedGenericType(canonical)
 		if !ok {
@@ -3722,6 +3800,9 @@ func isKnownType(typeName string) bool {
 	}
 	if _, allowed, ok := restrictedGenericType(typeName); ok {
 		for _, option := range allowed {
+			if isGenericConstraintName(option) || isTraitConstraintName(option) {
+				continue
+			}
 			if !isKnownType(option) {
 				return false
 			}
@@ -4015,6 +4096,9 @@ func isAssignable(target string, source string) bool {
 	}
 	if _, allowed, ok := restrictedGenericType(target); ok {
 		for _, option := range allowed {
+			if isGenericConstraintName(option) && builtinConstraintAllows(option, source) {
+				return true
+			}
 			if isAssignable(option, source) {
 				return true
 			}
@@ -4111,6 +4195,93 @@ func isAssignable(target string, source string) bool {
 	return false
 }
 
+func (checker *TypeChecker) isAssignable(target string, source string) bool {
+	target = normalizeType(target)
+	source = normalizeType(source)
+	if solver := checker.newConstraintSolver(); solver.unify(target, source) {
+		return true
+	}
+	if _, allowed, ok := restrictedGenericType(target); ok {
+		for _, option := range allowed {
+			if checker.constraintAllows(option, source) {
+				return true
+			}
+		}
+		return false
+	}
+	return isAssignable(target, source)
+}
+
+func (checker *TypeChecker) constraintAllows(constraint string, typeName string) bool {
+	constraint = normalizeConstraintName(normalizeType(constraint))
+	typeName = normalizeType(typeName)
+	if isGenericConstraintName(constraint) {
+		return builtinConstraintAllows(constraint, typeName)
+	}
+	if _, ok := checker.traits[constraint]; ok {
+		return checker.typeImplementsTrait(typeName, constraint)
+	}
+	return isAssignable(constraint, typeName)
+}
+
+func (checker *TypeChecker) typeImplementsTrait(typeName string, traitName string) bool {
+	typeName = normalizeType(typeName)
+	traitName = normalizeConstraintName(traitName)
+	if impls, ok := checker.traitImpls[traitName]; ok && impls[typeName] {
+		return true
+	}
+	return false
+}
+
+func builtinConstraintAllows(constraint string, typeName string) bool {
+	constraint = normalizeConstraintName(constraint)
+	typeName = normalizeType(typeName)
+	switch constraint {
+	case "numeric":
+		return isNumericConstraintType(typeName)
+	case "comparable":
+		return isComparableConstraintType(typeName)
+	case "hashable":
+		return isHashableConstraintType(typeName)
+	case "iterable":
+		_, ok := iterableItemType(typeName)
+		return ok
+	case "allocator_like":
+		return isAllocatorType(typeName)
+	default:
+		return false
+	}
+}
+
+func isNumericConstraintType(typeName string) bool {
+	typeName = normalizeType(typeName)
+	if child, ok := childType(typeName); ok {
+		return child.Parent == "Int" || child.Parent == "UInt" || child.Parent == "Float" || child.Parent == "Complex"
+	}
+	switch typeName {
+	case "Int", "UInt", "Float", "Complex":
+		return true
+	default:
+		return false
+	}
+}
+
+func isComparableConstraintType(typeName string) bool {
+	typeName = normalizeType(typeName)
+	if isHashableConstraintType(typeName) || typeName == "Complex" {
+		return true
+	}
+	if child, ok := childType(typeName); ok && child.Parent == "Complex" {
+		return true
+	}
+	return false
+}
+
+func isHashableConstraintType(typeName string) bool {
+	typeName = normalizeType(typeName)
+	return isTableKeyType(typeName)
+}
+
 func tupleTypeParts(typeName string) ([]string, bool) {
 	typeName = strings.TrimSpace(typeName)
 	if !strings.HasPrefix(typeName, "(") || !strings.HasSuffix(typeName, ")") {
@@ -4129,10 +4300,15 @@ func tupleTypeParts(typeName string) ([]string, bool) {
 
 type constraintSolver struct {
 	substitutions map[string]string
+	checker       *TypeChecker
 }
 
 func newConstraintSolver() *constraintSolver {
 	return &constraintSolver{substitutions: map[string]string{}}
+}
+
+func (checker *TypeChecker) newConstraintSolver() *constraintSolver {
+	return &constraintSolver{substitutions: map[string]string{}, checker: checker}
 }
 
 func (solver *constraintSolver) unify(left string, right string) bool {
@@ -4174,7 +4350,7 @@ func (solver *constraintSolver) bind(name string, typeName string) bool {
 	if _, allowed, ok := restrictedGenericType(name); ok {
 		allowedMatch := false
 		for _, option := range allowed {
-			if isAssignable(option, typeName) {
+			if solver.constraintAllows(option, typeName) {
 				allowedMatch = true
 				break
 			}
@@ -4191,10 +4367,29 @@ func (solver *constraintSolver) bind(name string, typeName string) bool {
 	return true
 }
 
+func (solver *constraintSolver) constraintAllows(constraint string, typeName string) bool {
+	constraint = normalizeConstraintName(normalizeType(constraint))
+	typeName = normalizeType(typeName)
+	if isGenericConstraintName(constraint) {
+		return builtinConstraintAllows(constraint, typeName)
+	}
+	if solver.checker != nil {
+		if _, ok := solver.checker.traits[constraint]; ok {
+			return solver.checker.typeImplementsTrait(typeName, constraint)
+		}
+	}
+	return isAssignable(constraint, typeName)
+}
+
 func (solver *constraintSolver) apply(typeName string) string {
 	typeName = normalizeType(typeName)
 	if resolved, exists := solver.substitutions[typeName]; exists {
 		return solver.apply(resolved)
+	}
+	if name, _, ok := restrictedGenericType(typeName); ok {
+		if resolved, exists := solver.substitutions[name]; exists {
+			return solver.apply(resolved)
+		}
 	}
 	name, args, ok := splitGenericType(typeName)
 	if !ok {
@@ -4224,20 +4419,25 @@ func typeVariableKey(typeName string) string {
 
 func restrictedGenericType(typeName string) (string, []string, bool) {
 	typeName = normalizeType(typeName)
-	if !strings.HasPrefix(typeName, anyType+":") {
+	colon := strings.Index(typeName, ":")
+	if colon <= 0 || colon+1 >= len(typeName) {
 		return "", nil, false
 	}
-	parts := strings.Split(typeName[len(anyType)+1:], "|")
+	name := strings.TrimSpace(typeName[:colon])
+	if name == "" || strings.ContainsAny(name, "[]|,") {
+		return "", nil, false
+	}
+	parts := strings.Split(typeName[colon+1:], "|")
 	if len(parts) == 0 {
 		return "", nil, false
 	}
 	for index, part := range parts {
-		parts[index] = normalizeType(part)
+		parts[index] = normalizeConstraintName(normalizeType(part))
 		if parts[index] == "" {
 			return "", nil, false
 		}
 	}
-	return anyType, parts, true
+	return name, parts, true
 }
 
 func splitGenericType(typeName string) (string, []string, bool) {

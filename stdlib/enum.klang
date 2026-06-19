@@ -456,11 +456,11 @@ namespace enum {
         return False;
     }
 
-    --- Signature: function min(values : List[T restrict[Int, Float, String]], fallback : T) : T
+    --- Signature: function min[T comparable](values : List[T], fallback : T) : T
     --- Returns: T.
     --- Summary: Provides the stdlib min operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function min(values : List[T restrict[Int, Float, String]], fallback : T) : T {
+    function min[T comparable](values : List[T], fallback : T) : T {
         if len(values) == 0 {
             return fallback;
         }
@@ -475,11 +475,11 @@ namespace enum {
         return best;
     }
 
-    --- Signature: function max(values : List[T restrict[Int, Float, String]], fallback : T) : T
+    --- Signature: function max[T comparable](values : List[T], fallback : T) : T
     --- Returns: T.
     --- Summary: Provides the stdlib max operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function max(values : List[T restrict[Int, Float, String]], fallback : T) : T {
+    function max[T comparable](values : List[T], fallback : T) : T {
         if len(values) == 0 {
             return fallback;
         }

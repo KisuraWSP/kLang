@@ -88,6 +88,45 @@ function Pick[T restrict[UInt, Int, Float]](value : T = 1) : T {
 	}
 }
 
+func TestParseNamedGenericConstraints(t *testing.T) {
+	program, errors := Parse(`
+function Sum[T numeric](left : T, right : T) : T {
+    return left + right;
+}
+
+function Show[T Printable](value : T) : T {
+    return value;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	first, ok := program.Statements[0].(FunctionStatement)
+	if !ok || len(first.TypeParams) != 1 || first.TypeParams[0].Type != "T:numeric" {
+		t.Fatalf("unexpected numeric type parameter: %#v", program.Statements[0])
+	}
+	second, ok := program.Statements[1].(FunctionStatement)
+	if !ok || len(second.TypeParams) != 1 || second.TypeParams[0].Type != "T:Printable" {
+		t.Fatalf("unexpected trait type parameter: %#v", program.Statements[1])
+	}
+}
+
+func TestParseAppliesNamedGenericConstraintsInsideGenericTypes(t *testing.T) {
+	program, errors := Parse(`
+function Sort[T comparable](values : List[T]) : List[T] {
+    return values;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	if fn.Params[0].Type != "List[T:comparable]" || fn.ReturnType != "List[T:comparable]" {
+		t.Fatalf("expected nested type parameter constraints, got params=%#v return=%q", fn.Params, fn.ReturnType)
+	}
+}
+
 func TestParseInferredVariableDeclarations(t *testing.T) {
 	program, errors := Parse(`
 let x = Some(1);

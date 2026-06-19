@@ -53,6 +53,7 @@
 53. CLI `check` and `run` persist a source-fingerprint program cache in `.klang-cache` so repeated startups can skip module resolution and type checking when the full resolved source set is unchanged.
 54. `Set[T]` is a builtin deterministic hash set for unique primitive values, constructed with `Set(list)`, counted with `.count` or `len`, iterated with `iter`, and queried with `set_has(set, value)`.
 55. `format(pattern : String, values : List[T])` and `printf(pattern : String, values : List[T])` are runtime-backed string formatting builtins. `%` consumes the next value, `%%` emits a literal percent sign, and the number of non-escaped placeholders must match `len(values)`. The stdlib `fmt` module exposes `fmt.Format` and `fmt.Printf` wrappers.
+56. Generic type parameters support named constraints beyond `restrict[...]`: `numeric`, `comparable`, `hashable`, `iterable`, `allocator_like`, and trait-bound names such as `T Printable`.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -72,6 +73,7 @@ Rules
 - Extension methods declared inside an alias function use `this` as their receiver.
 - Alias functions may declare members, traits, impls, allocation hooks, deallocation hooks, side-effect hooks, and extension methods in the same block.
 - Function parameters may use `name := DefaultExpression()` to infer the parameter type from the default value.
+- Generic parameters may use `T restrict[Int, Float]` for explicit allow-lists, `T numeric`, `T comparable`, `T hashable`, `T iterable`, `T allocator_like`, or `T TraitName` for trait-bound constraints. Trait-bound constraints require a matching `impl TraitName for ConcreteType` before the concrete type can satisfy the generic call.
 - Entry-point directives apply to the next function in the current namespace or top-level scope.
 - Region-backed array types use the `ElementType[RegionName]` form and must reference an existing `region`.
 - Region-backed arrays grow through indexed assignment, but an index must be inside the region count.

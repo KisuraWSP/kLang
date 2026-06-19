@@ -55,6 +55,8 @@ Builtin values expose a small shared protocol surface through selector syntax:
 - `String` and `Char` provide `.uppercase()` and `.lowercase()`.
 - `Int` and `UInt` provide `.times(callback : Function[Int, T])`, which calls the callback for each zero-based index and returns the callback's last result.
 
+Generic type parameters may use named constraints in addition to explicit `restrict[...]` allow-lists. `T numeric` accepts numeric parent and child-width types, `T comparable` accepts primitive comparable values, `T hashable` accepts the safe primitive key space used by `Table` and `Set`, `T iterable` accepts values supported by `iter`/`len`, `T allocator_like` accepts builtin allocator/value wrappers, and `T TraitName` requires an `impl TraitName for ConcreteType` declaration.
+
 User-defined `enum` declarations create typed ordinal values inspired by Go `const`/`iota` enums. Variants are selected as `EnumName.Variant`, compare only with variants from the same enum type, and expose `.ordinal`, `.name`, and `.variant`.
 
 Aggregate collection values use copy-on-write storage for ordinary assignment. Shared `List`, `Set`, `Map`, `Table`, and `SIMD` storage is detached when a mutable binding is written, while explicit `copy` and `clone` still create eager clones.

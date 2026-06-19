@@ -153,11 +153,11 @@ namespace list {
         return result;
     }
 
-    --- Signature: function sort[T restrict[Int, Float, String]](values : List[T]) : List[T]
+    --- Signature: function sort[T comparable](values : List[T]) : List[T]
     --- Returns: List[T].
-    --- Summary: Sorts Int, Float, or String lists in ascending order.
+    --- Summary: Sorts comparable lists in ascending order.
     --- Contract: Preserve this function-style API; list operations are not methods.
-    function sort[T restrict[Int, Float, String]](values : List[T]) : List[T] {
+    function sort[T comparable](values : List[T]) : List[T] {
         local mut List[T] result = clone values;
         local mut Int i = 0;
         while i < len(result) {

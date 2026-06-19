@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"kLang/src/lexer"
 )
@@ -275,6 +276,8 @@ func (parser *Parser) parseAliasFunction(inline bool, private bool) Statement {
 		Inline:     inline,
 		Private:    private,
 	}
+	stmt.Params = applyTypeParameterRestrictions(stmt.Params, typeParams)
+	stmt.ReturnType = applyReturnTypeRestriction(stmt.ReturnType, typeParams)
 
 	for !parser.atEnd() && !(blockStyle && parser.check(lexer.TokenScopeEnd)) && !(!blockStyle && parser.check(lexer.TokenEnd)) {
 		if parser.match(lexer.TokenSemicolon) {
@@ -363,9 +366,12 @@ func (parser *Parser) parseAliasTypeParameters() []TypeParameter {
 	var params []TypeParameter
 	for !parser.check(lexer.TokenRightSquareBrace) && !parser.atEnd() {
 		name := parser.consume(lexer.TokenIdentifier, "expected alias generic name")
-		typeName := "T"
-		if parser.match(lexer.TokenInferReturn) {
+		typeName := parser.parseConstrainedType(name.Literal)
+		if typeName == name.Literal && parser.match(lexer.TokenInferReturn) {
 			typeName = parser.parseType()
+		}
+		if typeName == "Any" {
+			typeName = name.Literal
 		}
 		params = append(params, TypeParameter{Name: name.Literal, Type: normalizeAliasReturnType(typeName)})
 		if !parser.match(lexer.TokenComma) {
@@ -927,12 +933,58 @@ func applyTypeParameterRestrictions(params []Parameter, typeParams []TypeParamet
 }
 
 func applyReturnTypeRestriction(typeName string, typeParams []TypeParameter) string {
+	restrictions := map[string]string{}
 	for _, typeParam := range typeParams {
-		if typeName == typeParam.Name {
-			return typeParam.Type
+		restrictions[typeParam.Name] = typeParam.Type
+	}
+	return applyTypeRestrictions(typeName, restrictions)
+}
+
+func applyTypeRestrictions(typeName string, restrictions map[string]string) string {
+	typeName = strings.TrimSpace(typeName)
+	if replacement, ok := restrictions[typeName]; ok {
+		return replacement
+	}
+	open := strings.Index(typeName, "[")
+	if open == -1 || !strings.HasSuffix(typeName, "]") {
+		return typeName
+	}
+	inner := typeName[open+1 : len(typeName)-1]
+	parts := splitTypeArguments(inner)
+	for index := range parts {
+		parts[index] = applyTypeRestrictions(parts[index], restrictions)
+	}
+	return typeName[:open] + "[" + strings.Join(parts, ",") + "]"
+}
+
+func splitTypeArguments(input string) []string {
+	var parts []string
+	start := 0
+	depthSquare := 0
+	depthParen := 0
+	for index, char := range input {
+		switch char {
+		case '[':
+			depthSquare++
+		case ']':
+			if depthSquare > 0 {
+				depthSquare--
+			}
+		case '(':
+			depthParen++
+		case ')':
+			if depthParen > 0 {
+				depthParen--
+			}
+		case ',', ':':
+			if depthSquare == 0 && depthParen == 0 {
+				parts = append(parts, strings.TrimSpace(input[start:index]))
+				start = index + len(string(char))
+			}
 		}
 	}
-	return typeName
+	parts = append(parts, strings.TrimSpace(input[start:]))
+	return parts
 }
 
 func (parser *Parser) parseReturnTypeSignature() (string, []ReturnValue) {
@@ -1026,7 +1078,7 @@ func (parser *Parser) parseTypeParameters() []TypeParameter {
 	}
 	for !parser.check(lexer.TokenRightSquareBrace) && !parser.atEnd() {
 		name := parser.consume(lexer.TokenIdentifier, "expected generic type name")
-		typeName := parser.parseRestrictedType(name.Literal)
+		typeName := parser.parseConstrainedType(name.Literal)
 		params = append(params, TypeParameter{Name: name.Literal, Type: typeName})
 		if !parser.match(lexer.TokenComma) {
 			break
@@ -1593,9 +1645,10 @@ func (parser *Parser) parseType() string {
 	}
 
 	start := parser.current()
-	if start.Type == lexer.TokenIdentifier && parser.peek().Type == lexer.TokenIdentifier && parser.peek().Literal == "restrict" {
+	if start.Type == lexer.TokenIdentifier && parser.peek().Type == lexer.TokenIdentifier &&
+		(parser.peek().Literal == "restrict" || isBuiltinNamedTypeConstraint(parser.peek().Literal)) {
 		parser.advance()
-		return parser.parseRestrictedType(start.Literal)
+		return parser.parseConstrainedType(start.Literal)
 	}
 	var parts []string
 	squareDepth := 0
@@ -1679,7 +1732,16 @@ func (parser *Parser) parseType() string {
 }
 
 func (parser *Parser) parseRestrictedType(name string) string {
+	return parser.parseConstrainedType(name)
+}
+
+func (parser *Parser) parseConstrainedType(name string) string {
 	if !parser.check(lexer.TokenIdentifier) || parser.current().Literal != "restrict" {
+		if parser.check(lexer.TokenIdentifier) && isNamedTypeConstraint(parser.current().Literal) {
+			constraint := parser.current().Literal
+			parser.advance()
+			return name + ":" + constraint
+		}
 		return name
 	}
 	parser.advance()
@@ -1696,6 +1758,30 @@ func (parser *Parser) parseRestrictedType(name string) string {
 		return name
 	}
 	return name + ":" + strings.Join(allowed, "|")
+}
+
+func isTypeConstraintKeyword(literal string) bool {
+	return literal == "restrict" || isNamedTypeConstraint(literal)
+}
+
+func isNamedTypeConstraint(literal string) bool {
+	if isBuiltinNamedTypeConstraint(literal) {
+		return true
+	}
+	if literal == "" {
+		return false
+	}
+	first := rune(literal[0])
+	return unicode.IsUpper(first)
+}
+
+func isBuiltinNamedTypeConstraint(literal string) bool {
+	switch literal {
+	case "numeric", "comparable", "hashable", "iterable", "allocator_like", "allocator-like":
+		return true
+	default:
+		return false
+	}
 }
 
 func (parser *Parser) parseExpressionUntil(stopTypes ...lexer.TokenType) Expression {

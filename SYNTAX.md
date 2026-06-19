@@ -252,6 +252,27 @@ local Bool ready = if Init() > 0 then return False : True;
 -- T restrict[...] only accepts values assignable to one of the listed types.
 local mut T restrict[UInt, Int, Float] numeric = 69420;
 
+-- named generic constraints
+-- T numeric, comparable, hashable, iterable, allocator_like, or a trait name
+-- can be used where a generic parameter needs a shared capability.
+function AddNumbers[T numeric](left : T, right : T) : T {
+    return left + right;
+}
+
+trait Printable {
+    function Show(value : Int) : String;
+}
+
+impl Printable for Int {
+    function Show(value : Int) : String {
+        return value as String;
+    }
+}
+
+function KeepPrintable[T Printable](value : T) : T {
+    return value;
+}
+
 -- pipe operator
 -- The left value is passed as the first argument to the function on the right.
 local Int piped = 2 |> Add(3) |> Double;

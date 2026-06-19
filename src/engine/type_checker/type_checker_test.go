@@ -659,6 +659,85 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "cannot assign String to local T:UInt|Int|Float value")
 }
 
+func TestCheckProgramAcceptsNamedGenericConstraints(t *testing.T) {
+	program := programFromSource(`
+trait Printable {
+    function Show(value : Int) : String;
+}
+
+impl Printable for Int {
+    function Show(value : Int) : String {
+        return value as String;
+    }
+}
+
+function Add[T numeric](left : T, right : T) : T {
+    return left + right;
+}
+
+function First[T iterable](values : T) : Int {
+    return len(values);
+}
+
+function HashKey[T hashable](value : T) : T {
+    return value;
+}
+
+function KeepKeys[T hashable](values : List[T]) : List[T] {
+    return values;
+}
+
+function WithAllocator[T allocator_like](allocator : T) : T {
+    return allocator;
+}
+
+function NeedsPrintable[T Printable](value : T) : T {
+    return value;
+}
+
+function Main() : Int {
+    local Int total = Add(1, 2);
+    local Int count = First([1, 2, 3]);
+    local String key = HashKey("id");
+    local List[String] keys = KeepKeys(["id", "name"]);
+    local HeapAllocator allocator = WithAllocator(HeapAllocator());
+    local Int printable = NeedsPrintable(1);
+    return total + count + printable + len(key) + len(keys);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected named generic constraints to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsNamedGenericConstraintMismatch(t *testing.T) {
+	program := programFromSource(`
+trait Printable {
+    function Show(value : Int) : String;
+}
+
+function Add[T numeric](left : T, right : T) : T {
+    return left + right;
+}
+
+function NeedsPrintable[T Printable](value : T) : T {
+    return value;
+}
+
+function Main() : Int {
+    local Int badNumber = Add("left", "right");
+    local String badTrait = NeedsPrintable("no impl");
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	assertTypeError(t, report, "function Add argument 1 expects T:numeric, got String")
+	assertTypeError(t, report, "function NeedsPrintable argument 1 expects T:Printable, got String")
+}
+
 func TestCheckProgramWarnsOnDeprecatedFunctionCall(t *testing.T) {
 	program := programFromSource(`
 @deprecated("use NewValue")
