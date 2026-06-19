@@ -16,8 +16,15 @@ So whenever we start a program tell the go code to always run a .klang file call
 The language will generate the user porgram as second workspace
 Workspace and meta programming types like Program, BuildSystem, Workspace, etc… allows for parallel code wide execution so for this to happen we need to use threads/channels in the golang code
 
+- track state of every variable, function argument/parameter and including return type during execution/compilation stage
 - add call site to the langauge for relating to functions, variables, structs, function aliases, etc...
+- allow structs in the language to be used like this
+```
+Test()
+```
+- if its a function alias it behaves more like a callback
 
+- in the language add exampels for advent of code when the runtim and features are powerful
 - Richer pattern destructuring
    Destructuring already exists. It could expand into function parameters, match cases, loops, and records.
 - Compile-time evaluation / macros, carefully limited
