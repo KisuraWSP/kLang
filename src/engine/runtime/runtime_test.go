@@ -954,6 +954,37 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesSetBuiltin(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Set[String] imports = Set(["lexer", "parser", "lexer"]);
+    local Iterator[String] iterator = iter(imports);
+    local Option[String] first = next(iterator);
+    if set_has(imports, "parser") and first.some and first.value == "lexer" {
+        return imports.count + len(imports);
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 4 {
+		t.Fatalf("expected set program to return 4, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsInvalidSetItem(t *testing.T) {
+	_, err := runSourceWithError(`
+function Main() : Int {
+    local Set[T] values = Set([[1]]);
+    return len(values);
+}
+`)
+
+	if err == nil || !strings.Contains(err.Error(), "Set item expects String, Int, UInt, Float, Bool, or Char, got List[Int]") {
+		t.Fatalf("expected set item type check failure, got %v", err)
+	}
+}
+
 func TestRuntimeUsesCopyOnWriteForSharedListBindings(t *testing.T) {
 	runtime := New()
 	original := Value{Kind: ValueList, Data: []Value{IntValue(1), IntValue(2)}}

@@ -27,6 +27,7 @@ const (
 	ValueBool        ValueKind = "Bool"
 	ValueChar        ValueKind = "Char"
 	ValueList        ValueKind = "List"
+	ValueSet         ValueKind = "Set"
 	ValueMap         ValueKind = "Map"
 	ValueOption      ValueKind = "Option"
 	ValueResult      ValueKind = "Result"
@@ -102,6 +103,11 @@ type AtomicData struct {
 type TableKey struct {
 	Kind ValueKind
 	Repr string
+}
+
+type SetData struct {
+	Entries map[TableKey]Value
+	Order   []TableKey
 }
 
 type TableData struct {
@@ -1991,6 +1997,8 @@ func iterableValues(value Value) ([]Value, error) {
 	switch value.Kind {
 	case ValueList:
 		return value.Data.([]Value), nil
+	case ValueSet:
+		return setValues(value.Data.(SetData)), nil
 	case ValueIterator:
 		iterator := value.Data.(*IteratorData)
 		return iterator.Items, nil
@@ -2392,6 +2400,18 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			return NullValue(), err
 		}
 		return BoolValue(tableHas(args[0].Data.(TableData), key)), nil
+	case "set_has":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "set_has expects two arguments"}
+		}
+		if args[0].Kind != ValueSet {
+			return NullValue(), Error{Message: "set_has expects a Set as the first argument"}
+		}
+		ok, err := setHas(args[0].Data.(SetData), args[1])
+		if err != nil {
+			return NullValue(), err
+		}
+		return BoolValue(ok), nil
 	case "table_delete":
 		if len(args) != 2 {
 			return NullValue(), Error{Message: "table_delete expects two arguments"}
@@ -2500,6 +2520,20 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			return NullValue(), Error{Message: "SIMD expects a List argument"}
 		}
 		return SIMDValue(args[0].Data.([]Value)), nil
+	case "Set":
+		if len(args) > 1 {
+			return NullValue(), Error{Message: "Set expects zero or one argument"}
+		}
+		if len(args) == 0 {
+			return Value{Kind: ValueSet, Data: newSetData()}, nil
+		}
+		if args[0].Kind == ValueSet {
+			return args[0], nil
+		}
+		if args[0].Kind != ValueList {
+			return NullValue(), Error{Message: "Set expects a List or Set argument"}
+		}
+		return SetValue(args[0].Data.([]Value))
 	case "Table":
 		if len(args) > 1 {
 			return NullValue(), Error{Message: "Table expects zero or one argument"}
@@ -3502,9 +3536,9 @@ func (runtime *Runtime) resolveAliasPath(name string) string {
 
 func isBuiltinFunction(name string) bool {
 	switch name {
-	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
+	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set",
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
-		"table_has", "has_key", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
+		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",
 		"runtime_debug_loc", "runtime_debug_file", "runtime_debug_line", "runtime_debug_module", "runtime_debug_pos", "runtime_debug_function",

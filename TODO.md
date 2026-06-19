@@ -18,8 +18,6 @@ Workspace and meta programming types like Program, BuildSystem, Workspace, etcâ€
 
 - add call site to the langauge for relating to functions, variables, structs, function aliases, etc...
 
-- HashSet / Set builtin
-   You have Map and List, but a Set[T] is commonly needed. Especially useful for compiler work, graph traversal, deduping imports, and static analysis.
 - Richer pattern destructuring
    Destructuring already exists. It could expand into function parameters, match cases, loops, and records.
 - Better string formatting

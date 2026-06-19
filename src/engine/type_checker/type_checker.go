@@ -2180,6 +2180,7 @@ func builtinProtocolFieldType(targetType string, fieldName string) (string, bool
 	}
 	if targetType == "String" || targetType == "Table" ||
 		strings.HasPrefix(targetType, "List[") ||
+		strings.HasPrefix(targetType, "Set[") ||
 		strings.HasPrefix(targetType, "Map[") ||
 		strings.HasPrefix(targetType, "SIMD[") ||
 		strings.HasPrefix(targetType, "Iterator[") {
@@ -2485,6 +2486,27 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		}
 		checker.addError(source, line, fmt.Sprintf("SIMD expects List[T], got %s", argType))
 		return "SIMD[T]"
+	case "Set":
+		if len(args) > 1 {
+			checker.addError(source, line, "Set expects 0 to 1 argument(s)")
+			return "Set[T]"
+		}
+		if len(args) == 0 {
+			return "Set[T]"
+		}
+		argType := checker.inferExpression(args[0], locals, source, line)
+		if strings.HasPrefix(argType, "Set[") && strings.HasSuffix(argType, "]") {
+			return argType
+		}
+		if strings.HasPrefix(argType, "List[") && strings.HasSuffix(argType, "]") {
+			elementType := argType[len("List[") : len(argType)-1]
+			if !isSetElementType(elementType) {
+				checker.addError(source, line, fmt.Sprintf("Set item expects String, Int, UInt, Float, Bool, or Char, got %s", elementType))
+			}
+			return "Set[" + elementType + "]"
+		}
+		checker.addError(source, line, fmt.Sprintf("Set expects List[T] or Set[T], got %s", argType))
+		return "Set[T]"
 	case "Table":
 		if len(args) > 1 {
 			checker.addError(source, line, "Table expects 0 to 1 argument(s)")
@@ -2505,6 +2527,24 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		}
 		if !isTableKeyType(keyType) {
 			checker.addError(source, line, fmt.Sprintf("%s key expects String, Int, UInt, Float, Bool, or Char, got %s", name, keyType))
+		}
+		return "Bool"
+	case "set_has":
+		if len(args) != 2 {
+			checker.addError(source, line, "set_has expects 2 arguments")
+			return "Bool"
+		}
+		setType := checker.inferExpression(args[0], locals, source, line)
+		valueType := checker.inferExpression(args[1], locals, source, line)
+		if elementType, ok := setElementType(setType); ok {
+			if !isAssignable(elementType, valueType) {
+				checker.addError(source, line, fmt.Sprintf("set_has value expects %s, got %s", elementType, valueType))
+			}
+		} else if setType != anyType {
+			checker.addError(source, line, fmt.Sprintf("set_has expects Set as first argument, got %s", setType))
+		}
+		if !isSetElementType(valueType) {
+			checker.addError(source, line, fmt.Sprintf("set_has value expects String, Int, UInt, Float, Bool, or Char, got %s", valueType))
 		}
 		return "Bool"
 	case "table_delete":
@@ -3690,6 +3730,9 @@ func isKnownType(typeName string) bool {
 	if strings.HasPrefix(typeName, "List[") && strings.HasSuffix(typeName, "]") {
 		return isKnownType(typeName[5 : len(typeName)-1])
 	}
+	if strings.HasPrefix(typeName, "Set[") && strings.HasSuffix(typeName, "]") {
+		return isKnownType(typeName[len("Set[") : len(typeName)-1])
+	}
 	if strings.HasPrefix(typeName, "Map[") && strings.HasSuffix(typeName, "]") {
 		parts := splitTopLevel(typeName[4:len(typeName)-1], ',')
 		return len(parts) == 2 && isKnownType(parts[0]) && isKnownType(parts[1])
@@ -3753,7 +3796,7 @@ func isAllocatorType(typeName string) bool {
 func isArrayTypeName(typeName string) bool {
 	typeName = normalizeType(typeName)
 	return strings.Contains(typeName, "[") && strings.HasSuffix(typeName, "]") &&
-		!strings.HasPrefix(typeName, "List[") && !strings.HasPrefix(typeName, "Map[") &&
+		!strings.HasPrefix(typeName, "List[") && !strings.HasPrefix(typeName, "Set[") && !strings.HasPrefix(typeName, "Map[") &&
 		!strings.HasPrefix(typeName, "Option[") && !strings.HasPrefix(typeName, "Result[") &&
 		!strings.HasPrefix(typeName, "SIMD[") && !strings.HasPrefix(typeName, "Function[") &&
 		!strings.HasPrefix(typeName, "Awaitable[") && !strings.HasPrefix(typeName, "Iterator[") &&
@@ -3841,6 +3884,19 @@ func iteratorItemType(typeName string) (string, bool) {
 	}
 	inner := normalizeType(typeName[len("Iterator[") : len(typeName)-1])
 	return inner, inner != ""
+}
+
+func setElementType(typeName string) (string, bool) {
+	typeName = normalizeType(typeName)
+	if !strings.HasPrefix(typeName, "Set[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	inner := normalizeType(typeName[len("Set[") : len(typeName)-1])
+	return inner, inner != ""
+}
+
+func isSetElementType(typeName string) bool {
+	return isTableKeyType(typeName)
 }
 
 func coroutineItemType(typeName string) (string, bool) {
@@ -3978,6 +4034,12 @@ func isAssignable(target string, source string) bool {
 	}
 	if strings.HasPrefix(target, "List[") && strings.HasPrefix(source, "List[") {
 		return isAssignable(target[5:len(target)-1], source[5:len(source)-1])
+	}
+	if strings.HasPrefix(target, "Set[") && source == "Set[T]" {
+		return true
+	}
+	if strings.HasPrefix(target, "Set[") && strings.HasPrefix(source, "Set[") {
+		return isAssignable(target[len("Set["):len(target)-1], source[len("Set["):len(source)-1])
 	}
 	if isArrayTypeName(target) && isArrayTypeName(source) {
 		targetElement, targetOk := arrayElementType(target)
@@ -4266,6 +4328,8 @@ func iterableItemType(typeName string) (string, bool) {
 		return "Table", true
 	case strings.HasPrefix(typeName, "List[") && strings.HasSuffix(typeName, "]"):
 		return typeName[5 : len(typeName)-1], true
+	case strings.HasPrefix(typeName, "Set[") && strings.HasSuffix(typeName, "]"):
+		return typeName[len("Set[") : len(typeName)-1], true
 	case strings.HasPrefix(typeName, "Iterator[") && strings.HasSuffix(typeName, "]"):
 		return typeName[len("Iterator[") : len(typeName)-1], true
 	default:

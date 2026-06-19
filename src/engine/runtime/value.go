@@ -70,6 +70,73 @@ func SIMDValue(lanes []Value) Value {
 	return Value{Kind: ValueSIMD, Data: SIMDData{Lanes: copied}}
 }
 
+func SetValue(items []Value) (Value, error) {
+	set := newSetData()
+	for _, item := range items {
+		if err := setAdd(&set, item); err != nil {
+			return NullValue(), err
+		}
+	}
+	return Value{Kind: ValueSet, Data: set}, nil
+}
+
+func newSetData() SetData {
+	return SetData{Entries: map[TableKey]Value{}, Order: []TableKey{}}
+}
+
+func cloneSetData(set SetData) SetData {
+	cloned := SetData{
+		Entries: map[TableKey]Value{},
+		Order:   append([]TableKey(nil), set.Order...),
+	}
+	for key, item := range set.Entries {
+		cloned.Entries[key] = cloneValue(item)
+	}
+	return cloned
+}
+
+func shareSetData(set SetData) SetData {
+	shared := SetData{
+		Entries: map[TableKey]Value{},
+		Order:   append([]TableKey(nil), set.Order...),
+	}
+	for key, item := range set.Entries {
+		shared.Entries[key] = shareValue(item)
+	}
+	return shared
+}
+
+func setAdd(set *SetData, value Value) error {
+	key, err := setKey(value)
+	if err != nil {
+		return err
+	}
+	if _, ok := set.Entries[key]; !ok {
+		set.Order = append(set.Order, key)
+	}
+	set.Entries[key] = cloneValue(value)
+	return nil
+}
+
+func setHas(set SetData, value Value) (bool, error) {
+	key, err := setKey(value)
+	if err != nil {
+		return false, err
+	}
+	_, ok := set.Entries[key]
+	return ok, nil
+}
+
+func setValues(set SetData) []Value {
+	values := make([]Value, 0, len(set.Order))
+	for _, key := range set.Order {
+		if value, ok := set.Entries[key]; ok {
+			values = append(values, cloneValue(value))
+		}
+	}
+	return values
+}
+
 func TableValue(items map[string]Value) Value {
 	table := newTableData()
 	for key, item := range items {
@@ -294,6 +361,9 @@ func zeroValue(typeName string) Value {
 	if strings.HasPrefix(typeName, "List[") {
 		return Value{Kind: ValueList, Data: []Value{}}
 	}
+	if strings.HasPrefix(typeName, "Set[") {
+		return Value{Kind: ValueSet, Data: newSetData()}
+	}
 	if strings.HasPrefix(typeName, "Map[") {
 		return Value{Kind: ValueMap, Data: map[string]Value{}}
 	}
@@ -334,6 +404,8 @@ func cloneValue(value Value) Value {
 			cloned = append(cloned, cloneValue(item))
 		}
 		return Value{Kind: ValueList, Data: cloned}
+	case ValueSet:
+		return Value{Kind: ValueSet, Data: cloneSetData(value.Data.(SetData))}
 	case ValueMap:
 		items := value.Data.(map[string]Value)
 		cloned := make(map[string]Value, len(items))
@@ -383,6 +455,8 @@ func shareValue(value Value) Value {
 		return Value{Kind: ValueResult, Data: result}
 	case ValueTable:
 		return Value{Kind: ValueTable, Data: shareTableData(value.Data.(TableData))}
+	case ValueSet:
+		return Value{Kind: ValueSet, Data: shareSetData(value.Data.(SetData))}
 	case ValueAwaitable:
 		data := value.Data.(*AwaitableData)
 		args := make([]Value, 0, len(data.Args))
@@ -416,6 +490,8 @@ func runtimeTypeName(value Value) string {
 		return "Char"
 	case ValueList:
 		return "List[T]"
+	case ValueSet:
+		return "Set[T]"
 	case ValueMap:
 		return "Map[T,T]"
 	case ValueTable:
@@ -947,6 +1023,15 @@ func valueString(value Value) string {
 			parts = append(parts, valueString(lane))
 		}
 		return "SIMD[" + strings.Join(parts, ", ") + "]"
+	case ValueSet:
+		set := value.Data.(SetData)
+		parts := make([]string, 0, len(set.Order))
+		for _, key := range set.Order {
+			if item, ok := set.Entries[key]; ok {
+				parts = append(parts, valueString(item))
+			}
+		}
+		return "Set{" + strings.Join(parts, ", ") + "}"
 	case ValueTable:
 		table := value.Data.(TableData)
 		parts := make([]string, 0, len(table.Entries))
@@ -1017,6 +1102,13 @@ func valueSize(value Value) int {
 			size += valueSize(item)
 		}
 		return size
+	case ValueSet:
+		size := 48
+		set := value.Data.(SetData)
+		for key, item := range set.Entries {
+			size += len(key.Repr) + valueSize(item)
+		}
+		return size
 	case ValueMap:
 		size := 48
 		for key, item := range value.Data.(map[string]Value) {
@@ -1082,6 +1174,8 @@ func valueLen(value Value) (int, error) {
 		return len([]rune(value.Data.(string))), nil
 	case ValueList:
 		return len(value.Data.([]Value)), nil
+	case ValueSet:
+		return len(value.Data.(SetData).Entries), nil
 	case ValueMap:
 		return len(value.Data.(map[string]Value)), nil
 	case ValueTable:
@@ -1120,6 +1214,14 @@ func tableKey(value Value) (TableKey, error) {
 	default:
 		return TableKey{}, Error{Message: fmt.Sprintf("%s cannot be used as a table key", value.Kind)}
 	}
+}
+
+func setKey(value Value) (TableKey, error) {
+	key, err := tableKey(value)
+	if err != nil {
+		return TableKey{}, Error{Message: fmt.Sprintf("%s cannot be used as a set item", value.Kind)}
+	}
+	return key, nil
 }
 
 func valueMatchesType(value Value, typeName string) bool {
@@ -1179,6 +1281,17 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Kind == ValueObject && value.Data.(ObjectData).Type == typeName
 	case strings.HasPrefix(typeName, "List["):
 		return value.Kind == ValueList
+	case strings.HasPrefix(typeName, "Set["):
+		elementType, ok := setElementRuntimeType(typeName)
+		if !ok || value.Kind != ValueSet {
+			return false
+		}
+		for _, item := range value.Data.(SetData).Entries {
+			if !valueMatchesType(item, elementType) {
+				return false
+			}
+		}
+		return true
 	case strings.HasPrefix(typeName, "Map["):
 		return value.Kind == ValueMap
 	case strings.HasPrefix(typeName, "Awaitable["):
@@ -1231,6 +1344,15 @@ func valueMatchesType(value Value, typeName string) bool {
 		}
 		return true
 	}
+}
+
+func setElementRuntimeType(typeName string) (string, bool) {
+	typeName = normalizeRuntimeType(typeName)
+	if !strings.HasPrefix(typeName, "Set[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	elementType := normalizeRuntimeType(typeName[len("Set[") : len(typeName)-1])
+	return elementType, elementType != ""
 }
 
 type runtimeChildTypeSpec struct {

@@ -183,6 +183,12 @@ local Int firstItem = itemsList[0];
 -- Map indexes use the map key type.
 local Int total = scores["total"];
 
+-- Set[T] stores unique primitive values and preserves insertion order when iterated.
+local Set[String] imports = Set(["lexer", "parser", "lexer"]);
+local Int importCount = imports.count;      -- 2
+local Bool hasParser = set_has(imports, "parser");
+local Iterator[String] importIterator = iter(imports);
+
 -- Table is the Lua-style dynamic container. Keys can be primitive values and values can be mixed.
 local mut Table data = {"name": "klang", 1: True};
 data["count"] = 3;

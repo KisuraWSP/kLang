@@ -724,9 +724,9 @@ func selectorPath(expr parser.ExpressionNode) (string, bool) {
 
 func isBuiltinFunctionName(name string) bool {
 	switch name {
-	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD",
+	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set",
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
-		"table_has", "has_key", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
+		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",
 		"runtime_debug_loc", "runtime_debug_file", "runtime_debug_line", "runtime_debug_module", "runtime_debug_pos", "runtime_debug_function",

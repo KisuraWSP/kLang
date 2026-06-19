@@ -51,6 +51,7 @@
 51. CLI `doc --sourcefile=[...]` generates a static HTML documentation UI for one or more Klang source files or folder projects, including declaration cards and source-code chapters for each file.
 52. `report expression;` is a builtin runtime reporting statement. It evaluates the expression, prints the expression text, value, runtime type, and current stack trace, then continues execution.
 53. CLI `check` and `run` persist a source-fingerprint program cache in `.klang-cache` so repeated startups can skip module resolution and type checking when the full resolved source set is unchanged.
+54. `Set[T]` is a builtin deterministic hash set for unique primitive values, constructed with `Set(list)`, counted with `.count` or `len`, iterated with `iter`, and queried with `set_has(set, value)`.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -75,6 +76,7 @@ Rules
 - Region-backed arrays grow through indexed assignment, but an index must be inside the region count.
 - Alias-created objects and allocator wrapper objects are heap allocations for runtime memory tracking.
 - Table values allow mixed values and primitive keys only: `String`, `Int`, `UInt`, `Float`, `Bool`, and `Char`. Keys compare by normalized primitive kind plus value, so numeric, string, and char spellings do not collide.
+- Set values store unique primitive items only: `String`, `Int`, `UInt`, `Float`, `Bool`, and `Char`. `Set([items...])` deduplicates by normalized primitive kind plus value, preserves insertion order for iteration, and rejects unsafe dynamic items such as `Table`, `List`, functions, refs, allocator objects, and runtime objects.
 - Table reads report a missing-key diagnostic when the key is absent and never create fields. Indexed mutation detaches shared copy-on-write storage before writing.
 - `table["count"]` always means the user field named `"count"`. `table.count` is the builtin count protocol and returns the number of own entries. Other non-reserved selectors such as `table.name` are sugar for `table["name"]`.
 - Use `table_has(table, key)` or `has_key(table, key)` to test presence, and assign the result of `table_delete(table, key)` to remove a key.
@@ -109,9 +111,9 @@ Rules
 - CLI `serve` and package `--serve` start a built-in static web server for the generated WASM runtime bundle so users can run projects in a browser without manually shipping files first.
 - The stdlib `html` module renders escaped text, attributes, fragments, documents, and named HTML tags as strings for browser/WASM-oriented programs.
 - JavaScript FFI can load and describe local `.js` files, expose discovered exports, and create call descriptors without executing JavaScript inside the interpreter.
-- Shared builtin protocols are statically checked and runtime-backed. `.count` is available on `String`, `List`, `Map`, `Table`, `SIMD`, and `Iterator`; `.uppercase()` and `.lowercase()` are available on `String` and `Char`; `.times(callback)` is available on `Int` and `UInt` and invokes the callback with indexes from `0` to `receiver - 1`.
+- Shared builtin protocols are statically checked and runtime-backed. `.count` is available on `String`, `List`, `Set`, `Map`, `Table`, `SIMD`, and `Iterator`; `.uppercase()` and `.lowercase()` are available on `String` and `Char`; `.times(callback)` is available on `Int` and `UInt` and invokes the callback with indexes from `0` to `receiver - 1`.
 - Enum variants are selected with `EnumName.Variant`, have the enum name as their static type, and can be used in pattern matches. Enum values expose `.ordinal : Int`, `.name : String`, and `.variant : String`; values from different enum types are not assignable to each other.
-- Ordinary assignment of aggregate collection values such as `List`, `Map`, `Table`, and `SIMD` may share storage until one binding is mutated. Indexed mutation detaches the mutated binding first, preserving referential transparency for the other binding. Explicit `copy` and `clone` still request an eager cloned value.
+- Ordinary assignment of aggregate collection values such as `List`, `Set`, `Map`, `Table`, and `SIMD` may share storage until one binding is mutated. Indexed mutation detaches the mutated binding first, preserving referential transparency for the other binding. Explicit `copy` and `clone` still request an eager cloned value.
 - Table mutation respects mutable bindings. `None()` and `Null` are stored as ordinary values and do not delete keys. Invalid key types such as `Table`, `List`, functions, refs, allocator values, and runtime objects produce diagnostics.
 - `Context` tracks the program name, entry point, selected backend, source files, and collected diagnostics. `ErrorContext` includes the failing phase (`SOURCE`, `MODULE`, `PARSE`, `TYPE`, `RUNTIME`, `BACKEND`, or `WASM`), location, source line, rule, message, and fix hint. CLI `check`, `run`, `package`, and WASM packaging must report through this structure.
 - Runtime errors raised inside function calls include a stack trace before the error leaves the active call stack. The Go implementation parses loaded source files concurrently, reuses that parsed program through semantic checks, persists a best-effort `.klang-cache` for repeated unchanged program startups, collects runtime symbols per source concurrently, and merges compiler/runtime setup results in source order before sequential program execution.

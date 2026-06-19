@@ -752,6 +752,44 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsSetBuiltin(t *testing.T) {
+	if !isKnownType("Set[String]") {
+		t.Fatal("expected Set[String] to be a known type")
+	}
+
+	program := programFromSource(`
+function Main() : Int {
+    local Set[String] imports = Set(["lexer", "parser", "lexer"]);
+    local Bool hasParser = set_has(imports, "parser");
+    local Iterator[String] iterator = iter(imports);
+    local Option[String] first = next(iterator);
+    if hasParser and first.some {
+        return imports.count + len(imports);
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected set builtin program to type check, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsInvalidSetMembershipValue(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Set[String] imports = Set(["lexer"]);
+    if set_has(imports, 1) {
+        return 1;
+    }
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "set_has value expects String, got Int")
+}
+
 func TestCheckProgramAcceptsOptionAndResultBuiltins(t *testing.T) {
 	if !isKnownType("Option[Int]") {
 		t.Fatal("expected Option[Int] to be a known type")
