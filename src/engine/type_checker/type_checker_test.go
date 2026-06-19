@@ -1022,6 +1022,65 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsOptionAndResultHelpers(t *testing.T) {
+	program := programFromSource(`
+function Double(value : Int) : Int {
+    return value * 2;
+}
+
+function KeepPositive(value : Int) : Option[Int] {
+    if value > 0 {
+        return Some(value);
+    }
+    return None();
+}
+
+function ToText(value : String) : String {
+    return "error:" + value;
+}
+
+function ParseMore(value : Int) : Result[String, String] {
+    return Ok("value");
+}
+
+function Main() : Int {
+    local Option[Int] maybe = Some(10);
+    local Option[Int] doubled = option_map(maybe, Double);
+    local Int unwrapped = option_unwrap_or(doubled, 0);
+    local Option[Int] chained = option_and_then(maybe, KeepPositive);
+
+    local Result[Int, String] parsed = Ok(5);
+    local Result[Int, String] mapped = result_map(parsed, Double);
+    local Result[Int, String] mappedErr = result_map_err(mapped, ToText);
+    local Int recovered = result_unwrap_or(mappedErr, 0);
+    local Result[String, String] chainedResult = result_and_then(mappedErr, ParseMore);
+
+    return unwrapped + recovered + option_unwrap_or(chained, 0) + len(result_unwrap_or(chainedResult, ""));
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected option/result helpers to type check, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsOptionHelperMismatch(t *testing.T) {
+	program := programFromSource(`
+function NeedsString(value : String) : Int {
+    return len(value);
+}
+
+function Main() : Int {
+    local Option[Int] maybe = Some(10);
+    local Option[Int] mapped = option_map(maybe, NeedsString);
+    return option_unwrap_or(mapped, 0);
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "option_map callback argument expects Int, got String")
+}
+
 func TestCheckProgramRejectsOptionAndResultTypeMismatch(t *testing.T) {
 	optionProgram := programFromSource(`
 function Main() : Int {
@@ -2237,7 +2296,7 @@ function Main() : Int {
 }
 `)
 
-	assertTypeError(t, CheckProgram(program), "Option value value must be checked with .some before accessing .value")
+	assertTypeError(t, CheckProgram(program), "Option value value must be checked with .some, pattern matched with Some(...), or unwrapped with option_unwrap_or before accessing .value")
 }
 
 func TestCheckProgramAcceptsGuardedOptionValueAccess(t *testing.T) {
@@ -2254,6 +2313,34 @@ function Main() : Int {
 	report := CheckProgram(program)
 	if !report.Passed() {
 		t.Fatalf("expected guarded Option value access to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsUnsafeResultValueAccess(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Result[Int, String] value = Err("bad");
+    return value.value;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "Result value value must be checked with .ok, pattern matched with Ok(...), or propagated with ! before accessing .value")
+}
+
+func TestCheckProgramAcceptsGuardedResultValueAccess(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Result[Int, String] value = Ok(10);
+    if value.ok {
+        return value.value;
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected guarded Result value access to type check, got %#v", report.Errors)
 	}
 }
 

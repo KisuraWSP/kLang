@@ -271,7 +271,8 @@ local Int powered = -2 ** 3 ** 2;
 local Int grouped = (1 + 2) * 3;
 
 -- null safety
--- The postfix ? operator returns True when an expression is not Null, otherwise False.
+-- The postfix ? operator returns True when an expression is present: non-Null,
+-- Some(...) for Option, or Ok(...) for Result.
 local Bool hasValue = MaybeValue()?;
 
 -- boolean operators
@@ -320,6 +321,28 @@ local Option[Int] missingCount = None();
 local Result[Int, String] parsedCount = Ok(10);
 local Result[Int, String] failedParse = Err("invalid number");
 local Result[Int, String] wrappedCount = Result(20);
+local Bool hasCount = maybeCount?;
+local Bool parseSucceeded = parsedCount?;
+
+function Double(value : Int) : Int {
+    return value * 2;
+}
+
+function KeepPositive(value : Int) : Option[Int] {
+    if value > 0 { return Some(value); }
+    return None();
+}
+
+function ParseLabel(value : Int) : Result[String, String] {
+    return Ok("count");
+}
+
+local Option[Int] doubledCount = option_map(maybeCount, Double);
+local Int countOrZero = option_unwrap_or(missingCount, 0);
+local Option[Int] positiveCount = option_and_then(maybeCount, KeepPositive);
+local Result[Int, String] doubledParsed = result_map(parsedCount, Double);
+local Int parsedOrZero = result_unwrap_or(failedParse, 0);
+local Result[String, String] parsedLabel = result_and_then(parsedCount, ParseLabel);
 
 -- Error propagation
 -- The postfix ! operator unwraps Ok(value), or throws Err(value) to the nearest catch.

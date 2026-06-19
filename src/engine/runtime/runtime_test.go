@@ -884,6 +884,74 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesOptionAndResultHelpers(t *testing.T) {
+	result := runParsedSource(t, `
+function Double(value : Int) : Int {
+    return value * 2;
+}
+
+function KeepPositive(value : Int) : Option[Int] {
+    if value > 0 {
+        return Some(value);
+    }
+    return None();
+}
+
+function ParseMore(value : Int) : Result[String, String] {
+    return Ok("value");
+}
+
+function Prefix(value : String) : String {
+    return "error:" + value;
+}
+
+function Main() : Int {
+    local Option[Int] maybe = Some(10);
+    local Option[Int] none = None();
+    local Option[Int] doubled = option_map(maybe, Double);
+    local Option[Int] skipped = option_map(none, Double);
+    local Option[Int] chained = option_and_then(doubled, KeepPositive);
+
+    local Result[Int, String] ok = Ok(5);
+    local Result[Int, String] err = Err("bad");
+    local Result[Int, String] mapped = result_map(ok, Double);
+    local Result[Int, String] skippedResult = result_map(err, Double);
+    local Result[Int, String] mappedErr = result_map_err(skippedResult, Prefix);
+    local Result[String, String] chainedResult = result_and_then(mapped, ParseMore);
+
+    return option_unwrap_or(doubled, 0)
+        + option_unwrap_or(skipped, 3)
+        + option_unwrap_or(chained, 0)
+        + result_unwrap_or(mapped, 0)
+        + result_unwrap_or(mappedErr, 7)
+        + len(result_unwrap_or(chainedResult, ""));
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 65 {
+		t.Fatalf("expected option/result helpers to return 65, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeQuestionChecksOptionAndResultPresence(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Option[Int] some = Some(1);
+    local Option[Int] none = None();
+    local Result[Int, String] ok = Ok(1);
+    local Result[Int, String] err = Err("bad");
+    if some? and not none? and ok? and not err? {
+        return 1;
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected ? to check Option/Result presence, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeRejectsOptionInnerTypeMismatch(t *testing.T) {
 	_, err := runParsedSourceWithError(`
 function Main() : Int {
@@ -2032,7 +2100,7 @@ function Main() : Int {
         return 0;
     }
 
-    return len(encoded.value) + len(formatted) + data.count + data["count"] as Int;
+	return len(encoded!) + len(formatted) + data.count + data["count"] as Int;
 }
 `)
 

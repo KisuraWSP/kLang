@@ -2147,6 +2147,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			option := value.Data.(OptionData)
 			switch current.Field {
 			case "value":
+				if !option.Some {
+					return NullValue(), Error{Message: "cannot access None.value; check .some, pattern match Some(...), or use option_unwrap_or"}
+				}
 				return option.Value, nil
 			case "some":
 				return BoolValue(option.Some), nil
@@ -2157,6 +2160,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			result := value.Data.(ResultData)
 			switch current.Field {
 			case "value":
+				if !result.Ok {
+					return NullValue(), Error{Message: "cannot access Err.value; check .ok, pattern match Ok(...), use result_unwrap_or, or propagate with !"}
+				}
 				return result.Value, nil
 			case "ok":
 				return BoolValue(result.Ok), nil
@@ -2205,6 +2211,12 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 		value, err := runtime.evalExpression(current.Value, env)
 		if err != nil {
 			return NullValue(), err
+		}
+		if value.Kind == ValueOption {
+			return BoolValue(value.Data.(OptionData).Some), nil
+		}
+		if value.Kind == ValueResult {
+			return BoolValue(value.Data.(ResultData).Ok), nil
 		}
 		return BoolValue(value.Kind != ValueNull), nil
 	case parser.PropagateExpression:
@@ -2855,6 +2867,116 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			return NullValue(), Error{Message: "range expects one argument"}
 		}
 		return args[0], nil
+	case "option_map":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "option_map expects Option[T] and Function[T,U]"}
+		}
+		if args[0].Kind != ValueOption || args[1].Kind != ValueFunction {
+			return NullValue(), Error{Message: "option_map expects Option[T] and Function[T,U]"}
+		}
+		option := args[0].Data.(OptionData)
+		if !option.Some {
+			return OptionNoneValue(), nil
+		}
+		mapped, err := runtime.callFunction(args[1].Data.(string), []Value{option.Value})
+		if err != nil {
+			return NullValue(), err
+		}
+		return OptionSomeValue(mapped), nil
+	case "option_unwrap_or":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "option_unwrap_or expects Option[T] and fallback T"}
+		}
+		if args[0].Kind != ValueOption {
+			return NullValue(), Error{Message: "option_unwrap_or expects Option[T] as first argument"}
+		}
+		option := args[0].Data.(OptionData)
+		if option.Some {
+			return option.Value, nil
+		}
+		return args[1], nil
+	case "option_and_then":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "option_and_then expects Option[T] and Function[T,Option[U]]"}
+		}
+		if args[0].Kind != ValueOption || args[1].Kind != ValueFunction {
+			return NullValue(), Error{Message: "option_and_then expects Option[T] and Function[T,Option[U]]"}
+		}
+		option := args[0].Data.(OptionData)
+		if !option.Some {
+			return OptionNoneValue(), nil
+		}
+		next, err := runtime.callFunction(args[1].Data.(string), []Value{option.Value})
+		if err != nil {
+			return NullValue(), err
+		}
+		if next.Kind != ValueOption {
+			return NullValue(), Error{Message: fmt.Sprintf("option_and_then callback must return Option, got %s", next.Kind)}
+		}
+		return next, nil
+	case "result_map":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "result_map expects Result[T,E] and Function[T,U]"}
+		}
+		if args[0].Kind != ValueResult || args[1].Kind != ValueFunction {
+			return NullValue(), Error{Message: "result_map expects Result[T,E] and Function[T,U]"}
+		}
+		result := args[0].Data.(ResultData)
+		if !result.Ok {
+			return args[0], nil
+		}
+		mapped, err := runtime.callFunction(args[1].Data.(string), []Value{result.Value})
+		if err != nil {
+			return NullValue(), err
+		}
+		return ResultOkValue(mapped), nil
+	case "result_map_err":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "result_map_err expects Result[T,E] and Function[E,F]"}
+		}
+		if args[0].Kind != ValueResult || args[1].Kind != ValueFunction {
+			return NullValue(), Error{Message: "result_map_err expects Result[T,E] and Function[E,F]"}
+		}
+		result := args[0].Data.(ResultData)
+		if result.Ok {
+			return args[0], nil
+		}
+		mapped, err := runtime.callFunction(args[1].Data.(string), []Value{result.Value})
+		if err != nil {
+			return NullValue(), err
+		}
+		return ResultErrValue(mapped), nil
+	case "result_unwrap_or":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "result_unwrap_or expects Result[T,E] and fallback T"}
+		}
+		if args[0].Kind != ValueResult {
+			return NullValue(), Error{Message: "result_unwrap_or expects Result[T,E] as first argument"}
+		}
+		result := args[0].Data.(ResultData)
+		if result.Ok {
+			return result.Value, nil
+		}
+		return args[1], nil
+	case "result_and_then":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "result_and_then expects Result[T,E] and Function[T,Result[U,E]]"}
+		}
+		if args[0].Kind != ValueResult || args[1].Kind != ValueFunction {
+			return NullValue(), Error{Message: "result_and_then expects Result[T,E] and Function[T,Result[U,E]]"}
+		}
+		result := args[0].Data.(ResultData)
+		if !result.Ok {
+			return args[0], nil
+		}
+		next, err := runtime.callFunction(args[1].Data.(string), []Value{result.Value})
+		if err != nil {
+			return NullValue(), err
+		}
+		if next.Kind != ValueResult {
+			return NullValue(), Error{Message: fmt.Sprintf("result_and_then callback must return Result, got %s", next.Kind)}
+		}
+		return next, nil
 	case "Some":
 		if len(args) != 1 {
 			return NullValue(), Error{Message: "Some expects one argument"}
@@ -4007,7 +4129,10 @@ func (runtime *Runtime) resolveAliasPath(name string) string {
 
 func isBuiltinFunction(name string) bool {
 	switch name {
-	case "print", "format", "printf", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set",
+	case "print", "format", "printf", "input", "len", "range",
+		"option_map", "option_unwrap_or", "option_and_then",
+		"result_map", "result_map_err", "result_unwrap_or", "result_and_then",
+		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set",
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
 		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",

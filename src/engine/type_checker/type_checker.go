@@ -1299,6 +1299,7 @@ func tokenNeedsLeadingSpace(previous lexer.Token, token lexer.Token, hasPrevious
 type nullSafetySymbol struct {
 	Type      string
 	KnownSome bool
+	KnownOk   bool
 }
 
 func (checker *TypeChecker) checkFunctionNullSafety(fn functionSymbol) {
@@ -1335,6 +1336,8 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 			}
 			if _, ok := optionElementType(typeName); ok {
 				env[current.Name] = nullSafetySymbol{Type: typeName, KnownSome: nullSafetyExpressionIsKnownSome(current.Expression.Node)}
+			} else if _, _, ok := resultValueTypes(typeName); ok {
+				env[current.Name] = nullSafetySymbol{Type: typeName, KnownOk: nullSafetyExpressionIsKnownOk(current.Expression.Node)}
 			} else {
 				env[current.Name] = nullSafetySymbol{Type: typeName}
 			}
@@ -1352,6 +1355,7 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 			if target, ok := current.Target.Node.(parser.IdentifierExpression); ok {
 				if symbol, exists := env[target.Name]; exists {
 					symbol.KnownSome = nullSafetyExpressionIsKnownSome(current.Expression.Node)
+					symbol.KnownOk = nullSafetyExpressionIsKnownOk(current.Expression.Node)
 					env[target.Name] = symbol
 				}
 			}
@@ -1381,6 +1385,14 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 					}
 				}
 			}
+			for name := range nullSafetyOkGuards(current.Condition.Node) {
+				if symbol, ok := guarded[name]; ok {
+					if _, _, result := resultValueTypes(symbol.Type); result {
+						symbol.KnownOk = true
+						guarded[name] = symbol
+					}
+				}
+			}
 			checker.checkNullSafetyStatements(current.Consequence, guarded, source, baseLine)
 			if current.ElseIf != nil {
 				checker.checkNullSafetyStatements([]parser.Statement{*current.ElseIf}, copyNullSafetyEnv(env), source, baseLine)
@@ -1393,6 +1405,14 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 				if symbol, ok := guarded[name]; ok {
 					if _, option := optionElementType(symbol.Type); option {
 						symbol.KnownSome = true
+						guarded[name] = symbol
+					}
+				}
+			}
+			for name := range nullSafetyOkGuards(current.Header.Node) {
+				if symbol, ok := guarded[name]; ok {
+					if _, _, result := resultValueTypes(symbol.Type); result {
+						symbol.KnownOk = true
 						guarded[name] = symbol
 					}
 				}
@@ -1451,7 +1471,11 @@ func (checker *TypeChecker) checkNullSafetyExpression(expr parser.ExpressionNode
 				if symbol, exists := env[target.Name]; exists {
 					if _, option := optionElementType(symbol.Type); option && !symbol.KnownSome {
 						line := baseLine + selectorLine(current.Target) - 1
-						checker.addError(source, line, fmt.Sprintf("Option value %s must be checked with .some before accessing .value", target.Name))
+						checker.addError(source, line, fmt.Sprintf("Option value %s must be checked with .some, pattern matched with Some(...), or unwrapped with option_unwrap_or before accessing .value", target.Name))
+					}
+					if _, _, result := resultValueTypes(symbol.Type); result && !symbol.KnownOk {
+						line := baseLine + selectorLine(current.Target) - 1
+						checker.addError(source, line, fmt.Sprintf("Result value %s must be checked with .ok, pattern matched with Ok(...), or propagated with ! before accessing .value", target.Name))
 					}
 				}
 			}
@@ -1501,6 +1525,10 @@ func (checker *TypeChecker) nullSafetyExpressionType(expr parser.ExpressionNode,
 				return "Option[T]"
 			case "None":
 				return "Option[T]"
+			case "Ok", "Result":
+				return "Result[T,T]"
+			case "Err":
+				return "Result[T,T]"
 			}
 		}
 	}
@@ -1514,6 +1542,15 @@ func nullSafetyExpressionIsKnownSome(expr parser.ExpressionNode) bool {
 	}
 	callee, ok := call.Callee.(parser.IdentifierExpression)
 	return ok && callee.Name == "Some"
+}
+
+func nullSafetyExpressionIsKnownOk(expr parser.ExpressionNode) bool {
+	call, ok := expr.(parser.CallExpression)
+	if !ok {
+		return false
+	}
+	callee, ok := call.Callee.(parser.IdentifierExpression)
+	return ok && (callee.Name == "Ok" || callee.Name == "Result")
 }
 
 func nullSafetySomeGuards(expr parser.ExpressionNode) map[string]bool {
@@ -1541,6 +1578,30 @@ func nullSafetySomeGuards(expr parser.ExpressionNode) map[string]bool {
 			for name := range nullSafetySomeGuards(current.Right) {
 				guards[name] = true
 			}
+		}
+	}
+	return guards
+}
+
+func nullSafetyOkGuards(expr parser.ExpressionNode) map[string]bool {
+	guards := map[string]bool{}
+	switch current := expr.(type) {
+	case parser.SelectorExpression:
+		if current.Field == "ok" {
+			if target, ok := current.Target.(parser.IdentifierExpression); ok {
+				guards[target.Name] = true
+			}
+		}
+	case parser.GroupExpression:
+		for name := range nullSafetyOkGuards(current.Inner) {
+			guards[name] = true
+		}
+	case parser.BinaryExpression:
+		for name := range nullSafetyOkGuards(current.Left) {
+			guards[name] = true
+		}
+		for name := range nullSafetyOkGuards(current.Right) {
+			guards[name] = true
 		}
 	}
 	return guards
@@ -2851,6 +2912,20 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		return "Type"
 	}
 	switch name {
+	case "option_map":
+		return checker.checkOptionMap(args, locals, source, line)
+	case "option_unwrap_or":
+		return checker.checkOptionUnwrapOr(args, locals, source, line)
+	case "option_and_then":
+		return checker.checkOptionAndThen(args, locals, source, line)
+	case "result_map":
+		return checker.checkResultMap(args, locals, source, line)
+	case "result_map_err":
+		return checker.checkResultMapErr(args, locals, source, line)
+	case "result_unwrap_or":
+		return checker.checkResultUnwrapOr(args, locals, source, line)
+	case "result_and_then":
+		return checker.checkResultAndThen(args, locals, source, line)
 	case "copy", "clone":
 		if len(args) != 1 {
 			checker.addError(source, line, fmt.Sprintf("%s expects 1 argument", name))
@@ -4146,6 +4221,169 @@ func isAllowedChildType(parent string, bits int) bool {
 	default:
 		return false
 	}
+}
+
+func (checker *TypeChecker) checkOptionMap(args []string, locals map[string]variableSymbol, source string, line int) string {
+	if len(args) != 2 {
+		checker.addError(source, line, fmt.Sprintf("option_map expects Option[T] and Function[T,U], got %d argument(s)", len(args)))
+		return "Option[T]"
+	}
+	optionType := checker.inferExpression(args[0], locals, source, line)
+	itemType, ok := optionElementType(optionType)
+	if !ok && optionType != anyType {
+		checker.addError(source, line, fmt.Sprintf("option_map first argument expects Option[T], got %s", optionType))
+		itemType = anyType
+	}
+	callbackType := checker.inferExpression(args[1], locals, source, line)
+	params, returnType, callbackOK := functionValueType(callbackType)
+	if !callbackOK || len(params) != 1 {
+		checker.addError(source, line, fmt.Sprintf("option_map callback expects Function[%s,U], got %s", itemType, callbackType))
+		return "Option[T]"
+	}
+	if !checker.isAssignable(params[0], itemType) {
+		checker.addError(source, line, fmt.Sprintf("option_map callback argument expects %s, got %s", itemType, params[0]))
+	}
+	return "Option[" + returnType + "]"
+}
+
+func (checker *TypeChecker) checkOptionUnwrapOr(args []string, locals map[string]variableSymbol, source string, line int) string {
+	if len(args) != 2 {
+		checker.addError(source, line, fmt.Sprintf("option_unwrap_or expects Option[T] and fallback T, got %d argument(s)", len(args)))
+		return anyType
+	}
+	optionType := checker.inferExpression(args[0], locals, source, line)
+	itemType, ok := optionElementType(optionType)
+	if !ok {
+		checker.addError(source, line, fmt.Sprintf("option_unwrap_or first argument expects Option[T], got %s", optionType))
+		itemType = anyType
+	}
+	fallbackType := checker.inferExpression(args[1], locals, source, line)
+	if !checker.isAssignable(itemType, fallbackType) {
+		checker.addError(source, line, fmt.Sprintf("option_unwrap_or fallback expects %s, got %s", itemType, fallbackType))
+	}
+	return itemType
+}
+
+func (checker *TypeChecker) checkOptionAndThen(args []string, locals map[string]variableSymbol, source string, line int) string {
+	if len(args) != 2 {
+		checker.addError(source, line, fmt.Sprintf("option_and_then expects Option[T] and Function[T,Option[U]], got %d argument(s)", len(args)))
+		return "Option[T]"
+	}
+	optionType := checker.inferExpression(args[0], locals, source, line)
+	itemType, ok := optionElementType(optionType)
+	if !ok {
+		checker.addError(source, line, fmt.Sprintf("option_and_then first argument expects Option[T], got %s", optionType))
+		itemType = anyType
+	}
+	callbackType := checker.inferExpression(args[1], locals, source, line)
+	params, returnType, callbackOK := functionValueType(callbackType)
+	if !callbackOK || len(params) != 1 {
+		checker.addError(source, line, fmt.Sprintf("option_and_then callback expects Function[%s,Option[U]], got %s", itemType, callbackType))
+		return "Option[T]"
+	}
+	if !checker.isAssignable(params[0], itemType) {
+		checker.addError(source, line, fmt.Sprintf("option_and_then callback argument expects %s, got %s", itemType, params[0]))
+	}
+	if _, ok := optionElementType(returnType); !ok {
+		checker.addError(source, line, fmt.Sprintf("option_and_then callback must return Option[U], got %s", returnType))
+		return "Option[T]"
+	}
+	return returnType
+}
+
+func (checker *TypeChecker) checkResultMap(args []string, locals map[string]variableSymbol, source string, line int) string {
+	if len(args) != 2 {
+		checker.addError(source, line, fmt.Sprintf("result_map expects Result[T,E] and Function[T,U], got %d argument(s)", len(args)))
+		return "Result[T,T]"
+	}
+	resultType := checker.inferExpression(args[0], locals, source, line)
+	okType, errType, ok := resultValueTypes(resultType)
+	if !ok {
+		checker.addError(source, line, fmt.Sprintf("result_map first argument expects Result[T,E], got %s", resultType))
+		okType, errType = anyType, anyType
+	}
+	callbackType := checker.inferExpression(args[1], locals, source, line)
+	params, returnType, callbackOK := functionValueType(callbackType)
+	if !callbackOK || len(params) != 1 {
+		checker.addError(source, line, fmt.Sprintf("result_map callback expects Function[%s,U], got %s", okType, callbackType))
+		return "Result[T,T]"
+	}
+	if !checker.isAssignable(params[0], okType) {
+		checker.addError(source, line, fmt.Sprintf("result_map callback argument expects %s, got %s", okType, params[0]))
+	}
+	return "Result[" + returnType + "," + errType + "]"
+}
+
+func (checker *TypeChecker) checkResultMapErr(args []string, locals map[string]variableSymbol, source string, line int) string {
+	if len(args) != 2 {
+		checker.addError(source, line, fmt.Sprintf("result_map_err expects Result[T,E] and Function[E,F], got %d argument(s)", len(args)))
+		return "Result[T,T]"
+	}
+	resultType := checker.inferExpression(args[0], locals, source, line)
+	okType, errType, ok := resultValueTypes(resultType)
+	if !ok {
+		checker.addError(source, line, fmt.Sprintf("result_map_err first argument expects Result[T,E], got %s", resultType))
+		okType, errType = anyType, anyType
+	}
+	callbackType := checker.inferExpression(args[1], locals, source, line)
+	params, returnType, callbackOK := functionValueType(callbackType)
+	if !callbackOK || len(params) != 1 {
+		checker.addError(source, line, fmt.Sprintf("result_map_err callback expects Function[%s,F], got %s", errType, callbackType))
+		return "Result[T,T]"
+	}
+	if !checker.isAssignable(params[0], errType) {
+		checker.addError(source, line, fmt.Sprintf("result_map_err callback argument expects %s, got %s", errType, params[0]))
+	}
+	return "Result[" + okType + "," + returnType + "]"
+}
+
+func (checker *TypeChecker) checkResultUnwrapOr(args []string, locals map[string]variableSymbol, source string, line int) string {
+	if len(args) != 2 {
+		checker.addError(source, line, fmt.Sprintf("result_unwrap_or expects Result[T,E] and fallback T, got %d argument(s)", len(args)))
+		return anyType
+	}
+	resultType := checker.inferExpression(args[0], locals, source, line)
+	okType, _, ok := resultValueTypes(resultType)
+	if !ok {
+		checker.addError(source, line, fmt.Sprintf("result_unwrap_or first argument expects Result[T,E], got %s", resultType))
+		okType = anyType
+	}
+	fallbackType := checker.inferExpression(args[1], locals, source, line)
+	if !checker.isAssignable(okType, fallbackType) {
+		checker.addError(source, line, fmt.Sprintf("result_unwrap_or fallback expects %s, got %s", okType, fallbackType))
+	}
+	return okType
+}
+
+func (checker *TypeChecker) checkResultAndThen(args []string, locals map[string]variableSymbol, source string, line int) string {
+	if len(args) != 2 {
+		checker.addError(source, line, fmt.Sprintf("result_and_then expects Result[T,E] and Function[T,Result[U,E]], got %d argument(s)", len(args)))
+		return "Result[T,T]"
+	}
+	resultType := checker.inferExpression(args[0], locals, source, line)
+	okType, errType, ok := resultValueTypes(resultType)
+	if !ok {
+		checker.addError(source, line, fmt.Sprintf("result_and_then first argument expects Result[T,E], got %s", resultType))
+		okType, errType = anyType, anyType
+	}
+	callbackType := checker.inferExpression(args[1], locals, source, line)
+	params, returnType, callbackOK := functionValueType(callbackType)
+	if !callbackOK || len(params) != 1 {
+		checker.addError(source, line, fmt.Sprintf("result_and_then callback expects Function[%s,Result[U,%s]], got %s", okType, errType, callbackType))
+		return "Result[T,T]"
+	}
+	if !checker.isAssignable(params[0], okType) {
+		checker.addError(source, line, fmt.Sprintf("result_and_then callback argument expects %s, got %s", okType, params[0]))
+	}
+	_, callbackErrType, returnOK := resultValueTypes(returnType)
+	if !returnOK {
+		checker.addError(source, line, fmt.Sprintf("result_and_then callback must return Result[U,%s], got %s", errType, returnType))
+		return "Result[T,T]"
+	}
+	if !checker.isAssignable(errType, callbackErrType) {
+		checker.addError(source, line, fmt.Sprintf("result_and_then callback error type expects %s, got %s", errType, callbackErrType))
+	}
+	return returnType
 }
 
 func canonicalRestrictedType(input string) (string, bool) {

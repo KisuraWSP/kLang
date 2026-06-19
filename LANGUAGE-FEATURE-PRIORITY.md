@@ -1,8 +1,5 @@
 ```
 My top priorities:
-Make Result and Option excellent
-Add ergonomic pattern matching, ?/propagation consistency, helpers like map, unwrap_or, and_then, and make diagnostics around unsafe access very polished. This will make the whole language feel safer.
-
 
 Add real JSON/Table serialization
 Your json.klang is currently string-helper oriented. A powerful version should encode/decode Table, List, String, Int, Float, Bool, Null, and maybe alias structs using Type.get_runtime_type_info().

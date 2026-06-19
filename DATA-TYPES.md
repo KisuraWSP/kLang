@@ -59,6 +59,8 @@ Builtin values expose a small shared protocol surface through selector syntax:
 
 Generic type parameters may use named constraints in addition to explicit `restrict[...]` allow-lists. `T numeric` accepts numeric parent and child-width types, `T comparable` accepts primitive comparable values, `T hashable` accepts the safe primitive key space used by `Table` and `Set`, `T iterable` accepts values supported by `iter`/`len`, `T allocator_like` accepts builtin allocator/value wrappers, and `T TraitName` requires an `impl TraitName for ConcreteType` declaration.
 
+`Option[T]` and `Result[T, E]` are the standard absence and fallibility types. `Some(value)`/`None()` construct options, and `Ok(value)`/`Err(error)` construct results. Use `.some` and `.ok` for presence checks, `!` to propagate a `Result` error from a fallible expression, and helpers such as `option_map`, `option_unwrap_or`, `option_and_then`, `result_map`, `result_map_err`, `result_unwrap_or`, and `result_and_then` to transform or recover values without unsafe `.value` access.
+
 User-defined `enum` declarations create typed ordinal values inspired by Go `const`/`iota` enums. Variants are selected as `EnumName.Variant`, compare only with variants from the same enum type, and expose `.ordinal`, `.name`, and `.variant`.
 
 Aggregate collection values use copy-on-write storage for ordinary assignment. Shared `List`, `Set`, `Map`, `Table`, and `SIMD` storage is detached when a mutable binding is written, while explicit `copy` and `clone` still create eager clones.
