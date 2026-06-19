@@ -2,6 +2,7 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- add support for seperators in huge numbers like this "1_000_000"
 - temporary variables
 - temporary memory regions
 - we need a system in which when user passes any sort of flags or arguments in the 
