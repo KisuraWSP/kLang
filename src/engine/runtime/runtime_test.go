@@ -57,6 +57,25 @@ function Main() : List[Table] {
 	assertRuntimeState(t, states, "variable", "value", "define")
 }
 
+func TestRuntimeTracksTemporaryVariables(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : List[Table] {
+    temp local mut Int scratch = 40;
+    scratch += 2;
+    temp let answer = scratch;
+    return debug_state();
+}
+`)
+
+	if result.Value.Kind != ValueList {
+		t.Fatalf("expected debug_state to return a list, got %#v", result.Value)
+	}
+	states := result.Value.Data.([]Value)
+	assertRuntimeState(t, states, "temporary", "scratch", "define")
+	assertRuntimeState(t, states, "temporary", "scratch", "assign")
+	assertRuntimeState(t, states, "temporary", "answer", "define")
+}
+
 func TestRuntimeExecutesAssertAndRuntimeTypeInfo(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {

@@ -949,7 +949,11 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		} else if preferred := preferredMemoryRegion(value); preferred != "" {
 			region = preferred
 		}
-		if err := runtime.defineValueInRegion(targetEnv, current.Name, current.Mutable, typeName, value, region); err != nil {
+		kind := "variable"
+		if current.Temporary {
+			kind = "temporary"
+		}
+		if err := runtime.defineValueWithState(targetEnv, current.Name, current.Mutable, typeName, value, region, kind, "define"); err != nil {
 			return signal{}, errorAt(current.Pos, err.Error())
 		}
 		return signal{kind: signalNone}, nil

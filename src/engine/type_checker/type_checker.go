@@ -123,6 +123,7 @@ type variableSymbol struct {
 	KnownSome    bool
 	Mutable      bool
 	ByRef        bool
+	Temporary    bool
 	Used         bool
 	Parameter    bool
 	Default      string
@@ -761,11 +762,12 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 			InferredType: inferredType,
 			KnownSome:    isKnownSomeInitializer(expressionSource(current.Expression)),
 			Mutable:      current.Mutable,
+			Temporary:    current.Temporary,
 			File:         fn.File,
 			Line:         line,
 		}
 		checker.recordState(State{
-			Kind:     current.Scope,
+			Kind:     variableStateKind(current),
 			Name:     current.Name,
 			Type:     typeName,
 			Function: fn.Name,
@@ -966,7 +968,7 @@ func (checker *TypeChecker) reportUnusedDeclaredSymbols(fn functionSymbol, local
 			continue
 		}
 		variable, ok := locals[name]
-		if !ok || variable.Used {
+		if !ok || variable.Used || variable.Temporary {
 			continue
 		}
 		if variable.Parameter {
@@ -975,6 +977,13 @@ func (checker *TypeChecker) reportUnusedDeclaredSymbols(fn functionSymbol, local
 		}
 		checker.addWarning(fn.File, variable.Line, fmt.Sprintf("unused variable %q", name))
 	}
+}
+
+func variableStateKind(stmt parser.VariableStatement) string {
+	if stmt.Temporary {
+		return "temporary"
+	}
+	return stmt.Scope
 }
 
 func (checker *TypeChecker) markMovedFromExpression(expr parser.Expression, locals map[string]variableSymbol) {

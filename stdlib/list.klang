@@ -164,9 +164,9 @@ namespace list {
             local mut Int j = i + 1;
             while j < len(result) {
                 if result[j] < result[i] {
-                    local T temp = result[i];
+                    local T scratch = result[i];
                     result[i] = result[j];
-                    result[j] = temp;
+                    result[j] = scratch;
                 }
                 j += 1;
             }

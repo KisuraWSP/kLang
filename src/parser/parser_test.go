@@ -168,6 +168,31 @@ let size intSize = Int.sizeof;
 	}
 }
 
+func TestParseTemporaryVariableDeclarations(t *testing.T) {
+	program, errors := Parse(`
+temp local Int scratch = 1;
+temp let cached = scratch + 1;
+lazy temp local String lazyScratch = BuildName();
+`)
+	assertNoParseErrors(t, errors)
+
+	if len(program.Statements) != 3 {
+		t.Fatalf("expected 3 statements, got %d", len(program.Statements))
+	}
+	typed := program.Statements[0].(VariableStatement)
+	if !typed.Temporary || typed.Scope != "local" || typed.Type != "Int" || typed.Name != "scratch" || typed.Inferred {
+		t.Fatalf("unexpected typed temporary declaration: %#v", typed)
+	}
+	inferred := program.Statements[1].(VariableStatement)
+	if !inferred.Temporary || inferred.Scope != "local" || inferred.Type != "T" || inferred.Name != "cached" || !inferred.Inferred {
+		t.Fatalf("unexpected inferred temporary declaration: %#v", inferred)
+	}
+	lazy := program.Statements[2].(VariableStatement)
+	if !lazy.Temporary || !lazy.Lazy || lazy.Type != "String" || lazy.Name != "lazyScratch" {
+		t.Fatalf("unexpected lazy temporary declaration: %#v", lazy)
+	}
+}
+
 func TestParseUnicodeIdentifiersAndPrefixedNumberLiterals(t *testing.T) {
 	program, errors := Parse(`
 function එකතු(අගය : Int, 😀 : Int) : Int {

@@ -78,6 +78,29 @@ func TestLexerTokenizesInferredVariableKeywords(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesTemporaryVariableKeyword(t *testing.T) {
+	input := `temp local Int scratch = 1; temp let cached = scratch + 1;`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenTemp, Literal: "temp"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "scratch"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "1"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenTemp, Literal: "temp"},
+		{Type: TokenLet, Literal: "let"},
+		{Type: TokenIdentifier, Literal: "cached"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenIdentifier, Literal: "scratch"},
+		{Type: TokenPlus, Literal: "+"},
+		{Type: TokenInt, Literal: "1"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesNumberSelectors(t *testing.T) {
 	input := `5.times(Callback);`
 

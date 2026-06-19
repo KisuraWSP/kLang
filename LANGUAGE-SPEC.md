@@ -32,29 +32,30 @@
 32. Variable destructuring can unpack Lists, Tables, Maps, and object fields through parser lowering into inferred declarations.
 33. `_` is a discard identifier for ignored values and can be reused without creating a binding.
 34. `lazy` variable declarations delay initializer evaluation until the binding is first accessed.
-35. Builtin values participate in shared selector protocols: collection-like values expose `.count`, strings/chars expose case conversion methods, and integer values expose `.times(callback)`.
-36. `enum` declarations define typed ordinal enum values with implicit iota-style ordinals and optional explicit integer ordinals.
-37. Aggregate values use copy-on-write storage for ordinary assignment.
-38. Every loaded workspace has a compiler/runtime `Context`, and failures are reported as source-aware `ErrorContext` diagnostics.
-39. Stdlib imports use a function lookup table by default so only module functions referenced through the imported module namespace are collected, type checked, and registered. `module_caller(call_entire_module : True);` in the importing source opts back into whole-module stdlib imports.
-40. A module source may declare `module(disabled : True);` to reject imports of that module until the directive is removed or set to false.
-41. Stdlib modules may declare `global namespace Name { ... }`; functions inside that namespace are loaded into an internal compiler/runtime symbol table and can be called without an import or namespace qualifier.
-42. `run` marks a block or single statement as a priority runtime action that executes before ordinary statements in the same block.
-43. Multiline comments use `(* ... *)` delimiters and may span lines.
-44. Numeric parent types support child-width types through `.child(bits)` and globally available aliases such as `i8`, `u32`, `float64`, and `complex128`.
-45. The checker reports warnings for unused local variables and unused function parameters.
-46. Qualified module calls can infer imports; `list.append(...)` loads a resolvable `list` module even without an explicit import.
-47. Integer literals support optional leading `-`, base prefixes `0x`/`0X`, `0o`/`0O`, and `0b`/`0B`, and `_` separators between digits. Identifiers may use Unicode letters, marks, and symbols, including Sinhala text and emoji, but may not begin with a digit.
-48. Modules may import other modules. Stdlib-to-stdlib imports remain stdlib imports, so selective function loading still applies to dependency modules.
-49. `Type` is the parent runtime metadata type for all language types. `SomeType.get_runtime_type_info()` returns metadata for serialization, data introspection, and memory layout interpretation.
-50. `assert expression;` is a builtin statement keyword. The expression must be `Bool`; runtime execution fails with an assertion error when it is false.
-51. CLI `doc --sourcefile=[...]` generates a static HTML documentation UI for one or more Klang source files or folder projects, including declaration cards and source-code chapters for each file.
-52. `report expression;` is a builtin runtime reporting statement. It evaluates the expression, prints the expression text, value, runtime type, and current stack trace, then continues execution.
-53. CLI `check` and `run` persist a source-fingerprint program cache in `.klang-cache` so repeated startups can skip module resolution and type checking when the full resolved source set is unchanged.
-54. `Set[T]` is a builtin deterministic hash set for unique primitive values, constructed with `Set(list)`, counted with `.count` or `len`, iterated with `iter`, and queried with `set_has(set, value)`.
-55. `format(pattern : String, values : List[T])` and `printf(pattern : String, values : List[T])` are runtime-backed string formatting builtins. `%` consumes the next value, `%%` emits a literal percent sign, and the number of non-escaped placeholders must match `len(values)`. The stdlib `fmt` module exposes `fmt.Format` and `fmt.Printf` wrappers.
-56. Generic type parameters support named constraints beyond `restrict[...]`: `numeric`, `comparable`, `hashable`, `iterable`, `allocator_like`, and trait-bound names such as `T Printable`.
-57. The compiler and runtime track state for variables, function parameters, named returns, and return values. Type-check reports expose compile-time state records, and `debug_state()` returns runtime state records as `List[Table]`.
+35. `temp local` and `temp let` declare local temporary variables for short-lived intermediate values. They type check and execute like ordinary local variables, are tracked with state kind `temporary`, and do not produce unused-variable warnings.
+36. Builtin values participate in shared selector protocols: collection-like values expose `.count`, strings/chars expose case conversion methods, and integer values expose `.times(callback)`.
+37. `enum` declarations define typed ordinal enum values with implicit iota-style ordinals and optional explicit integer ordinals.
+38. Aggregate values use copy-on-write storage for ordinary assignment.
+39. Every loaded workspace has a compiler/runtime `Context`, and failures are reported as source-aware `ErrorContext` diagnostics.
+40. Stdlib imports use a function lookup table by default so only module functions referenced through the imported module namespace are collected, type checked, and registered. `module_caller(call_entire_module : True);` in the importing source opts back into whole-module stdlib imports.
+41. A module source may declare `module(disabled : True);` to reject imports of that module until the directive is removed or set to false.
+42. Stdlib modules may declare `global namespace Name { ... }`; functions inside that namespace are loaded into an internal compiler/runtime symbol table and can be called without an import or namespace qualifier.
+43. `run` marks a block or single statement as a priority runtime action that executes before ordinary statements in the same block.
+44. Multiline comments use `(* ... *)` delimiters and may span lines.
+45. Numeric parent types support child-width types through `.child(bits)` and globally available aliases such as `i8`, `u32`, `float64`, and `complex128`.
+46. The checker reports warnings for unused local variables and unused function parameters.
+47. Qualified module calls can infer imports; `list.append(...)` loads a resolvable `list` module even without an explicit import.
+48. Integer literals support optional leading `-`, base prefixes `0x`/`0X`, `0o`/`0O`, and `0b`/`0B`, and `_` separators between digits. Identifiers may use Unicode letters, marks, and symbols, including Sinhala text and emoji, but may not begin with a digit.
+49. Modules may import other modules. Stdlib-to-stdlib imports remain stdlib imports, so selective function loading still applies to dependency modules.
+50. `Type` is the parent runtime metadata type for all language types. `SomeType.get_runtime_type_info()` returns metadata for serialization, data introspection, and memory layout interpretation.
+51. `assert expression;` is a builtin statement keyword. The expression must be `Bool`; runtime execution fails with an assertion error when it is false.
+52. CLI `doc --sourcefile=[...]` generates a static HTML documentation UI for one or more Klang source files or folder projects, including declaration cards and source-code chapters for each file.
+53. `report expression;` is a builtin runtime reporting statement. It evaluates the expression, prints the expression text, value, runtime type, and current stack trace, then continues execution.
+54. CLI `check` and `run` persist a source-fingerprint program cache in `.klang-cache` so repeated startups can skip module resolution and type checking when the full resolved source set is unchanged.
+55. `Set[T]` is a builtin deterministic hash set for unique primitive values, constructed with `Set(list)`, counted with `.count` or `len`, iterated with `iter`, and queried with `set_has(set, value)`.
+56. `format(pattern : String, values : List[T])` and `printf(pattern : String, values : List[T])` are runtime-backed string formatting builtins. `%` consumes the next value, `%%` emits a literal percent sign, and the number of non-escaped placeholders must match `len(values)`. The stdlib `fmt` module exposes `fmt.Format` and `fmt.Printf` wrappers.
+57. Generic type parameters support named constraints beyond `restrict[...]`: `numeric`, `comparable`, `hashable`, `iterable`, `allocator_like`, and trait-bound names such as `T Printable`.
+58. The compiler and runtime track state for variables, function parameters, named returns, and return values. Type-check reports expose compile-time state records, and `debug_state()` returns runtime state records as `List[Table]`.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -64,6 +65,7 @@ Rules
 - `const` declares a strictly immutable inferred value in the current scope and requires an initializer.
 - Inferred declarations must have an initializer and are checked before runtime.
 - `lazy local`, `lazy global`, `lazy let`, `lazy val`, and `lazy var` declarations require an initializer and evaluate it on first access, caching the result afterward.
+- `temp local` and `temp let` declare local temporary variables for intermediate values. `lazy temp local` and `lazy temp let` are valid. Temporary variables cannot be global, cannot be const, and are excluded from unused-variable warnings.
 - Destructuring declarations must have an initializer and lower to ordinary inferred declarations before semantic checking and runtime execution.
 - `_ = expression;` evaluates and discards an expression result. Declarations and destructuring bindings named `_` also discard their values instead of entering scope.
 - Unused local variables and function parameters produce warnings. Use `_` for intentionally ignored values.

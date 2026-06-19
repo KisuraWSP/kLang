@@ -38,6 +38,13 @@ lazy local Int expensiveCount = BuildCount();
 lazy let cachedName = BuildName();
 lazy var sharedConfig = LoadConfig();
 
+-- temporary variables
+-- Temporary variables are local short-lived bindings for intermediate values.
+-- They are tracked as temporary state and do not produce unused-variable warnings.
+temp local Int scratchTotal = 40 + 2;
+temp let scratchLabel = "temporary";
+lazy temp local String lazyScratch = BuildName();
+
 -- destructuring declarations
 -- List patterns use zero-based indexing. Object patterns read fields by selector.
 local [first, second] = [1, 2];

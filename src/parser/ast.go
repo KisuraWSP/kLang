@@ -162,6 +162,7 @@ type VariableStatement struct {
 	Exported   bool
 	Mutable    bool
 	Lazy       bool
+	Temporary  bool
 	Type       string
 	Name       string
 	Expression Expression
@@ -173,6 +174,7 @@ type DestructuringStatement struct {
 	Exported   bool
 	Mutable    bool
 	Lazy       bool
+	Temporary  bool
 	Pattern    DestructuringPattern
 	Expression Expression
 }

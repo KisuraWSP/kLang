@@ -87,6 +87,7 @@ const (
 	TokenImport     // import
 	TokenAlias      // alias
 	TokenLazy       // lazy
+	TokenTemp       // temp
 	TokenAsync      // async
 	TokenAwait      // await
 	TokenInline     // inline
@@ -155,6 +156,7 @@ var Keywords = map[string]TokenType{
 	"import":         TokenImport,
 	"alias":          TokenAlias,
 	"lazy":           TokenLazy,
+	"temp":           TokenTemp,
 	"async":          TokenAsync,
 	"await":          TokenAwait,
 	"inline":         TokenInline,

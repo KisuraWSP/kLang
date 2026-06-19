@@ -52,6 +52,29 @@ function Add(left : Int, mut right : Int) : Int {
 	assertState(t, report.States, "builtin", "Args", "List[String]")
 }
 
+func TestCheckProgramTracksTemporaryVariables(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    temp local Int scratch = 40;
+    temp let answer = scratch + 2;
+    temp local Int unusedScratch = 99;
+    return answer;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected temporary variable program to type check, got: %v", report.Errors)
+	}
+	assertState(t, report.States, "temporary", "scratch", "Int")
+	assertState(t, report.States, "temporary", "answer", "Int")
+	for _, warning := range report.Warnings {
+		if strings.Contains(warning.Message, "unusedScratch") {
+			t.Fatalf("did not expect unused warning for temporary variable, got %#v", report.Warnings)
+		}
+	}
+}
+
 func TestCheckProgramTreatsHereStringsAsTypedStrings(t *testing.T) {
 	program := programFromSource(`
 function Render() : String {

@@ -232,7 +232,7 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		if (current.Scope == "global" || current.Exported) && current.Scope != "const" {
 			return
 		}
-		if !scope.define(variableSymbol{Name: current.Name, Type: normalizeType(current.Type), Mutable: current.Mutable, File: source, Line: current.Pos.Line}) {
+		if !scope.define(variableSymbol{Name: current.Name, Type: normalizeType(current.Type), Mutable: current.Mutable, Temporary: current.Temporary, File: source, Line: current.Pos.Line}) {
 			checker.addError(source, current.Pos.Line, fmt.Sprintf("variable %q is already defined in this scope", current.Name))
 		}
 	case parser.ReturnStatement:

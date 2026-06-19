@@ -65,9 +65,9 @@ namespace random {
         local mut Int index = 0;
         while index < len(result) {
             local Int swapIndex = Intn(len(result));
-            local T temp = result[index];
+            local T scratch = result[index];
             result[index] = result[swapIndex];
-            result[swapIndex] = temp;
+            result[swapIndex] = scratch;
             index += 1;
         }
         return result;

@@ -12,9 +12,9 @@ namespace sort {
             local mut Int j = i + 1;
             while j < len(result) {
                 if result[j] < result[i] {
-                    local Int temp = result[i];
+                    local Int scratch = result[i];
                     result[i] = result[j];
-                    result[j] = temp;
+                    result[j] = scratch;
                 }
                 j += 1;
             }
@@ -34,9 +34,9 @@ namespace sort {
             local mut Int j = i + 1;
             while j < len(result) {
                 if result[j] < result[i] {
-                    local Float temp = result[i];
+                    local Float scratch = result[i];
                     result[i] = result[j];
-                    result[j] = temp;
+                    result[j] = scratch;
                 }
                 j += 1;
             }
@@ -56,9 +56,9 @@ namespace sort {
             local mut Int j = i + 1;
             while j < len(result) {
                 if result[j] < result[i] {
-                    local String temp = result[i];
+                    local String scratch = result[i];
                     result[i] = result[j];
-                    result[j] = temp;
+                    result[j] = scratch;
                 }
                 j += 1;
             }
