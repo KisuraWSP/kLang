@@ -181,6 +181,69 @@ function Main() : Int {
 	}
 }
 
+func TestRunCLIRunsKlangTestFunctions(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "math_test.klang")
+	source := `
+function TestAssertionStyle() {
+    assert 1 + 1 == 2;
+}
+
+function TestBoolStyle() : Bool {
+    return "klang".count == 5;
+}
+
+function TestStatusStyle() : Int {
+    return 0;
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {
+		t.Fatalf("write test source failed: %v", err)
+	}
+
+	if err := runCLI([]string{"test", sourcePath}); err != nil {
+		t.Fatalf("test command failed: %v", err)
+	}
+}
+
+func TestRunCLIRunsKlangTestFolderAndGoldenOutput(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "output_test.klang")
+	source := `
+function TestOutput() {
+    print("golden hello");
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {
+		t.Fatalf("write test source failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "output_test.golden"), []byte("golden hello\n"), 0644); err != nil {
+		t.Fatalf("write golden file failed: %v", err)
+	}
+
+	if err := runCLI([]string{"test", root}); err != nil {
+		t.Fatalf("test command with golden output failed: %v", err)
+	}
+}
+
+func TestRunCLIFailsKlangBoolTest(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "failing_test.klang")
+	source := `
+function TestFailure() : Bool {
+    return False;
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {
+		t.Fatalf("write test source failed: %v", err)
+	}
+
+	err := runCLI([]string{"test", sourcePath})
+	if err == nil || !strings.Contains(err.Error(), "one or more Klang tests failed") {
+		t.Fatalf("expected failing Klang test error, got %v", err)
+	}
+}
+
 func TestParsePackageOptionsAcceptsServeHostAndPort(t *testing.T) {
 	options, err := parsePackageOptions([]string{"--backend=WASM", "--serve", "--host", "0.0.0.0", "--port=9090"})
 	if err != nil {

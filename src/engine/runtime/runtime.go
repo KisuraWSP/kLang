@@ -172,6 +172,12 @@ type Result struct {
 	Memory MemoryStats
 }
 
+type TestResult struct {
+	Name   string
+	Value  Value
+	Output []string
+}
+
 type Error struct {
 	Message string
 	Line    int
@@ -306,31 +312,8 @@ func RunProgramWithArgs(program file.Program, args []string) (Result, error) {
 }
 
 func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
-	if err := runtime.defineArgs(); err != nil {
+	if err := runtime.prepareProgram(program); err != nil {
 		return Result{}, err
-	}
-	symbols, err := collectRuntimeSymbolsConcurrently(program.Sources)
-	if err != nil {
-		return Result{}, err
-	}
-	for _, symbolSet := range symbols {
-		if err := runtime.mergeRuntimeSymbols(symbolSet); err != nil {
-			return Result{}, err
-		}
-	}
-
-	for _, source := range program.Sources {
-		statements := filterRuntimeModuleFunctions(source.Program.Statements, "", source.ModuleFunctionFilter)
-		signal, err := runtime.executeBlock(statements, runtime.global, false)
-		if err != nil {
-			return Result{}, err
-		}
-		if signal.kind != signalNone {
-			if signal.kind == signalThrow {
-				return Result{}, Error{Message: "uncaught exception: " + valueString(signal.value)}
-			}
-			return Result{}, Error{Message: "top-level return, break, or continue is not allowed"}
-		}
 	}
 
 	entryName := program.EntryPoint
@@ -350,6 +333,60 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 		return Result{}, err
 	}
 	return Result{Value: value, Output: runtime.outputLines(), Memory: runtime.memory.Stats()}, nil
+}
+
+func (runtime *Runtime) RunTests(program parser.ParsedProgram, names []string) ([]TestResult, error) {
+	if err := runtime.prepareProgram(program); err != nil {
+		return nil, err
+	}
+	results := make([]TestResult, 0, len(names))
+	for _, name := range names {
+		resolvedName, err := runtime.resolveFunctionName(name)
+		if err != nil {
+			return nil, err
+		}
+		if resolvedName == "" {
+			return nil, Error{Message: fmt.Sprintf("test function %q is not defined", name)}
+		}
+		outputStart := len(runtime.outputLines())
+		value, err := runtime.callFunction(resolvedName, nil)
+		if err != nil {
+			return nil, err
+		}
+		output := runtime.outputLines()[outputStart:]
+		results = append(results, TestResult{Name: resolvedName, Value: value, Output: output})
+	}
+	return results, nil
+}
+
+func (runtime *Runtime) prepareProgram(program parser.ParsedProgram) error {
+	if err := runtime.defineArgs(); err != nil {
+		return err
+	}
+	symbols, err := collectRuntimeSymbolsConcurrently(program.Sources)
+	if err != nil {
+		return err
+	}
+	for _, symbolSet := range symbols {
+		if err := runtime.mergeRuntimeSymbols(symbolSet); err != nil {
+			return err
+		}
+	}
+
+	for _, source := range program.Sources {
+		statements := filterRuntimeModuleFunctions(source.Program.Statements, "", source.ModuleFunctionFilter)
+		signal, err := runtime.executeBlock(statements, runtime.global, false)
+		if err != nil {
+			return err
+		}
+		if signal.kind != signalNone {
+			if signal.kind == signalThrow {
+				return Error{Message: "uncaught exception: " + valueString(signal.value)}
+			}
+			return Error{Message: "top-level return, break, or continue is not allowed"}
+		}
+	}
+	return nil
 }
 
 type runtimeSymbolSet struct {

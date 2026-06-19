@@ -126,6 +126,20 @@ assert මුළු == 3;
 report මුළු;
 report එකතු(1, 2);
 
+-- tests
+-- The CLI discovers and runs functions whose names start with Test.
+function TestAddition() {
+    assert 1 + 1 == 2;
+}
+
+function TestBoolStyle() : Bool {
+    return "klang".count == 5;
+}
+
+function TestStatusStyle() : Int {
+    return 0;
+}
+
 -- shared builtin protocols
 -- Collection-like values expose the same .count property.
 local Int textCount = "hallo".count;

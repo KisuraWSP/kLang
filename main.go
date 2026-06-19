@@ -69,6 +69,12 @@ type docItem struct {
 	Line      int
 }
 
+type klangTestCase struct {
+	Name string
+	File string
+	Line int
+}
+
 func main() {
 	if err := runCLI(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -172,13 +178,13 @@ func runCLI(args []string) error {
 		return generateDocumentation(docOptions)
 	case "test", "tests":
 		if len(values) != 1 {
-			return fmt.Errorf("%s test expects a folder containing .klang tests", cliName)
+			return fmt.Errorf("%s test expects a .klang test file or folder", cliName)
 		}
-		programs, err := file.DiscoverPrograms(values[0])
+		programs, err := loadTestPrograms(values[0])
 		if err != nil {
 			return err
 		}
-		return executePrograms(programs, options)
+		return executeTestPrograms(programs, options)
 	case "file", "show":
 		if len(values) != 1 {
 			return fmt.Errorf("%s %s expects a .klang file path", cliName, command)
@@ -193,11 +199,11 @@ func runCLI(args []string) error {
 func runLegacyFlags(args []string) (bool, error) {
 	testsPath := file.GetTestsPath(args)
 	if testsPath != "" {
-		programs, err := file.DiscoverPrograms(testsPath)
+		programs, err := loadTestPrograms(testsPath)
 		if err != nil {
 			return true, fmt.Errorf("failed to read tests: %w", err)
 		}
-		return true, executePrograms(programs, commandOptions{Run: file.HasRunFlag(args), Verbose: true, RawLang: hasFlag(args, "--raw-lang")})
+		return true, executeTestPrograms(programs, commandOptions{Run: file.HasRunFlag(args), Verbose: true, RawLang: hasFlag(args, "--raw-lang")})
 	}
 
 	programPath := file.GetProgramPath(args)
@@ -841,6 +847,21 @@ Then visit http://localhost:8080.
 `
 }
 
+func loadTestPrograms(path string) ([]file.Program, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		program, err := file.LoadProgram(path)
+		if err != nil {
+			return nil, err
+		}
+		return []file.Program{program}, nil
+	}
+	return file.DiscoverPrograms(path)
+}
+
 func executePrograms(programs []file.Program, options commandOptions) error {
 	if len(programs) == 0 {
 		return fmt.Errorf("no Klang programs found")
@@ -858,6 +879,27 @@ func executePrograms(programs []file.Program, options commandOptions) error {
 
 	if failed {
 		return fmt.Errorf("one or more Klang programs failed")
+	}
+	return nil
+}
+
+func executeTestPrograms(programs []file.Program, options commandOptions) error {
+	if len(programs) == 0 {
+		return fmt.Errorf("no Klang test programs found")
+	}
+
+	failed := false
+	resolver := modulesystem.NewResolver("")
+	resolver.DisableStdlib = options.RawLang
+	for _, program := range programs {
+		if err := executeTestProgram(resolver, program, options); err != nil {
+			failed = true
+			fmt.Fprintf(os.Stderr, "%s: %v\n", program.Name, err)
+		}
+	}
+
+	if failed {
+		return fmt.Errorf("one or more Klang tests failed")
 	}
 	return nil
 }
@@ -948,6 +990,205 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 			result.Memory.HeapObjects, result.Memory.HeapBytes)
 	}
 	return nil
+}
+
+func executeTestProgram(resolver *modulesystem.Resolver, program file.Program, options commandOptions) error {
+	fmt.Printf("%s\n", program.Name)
+	fmt.Printf("  entry: %s\n", program.EntryPoint)
+	fmt.Printf("  files: %d\n", len(program.Files))
+
+	resolvedProgram, parsedProgram, typeReport, cacheHit, err := prepareCheckedProgram(resolver, program, options)
+	if err != nil {
+		return err
+	}
+	_ = typeReport
+	_ = cacheHit
+
+	tests := discoverKlangTests(parsedProgram)
+	if len(tests) == 0 {
+		fmt.Printf("  tests: none found")
+		if options.Run {
+			fmt.Printf(" (running entrypoint)\n")
+			return executeProgram(resolver, program, options)
+		}
+		fmt.Printf(" (checked only)\n")
+		return nil
+	}
+
+	names := make([]string, 0, len(tests))
+	for _, test := range tests {
+		names = append(names, test.Name)
+	}
+
+	started := time.Now()
+	results, err := runtime.NewWithArgs(options.ProgramArgs).RunTests(parsedProgram, names)
+	elapsed := time.Since(started)
+	if err != nil {
+		printContextErrors([]langcontext.ErrorContext{langcontext.RuntimeError(resolvedProgram, err)})
+		return fmt.Errorf("test runtime failed: %w", err)
+	}
+
+	var combinedOutput []string
+	for _, result := range results {
+		combinedOutput = append(combinedOutput, result.Output...)
+		if err := validateKlangTestResult(result); err != nil {
+			return err
+		}
+		fmt.Printf("  PASS %s\n", result.Name)
+	}
+	if err := compareGoldenOutput(program, combinedOutput); err != nil {
+		return err
+	}
+	fmt.Printf("  tests: ok (%d test(s))\n", len(results))
+	fmt.Printf("  time: %s\n", elapsed.Round(time.Microsecond))
+	return nil
+}
+
+func prepareCheckedProgram(resolver *modulesystem.Resolver, program file.Program, options commandOptions) (file.Program, parser.ParsedProgram, typechecker.Report, bool, error) {
+	resolvedProgram, cacheEntry, cacheHit := programcache.Load(program, options.RawLang)
+	typeReport := typechecker.Report{}
+	if cacheHit {
+		typeReport.Warnings = warningsFromCache(cacheEntry.Warnings)
+		if options.Verbose {
+			if cachePath, ok := programcache.Path(program, options.RawLang); ok {
+				fmt.Printf("  program cache: hit (%s)\n", cachePath)
+			}
+		}
+		fmt.Printf("  modules: ok (cached)\n")
+		fmt.Printf("  type check: ok (cached)\n")
+		printTypeWarnings(typeReport)
+	} else {
+		if options.Verbose {
+			if cachePath, ok := programcache.Path(program, options.RawLang); ok {
+				fmt.Printf("  program cache: miss (%s)\n", cachePath)
+			}
+		}
+		var moduleReport modulesystem.Report
+		resolvedProgram, moduleReport = resolver.ResolveProgram(program)
+		if !moduleReport.Passed() {
+			printModuleErrors(resolvedProgram, moduleReport)
+			return resolvedProgram, parser.ParsedProgram{}, typeReport, false, fmt.Errorf("module resolution failed")
+		}
+		if options.Verbose {
+			for _, module := range moduleReport.Modules {
+				fmt.Printf("  import: %s -> %s (%s)\n", module.Name, module.Path, module.Kind)
+			}
+		}
+		fmt.Printf("  modules: ok")
+		if len(moduleReport.Modules) != 0 {
+			fmt.Printf(" (%d import(s))", len(moduleReport.Modules))
+		}
+		fmt.Println()
+		if options.Verbose {
+			stats := resolver.Stats()
+			fmt.Printf("  resolver cache: paths=%d program(s)=%d import-set(s)=%d\n", stats.ExistsEntries, stats.ProgramEntries, stats.ImportEntries)
+		}
+
+		typeReport = typechecker.CheckProgram(resolvedProgram)
+		if !typeReport.Passed() {
+			printTypeErrors(resolvedProgram, typeReport)
+			return resolvedProgram, parser.ParsedProgram{}, typeReport, false, fmt.Errorf("type check failed")
+		}
+		fmt.Printf("  type check: ok\n")
+		printTypeWarnings(typeReport)
+	}
+
+	parsedProgram := parser.ParseLoadedProgram(resolvedProgram)
+	if !parsedProgram.Passed() {
+		printContextErrors(langcontext.ParseErrors(resolvedProgram, parsedProgram))
+		return resolvedProgram, parsedProgram, typeReport, cacheHit, fmt.Errorf("parse failed")
+	}
+	fmt.Printf("  parse: ok\n")
+	if !cacheHit {
+		_ = programcache.Store(resolvedProgram, options.RawLang, warningsToCache(typeReport.Warnings))
+	}
+	return resolvedProgram, parsedProgram, typeReport, cacheHit, nil
+}
+
+func discoverKlangTests(program parser.ParsedProgram) []klangTestCase {
+	var tests []klangTestCase
+	for _, source := range program.Sources {
+		tests = append(tests, discoverKlangTestsInStatements(source.Program.Statements, "", source.Path)...)
+	}
+	return tests
+}
+
+func discoverKlangTestsInStatements(statements []parser.Statement, namespace string, source string) []klangTestCase {
+	var tests []klangTestCase
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.FunctionStatement:
+			if strings.HasPrefix(current.Name, "Test") {
+				tests = append(tests, klangTestCase{Name: namespace + current.Name, File: source, Line: current.Pos.Line})
+			}
+		case parser.NamespaceStatement:
+			tests = append(tests, discoverKlangTestsInStatements(current.Body, namespace+current.Name+".", source)...)
+		}
+	}
+	return tests
+}
+
+func validateKlangTestResult(result runtime.TestResult) error {
+	switch result.Value.Kind {
+	case runtime.ValueNull:
+		return nil
+	case runtime.ValueBool:
+		if result.Value.Data.(bool) {
+			return nil
+		}
+		return fmt.Errorf("%s returned False", result.Name)
+	case runtime.ValueInt:
+		if result.Value.Data.(int) == 0 {
+			return nil
+		}
+		return fmt.Errorf("%s returned status %d", result.Name, result.Value.Data.(int))
+	default:
+		return fmt.Errorf("%s returned unsupported test result %s", result.Name, describeValue(result.Value))
+	}
+}
+
+func compareGoldenOutput(program file.Program, output []string) error {
+	goldenPath := goldenOutputPath(program)
+	if goldenPath == "" {
+		return nil
+	}
+	expected, err := os.ReadFile(goldenPath)
+	if err != nil {
+		return err
+	}
+	actual := strings.Join(output, "\n")
+	if len(output) != 0 {
+		actual += "\n"
+	}
+	expectedText := normalizeGoldenText(string(expected))
+	actualText := normalizeGoldenText(actual)
+	if expectedText != actualText {
+		return fmt.Errorf("golden output mismatch for %s\nexpected:\n%s\ngot:\n%s", goldenPath, expectedText, actualText)
+	}
+	fmt.Printf("  golden: ok (%s)\n", goldenPath)
+	return nil
+}
+
+func goldenOutputPath(program file.Program) string {
+	candidates := []string{}
+	if filepath.Ext(program.EntryPoint) == file.KlangExtension {
+		candidates = append(candidates, strings.TrimSuffix(program.EntryPoint, file.KlangExtension)+".golden")
+	}
+	if program.Root != "" {
+		candidates = append(candidates, filepath.Join(program.Root, program.Name+".golden"))
+		candidates = append(candidates, filepath.Join(program.Root, "test.golden"))
+	}
+	for _, candidate := range candidates {
+		if file.FileExists(candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func normalizeGoldenText(value string) string {
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	return strings.TrimRight(value, "\n")
 }
 
 func warningsToCache(warnings []typechecker.Warning) []programcache.Warning {
@@ -1408,12 +1649,12 @@ Usage:
   kLang package <file-or-folder>              Package checked source into a compact bundle
   kLang serve <file-or-folder>                Package and serve a browser WASM runtime bundle
   kLang doc --sourcefile=[file.klang,...]     Generate static HTML source documentation
-  kLang test <tests-folder>                   Check every Klang program in a folder
-  kLang test <tests-folder> --run             Check and run every discovered program
+  kLang test <file-or-folder>                 Run Klang Test... functions or check fixtures
+  kLang test <file-or-folder> --run           Run entrypoints when no Test... functions exist
   kLang file <file.klang>                     Print a Klang source file with line labels
 
 Options:
-  --run                           Run programs after checks, for test mode
+  --run                           Run programs after checks when test mode finds no Test... functions
   --entry=[Name,Type]              Set generated project entry point for new projects
   --backend=Standalone|JS|WASM      Select package backend metadata
   --out=<folder>                    Select package output folder

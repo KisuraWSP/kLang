@@ -37,9 +37,6 @@ Test()
 - Compile-time evaluation / macros, carefully limited
    You already have Program, BuildSystem, WorkSpace, .sizeof, and diagnostics. A small compile-time feature could be powerful:
    generate code, validate constants, create specialized functions, or define DSLs.
-- Testing built into the CLI
-   A first-class kLang test command would help the ecosystem a lot.
-   Even simple conventions like test files, test functions, assertions, and golden-output tests would make the language feel more complete.
 - Cancellation/context support
 Async, Awaitable, threads, and WASM would benefit from a builtin Context-like runtime cancellation model:
 cancellation, timeout, deadline, propagation.

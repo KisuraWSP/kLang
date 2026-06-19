@@ -205,12 +205,12 @@ Usage:
   kLang package <file-or-folder>              Package checked source into a compact bundle
   kLang serve <file-or-folder>                Package and serve a browser WASM runtime bundle
   kLang doc --sourcefile=[file.klang,...]     Generate static HTML source documentation
-  kLang test <tests-folder>                   Check every Klang program in a folder
-  kLang test <tests-folder> --run             Check and run every discovered program
+  kLang test <file-or-folder>                 Run Klang Test... functions or check fixtures
+  kLang test <file-or-folder> --run           Run entrypoints when no Test... functions exist
   kLang file <file.klang>                     Print a Klang source file with line labels
 
 Options:
-  --run                                      Run programs after checks, for test mode
+  --run                                      Run programs after checks when no Test... functions exist
   --entry=[Name,Type]                        Set generated project entry point for new projects
   --backend=Standalone|JS|WASM               Select package backend metadata
   --out=<folder>                             Select package output folder
@@ -406,7 +406,7 @@ function RunCLI(args : List[String]) : Table {
     }
     if kind == CommandKind.Test {
         if values.count != 1 {
-            return ErrorPlan(cliName + " test expects a folder containing .klang tests");
+            return ErrorPlan(cliName + " test expects a .klang test file or folder");
         }
         local Table payload = {
             "path": values[0],

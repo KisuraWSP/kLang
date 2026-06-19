@@ -33,6 +33,7 @@ kLang currently experiments with:
 - `Atomic[T]` for race-safe shared values.
 - Builtin allocator and reference-style values such as `Box`, `Ref`, `RefMut`, and `RefCell`.
 - Source-aware `Context` and `ErrorContext` diagnostics across parsing, checking, runtime, packaging, and WASM backend work.
+- First-class CLI testing through `kLang test`, `Test...` functions, `assert`, return-value checks, and optional golden-output files.
 
 For the full design surface, read `LANGUAGE-SPEC.md`, `DATA-TYPES.md`, and `SYNTAX.md`.
 
@@ -245,6 +246,30 @@ Run the language fixture tests:
 ```sh
 go run . test tests
 ```
+
+Write first-class kLang tests as functions whose names start with `Test`. A test can use `assert`, return `Bool`, return an `Int` status code where `0` means success, or return nothing for assertion-only tests.
+
+```lua
+function TestAddition() {
+    assert 1 + 1 == 2;
+}
+
+function TestBoolStyle() : Bool {
+    return "klang".count == 5;
+}
+
+function TestStatusStyle() : Int {
+    return 0;
+}
+```
+
+Run a single test file:
+
+```sh
+go run . test tests/math_test.klang
+```
+
+Golden-output tests compare all output printed by the discovered `Test...` functions against a sibling `.golden` file. For `math_test.klang`, use `math_test.golden`; for folder projects, `project-name.golden` or `test.golden` in the project root are also recognized.
 
 Check every example project without executing it:
 
