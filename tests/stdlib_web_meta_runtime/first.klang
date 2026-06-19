@@ -1,0 +1,44 @@
+import "html";
+import "metasystem";
+import "runtime";
+
+function Main() : Int {
+    local String escaped = html.Text("<main>&</main>");
+    if escaped != "&lt;main&gt;&amp;&lt;/main&gt;" {
+        print("html.Text escaping failed");
+        return 1;
+    }
+
+    local String page = html.Document("Docs", html.Main([html.Class("page")], html.H1([], html.Text("Hello"))));
+    if not page? or len(page) < 70 {
+        print("html.Document failed");
+        return 1;
+    }
+
+    local WorkSpace workspace = metasystem.workspace.UserDefinedWorkspace("demo", ["app"], ["first.klang", "math.klang"], "Standalone");
+    local Table summary = metasystem.workspace.Summary(workspace);
+    if summary["backend"] as String != "Standalone" or summary["file_count"] as Int != 2 {
+        print("metasystem workspace summary failed");
+        return 1;
+    }
+
+    local Result[WorkSpace, String] validation = metasystem.workspace.Validate(workspace);
+    if not validation.ok {
+        print("metasystem workspace validation failed");
+        return 1;
+    }
+
+    local Atomic[Int] counter = runtime.AtomicValue(1);
+    runtime.AtomicAddInt(counter, 4);
+    if runtime.AtomicLoadValue(counter) != 5 {
+        print("runtime atomic helpers failed");
+        return 1;
+    }
+
+    if runtime.TypeOf(summary) != "Table" {
+        print("runtime.TypeOf failed");
+        return 1;
+    }
+
+    return 0;
+}

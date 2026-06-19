@@ -1,0 +1,43 @@
+import "fmt";
+import "strings";
+import "path";
+import "mathg";
+
+function Main() : Int {
+    local String formatted = fmt.Format("hello %, %", ["stdlib", 42]);
+    if formatted != "hello stdlib, 42" {
+        print("fmt.Format failed");
+        return 1;
+    }
+
+    local List[String] parts = strings.Split("core/lang/tests", "/");
+    local String joined = strings.Join(parts, "::");
+    if joined != "core::lang::tests" {
+        print("strings.Split or strings.Join failed");
+        return 1;
+    }
+
+    if not strings.Contains(joined, "lang") {
+        print("strings.Contains failed");
+        return 1;
+    }
+
+    if strings.ReplaceAll("k-lang-k", "k", "K") != "K-lang-K" {
+        print("strings.ReplaceAll failed");
+        return 1;
+    }
+
+    local String filePath = path.Join(path.Join("usr", "local"), "bin");
+    if filePath != "usr/local/bin" or path.Ext("main.klang") != "klang" {
+        print("path helpers failed");
+        return 1;
+    }
+
+    local Int total = mathg.Abs(0 - 5) + mathg.Clamp(20, 1, 10) + mathg.Pow(2, 3) + mathg.Sum([1, 2, 3]);
+    if total != 29 {
+        print("mathg helpers failed");
+        return 1;
+    }
+
+    return 0;
+}

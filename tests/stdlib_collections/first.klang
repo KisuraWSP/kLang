@@ -1,0 +1,50 @@
+import "array";
+import "builtin";
+import "dsa";
+
+function Main() : Int {
+    local List[Int] values = [1, 2, 3];
+    local List[Int] pushed = array.push(values, 4);
+    local List[Int] inserted = array.insert(pushed, 1, 9);
+    local List[Int] updated = array.set(inserted, 0, 8);
+    local List[Int] sliced = array.slice(updated, 1, 4);
+    local List[Int] removed = array.remove(sliced, 2);
+    local List[Int] reversed = array.reverse(removed);
+    local Option[Int] front = array.front(reversed);
+    local Option[Int] missing = array.fetch(reversed, 20);
+
+    if not front.some or missing.some {
+        print("array Option helpers failed");
+        return 1;
+    }
+    if array.len(reversed) != 2 or array.get(reversed, 0) != 3 or array.index_of(reversed, 9) != 1 {
+        print("array mutation helpers failed");
+        return 1;
+    }
+
+    local List[String] names = builtin.append(["core"], "stdlib");
+    local List[String] moreNames = builtin.append_all(names, ["tests", "pass"]);
+    if builtin.LenStringList(moreNames) != 4 or moreNames[3] != "pass" {
+        print("builtin list helpers failed");
+        return 1;
+    }
+
+    local T queue = dsa.QueueEmpty();
+    local mut T nextQueue = dsa.QueuePush(queue, 10);
+    nextQueue = dsa.QueuePush(nextQueue, 20);
+    local Table shifted = dsa.QueuePop(nextQueue);
+    local Option[Int] shiftedValue = shifted["value"] as Option[Int];
+    local T shiftedQueue = shifted["queue"];
+
+    if shiftedValue.some {
+        if shiftedValue.value != 10 or dsa.QueueCount(shiftedQueue) != 1 {
+            print("dsa queue helpers failed");
+            return 1;
+        }
+    } else {
+        print("dsa queue helpers failed");
+        return 1;
+    }
+
+    return 0;
+}

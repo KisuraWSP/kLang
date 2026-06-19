@@ -1,0 +1,93 @@
+function BuildCount() : Int {
+    return 7;
+}
+
+function AddOne(value : Int) : Int {
+    return value + 1;
+}
+
+function Main() : Int {
+    local Option[Int] maybe = Some(10);
+    local Option[Int] missing = None();
+    if not maybe.some or missing.some or maybe.value != 10 {
+        print("Option builtins failed");
+        return 1;
+    }
+
+    local Result[Int, String] ok = Ok(20);
+    local Result[Int, String] wrapped = Result(22);
+    local Result[Int, String] err = Err("nope");
+    if not ok.ok or not wrapped.ok or err.ok or ok.value + wrapped.value != 42 {
+        print("Result builtins failed");
+        return 1;
+    }
+
+    local Set[Int] seen = Set([1, 2, 3]);
+    if not set_has(seen, 2) or set_has(seen, 9) {
+        print("Set builtins failed");
+        return 1;
+    }
+
+    local mut Table data = {"name": "klang", "count": 2};
+    data["missing"] = 99;
+    if not table_has(data, "name") or data["missing"] as Int != 99 {
+        print("Table builtins failed");
+        return 1;
+    }
+    data = table_delete(data, "name");
+    if table_has(data, "name") {
+        print("table_delete failed");
+        return 1;
+    }
+
+    local Iterator[Int] iterated = iter([4, 5]);
+    local Option[Int] first = next(iterated);
+    local Option[Int] second = next(iterated);
+    local Option[Int] done = next(iterated);
+    if done.some {
+        print("Iterator builtins failed");
+        return 1;
+    }
+    if first.some {
+        if second.some {
+            if first.value + second.value != 9 {
+                print("Iterator builtins failed");
+                return 1;
+            }
+        } else {
+            print("Iterator builtins failed");
+            return 1;
+        }
+    } else {
+        print("Iterator builtins failed");
+        return 1;
+    }
+
+    local Coroutine[Int] coroutineValue = coroutine(BuildCount);
+    local Option[Int] resumed = resume(coroutineValue);
+    if resumed.some {
+        if resumed.value != 7 {
+            print("Coroutine builtins failed");
+            return 1;
+        }
+    } else {
+        print("Coroutine builtins failed");
+        return 1;
+    }
+
+    local Thread[Int] worker = spawn(AddOne, [41]);
+    if join(worker) != 42 {
+        print("Thread builtins failed");
+        return 1;
+    }
+
+    local Program program = Program(["app"]);
+    local BuildSystem build = BuildSystem("demo", 1, ["first.klang"], "Standalone");
+    local WorkSpace workspace = WorkSpace(program, build);
+    if workspace_backend(workspace) != "Standalone" or len(workspace_files(workspace)) != 1 {
+        print("Workspace builtins failed");
+        return 1;
+    }
+
+    return 0;
+}
