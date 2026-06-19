@@ -2,6 +2,10 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- in the language if there is an error (this is for the error reporting)
+   - provide a valid reason why the error occured
+   - tell the user what they expect from them to correct the error
+   - provide suggestions into helping user to fix the error
 - add a special annotation for which we can mark which functions are running on which backend when in stdlib modules
    ```lua
       @backend("JS");
