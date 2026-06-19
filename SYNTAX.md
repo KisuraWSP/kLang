@@ -51,6 +51,13 @@ local [first, second] = [1, 2];
 let {name, count: total} = data;
 local mut [head, [left, right]] = pairs;
 
+-- typed multi-variable declarations unpack multiple return values by position.
+function Multi() : (table : Table, count : Int) {
+    return {"name": "klang"}, 7;
+}
+local Table x, Int y = Multi();
+local Table kept, Int _ = Multi();
+
 -- discard identifier
 -- _ evaluates and ignores a value without creating a binding, and can be reused.
 -- Use _ when a value is intentionally ignored; ordinary unused variables and

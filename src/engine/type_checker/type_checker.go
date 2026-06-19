@@ -783,6 +783,55 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 			Mutable:  current.Mutable,
 		})
 		declared[current.Name] = true
+	case parser.MultiVariableStatement:
+		checker.checkSemanticExpression(fn, current.Expression, locals, line)
+		if current.Scope == "global" || current.Exported {
+			return
+		}
+		if current.Lazy {
+			checker.addError(fn.File, line, "lazy multi-variable declarations are not supported")
+			return
+		}
+		returnTypes, ok := checker.multiReturnTypesFromExpression(current.Expression, locals, fn.File, line)
+		if !ok {
+			checker.addError(fn.File, line, "multi-variable declarations require a call to a function with multiple return values")
+			return
+		}
+		if len(returnTypes) != len(current.Bindings) {
+			checker.addError(fn.File, line, fmt.Sprintf("multi-variable declaration expects %d value(s), got %d", len(current.Bindings), len(returnTypes)))
+			return
+		}
+		for index, binding := range current.Bindings {
+			typeName := normalizeType(binding.Type)
+			if typeName != anyType {
+				checker.checkDeclaredType(typeName, fn.File, line)
+			}
+			actualType := returnTypes[index].Type
+			if !isAssignable(typeName, actualType) {
+				checker.addError(fn.File, line, fmt.Sprintf("cannot assign return value %d (%s) to local %s %s", index+1, actualType, typeName, binding.Name))
+			}
+			if isDiscardIdentifier(binding.Name) {
+				continue
+			}
+			locals[binding.Name] = variableSymbol{
+				Name:      binding.Name,
+				Type:      typeName,
+				Mutable:   current.Mutable,
+				Temporary: current.Temporary,
+				File:      fn.File,
+				Line:      line,
+			}
+			checker.recordState(State{
+				Kind:     variableStateKindForMulti(current),
+				Name:     binding.Name,
+				Type:     typeName,
+				Function: fn.Name,
+				File:     fn.File,
+				Line:     line,
+				Mutable:  current.Mutable,
+			})
+			declared[binding.Name] = true
+		}
 	case parser.ReturnStatement:
 		if len(current.Values) != 0 {
 			for _, value := range current.Values {
@@ -889,6 +938,53 @@ func (checker *TypeChecker) checkTupleReturnExpressions(fn functionSymbol, value
 	}
 }
 
+func (checker *TypeChecker) multiReturnTypesFromExpression(expr parser.Expression, locals map[string]variableSymbol, source string, line int) ([]returnValueSymbol, bool) {
+	call, ok := expr.Node.(parser.CallExpression)
+	if !ok {
+		return nil, false
+	}
+	name, ok := callCalleeName(call.Callee)
+	if !ok {
+		return nil, false
+	}
+	fn, ok := checker.lookupFunction(name)
+	if !ok || len(fn.ReturnTypes) == 0 {
+		return nil, false
+	}
+	returnTypes := make([]returnValueSymbol, len(fn.ReturnTypes))
+	copy(returnTypes, fn.ReturnTypes)
+	if len(fn.TypeRestrictions) == 0 {
+		return returnTypes, true
+	}
+	solver := checker.newConstraintSolver()
+	for index, param := range fn.Params {
+		if index >= len(call.Arguments) {
+			continue
+		}
+		argType := checker.inferExpressionNode(call.Arguments[index], "", locals, source, line)
+		solver.unify(param.Type, argType)
+	}
+	for index := range returnTypes {
+		returnTypes[index].Type = solver.apply(returnTypes[index].Type)
+	}
+	return returnTypes, true
+}
+
+func callCalleeName(node parser.ExpressionNode) (string, bool) {
+	switch current := node.(type) {
+	case parser.IdentifierExpression:
+		return current.Name, true
+	case parser.SelectorExpression:
+		target, ok := callCalleeName(current.Target)
+		if !ok {
+			return "", false
+		}
+		return target + "." + current.Field, true
+	default:
+		return "", false
+	}
+}
+
 func (checker *TypeChecker) checkSemanticLoop(fn functionSymbol, stmt parser.LoopStatement, locals map[string]variableSymbol, line int) {
 	loopLocals := copyLocals(locals)
 	declared := map[string]bool{}
@@ -987,6 +1083,13 @@ func (checker *TypeChecker) reportUnusedDeclaredSymbols(fn functionSymbol, local
 }
 
 func variableStateKind(stmt parser.VariableStatement) string {
+	if stmt.Temporary {
+		return "temporary"
+	}
+	return stmt.Scope
+}
+
+func variableStateKindForMulti(stmt parser.MultiVariableStatement) string {
 	if stmt.Temporary {
 		return "temporary"
 	}
@@ -1108,6 +1211,15 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 				env[current.Name] = nullSafetySymbol{Type: typeName, KnownSome: nullSafetyExpressionIsKnownSome(current.Expression.Node)}
 			} else {
 				env[current.Name] = nullSafetySymbol{Type: typeName}
+			}
+		case parser.MultiVariableStatement:
+			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)
+			for _, binding := range current.Bindings {
+				if isDiscardIdentifier(binding.Name) {
+					continue
+				}
+				typeName := normalizeType(binding.Type)
+				env[binding.Name] = nullSafetySymbol{Type: typeName}
 			}
 		case parser.AssignmentStatement:
 			checker.checkNullSafetyExpression(current.Expression.Node, env, source, baseLine)

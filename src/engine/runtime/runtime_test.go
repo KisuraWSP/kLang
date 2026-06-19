@@ -342,6 +342,23 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeAssignsMultiVariableDeclarationFromMultipleReturn(t *testing.T) {
+	result := runParsedSource(t, `
+function Multi() : (table : Table, count : Int) {
+    return {"name": "klang"}, 7;
+}
+
+function Main() : Int {
+    local Table x, Int y = Multi();
+    return y + x.count;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 8 {
+		t.Fatalf("expected multi-variable program to return 8, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeStoresHereStringInMutableInferredVariable(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {

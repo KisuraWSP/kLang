@@ -235,6 +235,22 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		if !scope.define(variableSymbol{Name: current.Name, Type: normalizeType(current.Type), Mutable: current.Mutable, Temporary: current.Temporary, File: source, Line: current.Pos.Line}) {
 			checker.addError(source, current.Pos.Line, fmt.Sprintf("variable %q is already defined in this scope", current.Name))
 		}
+	case parser.MultiVariableStatement:
+		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
+		if current.Scope == "const" && topLevel {
+			return
+		}
+		if (current.Scope == "global" || current.Exported) && current.Scope != "const" {
+			return
+		}
+		for _, binding := range current.Bindings {
+			if isDiscardIdentifier(binding.Name) {
+				continue
+			}
+			if !scope.define(variableSymbol{Name: binding.Name, Type: normalizeType(binding.Type), Mutable: current.Mutable, Temporary: current.Temporary, File: source, Line: current.Pos.Line}) {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("variable %q is already defined in this scope", binding.Name))
+			}
+		}
 	case parser.ReturnStatement:
 		if len(current.Values) != 0 {
 			for _, value := range current.Values {

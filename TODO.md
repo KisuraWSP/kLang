@@ -12,7 +12,6 @@
 - allow support for directory based modules like in golang
 - make progrramming language api data oriented
 - add a new flag to allow user to add there own functions to the stdlib via new command like —new_std_lib=["test”, “processor”]
-- Allow support of assigning values to variables if a function supports multiple return types
 - allow support for hot/cold programs
    - this is the basis for a hot reloading code runtime environment/system
 - add lsp plugin for vscode

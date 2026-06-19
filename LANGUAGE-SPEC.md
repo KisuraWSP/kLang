@@ -57,7 +57,8 @@
 57. `format(pattern : String, values : List[T])` and `printf(pattern : String, values : List[T])` are runtime-backed string formatting builtins. `%` consumes the next value, `%%` emits a literal percent sign, and the number of non-escaped placeholders must match `len(values)`. The stdlib `fmt` module exposes `fmt.Format` and `fmt.Printf` wrappers.
 58. Generic type parameters support named constraints beyond `restrict[...]`: `numeric`, `comparable`, `hashable`, `iterable`, `allocator_like`, and trait-bound names such as `T Printable`.
 59. `kLang test` is a first-class CLI test runner. It discovers functions named `Test...`, runs them after module resolution, type checking, and parsing, treats failed `assert` statements as test failures, accepts `Bool` returns where `True` passes, accepts `Int` returns where `0` passes, and supports sibling `.golden` output files.
-60. The compiler and runtime track state for variables, function parameters, named returns, and return values. Type-check reports expose compile-time state records, and `debug_state()` returns runtime state records as `List[Table]`.
+60. Multiple-return functions can be unpacked directly into typed variable declarations, for example `local Table x, Int y = Multi();`.
+61. The compiler and runtime track state for variables, function parameters, named returns, and return values. Type-check reports expose compile-time state records, and `debug_state()` returns runtime state records as `List[Table]`.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -72,6 +73,7 @@ Rules
 - `_ = expression;` evaluates and discards an expression result. Declarations and destructuring bindings named `_` also discard their values instead of entering scope.
 - Unused local variables and function parameters produce warnings. Use `_` for intentionally ignored values.
 - Multiple return signatures use `(name : Type, mut OtherType)` syntax and return values with `return left, right;`.
+- Typed multi-variable declarations use `local Type a, OtherType b = FunctionReturningTwoValues();`. The initializer must be a call to a function with multiple declared return values, the number of bindings must match the number of return values, and each returned value must be assignable to its declared binding type. `_` may be used to discard a returned value.
 - Named return values are zero-initialized in the function body.
 - Function arguments are pass-by-value by default, so mutating a `mut` parameter changes only the callee's local copy. A `ref name : Type` parameter aliases the caller's mutable variable; calls to `ref` parameters must pass a direct mutable variable, not a literal or temporary expression.
 - `private { ... }` creates a private lexical block.

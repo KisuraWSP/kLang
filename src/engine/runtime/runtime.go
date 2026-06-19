@@ -1004,6 +1004,60 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 			return signal{}, errorAt(current.Pos, err.Error())
 		}
 		return signal{kind: signalNone}, nil
+	case parser.MultiVariableStatement:
+		if current.Lazy {
+			return signal{}, errorAt(current.Pos, "lazy multi-variable declarations are not supported")
+		}
+		value, err := runtime.evalExpression(current.Expression.Node, env)
+		if err != nil {
+			if thrown, ok := thrownValue(err); ok {
+				return signal{kind: signalThrow, value: thrown}, nil
+			}
+			return signal{}, err
+		}
+		if value.Kind != ValueList {
+			return signal{}, errorAt(current.Pos, fmt.Sprintf("multi-variable declaration expects multiple return values, got %s", value.Kind))
+		}
+		items := value.Data.([]Value)
+		if len(items) != len(current.Bindings) {
+			return signal{}, errorAt(current.Pos, fmt.Sprintf("multi-variable declaration expects %d value(s), got %d", len(current.Bindings), len(items)))
+		}
+		for index, binding := range current.Bindings {
+			item := items[index]
+			typeName := normalizeRuntimeType(binding.Type)
+			if binding.Type == "Table" && item.Kind == ValueMap {
+				item = TableValue(item.Data.(map[string]Value))
+			}
+			if strings.HasPrefix(typeName, "Map[") && item.Kind == ValueTable {
+				converted, err := tableToStringMap(item.Data.(TableData))
+				if err != nil {
+					return signal{}, errorAt(current.Pos, err.Error())
+				}
+				item = Value{Kind: ValueMap, Data: converted}
+			}
+			if !valueMatchesType(item, typeName) {
+				return signal{}, errorAt(current.Pos, fmt.Sprintf("cannot assign return value %d (%s) to %s variable %q", index+1, item.Kind, typeName, binding.Name))
+			}
+			if isDiscardIdentifier(binding.Name) {
+				continue
+			}
+			targetEnv := env
+			region := runtime.memoryRegionForType(typeName)
+			if current.Scope == "global" || current.Exported {
+				targetEnv = runtime.global
+				region = MemoryHeap
+			} else if preferred := preferredMemoryRegion(item); preferred != "" {
+				region = preferred
+			}
+			kind := "variable"
+			if current.Temporary {
+				kind = "temporary"
+			}
+			if err := runtime.defineValueWithState(targetEnv, binding.Name, current.Mutable, typeName, item, region, kind, "define"); err != nil {
+				return signal{}, errorAt(current.Pos, err.Error())
+			}
+		}
+		return signal{kind: signalNone}, nil
 	case parser.ReturnStatement:
 		if len(current.Values) == 0 {
 			if tailSignal, ok, err := runtime.tailCallSignal(current.Expression.Node, env); ok || err != nil {

@@ -616,6 +616,39 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsMultiVariableDeclarationFromMultipleReturn(t *testing.T) {
+	program := programFromSource(`
+function Multi() : (table : Table, count : Int) {
+    return {"name": "klang"}, 7;
+}
+
+function Main() : Int {
+    local Table x, Int y = Multi();
+    return y + x.count;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected multi-variable declaration to type check, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsMultiVariableDeclarationTypeMismatch(t *testing.T) {
+	program := programFromSource(`
+function Multi() : (table : Table, count : Int) {
+    return {"name": "klang"}, 7;
+}
+
+function Main() : Int {
+    local Int x, String y = Multi();
+    return x;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "cannot assign return value 1 (Table) to local Int x")
+}
+
 func TestCheckProgramRejectsMultipleReturnMismatch(t *testing.T) {
 	program := programFromSource(`
 function Pair() : (String, Int) {

@@ -371,6 +371,31 @@ private {
 	}
 }
 
+func TestParseMultiVariableDeclarationFromMultipleReturn(t *testing.T) {
+	program, errors := Parse(`
+function Main() : Int {
+    local Table x, Int y = Multi();
+    return y;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn := program.Statements[0].(FunctionStatement)
+	decl, ok := fn.Body[0].(MultiVariableStatement)
+	if !ok {
+		t.Fatalf("expected multi-variable declaration, got %T", fn.Body[0])
+	}
+	if len(decl.Bindings) != 2 {
+		t.Fatalf("expected two bindings, got %#v", decl.Bindings)
+	}
+	if decl.Bindings[0].Type != "Table" || decl.Bindings[0].Name != "x" || decl.Bindings[1].Type != "Int" || decl.Bindings[1].Name != "y" {
+		t.Fatalf("unexpected bindings: %#v", decl.Bindings)
+	}
+	if decl.Expression.Node == nil {
+		t.Fatalf("expected initializer expression")
+	}
+}
+
 func TestParseRunStatements(t *testing.T) {
 	program, errors := Parse(`
 run {

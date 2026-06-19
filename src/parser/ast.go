@@ -169,6 +169,22 @@ type VariableStatement struct {
 	Expression Expression
 }
 
+type MultiVariableBinding struct {
+	Type string
+	Name string
+}
+
+type MultiVariableStatement struct {
+	Pos        Position
+	Scope      string
+	Exported   bool
+	Mutable    bool
+	Lazy       bool
+	Temporary  bool
+	Bindings   []MultiVariableBinding
+	Expression Expression
+}
+
 type DestructuringStatement struct {
 	Pos        Position
 	Scope      string
@@ -410,8 +426,9 @@ func (stmt ImplStatement) statementNode()      {}
 func (stmt EnumStatement) statementNode()      {}
 func (stmt FunctionGroupStatement) statementNode() {
 }
-func (stmt FunctionStatement) statementNode() {}
-func (stmt VariableStatement) statementNode() {}
+func (stmt FunctionStatement) statementNode()      {}
+func (stmt VariableStatement) statementNode()      {}
+func (stmt MultiVariableStatement) statementNode() {}
 func (stmt DestructuringStatement) statementNode() {
 }
 func (stmt ReturnStatement) statementNode()     {}
@@ -450,8 +467,9 @@ func (stmt EnumStatement) Position() Position      { return stmt.Pos }
 func (stmt FunctionGroupStatement) Position() Position {
 	return stmt.Pos
 }
-func (stmt FunctionStatement) Position() Position { return stmt.Pos }
-func (stmt VariableStatement) Position() Position { return stmt.Pos }
+func (stmt FunctionStatement) Position() Position      { return stmt.Pos }
+func (stmt VariableStatement) Position() Position      { return stmt.Pos }
+func (stmt MultiVariableStatement) Position() Position { return stmt.Pos }
 func (stmt DestructuringStatement) Position() Position {
 	return stmt.Pos
 }

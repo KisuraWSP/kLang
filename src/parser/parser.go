@@ -1230,6 +1230,9 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 	}
 	typeName := parser.parseType()
 	name := parser.consumeIdentifierLike("expected variable name")
+	if parser.match(lexer.TokenComma) {
+		return parser.parseMultiVariableFromStart(start, scope, exported, mutable, lazy, temporary, MultiVariableBinding{Type: typeName, Name: name.Literal})
+	}
 	var expr Expression
 	if parser.match(lexer.TokenAssign) {
 		expr = parser.parseExpressionUntil(lexer.TokenSemicolon)
@@ -1248,6 +1251,46 @@ func (parser *Parser) parseVariableFromStart(start lexer.Token, scope string, ex
 		Temporary:  temporary,
 		Type:       typeName,
 		Name:       name.Literal,
+		Expression: expr,
+	}
+}
+
+func (parser *Parser) parseMultiVariableFromStart(start lexer.Token, scope string, exported bool, mutable bool, lazy bool, temporary bool, first MultiVariableBinding) Statement {
+	bindings := []MultiVariableBinding{first}
+	for {
+		typeName := parser.parseType()
+		name := parser.consumeIdentifierLike("expected variable name")
+		bindings = append(bindings, MultiVariableBinding{Type: typeName, Name: name.Literal})
+		if !parser.match(lexer.TokenComma) {
+			break
+		}
+	}
+	if !parser.match(lexer.TokenAssign) {
+		parser.addError(parser.current(), "multi-variable declarations require an initializer")
+		parser.consumeOptionalSemicolon()
+		return MultiVariableStatement{
+			Pos:       positionFromToken(start),
+			Scope:     scope,
+			Exported:  exported,
+			Mutable:   mutable,
+			Lazy:      lazy,
+			Temporary: temporary,
+			Bindings:  bindings,
+		}
+	}
+	expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
+	if lazy && expr.Node == nil {
+		parser.addError(parser.current(), "lazy variable declarations require an initializer")
+	}
+	parser.consumeOptionalSemicolon()
+	return MultiVariableStatement{
+		Pos:        positionFromToken(start),
+		Scope:      scope,
+		Exported:   exported,
+		Mutable:    mutable,
+		Lazy:       lazy,
+		Temporary:  temporary,
+		Bindings:   bindings,
 		Expression: expr,
 	}
 }
