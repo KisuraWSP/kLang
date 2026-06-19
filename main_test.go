@@ -89,6 +89,73 @@ func TestRunCLIPackagesProjectWithManifest(t *testing.T) {
 	}
 }
 
+func TestRunCLIFormatsSingleFileWithWriteAndCheck(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "main.klang")
+	source := `function Main():Int{
+local Int value=1+2;
+return value;
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	err := runCLI([]string{"fmt", sourcePath, "--check"})
+	if err == nil || !strings.Contains(err.Error(), "need formatting") {
+		t.Fatalf("expected fmt --check to fail before formatting, got %v", err)
+	}
+	if err := runCLI([]string{"fmt", sourcePath, "--write"}); err != nil {
+		t.Fatalf("fmt --write failed: %v", err)
+	}
+	if err := runCLI([]string{"fmt", sourcePath, "--check"}); err != nil {
+		t.Fatalf("fmt --check failed after formatting: %v", err)
+	}
+
+	formatted, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatalf("read formatted source failed: %v", err)
+	}
+	expected := `function Main() : Int {
+    local Int value = 1 + 2;
+    return value;
+}
+`
+	if string(formatted) != expected {
+		t.Fatalf("unexpected formatted source:\n%s", formatted)
+	}
+}
+
+func TestRunCLIFormatsFolderDeterministically(t *testing.T) {
+	root := t.TempDir()
+	firstPath := filepath.Join(root, "first.klang")
+	helperPath := filepath.Join(root, "helper.klang")
+	if err := os.WriteFile(firstPath, []byte("function Main():Int{return Helper();}\n"), 0644); err != nil {
+		t.Fatalf("write first source failed: %v", err)
+	}
+	if err := os.WriteFile(helperPath, []byte("function Helper():Int{return 1;}\n"), 0644); err != nil {
+		t.Fatalf("write helper source failed: %v", err)
+	}
+
+	if err := runCLI([]string{"format", root, "--write"}); err != nil {
+		t.Fatalf("format folder failed: %v", err)
+	}
+	first, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatalf("read first source failed: %v", err)
+	}
+	helper, err := os.ReadFile(helperPath)
+	if err != nil {
+		t.Fatalf("read helper source failed: %v", err)
+	}
+	if !strings.Contains(string(first), "function Main() : Int { return Helper(); }") {
+		t.Fatalf("unexpected formatted first source:\n%s", first)
+	}
+	if !strings.Contains(string(helper), "function Helper() : Int { return 1; }") {
+		t.Fatalf("unexpected formatted helper source:\n%s", helper)
+	}
+}
+
 func TestParseDocSourceFilesAcceptsListSyntax(t *testing.T) {
 	files, err := parseDocSourceFiles(`["test.klang", "file.klang"]`)
 	if err != nil {

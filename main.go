@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	stdruntime "runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +23,7 @@ import (
 	programcache "kLang/src/engine/program_cache"
 	"kLang/src/engine/runtime"
 	typechecker "kLang/src/engine/type_checker"
+	"kLang/src/formatter"
 	"kLang/src/parser"
 )
 
@@ -176,6 +179,11 @@ func runCLI(args []string) error {
 			return err
 		}
 		return generateDocumentation(docOptions)
+	case "fmt", "format":
+		if len(values) != 1 {
+			return fmt.Errorf("%s %s expects a .klang file or folder", cliName, command)
+		}
+		return formatPath(values[0], hasFlag(rest, "--write") || hasFlag(rest, "-w"), hasFlag(rest, "--check"))
 	case "test", "tests":
 		if len(values) != 1 {
 			return fmt.Errorf("%s test expects a .klang test file or folder", cliName)
@@ -267,6 +275,96 @@ func createProject(projectPath string, entry entrySpec) error {
 	fmt.Printf("  go run . run %s\n", cleanPath)
 	fmt.Printf("  go run . check %s\n", cleanPath)
 	return nil
+}
+
+func formatPath(sourcePath string, write bool, check bool) error {
+	if write && check {
+		return fmt.Errorf("--write and --check cannot be used together")
+	}
+
+	paths, err := discoverFormatSourceFiles(sourcePath)
+	if err != nil {
+		return err
+	}
+	if len(paths) == 0 {
+		return fmt.Errorf("no %s files found under %s", file.KlangExtension, sourcePath)
+	}
+	if len(paths) > 1 && !write && !check {
+		return fmt.Errorf("%s fmt on a folder requires --write or --check", cliName)
+	}
+
+	var changed []string
+	for _, path := range paths {
+		original, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", path, err)
+		}
+		formatted, err := formatter.Format(string(original))
+		if err != nil {
+			return fmt.Errorf("format %s: %w", path, err)
+		}
+		if formatted == string(original) {
+			if !write && !check && len(paths) == 1 {
+				fmt.Print(formatted)
+			}
+			continue
+		}
+
+		changed = append(changed, path)
+		if write {
+			if err := os.WriteFile(path, []byte(formatted), 0644); err != nil {
+				return fmt.Errorf("write %s: %w", path, err)
+			}
+			continue
+		}
+		if !check && len(paths) == 1 {
+			fmt.Print(formatted)
+		}
+	}
+
+	if check && len(changed) != 0 {
+		return fmt.Errorf("fmt check failed: %d file(s) need formatting:\n  %s", len(changed), strings.Join(changed, "\n  "))
+	}
+	if write {
+		fmt.Printf("formatted %d Klang file(s)\n", len(changed))
+	}
+	return nil
+}
+
+func discoverFormatSourceFiles(sourcePath string) ([]string, error) {
+	cleanPath := filepath.Clean(sourcePath)
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		if filepath.Ext(cleanPath) != file.KlangExtension {
+			return nil, fmt.Errorf("expected a %s file or folder: %s", file.KlangExtension, sourcePath)
+		}
+		return []string{cleanPath}, nil
+	}
+
+	var paths []string
+	err = filepath.WalkDir(cleanPath, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if path != cleanPath && entry.Name() == file.KlangDistDir {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(entry.Name()) == file.KlangExtension {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(paths)
+	return paths, nil
 }
 
 func packageProgram(program file.Program, packageOptions packageOptions, options commandOptions) error {
@@ -1660,6 +1758,9 @@ Usage:
   kLang package <file-or-folder>              Package checked source into a compact bundle
   kLang serve <file-or-folder>                Package and serve a browser WASM runtime bundle
   kLang doc --sourcefile=[file.klang,...]     Generate static HTML source documentation
+  kLang fmt <file-or-folder>                  Format Klang source to stdout
+  kLang fmt <file-or-folder> --write          Rewrite Klang source with canonical formatting
+  kLang fmt <file-or-folder> --check          Verify source is already formatted
   kLang test <file-or-folder>                 Run Klang Test... functions or check fixtures
   kLang test <file-or-folder> --run           Run entrypoints when no Test... functions exist
   kLang file <file.klang>                     Print a Klang source file with line labels
@@ -1671,6 +1772,8 @@ Options:
   --out=<folder>                    Select package output folder
   --sourcefile=[file.klang,...]      Select one or more source files for docs
   --serve                         Serve a WASM browser bundle after packaging
+  --write, -w                     Rewrite files when formatting
+  --check                         Fail when formatting would change source
   --host=<host>                    Host for the built-in web server, default 127.0.0.1
   --port=<port>                    Port for the built-in web server, default 8080
   --raw-lang                      Disable stdlib imports while resolving modules

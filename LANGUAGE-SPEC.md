@@ -61,6 +61,7 @@
 61. The compiler and runtime track state for variables, function parameters, named returns, and return values. Type-check reports expose compile-time state records, and `debug_state()` returns runtime state records as `List[Table]`.
 62. Pattern matching supports exhaustive checks for Bool, enum, Option, and Result values, plus structural cases for List and Table values.
 63. Option and Result have checked helper functions for mapping, chaining, fallback recovery, and consistent safe access diagnostics.
+64. CLI `fmt`/`format` parse-validates Klang source, writes a canonical four-space style, preserves comments and here strings, supports `--write` for rewrites, and supports `--check` for CI-style formatting verification.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -77,6 +78,7 @@ Rules
 - Pattern matches over Bool, enum, Option, and Result values must be exhaustive unless marked `partial` or given a default `case:`. `Some(x)`, `Ok(x)`, `Err(x)`, List patterns, and Table patterns can bind captured values inside the case body.
 - `Option[T]` values expose `.some : Bool` and guarded `.value : T`; `Result[T,E]` values expose `.ok : Bool` and guarded `.value : T`. Accessing `.value` without a proven `Some`/`Ok` state is rejected with a diagnostic that suggests checks, pattern matching, helper functions, or `!` propagation for Result values.
 - `option_map`, `option_unwrap_or`, `option_and_then`, `result_map`, `result_map_err`, `result_unwrap_or`, and `result_and_then` are builtin helper functions. They preserve `None`/`Err` without calling success callbacks, and they statically check callback and fallback types.
+- The formatter only formats parse-valid Klang source. It normalizes indentation, operator spacing, punctuation spacing, and trailing newlines while preserving line comments, multiline comments, and here-string contents.
 - Postfix `?` checks presence/success as `Bool` for Option and Result values. Postfix `!` unwraps successful Result values or propagates the error as a thrown value.
 - Multiple return signatures use `(name : Type, mut OtherType)` syntax and return values with `return left, right;`.
 - Typed multi-variable declarations use `local Type a, OtherType b = FunctionReturningTwoValues();`. The initializer must be a call to a function with multiple declared return values, the number of bindings must match the number of return values, and each returned value must be assignable to its declared binding type. `_` may be used to discard a returned value.
@@ -127,6 +129,7 @@ Rules
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.
 - CLI `package` checks a program and writes a compact source bundle with `klang-build.json`.
 - CLI `doc --sourcefile=["file.klang"] --out=docs.html` parses the provided source files and writes a standalone HTML documentation page listing imports, modules, namespaces, functions, aliases, enums, globals, parse diagnostics, and a source-code chapter for every file. Passing a folder project expands to every `.klang` file in that project, using the same file order as normal project loading.
+- CLI `fmt file.klang` prints formatted source to stdout. `fmt --write` rewrites one file or every `.klang` file in a folder, skipping `dist`; `fmt --check` exits with an error listing files that are not already formatted.
 - `BuildSystem` backend is restricted to `WASM`, `JS`, or `Standalone`; `Standalone` means the packaged program runs through the interpreter engine.
 - `WASM` packaging compiles the Go interpreter/runtime to browser WebAssembly, writes `klang.wasm`, `wasm_exec.js`, `klang_browser.js`, and loads resolved Klang source files from the package manifest.
 - CLI `serve` and package `--serve` start a built-in static web server for the generated WASM runtime bundle so users can run projects in a browser without manually shipping files first.

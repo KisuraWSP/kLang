@@ -1,6 +1,13 @@
 1. Variables
 - In this language variables are immutable by default must be explicitly defined as mutable if it were to change state
 - Variables must be explicitly defined as either global or local by default
+
+2. Formatter
+- The CLI formatter accepts parse-valid Klang files and normalizes them to the canonical style used by examples, docs, and stdlib code.
+- `kLang fmt file.klang` prints formatted source to stdout.
+- `kLang fmt file.klang --write` rewrites one file, and `kLang fmt src --write` rewrites every `.klang` file in a folder.
+- `kLang fmt src --check` fails when any source file would change, which is suitable for CI.
+
 ```lua
 -- local variable
 local Int x = 10;
