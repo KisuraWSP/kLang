@@ -225,6 +225,10 @@ func (parser *Parser) parseAlias() Statement {
 
 func (parser *Parser) parseRegion() Statement {
 	start := parser.consume(lexer.TokenRegion, "expected region")
+	return parser.parseRegionFromStart(start, false)
+}
+
+func (parser *Parser) parseRegionFromStart(start lexer.Token, temporary bool) Statement {
 	name := parser.consume(lexer.TokenIdentifier, "expected region name")
 	parser.consume(lexer.TokenLeftBrace, "expected '(' after region name")
 	typeName := parser.parseType()
@@ -235,11 +239,12 @@ func (parser *Parser) parseRegion() Statement {
 	parser.consume(lexer.TokenRightBrace, "expected ')' after region count")
 	parser.consumeOptionalSemicolon()
 	return RegionStatement{
-		Pos:      positionFromToken(start),
-		Name:     name.Literal,
-		TypeName: typeName,
-		Size:     size,
-		Count:    count,
+		Pos:       positionFromToken(start),
+		Name:      name.Literal,
+		TypeName:  typeName,
+		Size:      size,
+		Count:     count,
+		Temporary: temporary,
 	}
 }
 
@@ -881,6 +886,13 @@ func (parser *Parser) parseLazy() Statement {
 func (parser *Parser) parseTemp(lazy bool) Statement {
 	start := parser.consume(lexer.TokenTemp, "expected temp")
 	switch parser.current().Type {
+	case lexer.TokenRegion:
+		if lazy {
+			parser.addError(parser.current(), "lazy temporary region is not supported")
+			return nil
+		}
+		parser.advance()
+		return parser.parseRegionFromStart(start, true)
 	case lexer.TokenLocal:
 		parser.advance()
 		return parser.parseVariableFromStart(start, "local", false, lazy, true)
@@ -894,7 +906,7 @@ func (parser *Parser) parseTemp(lazy bool) Statement {
 		parser.addError(parser.current(), "temporary const is not supported")
 		return nil
 	default:
-		parser.addError(parser.current(), "temp must be followed by local or let")
+		parser.addError(parser.current(), "temp must be followed by region, local, or let")
 		return nil
 	}
 }

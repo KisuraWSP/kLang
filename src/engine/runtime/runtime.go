@@ -159,10 +159,11 @@ type callArgument struct {
 }
 
 type RegionData struct {
-	Name     string
-	TypeName string
-	Size     Value
-	Count    Value
+	Name      string
+	TypeName  string
+	Size      Value
+	Count     Value
+	Temporary bool
 }
 
 type Result struct {
@@ -629,7 +630,7 @@ func (runtime *Runtime) defineArgs() error {
 func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string, filter map[string]bool, sourcePath string, globalNamespace bool) error {
 	switch current := stmt.(type) {
 	case parser.RegionStatement:
-		runtime.regions[current.Name] = RegionData{Name: current.Name, TypeName: current.TypeName}
+		runtime.regions[current.Name] = RegionData{Name: current.Name, TypeName: current.TypeName, Temporary: current.Temporary}
 	case parser.AliasFunctionStatement:
 		if _, exists := runtime.aliasFunctions[current.Name]; exists {
 			return errorAt(current.Pos, fmt.Sprintf("alias function %q is already defined", current.Name))
@@ -879,7 +880,16 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		if err != nil {
 			count = NullValue()
 		}
-		runtime.regions[current.Name] = RegionData{Name: current.Name, TypeName: current.TypeName, Size: size, Count: count}
+		runtime.regions[current.Name] = RegionData{Name: current.Name, TypeName: current.TypeName, Size: size, Count: count, Temporary: current.Temporary}
+		runtime.recordState(StateRecord{
+			Phase:    "runtime",
+			Event:    "define",
+			Kind:     regionRuntimeStateKind(current),
+			Name:     current.Name,
+			Type:     current.TypeName,
+			Runtime:  "Region",
+			Function: runtime.currentFunctionName(),
+		})
 		return signal{kind: signalNone}, nil
 	case parser.AliasFunctionStatement:
 		return signal{kind: signalNone}, nil
@@ -942,7 +952,7 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 			return signal{kind: signalNone}, nil
 		}
 		targetEnv := env
-		region := MemoryStack
+		region := runtime.memoryRegionForType(typeName)
 		if current.Scope == "global" || current.Exported {
 			targetEnv = runtime.global
 			region = MemoryHeap
@@ -3357,6 +3367,24 @@ func preferredMemoryRegion(value Value) MemoryRegion {
 	default:
 		return MemoryHeap
 	}
+}
+
+func regionRuntimeStateKind(stmt parser.RegionStatement) string {
+	if stmt.Temporary {
+		return "temporary_region"
+	}
+	return "region"
+}
+
+func (runtime *Runtime) memoryRegionForType(typeName string) MemoryRegion {
+	regionName := regionNameFromRuntimeArrayType(typeName)
+	if regionName == "" {
+		return MemoryStack
+	}
+	if region, ok := runtime.regions[regionName]; ok && region.Temporary {
+		return MemoryTemporary
+	}
+	return MemoryStack
 }
 
 func (runtime *Runtime) callAliasFunction(name string, args []Value) (Value, error) {

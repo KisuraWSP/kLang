@@ -5,7 +5,7 @@
 5. All Important Data Types are built into the language
 6. Language Operates as file-based system (Meaning each file can execute as a script unless defined as a entry point to a project via the first.klang file)
 7. Alias functions can define constructor-like custom data types and extension methods.
-8. Arrays and slices can be attached to user-defined memory regions and always index from 0.
+8. Arrays and slices can be attached to user-defined memory regions, including temporary regions, and always index from 0.
 9. Builtin allocator/value wrappers include Box, Ref, RefMut, RefCell, HeapAllocator, RegionAllocator, BumpAllocator, and ArenaAllocator.
 10. Table is a builtin Lua-style dynamic data type and is the only dynamically typed container.
 11. Async functions return Awaitable values, and await unwraps the completed value.
@@ -33,29 +33,30 @@
 33. `_` is a discard identifier for ignored values and can be reused without creating a binding.
 34. `lazy` variable declarations delay initializer evaluation until the binding is first accessed.
 35. `temp local` and `temp let` declare local temporary variables for short-lived intermediate values. They type check and execute like ordinary local variables, are tracked with state kind `temporary`, and do not produce unused-variable warnings.
-36. Builtin values participate in shared selector protocols: collection-like values expose `.count`, strings/chars expose case conversion methods, and integer values expose `.times(callback)`.
-37. `enum` declarations define typed ordinal enum values with implicit iota-style ordinals and optional explicit integer ordinals.
-38. Aggregate values use copy-on-write storage for ordinary assignment.
-39. Every loaded workspace has a compiler/runtime `Context`, and failures are reported as source-aware `ErrorContext` diagnostics.
-40. Stdlib imports use a function lookup table by default so only module functions referenced through the imported module namespace are collected, type checked, and registered. `module_caller(call_entire_module : True);` in the importing source opts back into whole-module stdlib imports.
-41. A module source may declare `module(disabled : True);` to reject imports of that module until the directive is removed or set to false.
-42. Stdlib modules may declare `global namespace Name { ... }`; functions inside that namespace are loaded into an internal compiler/runtime symbol table and can be called without an import or namespace qualifier.
-43. `run` marks a block or single statement as a priority runtime action that executes before ordinary statements in the same block.
-44. Multiline comments use `(* ... *)` delimiters and may span lines.
-45. Numeric parent types support child-width types through `.child(bits)` and globally available aliases such as `i8`, `u32`, `float64`, and `complex128`.
-46. The checker reports warnings for unused local variables and unused function parameters.
-47. Qualified module calls can infer imports; `list.append(...)` loads a resolvable `list` module even without an explicit import.
-48. Integer literals support optional leading `-`, base prefixes `0x`/`0X`, `0o`/`0O`, and `0b`/`0B`, and `_` separators between digits. Identifiers may use Unicode letters, marks, and symbols, including Sinhala text and emoji, but may not begin with a digit.
-49. Modules may import other modules. Stdlib-to-stdlib imports remain stdlib imports, so selective function loading still applies to dependency modules.
-50. `Type` is the parent runtime metadata type for all language types. `SomeType.get_runtime_type_info()` returns metadata for serialization, data introspection, and memory layout interpretation.
-51. `assert expression;` is a builtin statement keyword. The expression must be `Bool`; runtime execution fails with an assertion error when it is false.
-52. CLI `doc --sourcefile=[...]` generates a static HTML documentation UI for one or more Klang source files or folder projects, including declaration cards and source-code chapters for each file.
-53. `report expression;` is a builtin runtime reporting statement. It evaluates the expression, prints the expression text, value, runtime type, and current stack trace, then continues execution.
-54. CLI `check` and `run` persist a source-fingerprint program cache in `.klang-cache` so repeated startups can skip module resolution and type checking when the full resolved source set is unchanged.
-55. `Set[T]` is a builtin deterministic hash set for unique primitive values, constructed with `Set(list)`, counted with `.count` or `len`, iterated with `iter`, and queried with `set_has(set, value)`.
-56. `format(pattern : String, values : List[T])` and `printf(pattern : String, values : List[T])` are runtime-backed string formatting builtins. `%` consumes the next value, `%%` emits a literal percent sign, and the number of non-escaped placeholders must match `len(values)`. The stdlib `fmt` module exposes `fmt.Format` and `fmt.Printf` wrappers.
-57. Generic type parameters support named constraints beyond `restrict[...]`: `numeric`, `comparable`, `hashable`, `iterable`, `allocator_like`, and trait-bound names such as `T Printable`.
-58. The compiler and runtime track state for variables, function parameters, named returns, and return values. Type-check reports expose compile-time state records, and `debug_state()` returns runtime state records as `List[Table]`.
+36. `temp region` declares a temporary memory region for region-backed arrays. It is tracked with state kind `temporary_region`, keeps the same capacity rules as ordinary regions, and runtime allocations for that region are accounted under temporary memory.
+37. Builtin values participate in shared selector protocols: collection-like values expose `.count`, strings/chars expose case conversion methods, and integer values expose `.times(callback)`.
+38. `enum` declarations define typed ordinal enum values with implicit iota-style ordinals and optional explicit integer ordinals.
+39. Aggregate values use copy-on-write storage for ordinary assignment.
+40. Every loaded workspace has a compiler/runtime `Context`, and failures are reported as source-aware `ErrorContext` diagnostics.
+41. Stdlib imports use a function lookup table by default so only module functions referenced through the imported module namespace are collected, type checked, and registered. `module_caller(call_entire_module : True);` in the importing source opts back into whole-module stdlib imports.
+42. A module source may declare `module(disabled : True);` to reject imports of that module until the directive is removed or set to false.
+43. Stdlib modules may declare `global namespace Name { ... }`; functions inside that namespace are loaded into an internal compiler/runtime symbol table and can be called without an import or namespace qualifier.
+44. `run` marks a block or single statement as a priority runtime action that executes before ordinary statements in the same block.
+45. Multiline comments use `(* ... *)` delimiters and may span lines.
+46. Numeric parent types support child-width types through `.child(bits)` and globally available aliases such as `i8`, `u32`, `float64`, and `complex128`.
+47. The checker reports warnings for unused local variables and unused function parameters.
+48. Qualified module calls can infer imports; `list.append(...)` loads a resolvable `list` module even without an explicit import.
+49. Integer literals support optional leading `-`, base prefixes `0x`/`0X`, `0o`/`0O`, and `0b`/`0B`, and `_` separators between digits. Identifiers may use Unicode letters, marks, and symbols, including Sinhala text and emoji, but may not begin with a digit.
+50. Modules may import other modules. Stdlib-to-stdlib imports remain stdlib imports, so selective function loading still applies to dependency modules.
+51. `Type` is the parent runtime metadata type for all language types. `SomeType.get_runtime_type_info()` returns metadata for serialization, data introspection, and memory layout interpretation.
+52. `assert expression;` is a builtin statement keyword. The expression must be `Bool`; runtime execution fails with an assertion error when it is false.
+53. CLI `doc --sourcefile=[...]` generates a static HTML documentation UI for one or more Klang source files or folder projects, including declaration cards and source-code chapters for each file.
+54. `report expression;` is a builtin runtime reporting statement. It evaluates the expression, prints the expression text, value, runtime type, and current stack trace, then continues execution.
+55. CLI `check` and `run` persist a source-fingerprint program cache in `.klang-cache` so repeated startups can skip module resolution and type checking when the full resolved source set is unchanged.
+56. `Set[T]` is a builtin deterministic hash set for unique primitive values, constructed with `Set(list)`, counted with `.count` or `len`, iterated with `iter`, and queried with `set_has(set, value)`.
+57. `format(pattern : String, values : List[T])` and `printf(pattern : String, values : List[T])` are runtime-backed string formatting builtins. `%` consumes the next value, `%%` emits a literal percent sign, and the number of non-escaped placeholders must match `len(values)`. The stdlib `fmt` module exposes `fmt.Format` and `fmt.Printf` wrappers.
+58. Generic type parameters support named constraints beyond `restrict[...]`: `numeric`, `comparable`, `hashable`, `iterable`, `allocator_like`, and trait-bound names such as `T Printable`.
+59. The compiler and runtime track state for variables, function parameters, named returns, and return values. Type-check reports expose compile-time state records, and `debug_state()` returns runtime state records as `List[Table]`.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -79,6 +80,7 @@ Rules
 - Generic parameters may use `T restrict[Int, Float]` for explicit allow-lists, `T numeric`, `T comparable`, `T hashable`, `T iterable`, `T allocator_like`, or `T TraitName` for trait-bound constraints. Trait-bound constraints require a matching `impl TraitName for ConcreteType` before the concrete type can satisfy the generic call.
 - Entry-point directives apply to the next function in the current namespace or top-level scope.
 - Region-backed array types use the `ElementType[RegionName]` form and must reference an existing `region`.
+- `temp region Name(Type, size, count);` declares a temporary region. Region-backed arrays that reference it use the same `ElementType[Name]` syntax and count checks as ordinary regions.
 - Region-backed arrays grow through indexed assignment, but an index must be inside the region count.
 - Alias-created objects and allocator wrapper objects are heap allocations for runtime memory tracking.
 - Table values allow mixed values and primitive keys only: `String`, `Int`, `UInt`, `Float`, `Bool`, and `Char`. Keys compare by normalized primitive kind plus value, so numeric, string, and char spellings do not collide.

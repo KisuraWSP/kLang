@@ -2505,6 +2505,27 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesTemporaryRegionArraySyntax(t *testing.T) {
+	result := runParsedSource(t, `
+temp region Scratch(T, sizeof(T) * 16, 4);
+
+function Main() : List[Table] {
+    local mut T[Scratch] values;
+    values[0] = "value";
+    values[1] = "next";
+    return debug_state();
+}
+`)
+
+	if result.Value.Kind != ValueList {
+		t.Fatalf("expected debug_state to return a list, got %#v", result.Value)
+	}
+	assertRuntimeState(t, result.Value.Data.([]Value), "temporary_region", "Scratch", "define")
+	if result.Memory.TempObjects == 0 {
+		t.Fatalf("expected temporary region allocation to use temporary memory bucket, got %#v", result.Memory)
+	}
+}
+
 func TestRuntimeRejectsRegionArrayCapacityOverflow(t *testing.T) {
 	_, err := runParsedSourceWithError(`
 region Tiny(T, 1, 1);

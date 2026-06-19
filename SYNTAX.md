@@ -230,8 +230,11 @@ local String inheritedKind = child.kind;
 -- T[RegionName] stores a zero-initialized region-backed array/slice value.
 -- The final region argument is the maximum element count.
 region MyRegion(T, sizeof(T) * 100, 10);
+temp region ScratchRegion(T, sizeof(T) * 16, 4);
 local mut T[MyRegion] myArray;
 myArray[0] = "String";
+local mut T[ScratchRegion] scratchArray;
+scratchArray[0] = "temporary";
 
 -- list comprehension
 -- Build a List by mapping each item from a List, String, or range count.

@@ -1329,6 +1329,21 @@ end
 	}
 }
 
+func TestParseTemporaryRegion(t *testing.T) {
+	program, errors := Parse(`
+temp region Scratch(T, sizeof(T) * 16, 4);
+`)
+	assertNoParseErrors(t, errors)
+
+	region, ok := program.Statements[0].(RegionStatement)
+	if !ok {
+		t.Fatalf("expected region statement, got %#v", program.Statements[0])
+	}
+	if !region.Temporary || region.Name != "Scratch" || region.TypeName != "T" {
+		t.Fatalf("unexpected temporary region: %#v", region)
+	}
+}
+
 func TestParseModernAliasFunctionSyntaxAndInferredParameterDefault(t *testing.T) {
 	program, errors := Parse(`
 alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type {

@@ -14,7 +14,7 @@
 13. SIMD[$Lane]
 14. Function[...$Args, $Return]
 15. T // Builtin Generic Type Value containing Information of respective data type
-16. T[$Region] // Region-backed array/slice storage with zero-based indexing and region capacity checks
+16. T[$Region] // Region-backed array/slice storage with zero-based indexing and region capacity checks; `temp region` marks storage as temporary
 17. Box[$Item]
 18. Ref[$Item]
 19. RefMut[$Item]
@@ -76,4 +76,4 @@ Table helper builtins are available without imports:
 
 The language engine builds a `Context` for each loaded workspace and reports failures through `ErrorContext`. This diagnostic context is used by module resolution, parsing, type checking, runtime execution, packaging, and WASM backend generation.
 
-The compiler and runtime track symbol state for globals, locals, temporary variables, parameters, named returns, and function return values. Compile-time state records include the declaration kind, name, type, function, mutability, file, and line. Runtime state records include the phase, event (`define`, `bind`, `assign`, `move`, or `return`), kind, declared type, runtime type, function, mutability, and moved status. Temporary declarations use the state kind `temporary`. `debug_state()` returns the runtime records as `List[Table]`.
+The compiler and runtime track symbol state for globals, locals, temporary variables, regions, temporary regions, parameters, named returns, and function return values. Compile-time state records include the declaration kind, name, type, function, mutability, file, and line. Runtime state records include the phase, event (`define`, `bind`, `assign`, `move`, or `return`), kind, declared type, runtime type, function, mutability, and moved status. Temporary variables use the state kind `temporary`, and temporary memory regions use `temporary_region`. `debug_state()` returns the runtime records as `List[Table]`.

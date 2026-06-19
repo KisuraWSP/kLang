@@ -8,8 +8,9 @@ import (
 type MemoryRegion string
 
 const (
-	MemoryStack MemoryRegion = "stack"
-	MemoryHeap  MemoryRegion = "heap"
+	MemoryStack     MemoryRegion = "stack"
+	MemoryHeap      MemoryRegion = "heap"
+	MemoryTemporary MemoryRegion = "temporary"
 )
 
 type Memory struct {
@@ -18,8 +19,10 @@ type Memory struct {
 	objects      map[int]*Object
 	stackObjects int
 	heapObjects  int
+	tempObjects  int
 	stackBytes   int
 	heapBytes    int
+	tempBytes    int
 }
 
 type Object struct {
@@ -33,8 +36,10 @@ type Object struct {
 type MemoryStats struct {
 	StackObjects int
 	HeapObjects  int
+	TempObjects  int
 	StackBytes   int
 	HeapBytes    int
+	TempBytes    int
 	TotalObjects int
 	TotalBytes   int
 }
@@ -77,14 +82,23 @@ func (memory *Memory) Stats() MemoryStats {
 	return MemoryStats{
 		StackObjects: memory.stackObjects,
 		HeapObjects:  memory.heapObjects,
+		TempObjects:  memory.tempObjects,
 		StackBytes:   memory.stackBytes,
 		HeapBytes:    memory.heapBytes,
-		TotalObjects: memory.stackObjects + memory.heapObjects,
-		TotalBytes:   memory.stackBytes + memory.heapBytes,
+		TempBytes:    memory.tempBytes,
+		TotalObjects: memory.stackObjects + memory.heapObjects + memory.tempObjects,
+		TotalBytes:   memory.stackBytes + memory.heapBytes + memory.tempBytes,
 	}
 }
 
 func (memory *Memory) addAccounting(region MemoryRegion, bytes int) {
+	if region == MemoryTemporary {
+		if bytes > 0 {
+			memory.tempObjects++
+		}
+		memory.tempBytes += bytes
+		return
+	}
 	if region == MemoryHeap {
 		if bytes > 0 {
 			memory.heapObjects++
@@ -99,6 +113,10 @@ func (memory *Memory) addAccounting(region MemoryRegion, bytes int) {
 }
 
 func (memory *Memory) addBytes(region MemoryRegion, bytes int) {
+	if region == MemoryTemporary {
+		memory.tempBytes += bytes
+		return
+	}
 	if region == MemoryHeap {
 		memory.heapBytes += bytes
 		return

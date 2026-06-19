@@ -221,6 +221,13 @@ func (checker *TypeChecker) collectAliasFunctionStatements(statements []parser.S
 				continue
 			}
 			checker.regions[current.Name] = current
+			checker.recordState(State{
+				Kind: regionStateKind(current),
+				Name: current.Name,
+				Type: current.TypeName,
+				File: source,
+				Line: current.Pos.Line,
+			})
 		case parser.AliasFunctionStatement:
 			if _, exists := checker.aliasFunctions[current.Name]; exists {
 				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias function %q is already defined", current.Name))
@@ -984,6 +991,13 @@ func variableStateKind(stmt parser.VariableStatement) string {
 		return "temporary"
 	}
 	return stmt.Scope
+}
+
+func regionStateKind(stmt parser.RegionStatement) string {
+	if stmt.Temporary {
+		return "temporary_region"
+	}
+	return "region"
 }
 
 func (checker *TypeChecker) markMovedFromExpression(expr parser.Expression, locals map[string]variableSymbol) {

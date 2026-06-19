@@ -2,7 +2,6 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
-- temporary memory regions
 - we need a system in which when user passes any sort of flags or arguments in the 
    command line of the go executable it should be passed to the builtin Args array in 
    the langauge and then only the respective operations can be done

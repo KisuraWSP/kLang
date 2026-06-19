@@ -47,11 +47,12 @@ type AliasStatement struct {
 }
 
 type RegionStatement struct {
-	Pos      Position
-	Name     string
-	TypeName string
-	Size     Expression
-	Count    Expression
+	Pos       Position
+	Name      string
+	TypeName  string
+	Size      Expression
+	Count     Expression
+	Temporary bool
 }
 
 type AliasFunctionStatement struct {

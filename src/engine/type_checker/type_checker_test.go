@@ -1791,6 +1791,24 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsTemporaryMemoryRegion(t *testing.T) {
+	program := programFromSource(`
+temp region Scratch(T, sizeof(T) * 16, 4);
+
+function Main() : Int {
+    local mut T[Scratch] values;
+    values[0] = "value";
+    return len(values);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected temporary region program to type check, got %#v", report.Errors)
+	}
+	assertState(t, report.States, "temporary_region", "Scratch", "T")
+}
+
 func TestCheckProgramAcceptsAliasFunctionStructBody(t *testing.T) {
 	program := programFromSource(`
 alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type = struct {
