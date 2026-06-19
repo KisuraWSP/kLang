@@ -6,6 +6,51 @@
 ```lua
 type string_list = List[String];
 ```
+- Add CSV as a built in type in the language 
+   - with its own parser/implementation as part of the go source code
+   - make use of the here strings for this
+
+- Add JSON as a built in type in the language 
+   - with its own parser/implementation as part of the go source code
+   - make use of the here strings for this
+
+- add support for json tag annotations on structs parameters like the below
+```lua
+alias function Array(id : String) : type = struct {
+   this.id `json:"id"`;
+}
+```
+- Allow Type restriction, traits, etc on T in function aliases and structs
+```lua
+alias function[T Printable] Test(){
+
+}
+
+
+alias function[T restrict[List[Option[Int]]] Test2(){
+
+}
+```
+- Add a builtin type called Parsable that is a type that reads a specific program
+   - contains meta programming features
+   - stores the runtime information
+   - stores information of the AST of a single program
+   - Works seemlessly with Workspace, BuildSystem, etc..
+   - this type can also be restricted like the below to according to the users use case
+   ```lua
+      let mut Parsable[T Printable] parsable;
+   ```
+   - allows the ability to modify source code when specified
+   - allows the ability to add new keywords while letting user define there own functionality
+   ```lua
+   alias printer = Parsable[T Printable].keyword_macro {
+      print(get_args_from_parsable(), T);
+   }
+
+   printer "hallo";
+   ```
+   - this type has the ability to get stored arguments provided by user as if its a function
+      - this counts for both cli args and runtime args, source code args
 
 - add support for members in function aliases
 ```lua
