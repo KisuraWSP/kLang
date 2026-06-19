@@ -697,7 +697,9 @@ breakpoint("after manifest");
 -- source context diagnostics
 -- The engine builds Context and ErrorContext descriptors while checking,
 -- running, packaging, and generating WASM bundles. ErrorContext reports include
--- phase, file, line, column, source line, violated rule, message, and hint.
+-- phase, file, line, column span, source line, violated rule, message, and hint.
+-- Type diagnostics can include did-you-mean suggestions, import hints, and
+-- expected/found type trees.
 
 -- JavaScript filesystem-only FFI
 -- js_import reads a local .js file and returns a descriptor.

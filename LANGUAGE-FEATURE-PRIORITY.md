@@ -18,8 +18,6 @@ Add klang test, klang fmt, klang doc, klang package, maybe klang add. A language
 Add a formatter
 This is underrated. A real formatter stabilizes examples, docs, stdlib style, and user code. It also forces the grammar to become clearer.
 
-Improve error messages
-You’ve already started with ErrorContext and stack traces. Push this hard: source spans, suggestions, “did you mean”, expected/found type trees, import hints. Great errors make a small language feel mature.
 
 Define async/thread safety rules clearly
 You added spawn, join, Atomic. Next step is making shared mutation rules explicit and safe. This is a place where kLang can feel modern if done carefully.

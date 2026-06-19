@@ -1257,11 +1257,22 @@ func printDiagnostic(out *os.File, diag langcontext.ErrorContext) {
 		width := len(strconv.Itoa(diag.Line))
 		fmt.Fprintf(out, "%*d | %s\n", width, diag.Line, diag.SourceLine)
 		caretColumn := maxInt(diag.Column, 1)
-		fmt.Fprintf(out, "%*s | %s^\n\n", width, "", strings.Repeat(" ", maxInt(0, caretColumn-1)))
+		spanWidth := 1
+		if diag.EndColumn > caretColumn {
+			spanWidth = diag.EndColumn - caretColumn + 1
+		}
+		fmt.Fprintf(out, "%*s | %s%s\n\n", width, "", strings.Repeat(" ", maxInt(0, caretColumn-1)), diagnosticUnderline(spanWidth))
 	}
 	if diag.Hint != "" {
 		fmt.Fprintf(out, "Hint: %s\n\n", diag.Hint)
 	}
+}
+
+func diagnosticUnderline(width int) string {
+	if width <= 1 {
+		return "^"
+	}
+	return "^" + strings.Repeat("~", width-1)
 }
 
 func maxInt(left int, right int) int {

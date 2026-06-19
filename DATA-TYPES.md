@@ -38,7 +38,7 @@
 37. JSCall // Filesystem-only JavaScript API call descriptor
 38. Enum // User-defined typed ordinal enum values declared with `enum`
 39. Context // Compiler/runtime source context for a workspace, including files, entry point, backend, and diagnostics
-40. ErrorContext // Source-aware diagnostic containing phase, file, line, column, rule, message, hint, and source line
+40. ErrorContext // Source-aware diagnostic containing phase, file, line, column span, rule, message, hint, source line, suggestions, and type context
 41. Type // Runtime metadata for every language type, returned by `SomeType.get_runtime_type_info()`
 
 All builtin type names expose a compile-time size query through `.sizeof`, which returns an `Int`.
@@ -74,6 +74,6 @@ Table helper builtins are available without imports:
 
 `iter(table)` yields insertion-order `{key, value}` entry tables. Table iteration order is deterministic insertion order for own entries; fallback entries are visible through lookup but are not included in `.count`, `table_keys`, `table_values`, `table_entries`, or direct iteration.
 
-The language engine builds a `Context` for each loaded workspace and reports failures through `ErrorContext`. This diagnostic context is used by module resolution, parsing, type checking, runtime execution, packaging, and WASM backend generation.
+The language engine builds a `Context` for each loaded workspace and reports failures through `ErrorContext`. This diagnostic context is used by module resolution, parsing, type checking, runtime execution, packaging, and WASM backend generation. Type diagnostics may include source spans, "did you mean" suggestions, import hints, and expected/found type trees.
 
 The compiler and runtime track symbol state for globals, locals, temporary variables, regions, temporary regions, parameters, named returns, and function return values. Compile-time state records include the declaration kind, name, type, function, mutability, file, and line. Runtime state records include the phase, event (`define`, `bind`, `assign`, `move`, or `return`), kind, declared type, runtime type, function, mutability, and moved status. Temporary variables use the state kind `temporary`, and temporary memory regions use `temporary_region`. `debug_state()` returns the runtime records as `List[Table]`.
