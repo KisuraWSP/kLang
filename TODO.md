@@ -2,6 +2,11 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- make sure that the langauge is able to understand and execute js code
+   - we have made a small foundation for it for now 
+   - we need to extend our existing foundation to make it powerful enough to do some
+   - operations
+- allow support for directory based modules like in golang
 - make progrramming language api data oriented
 - add a new flag to allow user to add there own functions to the stdlib via new command like —new_std_lib=["test”, “processor”]
 - Allow support of assigning values to variables if a function supports multiple return types
