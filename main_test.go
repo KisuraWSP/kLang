@@ -136,6 +136,51 @@ namespace api {
 	}
 }
 
+func TestRunCLIDocumentationExpandsProjectIntoSourceChapters(t *testing.T) {
+	root := t.TempDir()
+	projectPath := filepath.Join(root, "project")
+	outPath := filepath.Join(root, "project-docs.html")
+	if err := os.MkdirAll(projectPath, 0755); err != nil {
+		t.Fatalf("create project dir failed: %v", err)
+	}
+	first := `import "app";
+
+function Main() : Int {
+    return App.Start();
+}
+`
+	app := `namespace App {
+    function Start() : Int {
+        let mut here_string = //
+<h1>Hello from kLang!</h1>
+//;
+        return len(here_string);
+    }
+}
+`
+	if err := os.WriteFile(filepath.Join(projectPath, "first.klang"), []byte(first), 0644); err != nil {
+		t.Fatalf("write first source failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(projectPath, "app.klang"), []byte(app), 0644); err != nil {
+		t.Fatalf("write app source failed: %v", err)
+	}
+
+	if err := runCLI([]string{"doc", "--sourcefile=[" + projectPath + "]", "--out", outPath}); err != nil {
+		t.Fatalf("doc command failed: %v", err)
+	}
+
+	html, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read generated docs failed: %v", err)
+	}
+	text := string(html)
+	for _, expected := range []string{"Source Chapters", "Chapter 1: first.klang", "Chapter 2: app.klang", "&lt;h1&gt;Hello from kLang!&lt;/h1&gt;", "App.Start"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected generated docs to contain %q, got:\n%s", expected, text)
+		}
+	}
+}
+
 func TestParsePackageOptionsAcceptsServeHostAndPort(t *testing.T) {
 	options, err := parsePackageOptions([]string{"--backend=WASM", "--serve", "--host", "0.0.0.0", "--port=9090"})
 	if err != nil {

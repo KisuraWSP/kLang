@@ -278,6 +278,52 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeStoresHereStringInMutableInferredVariable(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    let mut here_string = //
+<!DOCTYPE html>
+<html lang="en">
+<body>
+    <h1>Hello from kLang!</h1>
+</body>
+</html>
+//;
+
+    return len(here_string);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 86 {
+		t.Fatalf("expected here string length 86, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeReturnsAndPassesHereStringsAsStrings(t *testing.T) {
+	result := runParsedSource(t, `
+function Render() : String {
+    return //
+abc
+//;
+}
+
+function Count(value : String) : Int {
+    return len(value);
+}
+
+function Main() : Int {
+    local String explicit = //
+xy
+//;
+    return Count(Render()) + Count(explicit);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 5 {
+		t.Fatalf("expected here string program to return 5, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesRunStatementsBeforeNormalStatementsAndMain(t *testing.T) {
 	result := runSource(t, `
 function Boot() {

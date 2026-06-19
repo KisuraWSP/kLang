@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"kLang/src/engine/file"
 	"kLang/src/lexer"
 	"kLang/src/parser"
 )
 
-func (checker *TypeChecker) collectASTGlobals(program file.Program) {
-	parsed := parser.ParseLoadedProgram(program)
+func (checker *TypeChecker) collectASTGlobals(parsed parser.ParsedProgram) {
 	if !parsed.Passed() {
 		return
 	}
@@ -123,10 +121,9 @@ func (scope *lexicalScope) lookup(name string) (variableSymbol, bool) {
 	return variableSymbol{}, false
 }
 
-func (checker *TypeChecker) checkLexicalScopes(program file.Program) {
-	parsed := parser.ParseLoadedProgram(program)
+func (checker *TypeChecker) checkLexicalScopes(entryPoint string, parsed parser.ParsedProgram) {
 	for _, parseError := range parsed.Errors() {
-		checker.addError(program.EntryPoint, parseError.Line, parseError.Message)
+		checker.addError(entryPoint, parseError.Line, parseError.Message)
 	}
 	if !parsed.Passed() {
 		return

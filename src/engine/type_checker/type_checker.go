@@ -142,33 +142,33 @@ func CheckProgram(program file.Program) Report {
 			ModuleFunctionFilter: source.ModuleFunctionFilter,
 		})
 	}
+	parsed := parser.ParseLoadedProgram(program)
 
 	for _, unit := range units {
 		checker.collectFunctions(unit, "", false)
 	}
-	checker.collectTraits(program)
-	checker.collectEnums(program)
-	checker.collectAliases(program)
-	checker.collectAliasFunctionsAndRegions(program)
-	checker.collectFunctionGroups(program)
+	checker.collectTraits(parsed)
+	checker.collectEnums(parsed)
+	checker.collectAliases(parsed)
+	checker.collectAliasFunctionsAndRegions(parsed)
+	checker.collectFunctionGroups(parsed)
 	for _, unit := range units {
 		checker.collectGlobals(unit)
 	}
 	checker.globals["Args"] = variableSymbol{Name: "Args", Type: "List[String]", Mutable: false}
-	checker.collectASTGlobals(program)
+	checker.collectASTGlobals(parsed)
 	for _, unit := range units {
 		checker.checkTopLevelCalls(unit)
 	}
 	for _, fn := range checker.functions {
 		checker.checkFunction(fn)
 	}
-	checker.checkLexicalScopes(program)
+	checker.checkLexicalScopes(program.EntryPoint, parsed)
 
 	return Report{Errors: checker.errors, Warnings: checker.warnings}
 }
 
-func (checker *TypeChecker) collectFunctionGroups(program file.Program) {
-	parsed := parser.ParseLoadedProgram(program)
+func (checker *TypeChecker) collectFunctionGroups(parsed parser.ParsedProgram) {
 	if !parsed.Passed() {
 		return
 	}
@@ -177,8 +177,7 @@ func (checker *TypeChecker) collectFunctionGroups(program file.Program) {
 	}
 }
 
-func (checker *TypeChecker) collectAliasFunctionsAndRegions(program file.Program) {
-	parsed := parser.ParseLoadedProgram(program)
+func (checker *TypeChecker) collectAliasFunctionsAndRegions(parsed parser.ParsedProgram) {
 	if !parsed.Passed() {
 		return
 	}
@@ -308,8 +307,7 @@ func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string, 
 	}
 }
 
-func (checker *TypeChecker) collectAliases(program file.Program) {
-	parsed := parser.ParseLoadedProgram(program)
+func (checker *TypeChecker) collectAliases(parsed parser.ParsedProgram) {
 	if !parsed.Passed() {
 		return
 	}
@@ -318,8 +316,7 @@ func (checker *TypeChecker) collectAliases(program file.Program) {
 	}
 }
 
-func (checker *TypeChecker) collectTraits(program file.Program) {
-	parsed := parser.ParseLoadedProgram(program)
+func (checker *TypeChecker) collectTraits(parsed parser.ParsedProgram) {
 	if !parsed.Passed() {
 		return
 	}
@@ -331,8 +328,7 @@ func (checker *TypeChecker) collectTraits(program file.Program) {
 	}
 }
 
-func (checker *TypeChecker) collectEnums(program file.Program) {
-	parsed := parser.ParseLoadedProgram(program)
+func (checker *TypeChecker) collectEnums(parsed parser.ParsedProgram) {
 	if !parsed.Passed() {
 		return
 	}
@@ -675,7 +671,7 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 			if current.Scope == "const" && !isCompileTimeConstantExpression(exprSource) {
 				checker.addError(fn.File, line, fmt.Sprintf("const %s requires a compile-time constant initializer", current.Name))
 			}
-			exprType := checker.inferExpression(exprSource, locals, fn.File, line)
+			exprType := checker.inferParsedExpression(current.Expression, locals, fn.File, line)
 			if current.Inferred && typeName == anyType {
 				typeName = exprType
 			}
@@ -707,16 +703,14 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		declared[current.Name] = true
 	case parser.ReturnStatement:
 		if len(current.Values) != 0 {
-			parts := make([]string, 0, len(current.Values))
 			for _, value := range current.Values {
-				parts = append(parts, expressionSource(value))
 				checker.checkSemanticExpression(fn, value, locals, line)
 			}
-			checker.checkTupleReturn(fn, strings.Join(parts, ","), locals, line)
+			checker.checkTupleReturnExpressions(fn, current.Values, locals, line)
 			return
 		}
 		checker.checkSemanticExpression(fn, current.Expression, locals, line)
-		exprType := checker.inferExpression(expressionSource(current.Expression), locals, fn.File, line)
+		exprType := checker.inferParsedExpression(current.Expression, locals, fn.File, line)
 		if len(fn.ReturnTypes) == 0 && !isAssignable(fn.ReturnType, exprType) {
 			checker.addError(fn.File, line, fmt.Sprintf("function %s returns %s but return expression is %s", fn.Name, fn.ReturnType, exprType))
 		}
@@ -724,7 +718,7 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		checker.checkSemanticExpression(fn, current.Expression, locals, line)
 	case parser.AssertStatement:
 		checker.checkSemanticExpression(fn, current.Expression, locals, line)
-		exprType := checker.inferExpression(expressionSource(current.Expression), locals, fn.File, line)
+		exprType := checker.inferParsedExpression(current.Expression, locals, fn.File, line)
 		if !isAssignable("Bool", exprType) {
 			checker.addError(fn.File, line, fmt.Sprintf("assert expects Bool, got %s", exprType))
 		}
@@ -777,7 +771,40 @@ func (checker *TypeChecker) checkSemanticExpression(fn functionSymbol, expr pars
 	if expr.Node == nil || len(expr.Tokens) == 0 {
 		return
 	}
-	checker.inferExpression(expressionSource(expr), locals, fn.File, line)
+	checker.inferParsedExpression(expr, locals, fn.File, line)
+}
+
+func (checker *TypeChecker) inferParsedExpression(expr parser.Expression, locals map[string]variableSymbol, source string, line int) string {
+	return checker.inferExpressionNode(expr.Node, expressionSource(expr), locals, source, line)
+}
+
+func (checker *TypeChecker) inferExpressionNode(node parser.ExpressionNode, fallback string, locals map[string]variableSymbol, source string, line int) string {
+	switch current := node.(type) {
+	case parser.LiteralExpression:
+		return normalizeType(current.Kind)
+	case parser.GroupExpression:
+		return checker.inferExpressionNode(current.Inner, fallback, locals, source, line)
+	default:
+		return checker.inferExpression(fallback, locals, source, line)
+	}
+}
+
+func (checker *TypeChecker) checkTupleReturnExpressions(fn functionSymbol, values []parser.Expression, locals map[string]variableSymbol, line int) {
+	if len(values) != len(fn.ReturnTypes) {
+		checker.addError(fn.File, line, fmt.Sprintf("function %s returns %d value(s), got %d", fn.Name, len(fn.ReturnTypes), len(values)))
+		return
+	}
+	for index, value := range values {
+		exprType := checker.inferParsedExpression(value, locals, fn.File, line)
+		expected := fn.ReturnTypes[index]
+		if !isAssignable(expected.Type, exprType) {
+			name := fmt.Sprintf("return value %d", index+1)
+			if expected.Name != "" {
+				name = fmt.Sprintf("return value %q", expected.Name)
+			}
+			checker.addError(fn.File, line, fmt.Sprintf("function %s %s expects %s but got %s", fn.Name, name, expected.Type, exprType))
+		}
+	}
 }
 
 func (checker *TypeChecker) checkSemanticLoop(fn functionSymbol, stmt parser.LoopStatement, locals map[string]variableSymbol, line int) {

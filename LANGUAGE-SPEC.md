@@ -48,7 +48,7 @@
 48. Modules may import other modules. Stdlib-to-stdlib imports remain stdlib imports, so selective function loading still applies to dependency modules.
 49. `Type` is the parent runtime metadata type for all language types. `SomeType.get_runtime_type_info()` returns metadata for serialization, data introspection, and memory layout interpretation.
 50. `assert expression;` is a builtin statement keyword. The expression must be `Bool`; runtime execution fails with an assertion error when it is false.
-51. CLI `doc --sourcefile=[...]` generates a static HTML documentation UI for one or more Klang source files.
+51. CLI `doc --sourcefile=[...]` generates a static HTML documentation UI for one or more Klang source files or folder projects, including declaration cards and source-code chapters for each file.
 52. `report expression;` is a builtin runtime reporting statement. It evaluates the expression, prints the expression text, value, runtime type, and current stack trace, then continues execution.
 
 Rules
@@ -101,7 +101,7 @@ Rules
 - Alias functions may contain trait and impl declarations in addition to hooks and extension methods.
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.
 - CLI `package` checks a program and writes a compact source bundle with `klang-build.json`.
-- CLI `doc --sourcefile=["file.klang"] --out=docs.html` parses the provided source files and writes a standalone HTML documentation page listing imports, modules, namespaces, functions, aliases, enums, globals, and parse diagnostics.
+- CLI `doc --sourcefile=["file.klang"] --out=docs.html` parses the provided source files and writes a standalone HTML documentation page listing imports, modules, namespaces, functions, aliases, enums, globals, parse diagnostics, and a source-code chapter for every file. Passing a folder project expands to every `.klang` file in that project, using the same file order as normal project loading.
 - `BuildSystem` backend is restricted to `WASM`, `JS`, or `Standalone`; `Standalone` means the packaged program runs through the interpreter engine.
 - `WASM` packaging compiles the Go interpreter/runtime to browser WebAssembly, writes `klang.wasm`, `wasm_exec.js`, `klang_browser.js`, and loads resolved Klang source files from the package manifest.
 - CLI `serve` and package `--serve` start a built-in static web server for the generated WASM runtime bundle so users can run projects in a browser without manually shipping files first.
@@ -112,4 +112,4 @@ Rules
 - Ordinary assignment of aggregate collection values such as `List`, `Map`, `Table`, and `SIMD` may share storage until one binding is mutated. Indexed mutation detaches the mutated binding first, preserving referential transparency for the other binding. Explicit `copy` and `clone` still request an eager cloned value.
 - Table mutation respects mutable bindings. `None()` and `Null` are stored as ordinary values and do not delete keys. Invalid key types such as `Table`, `List`, functions, refs, allocator values, and runtime objects produce diagnostics.
 - `Context` tracks the program name, entry point, selected backend, source files, and collected diagnostics. `ErrorContext` includes the failing phase (`SOURCE`, `MODULE`, `PARSE`, `TYPE`, `RUNTIME`, `BACKEND`, or `WASM`), location, source line, rule, message, and fix hint. CLI `check`, `run`, `package`, and WASM packaging must report through this structure.
-- Runtime errors raised inside function calls include a stack trace before the error leaves the active call stack. Loaded source files are parsed concurrently by the Go implementation and merged in source order before execution.
+- Runtime errors raised inside function calls include a stack trace before the error leaves the active call stack. The Go implementation parses loaded source files concurrently, reuses that parsed program through semantic checks, collects runtime symbols per source concurrently, and merges compiler/runtime setup results in source order before sequential program execution.

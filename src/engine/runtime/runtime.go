@@ -275,11 +275,13 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 	if err := runtime.defineArgs(); err != nil {
 		return Result{}, err
 	}
-	for _, source := range program.Sources {
-		for _, stmt := range source.Program.Statements {
-			if err := runtime.collectFunctions(stmt, "", source.ModuleFunctionFilter, source.Path, false); err != nil {
-				return Result{}, err
-			}
+	symbols, err := collectRuntimeSymbolsConcurrently(program.Sources)
+	if err != nil {
+		return Result{}, err
+	}
+	for _, symbolSet := range symbols {
+		if err := runtime.mergeRuntimeSymbols(symbolSet); err != nil {
+			return Result{}, err
 		}
 	}
 
@@ -314,6 +316,97 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 		return Result{}, err
 	}
 	return Result{Value: value, Output: runtime.outputLines(), Memory: runtime.memory.Stats()}, nil
+}
+
+type runtimeSymbolSet struct {
+	functions       map[string]parser.FunctionStatement
+	functionFiles   map[string]string
+	globalFunctions map[string][]string
+	aliasFunctions  map[string]parser.AliasFunctionStatement
+	enums           map[string]parser.EnumStatement
+	regions         map[string]RegionData
+	groups          map[string][]string
+	aliases         map[string]string
+}
+
+func collectRuntimeSymbolsConcurrently(sources []parser.ParsedSource) ([]runtimeSymbolSet, error) {
+	results := make([]runtimeSymbolSet, len(sources))
+	errs := make([]error, len(sources))
+	var wait sync.WaitGroup
+	for index, source := range sources {
+		wait.Add(1)
+		go func(index int, source parser.ParsedSource) {
+			defer wait.Done()
+			results[index], errs[index] = collectRuntimeSymbolsForSource(source)
+		}(index, source)
+	}
+	wait.Wait()
+	for _, err := range errs {
+		if err != nil {
+			return nil, err
+		}
+	}
+	return results, nil
+}
+
+func collectRuntimeSymbolsForSource(source parser.ParsedSource) (runtimeSymbolSet, error) {
+	local := New()
+	for _, stmt := range source.Program.Statements {
+		if err := local.collectFunctions(stmt, "", source.ModuleFunctionFilter, source.Path, false); err != nil {
+			return runtimeSymbolSet{}, err
+		}
+	}
+	return runtimeSymbolSet{
+		functions:       local.functions,
+		functionFiles:   local.functionFiles,
+		globalFunctions: local.globalFunctions,
+		aliasFunctions:  local.aliasFunctions,
+		enums:           local.enums,
+		regions:         local.regions,
+		groups:          local.groups,
+		aliases:         local.aliases,
+	}, nil
+}
+
+func (runtime *Runtime) mergeRuntimeSymbols(symbols runtimeSymbolSet) error {
+	for name, region := range symbols.regions {
+		runtime.regions[name] = region
+	}
+	for name, aliasFunction := range symbols.aliasFunctions {
+		if _, exists := runtime.aliasFunctions[name]; exists {
+			return Error{Message: fmt.Sprintf("alias function %q is already defined", name)}
+		}
+		runtime.aliasFunctions[name] = aliasFunction
+	}
+	for name, enum := range symbols.enums {
+		if _, exists := runtime.enums[name]; exists {
+			return Error{Message: fmt.Sprintf("enum %q is already defined", name)}
+		}
+		runtime.enums[name] = enum
+	}
+	for name, fn := range symbols.functions {
+		if _, exists := runtime.functions[name]; exists {
+			return Error{Message: fmt.Sprintf("function %q is already defined", name)}
+		}
+		runtime.functions[name] = fn
+		runtime.functionFiles[name] = symbols.functionFiles[name]
+	}
+	for shortName, names := range symbols.globalFunctions {
+		runtime.globalFunctions[shortName] = append(runtime.globalFunctions[shortName], names...)
+	}
+	for name, group := range symbols.groups {
+		if _, exists := runtime.groups[name]; exists {
+			return Error{Message: fmt.Sprintf("function_group %q is already defined", name)}
+		}
+		runtime.groups[name] = append([]string(nil), group...)
+	}
+	for name, target := range symbols.aliases {
+		if _, exists := runtime.aliases[name]; exists {
+			return Error{Message: fmt.Sprintf("alias %q is already defined", name)}
+		}
+		runtime.aliases[name] = target
+	}
+	return nil
 }
 
 func filterRuntimeModuleFunctions(statements []parser.Statement, namespace string, filter map[string]bool) []parser.Statement {

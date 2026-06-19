@@ -55,6 +55,7 @@ type docFile struct {
 	Path       string
 	Name       string
 	LineCount  int
+	Source     []string
 	Items      []docItem
 	ParseError []parser.Error
 }
@@ -422,23 +423,22 @@ func generateDocumentation(options docOptions) error {
 		outPath = "klang-docs.html"
 	}
 
-	files := make([]docFile, 0, len(options.SourceFiles))
+	sourceFiles, err := expandDocSourceFiles(options.SourceFiles)
+	if err != nil {
+		return err
+	}
+
+	files := make([]docFile, 0, len(sourceFiles))
 	totalItems := 0
-	for _, sourcePath := range options.SourceFiles {
-		sourcePath = filepath.Clean(sourcePath)
-		contents, err := os.ReadFile(sourcePath)
-		if err != nil {
-			return fmt.Errorf("read source file %s: %w", sourcePath, err)
-		}
-		lines := strings.Split(strings.ReplaceAll(string(contents), "\r\n", "\n"), "\n")
-		if len(lines) > 0 && lines[len(lines)-1] == "" {
-			lines = lines[:len(lines)-1]
-		}
+	for _, source := range sourceFiles {
+		sourcePath := filepath.Clean(source.Path)
+		lines := append([]string(nil), source.Lines...)
 		parsed, errors := parser.Parse(strings.Join(lines, "\n"))
 		doc := docFile{
 			Path:      sourcePath,
 			Name:      filepath.Base(sourcePath),
 			LineCount: len(lines),
+			Source:    lines,
 		}
 		if len(errors) != 0 {
 			doc.ParseError = errors
@@ -461,6 +461,34 @@ func generateDocumentation(options docOptions) error {
 	fmt.Printf("  items: %d\n", totalItems)
 	fmt.Printf("  output: %s\n", outPath)
 	return nil
+}
+
+func expandDocSourceFiles(sourcePaths []string) ([]file.SourceFile, error) {
+	var sources []file.SourceFile
+	seen := map[string]bool{}
+	for _, sourcePath := range sourcePaths {
+		sourcePath = filepath.Clean(strings.TrimSpace(sourcePath))
+		if sourcePath == "" {
+			continue
+		}
+		program, err := file.LoadProgram(sourcePath)
+		if err != nil {
+			return nil, fmt.Errorf("load doc source %s: %w", sourcePath, err)
+		}
+		for _, source := range program.Files {
+			cleanPath := filepath.Clean(source.Path)
+			if seen[cleanPath] {
+				continue
+			}
+			seen[cleanPath] = true
+			source.Path = cleanPath
+			sources = append(sources, source)
+		}
+	}
+	if len(sources) == 0 {
+		return nil, fmt.Errorf("%s doc found no source files", cliName)
+	}
+	return sources, nil
 }
 
 func collectDocItems(statements []parser.Statement, namespace string) []docItem {
@@ -511,6 +539,10 @@ func collectDocItems(statements []parser.Statement, namespace string) []docItem 
 
 func renderDocumentationHTML(files []docFile, totalItems int) string {
 	var builder strings.Builder
+	totalSourceLines := 0
+	for _, file := range files {
+		totalSourceLines += file.LineCount
+	}
 	builder.WriteString(`<!doctype html>
 <html lang="en">
 <head>
@@ -529,6 +561,11 @@ func renderDocumentationHTML(files []docFile, totalItems int) string {
     .metric { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08); }
     .metric strong { display: block; font-size: 26px; }
     .metric span { color: var(--muted); font-size: 13px; }
+    .toc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+    .toc h2 { margin: 0 0 10px; font-size: 18px; letter-spacing: 0; }
+    .toc ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 28px; }
+    .toc li { break-inside: avoid; margin: 0 0 6px; color: var(--muted); }
+    .toc a { color: var(--accent); text-decoration: none; font-weight: 650; }
     section.file { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin-top: 18px; overflow: hidden; }
     .file-head { display: flex; justify-content: space-between; gap: 16px; padding: 18px 20px; background: #eef3f8; border-bottom: 1px solid var(--line); }
     .file-head h2 { margin: 0; font-size: 19px; letter-spacing: 0; }
@@ -542,20 +579,32 @@ func renderDocumentationHTML(files []docFile, totalItems int) string {
     .detail, .line { color: var(--muted); font-size: 13px; }
     .empty { padding: 20px; color: var(--muted); }
     .error { margin: 16px; border: 1px solid #fecaca; background: #fff1f2; border-radius: 8px; padding: 14px; color: #991b1b; }
+    .source-chapter { border-top: 1px solid var(--line); padding: 16px; background: #fbfdff; }
+    .source-chapter h3 { margin: 0 0 10px; font-size: 16px; letter-spacing: 0; }
+    .source-code { margin: 0; border: 1px solid #dbe3ee; border-radius: 8px; overflow: auto; background: #0b1020; color: #e5edf8; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 13px; line-height: 1.55; }
+    .source-line { display: grid; grid-template-columns: 56px minmax(0, 1fr); min-width: max-content; }
+    .source-line-number { user-select: none; text-align: right; color: #8aa0bd; padding: 0 12px; border-right: 1px solid #24304a; }
+    .source-line-code { white-space: pre; padding: 0 14px; }
+    @media (max-width: 720px) { .toc ol { columns: 1; } .file-head { display: block; } .badge { display: inline-block; margin-top: 10px; } }
   </style>
 </head>
 <body>
   <header>
     <h1>Klang Source Documentation</h1>
-    <p>Generated from Klang source files. Use the cards below to scan public declarations, module shape, and type surfaces.</p>
+    <p>Generated from Klang source files. Use the declaration cards and source chapters below to scan public APIs, module shape, and the exact code behind each file.</p>
   </header>
   <main>
 `)
-	builder.WriteString(fmt.Sprintf(`    <div class="summary"><div class="metric"><strong>%d</strong><span>source files</span></div><div class="metric"><strong>%d</strong><span>documented items</span></div></div>`, len(files), totalItems))
-	for _, file := range files {
-		builder.WriteString(`<section class="file">`)
+	builder.WriteString(fmt.Sprintf(`    <div class="summary"><div class="metric"><strong>%d</strong><span>source files</span></div><div class="metric"><strong>%d</strong><span>documented items</span></div><div class="metric"><strong>%d</strong><span>source lines</span></div></div>`, len(files), totalItems, totalSourceLines))
+	builder.WriteString(`<nav class="toc"><h2>Source Chapters</h2><ol>`)
+	for index, file := range files {
+		builder.WriteString(fmt.Sprintf(`<li><a href="#source-%d">%s</a> <span>%d line(s)</span></li>`, index+1, html.EscapeString(file.Name), file.LineCount))
+	}
+	builder.WriteString(`</ol></nav>`)
+	for index, file := range files {
+		builder.WriteString(fmt.Sprintf(`<section class="file" id="source-%d">`, index+1))
 		builder.WriteString(`<div class="file-head"><div>`)
-		builder.WriteString(`<h2>` + html.EscapeString(file.Name) + `</h2>`)
+		builder.WriteString(`<h2>` + fmt.Sprintf("Chapter %d: ", index+1) + html.EscapeString(file.Name) + `</h2>`)
 		builder.WriteString(`<p>` + html.EscapeString(file.Path) + `</p>`)
 		builder.WriteString(`</div><span class="badge">` + fmt.Sprintf("%d line(s)", file.LineCount) + `</span></div>`)
 		if len(file.ParseError) != 0 {
@@ -564,34 +613,51 @@ func renderDocumentationHTML(files []docFile, totalItems int) string {
 				builder.WriteString(fmt.Sprintf("Parse error at %d:%d: %s", parseErr.Line, parseErr.Column, html.EscapeString(parseErr.Message)))
 				builder.WriteString(`</div>`)
 			}
-			builder.WriteString(`</section>`)
-			continue
-		}
-		if len(file.Items) == 0 {
-			builder.WriteString(`<div class="empty">No documentable declarations found.</div></section>`)
-			continue
-		}
-		builder.WriteString(`<div class="items">`)
-		for _, item := range file.Items {
-			builder.WriteString(`<article class="item">`)
-			builder.WriteString(`<div class="item-kind">` + html.EscapeString(item.Kind) + `</div>`)
-			builder.WriteString(`<h3>` + html.EscapeString(item.Name) + `</h3>`)
-			builder.WriteString(`<code>` + html.EscapeString(item.Signature) + `</code>`)
-			if item.Detail != "" {
-				builder.WriteString(`<p class="detail">` + html.EscapeString(item.Detail) + `</p>`)
+		} else if len(file.Items) == 0 {
+			builder.WriteString(`<div class="empty">No documentable declarations found.</div>`)
+		} else {
+			builder.WriteString(`<div class="items">`)
+			for _, item := range file.Items {
+				builder.WriteString(`<article class="item">`)
+				builder.WriteString(`<div class="item-kind">` + html.EscapeString(item.Kind) + `</div>`)
+				builder.WriteString(`<h3>` + html.EscapeString(item.Name) + `</h3>`)
+				builder.WriteString(`<code>` + html.EscapeString(item.Signature) + `</code>`)
+				if item.Detail != "" {
+					builder.WriteString(`<p class="detail">` + html.EscapeString(item.Detail) + `</p>`)
+				}
+				if item.Line > 0 {
+					builder.WriteString(fmt.Sprintf(`<p class="line">line %d</p>`, item.Line))
+				}
+				builder.WriteString(`</article>`)
 			}
-			if item.Line > 0 {
-				builder.WriteString(fmt.Sprintf(`<p class="line">line %d</p>`, item.Line))
-			}
-			builder.WriteString(`</article>`)
+			builder.WriteString(`</div>`)
 		}
-		builder.WriteString(`</div></section>`)
+		builder.WriteString(renderSourceChapter(file))
+		builder.WriteString(`</section>`)
 	}
 	builder.WriteString(`
   </main>
 </body>
 </html>
 `)
+	return builder.String()
+}
+
+func renderSourceChapter(file docFile) string {
+	var builder strings.Builder
+	builder.WriteString(`<div class="source-chapter">`)
+	builder.WriteString(`<h3>Source Code</h3>`)
+	builder.WriteString(`<pre class="source-code" aria-label="Source code for ` + html.EscapeString(file.Name) + `">`)
+	for index, line := range file.Source {
+		builder.WriteString(`<span class="source-line">`)
+		builder.WriteString(fmt.Sprintf(`<span class="source-line-number">%d</span>`, index+1))
+		builder.WriteString(`<span class="source-line-code">` + html.EscapeString(line) + `</span>`)
+		builder.WriteString(`</span>`)
+	}
+	if len(file.Source) == 0 {
+		builder.WriteString(`<span class="source-line"><span class="source-line-number">1</span><span class="source-line-code"></span></span>`)
+	}
+	builder.WriteString(`</pre></div>`)
 	return builder.String()
 }
 

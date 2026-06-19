@@ -2,10 +2,6 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
-- make here strings return a string value in variables
-   - this usage should increase more once the language is in a powerful state
-- in the doc toolchain command
-   - make it that it will show the code
 - make progrramming language api data oriented
 - add pass by reference and pass by value sementaics in the langauge
 - add a new flag to allow user to add there own functions to the stdlib via new command like —new_std_lib=["test”, “processor”]

@@ -30,6 +30,41 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramTreatsHereStringsAsTypedStrings(t *testing.T) {
+	program := programFromSource(`
+function Render() : String {
+    return //
+<main>
+    <h1>Hello from kLang!</h1>
+</main>
+//;
+}
+
+function Accept(value : String) : Int {
+    return len(value);
+}
+
+function Main() : Int {
+    local String explicit = //
+<p>typed</p>
+//;
+    let inferred = //
+<p>inferred</p>
+//;
+    let mut mutable = //
+<p>mutable</p>
+//;
+    mutable = Render();
+    return Accept(explicit) + Accept(inferred) + Accept(mutable);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected here string type check to pass, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramAcceptsAssertAndRuntimeTypeInfo(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

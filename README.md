@@ -173,6 +173,14 @@ Print a source file with line labels:
 go run . file examples/helloworld/first.klang
 ```
 
+Generate static HTML documentation for one file or a folder project:
+
+```sh
+go run . doc '--sourcefile=[examples/helloworld]' --out=helloworld-docs.html
+```
+
+The generated documentation includes declaration cards and source-code chapters for each loaded `.klang` file.
+
 Package a checked project into a compact source bundle:
 
 ```sh
