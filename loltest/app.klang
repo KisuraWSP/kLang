@@ -1,20 +1,31 @@
 -- import "runtime"; -- this code will fail because module is disabled 
                 --  but it will not fail right now because module contains garbage code actually
 
+import "array";
+(*
+    There is a bug in the code
+    This should be a valid program actually
+    But idk why
+    and if that is the case the language should have told me what it wanted actually
+    So i think we might need to add more features
+    then polish them little by little
+    Fix any sort of bugs
+    Make sure the programming lnaguage is able to understand the users source code
+    if the language cannot understand the code atleast it should tell me what it should expect though
+*)
 namespace App {
     #set_entry_point_to_here
-    function Start() : Int {
-        print("Welcome to loltest");
-
-        local Table tabel = {"name" : "hallo"};
-        local Int int;
-        local String string;
-        local Float float = 6.999;
-
-        print(tabel.name);
-        print(int);
-        print("string= [",string, "]");
-        print(float);
-        return 0;
+    function Entry() : Int {
+        const length = Int.sizeof;
+        -- there is an error in this 
+        -- this should infer the type
+        -- const capacity = 100_000_000; 
+        local Int capacity = 100_000_000; 
+        local mut List[Int] list = [10, 10, 10];
+        let mut array = Array(list, length, capacity);   
+        print(array.count());
+        print(array.capacity_value());
+        print(array.empty()); 
+        return 0;   
     }
 }

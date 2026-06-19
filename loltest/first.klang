@@ -1,5 +1,6 @@
 import "app";
 
 function Main() : Int {
-    return App.Start();
+    App.Entry();
+    return 0;
 }
