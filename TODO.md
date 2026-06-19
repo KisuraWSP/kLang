@@ -3,7 +3,6 @@
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
 - make progrramming language api data oriented
-- add pass by reference and pass by value sementaics in the langauge
 - add a new flag to allow user to add there own functions to the stdlib via new command like —new_std_lib=["test”, “processor”]
 - Allow support of assigning values to variables if a function supports multiple return types
 - allow support for hot/cold programs

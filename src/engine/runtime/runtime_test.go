@@ -414,6 +414,43 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimePassesMutableParameterByValue(t *testing.T) {
+	result := runParsedSource(t, `
+function Mutate(mut value : Int) : Int {
+    value += 1;
+    return value;
+}
+
+function Main() : Int {
+    local mut Int count = 1;
+    Mutate(count);
+    return count;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected pass-by-value call to leave caller unchanged, got %#v", result.Value)
+	}
+}
+
+func TestRuntimePassesReferenceParameterByReference(t *testing.T) {
+	result := runParsedSource(t, `
+function Increment(ref value : Int) {
+    value += 1;
+}
+
+function Main() : Int {
+    local mut Int count = 1;
+    Increment(count);
+    return count;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 2 {
+		t.Fatalf("expected reference call to update caller value, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesRangeLoopAndBreak(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {

@@ -146,6 +146,12 @@ type callSite struct {
 	Column int
 }
 
+type callArgument struct {
+	Value   Value
+	Binding *Binding
+	Name    string
+}
+
 type RegionData struct {
 	Name     string
 	TypeName string
@@ -2054,7 +2060,7 @@ func (runtime *Runtime) awaitValue(value Value) (Value, error) {
 	if data.Done {
 		return data.Value, nil
 	}
-	result, err := runtime.callFunctionMode(data.Function, data.Args, false)
+	result, err := runtime.callFunctionMode(data.Function, data.Args, nil, false)
 	if err != nil {
 		return NullValue(), err
 	}
@@ -2220,9 +2226,12 @@ func (runtime *Runtime) evalCall(expr parser.CallExpression, env *Environment) (
 	}
 
 	args := make([]Value, 0, len(expr.Arguments))
+	callArgs := make([]callArgument, 0, len(expr.Arguments))
 	if runtime.isLazyFunction(callee.Data.(string)) {
 		for _, arg := range expr.Arguments {
-			args = append(args, ThunkValue(arg, env))
+			value := ThunkValue(arg, env)
+			args = append(args, value)
+			callArgs = append(callArgs, callArgument{Value: value})
 		}
 	} else {
 		for _, arg := range expr.Arguments {
@@ -2231,17 +2240,27 @@ func (runtime *Runtime) evalCall(expr parser.CallExpression, env *Environment) (
 				return NullValue(), err
 			}
 			args = append(args, value)
+			callArgs = append(callArgs, runtime.callArgument(arg, env, value))
 		}
 	}
-	return runtime.callFunctionAt(callee.Data.(string), args, runtime.callSiteFor(expr.Pos))
+	return runtime.callFunctionAt(callee.Data.(string), args, callArgs, runtime.callSiteFor(expr.Pos))
 }
 
-func (runtime *Runtime) callFunctionAt(name string, args []Value, site callSite) (Value, error) {
+func (runtime *Runtime) callArgument(arg parser.ExpressionNode, env *Environment, value Value) callArgument {
+	if identifier, ok := arg.(parser.IdentifierExpression); ok {
+		if binding, exists := env.Get(identifier.Name); exists {
+			return callArgument{Value: value, Binding: binding, Name: identifier.Name}
+		}
+	}
+	return callArgument{Value: value}
+}
+
+func (runtime *Runtime) callFunctionAt(name string, args []Value, callArgs []callArgument, site callSite) (Value, error) {
 	runtime.callSites = append(runtime.callSites, site)
 	defer func() {
 		runtime.callSites = runtime.callSites[:len(runtime.callSites)-1]
 	}()
-	return runtime.callFunction(name, args)
+	return runtime.callFunctionMode(name, args, callArgs, true)
 }
 
 func (runtime *Runtime) callSiteFor(pos parser.Position) callSite {
@@ -2309,10 +2328,10 @@ func (runtime *Runtime) evalIndex(expr parser.IndexExpression, env *Environment)
 }
 
 func (runtime *Runtime) callFunction(name string, args []Value) (Value, error) {
-	return runtime.callFunctionMode(name, args, true)
+	return runtime.callFunctionMode(name, args, nil, true)
 }
 
-func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bool) (result Value, err error) {
+func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []callArgument, wrapAsync bool) (result Value, err error) {
 	name = runtime.resolveAliasPath(name)
 	if typeName, ok := runtimeTypeInfoCallTarget(name); ok {
 		if len(args) != 0 {
@@ -2537,7 +2556,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 		if coroutine.Done {
 			return OptionNoneValue(), nil
 		}
-		value, err := runtime.callFunctionMode(coroutine.Function, nil, false)
+		value, err := runtime.callFunctionMode(coroutine.Function, nil, nil, false)
 		if err != nil {
 			return NullValue(), err
 		}
@@ -2559,7 +2578,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 		functionName := args[0].Data.(string)
 		child := runtime.childRuntime()
 		go func() {
-			value, err := child.callFunctionMode(functionName, threadArgs, false)
+			value, err := child.callFunctionMode(functionName, threadArgs, nil, false)
 			thread.Mutex.Lock()
 			thread.Value = cloneValue(value)
 			thread.Err = err
@@ -2911,6 +2930,23 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 			if !valueMatchesType(value, param.Type) {
 				return NullValue(), Error{Message: fmt.Sprintf("function %s argument %q expects %s, got %s", resolvedName, param.Name, param.Type, value.Kind)}
 			}
+			if param.ByRef {
+				if index >= len(callArgs) || callArgs[index].Binding == nil {
+					return NullValue(), Error{Message: fmt.Sprintf("function %s reference argument %q expects a variable", resolvedName, param.Name)}
+				}
+				sourceBinding := callArgs[index].Binding
+				sourceSnapshot := sourceBinding.Snapshot()
+				if !sourceSnapshot.Mutable {
+					return NullValue(), Error{Message: fmt.Sprintf("function %s reference argument %q requires mutable variable %q", resolvedName, param.Name, callArgs[index].Name)}
+				}
+				if !valueMatchesType(sourceSnapshot.Value, param.Type) {
+					return NullValue(), Error{Message: fmt.Sprintf("function %s reference argument %q expects %s, got %s", resolvedName, param.Name, param.Type, sourceSnapshot.Value.Kind)}
+				}
+				if err := env.DefineAlias(param.Name, sourceBinding); err != nil {
+					return NullValue(), err
+				}
+				continue
+			}
 			if err := runtime.defineValue(env, param.Name, param.Mutable, param.Type, value); err != nil {
 				return NullValue(), err
 			}
@@ -2932,6 +2968,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, wrapAsync bo
 		}
 		if currentSignal.kind == signalTailCall {
 			args = currentSignal.tailArgs
+			callArgs = nil
 			continue
 		}
 		if currentSignal.kind == signalThrow {

@@ -17,6 +17,7 @@ kLang currently experiments with:
 - Inferred declarations with `let`, `val`, `var`, and `const`.
 - Builtin `Option[T]` and `Result[T, E]` values.
 - Function-first programming, first-class functions, lambdas, and inline candidates.
+- Pass-by-value function calls by default, with explicit `ref` parameters for mutable pass-by-reference calls.
 - Multiple return values, named returns, destructuring, and discard bindings with `_`.
 - Pattern matching with `if value == { case ... }`.
 - Typed ordinal `enum` declarations inspired by Go `const`/`iota`.

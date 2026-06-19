@@ -151,6 +151,7 @@ type Parameter struct {
 	Name    string
 	Type    string
 	Mutable bool
+	ByRef   bool
 	Default Expression
 }
 

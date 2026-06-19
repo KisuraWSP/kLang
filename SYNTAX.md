@@ -93,6 +93,22 @@ function එකතු(අගය : Int, 😀 : Int) : Int {
 }
 local Int මුළු = එකතු(1, 2);
 
+-- function arguments are pass-by-value by default. A mutable parameter changes
+-- only the local copy inside the callee.
+function IncrementCopy(mut value : Int) : Int {
+    value += 1;
+    return value;
+}
+
+-- ref parameters alias a mutable caller binding and can write back to it.
+function IncrementRef(ref value : Int) {
+    value += 1;
+}
+
+local mut Int referenceCount = 1;
+IncrementCopy(referenceCount); -- referenceCount is still 1
+IncrementRef(referenceCount);  -- referenceCount is now 2
+
 -- assert checks runtime invariants. The condition must be Bool.
 assert මුළු == 3;
 

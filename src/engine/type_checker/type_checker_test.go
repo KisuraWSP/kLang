@@ -1368,6 +1368,66 @@ function Mutate(mut value : Int) : Int {
 	}
 }
 
+func TestCheckProgramAcceptsReferenceParameterMutation(t *testing.T) {
+	program := programFromSource(`
+function Increment(ref value : Int) {
+    value += 1;
+}
+
+function Main() : Int {
+    local mut Int count = 1;
+    Increment(count);
+    return count;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected reference parameter program to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsImmutableReferenceArgument(t *testing.T) {
+	program := programFromSource(`
+function Increment(ref value : Int) {
+    value += 1;
+}
+
+function Main() : Int {
+    local Int count = 1;
+    Increment(count);
+    return count;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `requires mutable variable "count"`)
+}
+
+func TestCheckProgramRejectsTemporaryReferenceArgument(t *testing.T) {
+	program := programFromSource(`
+function Increment(ref value : Int) {
+    value += 1;
+}
+
+function Main() : Int {
+    Increment(1);
+    return 1;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "reference argument 1 expects a variable")
+}
+
+func TestCheckProgramRejectsReferenceParameterDefault(t *testing.T) {
+	program := programFromSource(`
+function Increment(ref value : Int = 1) {
+    value += 1;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "reference parameter value cannot have a default value")
+}
+
 func TestCheckProgramExposesArgsGlobal(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

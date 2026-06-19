@@ -43,6 +43,23 @@ function Add(left : Int, right : Int) : Int {
 	}
 }
 
+func TestParseFunctionWithReferenceParameter(t *testing.T) {
+	program, errors := Parse(`
+function Increment(ref value : Int) {
+    value += 1;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	if len(fn.Params) != 1 || !fn.Params[0].ByRef || !fn.Params[0].Mutable || fn.Params[0].Name != "value" {
+		t.Fatalf("unexpected reference parameter: %#v", fn.Params)
+	}
+}
+
 func TestParseDefaultParametersRestrictedGenericsAndConditionalExpression(t *testing.T) {
 	program, errors := Parse(`
 function Pick[T restrict[UInt, Int, Float]](value : T = 1) : T {

@@ -108,6 +108,7 @@ type variableSymbol struct {
 	InferredType string
 	KnownSome    bool
 	Mutable      bool
+	ByRef        bool
 	Used         bool
 	Parameter    bool
 	Default      string
@@ -1427,6 +1428,12 @@ func parseParams(input string) ([]variableSymbol, error) {
 			name := strings.TrimSpace(part[:evalAssign])
 			defaultValue = strings.TrimSpace(part[evalAssign+len(":="):])
 			mutable := false
+			byRef := false
+			if strings.HasPrefix(name, "ref ") {
+				byRef = true
+				mutable = true
+				name = strings.TrimSpace(strings.TrimPrefix(name, "ref"))
+			}
 			if strings.HasPrefix(name, "mut ") {
 				mutable = true
 				name = strings.TrimSpace(strings.TrimPrefix(name, "mut"))
@@ -1434,7 +1441,10 @@ func parseParams(input string) ([]variableSymbol, error) {
 			if name == "" || defaultValue == "" {
 				return nil, fmt.Errorf("function parameter %q must include a name and default value", strings.TrimSpace(part))
 			}
-			params = append(params, variableSymbol{Name: name, Type: anyType, Mutable: mutable, Default: defaultValue})
+			if byRef {
+				return nil, fmt.Errorf("reference parameter %s cannot have a default value", name)
+			}
+			params = append(params, variableSymbol{Name: name, Type: anyType, Mutable: mutable, ByRef: byRef, Default: defaultValue})
 			continue
 		}
 		if assignIndex := findTopLevelOperator(part, []string{"="}); assignIndex != -1 {
@@ -1450,6 +1460,12 @@ func parseParams(input string) ([]variableSymbol, error) {
 		}
 		name := strings.TrimSpace(part[:colon])
 		mutable := false
+		byRef := false
+		if strings.HasPrefix(name, "ref ") {
+			byRef = true
+			mutable = true
+			name = strings.TrimSpace(strings.TrimPrefix(name, "ref"))
+		}
 		if strings.HasPrefix(name, "mut ") {
 			mutable = true
 			name = strings.TrimSpace(strings.TrimPrefix(name, "mut"))
@@ -1461,7 +1477,10 @@ func parseParams(input string) ([]variableSymbol, error) {
 		if !isKnownType(typeName) {
 			return nil, fmt.Errorf("function parameter %s uses unknown type %s", name, typeName)
 		}
-		params = append(params, variableSymbol{Name: name, Type: typeName, Mutable: mutable, Default: defaultValue})
+		if byRef && defaultValue != "" {
+			return nil, fmt.Errorf("reference parameter %s cannot have a default value", name)
+		}
+		params = append(params, variableSymbol{Name: name, Type: typeName, Mutable: mutable, ByRef: byRef, Default: defaultValue})
 	}
 	return params, nil
 }
@@ -2969,6 +2988,19 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 	for index, arg := range args {
 		argType := checker.inferExpression(arg, locals, source, line)
 		param := fn.Params[index]
+		if param.ByRef {
+			identifier := strings.TrimSpace(arg)
+			if isIdentifier(identifier) {
+				variable, exists := checker.lookupVariableNoUse(identifier, locals)
+				if !exists {
+					checker.addError(source, line, fmt.Sprintf("function %s reference argument %d expects a variable", name, index+1))
+				} else if !variable.Mutable {
+					checker.addError(source, line, fmt.Sprintf("function %s reference argument %d requires mutable variable %q", name, index+1, identifier))
+				}
+			} else {
+				checker.addError(source, line, fmt.Sprintf("function %s reference argument %d expects a variable", name, index+1))
+			}
+		}
 		if !isAssignable(param.Type, argType) {
 			checker.addError(source, line, fmt.Sprintf("function %s argument %d expects %s, got %s", name, index+1, param.Type, argType))
 		}

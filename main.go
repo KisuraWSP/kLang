@@ -1265,11 +1265,7 @@ func functionDocSignature(namespace string, fn parser.FunctionStatement) string 
 	}
 	params := make([]string, 0, len(fn.Params))
 	for _, param := range fn.Params {
-		mut := ""
-		if param.Mutable {
-			mut = "mut "
-		}
-		params = append(params, fmt.Sprintf("%s%s : %s", mut, param.Name, param.Type))
+		params = append(params, fmt.Sprintf("%s%s : %s", parameterModifier(param), param.Name, param.Type))
 	}
 	return fmt.Sprintf("%sfunction %s(%s) : %s", prefix, namespace+fn.Name, strings.Join(params, ", "), fn.ReturnType)
 }
@@ -1277,9 +1273,19 @@ func functionDocSignature(namespace string, fn parser.FunctionStatement) string 
 func aliasFunctionDocSignature(namespace string, alias parser.AliasFunctionStatement) string {
 	params := make([]string, 0, len(alias.Params))
 	for _, param := range alias.Params {
-		params = append(params, fmt.Sprintf("%s : %s", param.Name, param.Type))
+		params = append(params, fmt.Sprintf("%s%s : %s", parameterModifier(param), param.Name, param.Type))
 	}
 	return fmt.Sprintf("alias function %s(%s) : %s", namespace+alias.Name, strings.Join(params, ", "), alias.ReturnType)
+}
+
+func parameterModifier(param parser.Parameter) string {
+	if param.ByRef {
+		return "ref "
+	}
+	if param.Mutable {
+		return "mut "
+	}
+	return ""
 }
 
 func aliasFunctionDetail(alias parser.AliasFunctionStatement) string {

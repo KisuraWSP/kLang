@@ -335,6 +335,7 @@ func (parser *Parser) parseAliasParameters() []Parameter {
 		return params
 	}
 	for {
+		byRef := parser.matchContextualKeyword("ref")
 		mutable := parser.match(lexer.TokenMut)
 		name := parser.consumeIdentifierLike("expected alias parameter name")
 		typeName := "T"
@@ -347,7 +348,7 @@ func (parser *Parser) parseAliasParameters() []Parameter {
 		if parser.match(lexer.TokenAssign) {
 			defaultExpr = parser.parseExpressionUntil(lexer.TokenComma, lexer.TokenRightBrace)
 		}
-		params = append(params, Parameter{Name: name.Literal, Type: typeName, Mutable: mutable, Default: defaultExpr})
+		params = append(params, Parameter{Name: name.Literal, Type: typeName, Mutable: mutable || byRef, ByRef: byRef, Default: defaultExpr})
 		if !parser.match(lexer.TokenComma) {
 			break
 		}
@@ -1042,6 +1043,7 @@ func (parser *Parser) parseParameters() []Parameter {
 	}
 
 	for {
+		byRef := parser.matchContextualKeyword("ref")
 		mutable := parser.match(lexer.TokenMut)
 		name := parser.consumeIdentifierLike("expected parameter name")
 		var defaultExpr Expression
@@ -1055,7 +1057,7 @@ func (parser *Parser) parseParameters() []Parameter {
 		if parser.match(lexer.TokenAssign) {
 			defaultExpr = parser.parseExpressionUntil(lexer.TokenComma, lexer.TokenRightBrace)
 		}
-		params = append(params, Parameter{Name: name.Literal, Type: typeName, Mutable: mutable, Default: defaultExpr})
+		params = append(params, Parameter{Name: name.Literal, Type: typeName, Mutable: mutable || byRef, ByRef: byRef, Default: defaultExpr})
 
 		if !parser.match(lexer.TokenComma) {
 			break
@@ -1778,6 +1780,14 @@ func (parser *Parser) consumeOptionalSemicolon() {
 
 func (parser *Parser) match(tokenType lexer.TokenType) bool {
 	if !parser.check(tokenType) {
+		return false
+	}
+	parser.advance()
+	return true
+}
+
+func (parser *Parser) matchContextualKeyword(literal string) bool {
+	if parser.atEnd() || !parser.check(lexer.TokenIdentifier) || parser.current().Literal != literal {
 		return false
 	}
 	parser.advance()

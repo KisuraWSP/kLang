@@ -42,6 +42,16 @@ func (env *Environment) Define(name string, mutable bool, typeName string, value
 	return nil
 }
 
+func (env *Environment) DefineAlias(name string, binding *Binding) error {
+	env.mu.Lock()
+	defer env.mu.Unlock()
+	if _, exists := env.bindings[name]; exists {
+		return Error{Message: fmt.Sprintf("variable %q is already defined in this scope", name)}
+	}
+	env.bindings[name] = binding
+	return nil
+}
+
 func (env *Environment) Get(name string) (*Binding, bool) {
 	env.mu.RLock()
 	if binding, ok := env.bindings[name]; ok {

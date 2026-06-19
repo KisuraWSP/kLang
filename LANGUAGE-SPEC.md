@@ -13,7 +13,7 @@
 13. `spawn`, `join`, and `thread_status` provide multi-threaded interpreter workers represented by `Thread[T]`.
 14. `Args` is a builtin immutable `List[String]` containing the command line arguments for the current workspace.
 15. `copy` and `clone` create cloned values without moving from the source binding.
-16. Function and lambda parameters are immutable by default; use `mut` before the parameter name to allow mutation.
+16. Function and lambda parameters are immutable by default and passed by value; use `mut` before the parameter name to allow mutation of the local copy, or `ref` before the parameter name to pass a mutable caller binding by reference.
 17. `--raw-lang` disables stdlib module resolution while preserving local workspace imports.
 18. `let`, `val`, `var`, and `const` are inferred declaration keywords with strict type checking.
 19. Builtin type names expose `.sizeof`, which returns an `Int` size value.
@@ -65,6 +65,7 @@ Rules
 - Unused local variables and function parameters produce warnings. Use `_` for intentionally ignored values.
 - Multiple return signatures use `(name : Type, mut OtherType)` syntax and return values with `return left, right;`.
 - Named return values are zero-initialized in the function body.
+- Function arguments are pass-by-value by default, so mutating a `mut` parameter changes only the callee's local copy. A `ref name : Type` parameter aliases the caller's mutable variable; calls to `ref` parameters must pass a direct mutable variable, not a literal or temporary expression.
 - `private { ... }` creates a private lexical block.
 - Extension methods declared inside an alias function use `this` as their receiver.
 - Alias functions may declare members, traits, impls, allocation hooks, deallocation hooks, side-effect hooks, and extension methods in the same block.
