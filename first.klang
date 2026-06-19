@@ -1,0 +1,46 @@
+-- A Basic Program
+-- In the Future we will improve this by adding more code actually
+-- This file is for examples purposes for users to see all the features of this 
+-- programming language when we hook up default_program.klang we know this
+-- language is powerful enough to call itself and be able to modify itself
+-- and be able to understand complex user code
+
+val appName = "demo";
+const intSize = Int.sizeof;
+
+enum NetworkState {
+    Idle;
+    Connecting = 10;
+    Connected;
+    Failed;
+}
+
+function Add(left : Int, right : Int) : Int {
+    return left + right;
+}
+
+function RememberIndex(index : Int) : Int {
+    return index;
+}
+
+function Main() : Int {
+    let maybeCount = Some(41);
+    let mut total = Add(maybeCount.value, 1);
+    local NetworkState state = NetworkState.Connected;
+
+    if state == {
+        case NetworkState.Idle:
+            print(appName, "idle");
+        case NetworkState.Connected:
+            print(appName, "connected", total);
+        case:
+            print(appName, "other state", state.name);
+    }
+
+    local Int itemCount = [10, 20, 30].count;
+    local String loud = "hallo".uppercase();
+    local Int lastIndex = 5.times(RememberIndex);
+
+    print(loud, itemCount, lastIndex, intSize);
+    return total;
+}
