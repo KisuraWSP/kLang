@@ -28,9 +28,21 @@ type Warning struct {
 	Message string
 }
 
+type State struct {
+	Phase    string
+	Kind     string
+	Name     string
+	Type     string
+	Function string
+	File     string
+	Line     int
+	Mutable  bool
+}
+
 type Report struct {
 	Errors   []Error
 	Warnings []Warning
+	States   []State
 }
 
 func (report Report) Passed() bool {
@@ -50,6 +62,7 @@ type TypeChecker struct {
 	enums           map[string]enumSymbol
 	errors          []Error
 	warnings        []Warning
+	states          []State
 	namespace       string
 }
 
@@ -159,6 +172,7 @@ func CheckProgram(program file.Program) Report {
 		checker.collectGlobals(unit)
 	}
 	checker.globals["Args"] = variableSymbol{Name: "Args", Type: "List[String]", Mutable: false}
+	checker.recordState(State{Kind: "builtin", Name: "Args", Type: "List[String]", File: "<runtime>", Line: 0})
 	checker.collectASTGlobals(parsed)
 	for _, unit := range units {
 		checker.checkTopLevelCalls(unit)
@@ -168,7 +182,15 @@ func CheckProgram(program file.Program) Report {
 	}
 	checker.checkLexicalScopes(program.EntryPoint, parsed)
 
-	return Report{Errors: checker.errors, Warnings: checker.warnings}
+	return Report{Errors: checker.errors, Warnings: checker.warnings, States: checker.states}
+}
+
+func (checker *TypeChecker) recordState(state State) {
+	if state.Phase == "" {
+		state.Phase = "compile"
+	}
+	state.Type = normalizeType(state.Type)
+	checker.states = append(checker.states, state)
 }
 
 func (checker *TypeChecker) collectFunctionGroups(parsed parser.ParsedProgram) {
@@ -552,6 +574,14 @@ func (checker *TypeChecker) collectGlobals(unit sourceUnit) {
 			File:      unit.Path,
 			Line:      decl.Line,
 		}
+		checker.recordState(State{
+			Kind:    decl.Scope,
+			Name:    decl.Name,
+			Type:    decl.Type,
+			File:    unit.Path,
+			Line:    decl.Line,
+			Mutable: decl.Mutable,
+		})
 	}
 }
 
@@ -585,15 +615,41 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 			param.Line = fn.Line
 		}
 		locals[param.Name] = param
+		checker.recordState(State{
+			Kind:     "parameter",
+			Name:     param.Name,
+			Type:     param.Type,
+			Function: fn.Name,
+			File:     fn.File,
+			Line:     param.Line,
+			Mutable:  param.Mutable,
+		})
 		if !isDiscardIdentifier(param.Name) {
 			declared[param.Name] = true
 		}
 	}
+	checker.recordState(State{
+		Kind:     "return",
+		Name:     fn.Name,
+		Type:     fn.ReturnType,
+		Function: fn.Name,
+		File:     fn.File,
+		Line:     fn.Line,
+	})
 	for _, returnValue := range fn.ReturnTypes {
 		if returnValue.Name == "" {
 			continue
 		}
 		locals[returnValue.Name] = variableSymbol{Name: returnValue.Name, Type: returnValue.Type, Mutable: returnValue.Mutable, File: fn.File, Line: fn.Line}
+		checker.recordState(State{
+			Kind:     "named_return",
+			Name:     returnValue.Name,
+			Type:     returnValue.Type,
+			Function: fn.Name,
+			File:     fn.File,
+			Line:     fn.Line,
+			Mutable:  returnValue.Mutable,
+		})
 	}
 
 	for nestedName := range collectNestedFunctionNames(fn.Body) {
@@ -708,6 +764,15 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 			File:         fn.File,
 			Line:         line,
 		}
+		checker.recordState(State{
+			Kind:     current.Scope,
+			Name:     current.Name,
+			Type:     typeName,
+			Function: fn.Name,
+			File:     fn.File,
+			Line:     line,
+			Mutable:  current.Mutable,
+		})
 		declared[current.Name] = true
 	case parser.ReturnStatement:
 		if len(current.Values) != 0 {
@@ -2456,6 +2521,11 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.addError(source, line, "len expects 1 argument")
 		}
 		return "Int"
+	case "debug_state":
+		if len(args) != 0 {
+			checker.addError(source, line, "debug_state expects 0 arguments")
+		}
+		return "List[Table]"
 	case "range":
 		if len(args) != 1 {
 			checker.addError(source, line, "range expects 1 argument")

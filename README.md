@@ -19,6 +19,7 @@ kLang currently experiments with:
 - Builtin `Set[T]` for deterministic deduplication and membership checks.
 - Runtime-backed string formatting through `format`, `printf`, and the stdlib `fmt` module.
 - Generic constraints through `restrict[...]`, named groups such as `numeric`/`hashable`/`iterable`, and trait-bound type parameters.
+- Compile-time and runtime state tracking for variables, parameters, named returns, and return values.
 - Function-first programming, first-class functions, lambdas, and inline candidates.
 - Pass-by-value function calls by default, with explicit `ref` parameters for mutable pass-by-reference calls.
 - Multiple return values, named returns, destructuring, and discard bindings with `_`.

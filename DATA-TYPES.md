@@ -75,3 +75,5 @@ Table helper builtins are available without imports:
 `iter(table)` yields insertion-order `{key, value}` entry tables. Table iteration order is deterministic insertion order for own entries; fallback entries are visible through lookup but are not included in `.count`, `table_keys`, `table_values`, `table_entries`, or direct iteration.
 
 The language engine builds a `Context` for each loaded workspace and reports failures through `ErrorContext`. This diagnostic context is used by module resolution, parsing, type checking, runtime execution, packaging, and WASM backend generation.
+
+The compiler and runtime track symbol state for globals, locals, parameters, named returns, and function return values. Compile-time state records include the declaration kind, name, type, function, mutability, file, and line. Runtime state records include the phase, event (`define`, `bind`, `assign`, `move`, or `return`), kind, declared type, runtime type, function, mutability, and moved status. `debug_state()` returns the runtime records as `List[Table]`.

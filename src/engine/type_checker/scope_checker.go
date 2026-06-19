@@ -733,7 +733,7 @@ func isBuiltinFunctionName(name string) bool {
 		"runtime_debug_loc_of", "runtime_debug_line_of", "runtime_debug_pos_of",
 		"runtime.debug.__LOC__", "runtime.debug.__FILE__", "runtime.debug.__LINE__", "runtime.debug.__MODULE__", "runtime.debug.__POS__", "runtime.debug.__FUNCTION__",
 		"runtime.debug.__LOC_OF__", "runtime.debug.__LINE_OF__", "runtime.debug.__POS_OF__",
-		"debug", "debug_type", "debug_stack", "breakpoint", "js_import", "js_source", "js_exports", "js_call",
+		"debug", "debug_type", "debug_stack", "debug_state", "breakpoint", "js_import", "js_source", "js_exports", "js_call",
 		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true
 	default:

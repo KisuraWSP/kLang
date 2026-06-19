@@ -228,11 +228,24 @@ type Runtime struct {
 	nextFunc        int
 	innerSets       []map[string]Value
 	args            []string
+	states          []StateRecord
 }
 
 type RuntimeOutput struct {
 	Mutex sync.Mutex
 	Lines []string
+}
+
+type StateRecord struct {
+	Phase    string
+	Event    string
+	Kind     string
+	Name     string
+	Type     string
+	Runtime  string
+	Function string
+	Mutable  bool
+	Moved    bool
 }
 
 const defaultMaxCallDepth = 1024
@@ -1389,13 +1402,33 @@ func (runtime *Runtime) storeLoopHeaderBinding(name string, value Value, env *En
 }
 
 func (runtime *Runtime) defineValue(env *Environment, name string, mutable bool, typeName string, value Value) error {
-	return runtime.defineValueInRegion(env, name, mutable, typeName, value, MemoryStack)
+	return runtime.defineValueWithState(env, name, mutable, typeName, value, MemoryStack, "variable", "define")
 }
 
 func (runtime *Runtime) defineValueInRegion(env *Environment, name string, mutable bool, typeName string, value Value, region MemoryRegion) error {
+	return runtime.defineValueWithState(env, name, mutable, typeName, value, region, "variable", "define")
+}
+
+func (runtime *Runtime) defineValueWithState(env *Environment, name string, mutable bool, typeName string, value Value, region MemoryRegion, kind string, event string) error {
 	typeName = normalizeRuntimeType(typeName)
 	snapshot := shareValue(value)
-	return env.Define(name, mutable, typeName, snapshot, runtime.memory.Allocate(snapshot, region))
+	if err := env.Define(name, mutable, typeName, snapshot, runtime.memory.Allocate(snapshot, region)); err != nil {
+		return err
+	}
+	if binding, ok := env.bindings[name]; ok {
+		binding.Kind = kind
+	}
+	runtime.recordState(StateRecord{
+		Phase:    "runtime",
+		Event:    event,
+		Kind:     kind,
+		Name:     name,
+		Type:     typeName,
+		Runtime:  runtimeTypeName(snapshot),
+		Function: runtime.currentFunctionName(),
+		Mutable:  mutable,
+	})
+	return nil
 }
 
 func (runtime *Runtime) storeBindingValue(binding *Binding, value Value) {
@@ -1408,6 +1441,48 @@ func (runtime *Runtime) storeBindingValueLocked(binding *Binding, value Value) {
 	snapshot := shareValue(value)
 	binding.Value = snapshot
 	runtime.memory.Store(binding.ObjectID, snapshot)
+	runtime.recordState(StateRecord{
+		Phase:    "runtime",
+		Event:    "assign",
+		Kind:     binding.Kind,
+		Name:     binding.Name,
+		Type:     binding.Type,
+		Runtime:  runtimeTypeName(snapshot),
+		Function: runtime.currentFunctionName(),
+		Mutable:  binding.Mutable,
+		Moved:    binding.Moved,
+	})
+}
+
+func (runtime *Runtime) recordState(record StateRecord) {
+	if record.Kind == "" {
+		record.Kind = "variable"
+	}
+	if record.Event == "" {
+		record.Event = "observe"
+	}
+	if record.Phase == "" {
+		record.Phase = "runtime"
+	}
+	runtime.states = append(runtime.states, record)
+}
+
+func (runtime *Runtime) stateRecordsValue() Value {
+	items := make([]Value, 0, len(runtime.states))
+	for _, state := range runtime.states {
+		items = append(items, TableValue(map[string]Value{
+			"phase":    StringValue(state.Phase),
+			"event":    StringValue(state.Event),
+			"kind":     StringValue(state.Kind),
+			"name":     StringValue(state.Name),
+			"type":     StringValue(state.Type),
+			"runtime":  StringValue(state.Runtime),
+			"function": StringValue(state.Function),
+			"mutable":  BoolValue(state.Mutable),
+			"moved":    BoolValue(state.Moved),
+		}))
+	}
+	return Value{Kind: ValueList, Data: items}
 }
 
 func (runtime *Runtime) defineLocalFunction(fn parser.FunctionStatement, env *Environment) (string, error) {
@@ -2099,6 +2174,17 @@ func (runtime *Runtime) evalMove(expr parser.ExpressionNode, env *Environment) (
 		binding.Moved = true
 		binding.Value = NullValue()
 		runtime.memory.Store(binding.ObjectID, NullValue())
+		runtime.recordState(StateRecord{
+			Phase:    "runtime",
+			Event:    "move",
+			Kind:     binding.Kind,
+			Name:     binding.Name,
+			Type:     binding.Type,
+			Runtime:  runtimeTypeName(NullValue()),
+			Function: runtime.currentFunctionName(),
+			Mutable:  binding.Mutable,
+			Moved:    true,
+		})
 		return nil
 	})
 	if err != nil {
@@ -2847,6 +2933,11 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			return NullValue(), Error{Message: "debug_stack expects no arguments"}
 		}
 		return listFromStrings(runtime.callStack), nil
+	case "debug_state":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: "debug_state expects no arguments"}
+		}
+		return runtime.stateRecordsValue(), nil
 	case "breakpoint":
 		if len(args) > 1 {
 			return NullValue(), Error{Message: "breakpoint expects zero or one label"}
@@ -2992,9 +3083,20 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 				if err := env.DefineAlias(param.Name, sourceBinding); err != nil {
 					return NullValue(), err
 				}
+				sourceBinding.Kind = "parameter"
+				runtime.recordState(StateRecord{
+					Phase:    "runtime",
+					Event:    "bind",
+					Kind:     "parameter",
+					Name:     param.Name,
+					Type:     param.Type,
+					Runtime:  runtimeTypeName(sourceSnapshot.Value),
+					Function: function.Name,
+					Mutable:  sourceSnapshot.Mutable,
+				})
 				continue
 			}
-			if err := runtime.defineValue(env, param.Name, param.Mutable, param.Type, value); err != nil {
+			if err := runtime.defineValueWithState(env, param.Name, param.Mutable, param.Type, value, MemoryStack, "parameter", "bind"); err != nil {
 				return NullValue(), err
 			}
 		}
@@ -3002,7 +3104,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			if returnValue.Name == "" {
 				continue
 			}
-			if err := runtime.defineValue(env, returnValue.Name, returnValue.Mutable, returnValue.Type, zeroValue(returnValue.Type)); err != nil {
+			if err := runtime.defineValueWithState(env, returnValue.Name, returnValue.Mutable, returnValue.Type, zeroValue(returnValue.Type), MemoryStack, "named_return", "define"); err != nil {
 				return NullValue(), err
 			}
 		}
@@ -3025,10 +3127,30 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			if !valueMatchesType(currentSignal.value, function.ReturnType) {
 				return NullValue(), Error{Message: fmt.Sprintf("function %s returns %s, got %s", resolvedName, function.ReturnType, currentSignal.value.Kind)}
 			}
+			runtime.recordState(StateRecord{
+				Phase:    "runtime",
+				Event:    "return",
+				Kind:     "return",
+				Name:     function.Name,
+				Type:     function.ReturnType,
+				Runtime:  runtimeTypeName(currentSignal.value),
+				Function: function.Name,
+			})
 			return currentSignal.value, nil
 		}
 		if function.ReturnType != "" && function.ReturnType != "T" {
 			if value, ok, err := runtime.namedReturnValue(function, env); ok || err != nil {
+				if err == nil {
+					runtime.recordState(StateRecord{
+						Phase:    "runtime",
+						Event:    "return",
+						Kind:     "return",
+						Name:     function.Name,
+						Type:     function.ReturnType,
+						Runtime:  runtimeTypeName(value),
+						Function: function.Name,
+					})
+				}
 				return value, err
 			}
 			return NullValue(), Error{Message: fmt.Sprintf("function %s returns %s, got Null", resolvedName, function.ReturnType)}
@@ -3594,7 +3716,7 @@ func isBuiltinFunction(name string) bool {
 		"runtime_debug_loc_of", "runtime_debug_line_of", "runtime_debug_pos_of",
 		"runtime.debug.__LOC__", "runtime.debug.__FILE__", "runtime.debug.__LINE__", "runtime.debug.__MODULE__", "runtime.debug.__POS__", "runtime.debug.__FUNCTION__",
 		"runtime.debug.__LOC_OF__", "runtime.debug.__LINE_OF__", "runtime.debug.__POS_OF__",
-		"debug", "debug_type", "debug_stack", "breakpoint", "js_import", "js_source", "js_exports", "js_call",
+		"debug", "debug_type", "debug_stack", "debug_state", "breakpoint", "js_import", "js_source", "js_exports", "js_call",
 		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
 		return true
 	default:

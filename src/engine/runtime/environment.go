@@ -7,6 +7,8 @@ import (
 
 type Binding struct {
 	mu       sync.Mutex
+	Name     string
+	Kind     string
 	Mutable  bool
 	Type     string
 	Value    Value
@@ -34,6 +36,8 @@ func (env *Environment) Define(name string, mutable bool, typeName string, value
 		return Error{Message: fmt.Sprintf("variable %q is already defined in this scope", name)}
 	}
 	env.bindings[name] = &Binding{
+		Name:     name,
+		Kind:     "variable",
 		Mutable:  mutable,
 		Type:     typeName,
 		Value:    value,
@@ -75,6 +79,8 @@ func (binding *Binding) Snapshot() Binding {
 	binding.mu.Lock()
 	defer binding.mu.Unlock()
 	return Binding{
+		Name:     binding.Name,
+		Kind:     binding.Kind,
 		Mutable:  binding.Mutable,
 		Type:     binding.Type,
 		Value:    binding.Value,

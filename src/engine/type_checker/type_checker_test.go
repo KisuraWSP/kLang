@@ -30,6 +30,28 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramTracksCompileTimeState(t *testing.T) {
+	program := programFromSource(`
+global mut Int counter = 0;
+
+function Add(left : Int, mut right : Int) : Int {
+    local Int total = left + right;
+    return total;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected state tracking type check to pass, got: %v", report.Errors)
+	}
+	assertState(t, report.States, "global", "counter", "Int")
+	assertState(t, report.States, "parameter", "left", "Int")
+	assertState(t, report.States, "parameter", "right", "Int")
+	assertState(t, report.States, "local", "total", "Int")
+	assertState(t, report.States, "return", "Add", "Int")
+	assertState(t, report.States, "builtin", "Args", "List[String]")
+}
+
 func TestCheckProgramTreatsHereStringsAsTypedStrings(t *testing.T) {
 	program := programFromSource(`
 function Render() : String {
@@ -2315,4 +2337,16 @@ func assertTypeWarning(t *testing.T, report Report, expected string) {
 	}
 
 	t.Fatalf("expected type warning containing %q, got %#v", expected, report.Warnings)
+}
+
+func assertState(t *testing.T, states []State, kind string, name string, typeName string) {
+	t.Helper()
+
+	for _, state := range states {
+		if state.Kind == kind && state.Name == name && state.Type == typeName {
+			return
+		}
+	}
+
+	t.Fatalf("expected state kind=%q name=%q type=%q, got %#v", kind, name, typeName, states)
 }

@@ -29,6 +29,34 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeTracksExecutionState(t *testing.T) {
+	result := runParsedSource(t, `
+function Add(left : Int, mut right : Int) : Int {
+    local mut Int total = left + right;
+    total += 1;
+    return total;
+}
+
+function Main() : List[Table] {
+    local Int value = Add(1, 2);
+    local String owned = "state";
+    local String moved = move owned;
+    return debug_state();
+}
+`)
+
+	if result.Value.Kind != ValueList {
+		t.Fatalf("expected debug_state to return a list, got %#v", result.Value)
+	}
+	states := result.Value.Data.([]Value)
+	assertRuntimeState(t, states, "parameter", "left", "bind")
+	assertRuntimeState(t, states, "parameter", "right", "bind")
+	assertRuntimeState(t, states, "variable", "total", "assign")
+	assertRuntimeState(t, states, "variable", "owned", "move")
+	assertRuntimeState(t, states, "return", "Add", "return")
+	assertRuntimeState(t, states, "variable", "value", "define")
+}
+
 func TestRuntimeExecutesAssertAndRuntimeTypeInfo(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {
@@ -2672,6 +2700,30 @@ func runSourceWithError(source string) (Result, error) {
 		},
 	}
 	return RunProgram(program)
+}
+
+func assertRuntimeState(t *testing.T, states []Value, kind string, name string, event string) {
+	t.Helper()
+
+	for _, state := range states {
+		if state.Kind != ValueTable {
+			continue
+		}
+		table := state.Data.(TableData)
+		if tableString(table, "kind") == kind && tableString(table, "name") == name && tableString(table, "event") == event {
+			return
+		}
+	}
+
+	t.Fatalf("expected runtime state kind=%q name=%q event=%q, got %#v", kind, name, event, states)
+}
+
+func tableString(table TableData, key string) string {
+	value, ok := tableGet(table, TableKey{Kind: ValueString, Repr: key})
+	if !ok || value.Kind != ValueString {
+		return ""
+	}
+	return value.Data.(string)
 }
 
 func assertRuntimeErrorContains(t *testing.T, err error, expected string) {

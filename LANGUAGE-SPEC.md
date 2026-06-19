@@ -54,6 +54,7 @@
 54. `Set[T]` is a builtin deterministic hash set for unique primitive values, constructed with `Set(list)`, counted with `.count` or `len`, iterated with `iter`, and queried with `set_has(set, value)`.
 55. `format(pattern : String, values : List[T])` and `printf(pattern : String, values : List[T])` are runtime-backed string formatting builtins. `%` consumes the next value, `%%` emits a literal percent sign, and the number of non-escaped placeholders must match `len(values)`. The stdlib `fmt` module exposes `fmt.Format` and `fmt.Printf` wrappers.
 56. Generic type parameters support named constraints beyond `restrict[...]`: `numeric`, `comparable`, `hashable`, `iterable`, `allocator_like`, and trait-bound names such as `T Printable`.
+57. The compiler and runtime track state for variables, function parameters, named returns, and return values. Type-check reports expose compile-time state records, and `debug_state()` returns runtime state records as `List[Table]`.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -105,6 +106,7 @@ Rules
 - Use `TypeName.get_runtime_type_info()` to obtain a `Type` object. Its fields describe automated serialization hooks, introspection data such as field tables, and layout values such as byte size, alignment, and footprint.
 - Use `assert condition;` for runtime invariants. The checker requires the condition to be `Bool`.
 - Use `report value;` or `report FunctionCall();` to emit a live diagnostic report containing the evaluated value, runtime type, and stack frames. `report` accepts any expression, respects ordinary expression errors, and does not mutate the reported value.
+- Use `debug_state()` to inspect runtime state transitions for bindings and returns. Each entry contains fields such as `phase`, `event`, `kind`, `name`, `type`, `runtime`, `function`, `mutable`, and `moved`.
 - Use `format("Hello %, score %% %", ["kLang", 42])` to build a formatted string and `printf(pattern, values)` to print one. Formatting values use the same display conversion as `print`.
 - Alias functions may contain trait and impl declarations in addition to hooks and extension methods.
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.

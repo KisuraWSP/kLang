@@ -657,6 +657,7 @@ local String manifest = workspace_manifest(workspace);
 debug(manifest);
 local String manifestType = debug_type(manifest);
 local List[String] stack = debug_stack();
+local List[Table] states = debug_state();
 breakpoint("after manifest");
 
 -- source context diagnostics
