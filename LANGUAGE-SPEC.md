@@ -4,7 +4,7 @@
 4. Simple Module System
 5. All Important Data Types are built into the language
 6. Language Operates as file-based system (Meaning each file can execute as a script unless defined as a entry point to a project via the first.klang file)
-7. Alias functions can define constructor-like custom data types and extension methods.
+7. Alias functions can define constructor-like custom data types and extension methods. Struct-style alias functions expose their parameters as statically checked fields, and generic constructor calls infer returned alias types.
 8. Arrays and slices can be attached to user-defined memory regions, including temporary regions, and always index from 0.
 9. Builtin allocator/value wrappers include Box, Ref, RefMut, RefCell, HeapAllocator, RegionAllocator, BumpAllocator, and ArenaAllocator.
 10. Table is a builtin Lua-style dynamic data type and is the only dynamically typed container.
@@ -81,6 +81,7 @@ Rules
 - `private { ... }` creates a private lexical block.
 - Extension methods declared inside an alias function use `this` as their receiver.
 - Alias functions may declare members, traits, impls, allocation hooks, deallocation hooks, side-effect hooks, and extension methods in the same block.
+- Struct-style alias functions are first-class static object types: constructor parameters become readable fields on `this`, `#extend` methods are type checked with the receiver in scope, generic arguments inferred from constructor calls flow into fields and methods, and methods may return either the bare alias name or a specialized alias type from the same alias family.
 - Function parameters may use `name := DefaultExpression()` to infer the parameter type from the default value.
 - Generic parameters may use `T restrict[Int, Float]` for explicit allow-lists, `T numeric`, `T comparable`, `T hashable`, `T iterable`, `T allocator_like`, or `T TraitName` for trait-bound constraints. Trait-bound constraints require a matching `impl TraitName for ConcreteType` before the concrete type can satisfy the generic call.
 - Entry-point directives apply to the next function in the current namespace or top-level scope.

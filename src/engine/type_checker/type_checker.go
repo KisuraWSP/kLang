@@ -181,6 +181,9 @@ func CheckProgram(program file.Program) Report {
 	for _, fn := range checker.functions {
 		checker.checkFunction(fn)
 	}
+	for _, source := range parsed.Sources {
+		checker.checkAliasFunctionMethods(source.Program.Statements, source.Path)
+	}
 	checker.checkLexicalScopes(program.EntryPoint, parsed)
 
 	return Report{Errors: checker.errors, Warnings: checker.warnings, States: checker.states}
@@ -566,7 +569,7 @@ func (checker *TypeChecker) collectGlobals(unit sourceUnit) {
 			if decl.Inferred && decl.Type == anyType {
 				decl.Type = exprType
 			}
-			if !isAssignable(decl.Type, exprType) {
+			if !checker.isAssignable(decl.Type, exprType) {
 				checker.addError(unit.Path, decl.Line, fmt.Sprintf("cannot assign %s to global %s %s", exprType, decl.Type, decl.Name))
 			}
 		} else if decl.Inferred && decl.Type == anyType {
@@ -689,6 +692,65 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 	}
 }
 
+func (checker *TypeChecker) checkAliasFunctionMethods(statements []parser.Statement, source string) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.AliasFunctionStatement:
+			receiverType := checker.aliasConstructedType(current, nil)
+			for _, method := range current.Methods {
+				locals := map[string]variableSymbol{
+					"this": {Name: "this", Type: receiverType, File: source, Line: method.Pos.Line},
+				}
+				declared := map[string]bool{"this": true}
+				for _, param := range method.Params {
+					paramType := normalizeType(param.Type)
+					locals[param.Name] = variableSymbol{
+						Name:      param.Name,
+						Type:      paramType,
+						Mutable:   param.Mutable,
+						ByRef:     param.ByRef,
+						Parameter: true,
+						File:      source,
+						Line:      method.Pos.Line,
+					}
+					if !isDiscardIdentifier(param.Name) {
+						declared[param.Name] = true
+					}
+				}
+				fn := functionSymbol{
+					Name:       current.Name + "." + method.Name,
+					Params:     localsToParams(method.Params, source, method.Pos.Line),
+					ReturnType: normalizeType(method.ReturnType),
+					File:       source,
+					Line:       method.Pos.Line,
+				}
+				checker.checkSemanticStatements(fn, method.Body, locals, declared)
+			}
+			checker.checkAliasFunctionMethods(current.Body, source)
+		case parser.NamespaceStatement:
+			checker.checkAliasFunctionMethods(current.Body, source)
+		case parser.PrivateBlockStatement:
+			checker.checkAliasFunctionMethods(current.Body, source)
+		}
+	}
+}
+
+func localsToParams(params []parser.Parameter, source string, line int) []variableSymbol {
+	symbols := make([]variableSymbol, 0, len(params))
+	for _, param := range params {
+		symbols = append(symbols, variableSymbol{
+			Name:      param.Name,
+			Type:      normalizeType(param.Type),
+			Mutable:   param.Mutable,
+			ByRef:     param.ByRef,
+			Parameter: true,
+			File:      source,
+			Line:      line,
+		})
+	}
+	return symbols
+}
+
 func (checker *TypeChecker) checkTupleReturn(fn functionSymbol, expr string, locals map[string]variableSymbol, line int) {
 	parts := splitTopLevel(expr, ',')
 	if len(parts) != len(fn.ReturnTypes) {
@@ -698,7 +760,7 @@ func (checker *TypeChecker) checkTupleReturn(fn functionSymbol, expr string, loc
 	for index, part := range parts {
 		exprType := checker.inferExpression(part, locals, fn.File, line)
 		expected := fn.ReturnTypes[index]
-		if !isAssignable(expected.Type, exprType) {
+		if !checker.isAssignable(expected.Type, exprType) {
 			name := fmt.Sprintf("return value %d", index+1)
 			if expected.Name != "" {
 				name = fmt.Sprintf("return value %q", expected.Name)
@@ -747,7 +809,7 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 			if current.Inferred && typeName == anyType {
 				typeName = exprType
 			}
-			if !isAssignable(typeName, exprType) {
+			if !checker.isAssignable(typeName, exprType) {
 				checker.addError(fn.File, line, fmt.Sprintf("cannot assign %s to local %s %s", exprType, typeName, current.Name))
 			}
 			if !childTypeLiteralFits(typeName, exprSource) {
@@ -807,7 +869,7 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 				checker.checkDeclaredType(typeName, fn.File, line)
 			}
 			actualType := returnTypes[index].Type
-			if !isAssignable(typeName, actualType) {
+			if !checker.isAssignable(typeName, actualType) {
 				checker.addError(fn.File, line, fmt.Sprintf("cannot assign return value %d (%s) to local %s %s", index+1, actualType, typeName, binding.Name))
 			}
 			if isDiscardIdentifier(binding.Name) {
@@ -842,7 +904,7 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		}
 		checker.checkSemanticExpression(fn, current.Expression, locals, line)
 		exprType := checker.inferParsedExpression(current.Expression, locals, fn.File, line)
-		if len(fn.ReturnTypes) == 0 && !isAssignable(fn.ReturnType, exprType) {
+		if len(fn.ReturnTypes) == 0 && !checker.isAssignable(fn.ReturnType, exprType) {
 			checker.addError(fn.File, line, fmt.Sprintf("function %s returns %s but return expression is %s", fn.Name, fn.ReturnType, exprType))
 		}
 	case parser.ThrowStatement:
@@ -930,7 +992,7 @@ func (checker *TypeChecker) checkTupleReturnExpressions(fn functionSymbol, value
 	for index, value := range values {
 		exprType := checker.inferParsedExpression(value, locals, fn.File, line)
 		expected := fn.ReturnTypes[index]
-		if !isAssignable(expected.Type, exprType) {
+		if !checker.isAssignable(expected.Type, exprType) {
 			name := fmt.Sprintf("return value %d", index+1)
 			if expected.Name != "" {
 				name = fmt.Sprintf("return value %q", expected.Name)
@@ -2101,7 +2163,7 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 		checker.addError(source, line, fmt.Sprintf("operator %s cannot be used with %s", assignment.Op, targetType))
 		return
 	}
-	if !isAssignable(targetType, exprType) {
+	if !checker.isAssignable(targetType, exprType) {
 		checker.addError(source, line, fmt.Sprintf("cannot assign %s to %s", exprType, targetType))
 	}
 	if !childTypeLiteralFits(targetType, assignment.Expr) {
@@ -2361,8 +2423,7 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 }
 
 func (checker *TypeChecker) aliasMethodType(typeName string, methodName string) (string, bool) {
-	typeName = normalizeType(typeName)
-	alias, ok := checker.aliasFunctions[typeName]
+	alias, substitutions, ok := checker.aliasTypeInfo(typeName)
 	if !ok {
 		return "", false
 	}
@@ -2372,12 +2433,120 @@ func (checker *TypeChecker) aliasMethodType(typeName string, methodName string) 
 		}
 		parts := make([]string, 0, len(method.Params)+1)
 		for _, param := range method.Params {
-			parts = append(parts, normalizeType(param.Type))
+			parts = append(parts, applyAliasTypeSubstitutions(normalizeType(param.Type), substitutions))
 		}
-		parts = append(parts, normalizeType(method.ReturnType))
+		parts = append(parts, checker.aliasMethodReturnType(alias, method.ReturnType, substitutions))
 		return "Function[" + strings.Join(parts, ",") + "]", true
 	}
 	return "", false
+}
+
+func (checker *TypeChecker) aliasFieldType(typeName string, fieldName string) (string, bool) {
+	alias, substitutions, ok := checker.aliasTypeInfo(typeName)
+	if !ok {
+		return "", false
+	}
+	for _, param := range alias.Params {
+		if param.Name == fieldName {
+			return applyAliasTypeSubstitutions(normalizeType(param.Type), substitutions), true
+		}
+	}
+	switch fieldName {
+	case "__type":
+		return "String", true
+	case "__hooks", "__methods", "__traits", "__impls":
+		return "Int", true
+	case "__struct":
+		return "Bool", true
+	default:
+		return "", false
+	}
+}
+
+func (checker *TypeChecker) aliasTypeInfo(typeName string) (parser.AliasFunctionStatement, map[string]string, bool) {
+	typeName = normalizeType(typeName)
+	if alias, ok := checker.aliasFunctions[typeName]; ok {
+		return alias, aliasDefaultSubstitutions(alias), true
+	}
+	base, args, ok := splitGenericType(typeName)
+	if !ok {
+		return parser.AliasFunctionStatement{}, nil, false
+	}
+	alias, exists := checker.aliasFunctions[base]
+	if !exists {
+		return parser.AliasFunctionStatement{}, nil, false
+	}
+	substitutions := aliasDefaultSubstitutions(alias)
+	for index, typeParam := range alias.TypeParams {
+		if index >= len(args) {
+			break
+		}
+		substitutions[typeVariableKey(typeParam.Type)] = normalizeType(args[index])
+		substitutions[typeParam.Name] = normalizeType(args[index])
+	}
+	return alias, substitutions, true
+}
+
+func aliasDefaultSubstitutions(alias parser.AliasFunctionStatement) map[string]string {
+	substitutions := map[string]string{}
+	for _, typeParam := range alias.TypeParams {
+		substitutions[typeVariableKey(typeParam.Type)] = typeVariableKey(typeParam.Type)
+		substitutions[typeParam.Name] = typeVariableKey(typeParam.Type)
+	}
+	return substitutions
+}
+
+func (checker *TypeChecker) aliasConstructedType(alias parser.AliasFunctionStatement, substitutions map[string]string) string {
+	if len(alias.TypeParams) == 0 {
+		return alias.Name
+	}
+	args := make([]string, 0, len(alias.TypeParams))
+	for _, typeParam := range alias.TypeParams {
+		key := typeVariableKey(typeParam.Type)
+		if substitutions != nil {
+			if concrete, ok := substitutions[key]; ok && concrete != "" {
+				args = append(args, normalizeType(concrete))
+				continue
+			}
+			if concrete, ok := substitutions[typeParam.Name]; ok && concrete != "" {
+				args = append(args, normalizeType(concrete))
+				continue
+			}
+		}
+		args = append(args, key)
+	}
+	return alias.Name + "[" + strings.Join(args, ",") + "]"
+}
+
+func (checker *TypeChecker) aliasMethodReturnType(alias parser.AliasFunctionStatement, returnType string, substitutions map[string]string) string {
+	returnType = normalizeType(returnType)
+	if returnType == alias.Name {
+		return checker.aliasConstructedType(alias, substitutions)
+	}
+	return applyAliasTypeSubstitutions(returnType, substitutions)
+}
+
+func applyAliasTypeSubstitutions(typeName string, substitutions map[string]string) string {
+	typeName = normalizeType(typeName)
+	if substitutions == nil {
+		return typeName
+	}
+	if replacement, ok := substitutions[typeName]; ok {
+		return normalizeType(replacement)
+	}
+	if name, _, ok := restrictedGenericType(typeName); ok {
+		if replacement, exists := substitutions[name]; exists {
+			return normalizeType(replacement)
+		}
+	}
+	name, args, ok := splitGenericType(typeName)
+	if !ok {
+		return typeName
+	}
+	for index := range args {
+		args[index] = applyAliasTypeSubstitutions(args[index], substitutions)
+	}
+	return name + "[" + strings.Join(args, ",") + "]"
 }
 
 func (checker *TypeChecker) enumExists(name string) bool {
@@ -2410,6 +2579,9 @@ func (checker *TypeChecker) selectorFieldType(targetType string, fieldName strin
 	}
 	if methodType, ok := checker.aliasMethodType(targetType, fieldName); ok {
 		return methodType, true
+	}
+	if fieldType, ok := checker.aliasFieldType(targetType, fieldName); ok {
+		return fieldType, true
 	}
 	if fieldType, ok := builtinProtocolFieldType(targetType, fieldName); ok {
 		return fieldType, true
@@ -2679,6 +2851,12 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		return "Type"
 	}
 	switch name {
+	case "copy", "clone":
+		if len(args) != 1 {
+			checker.addError(source, line, fmt.Sprintf("%s expects 1 argument", name))
+			return anyType
+		}
+		return checker.inferExpression(args[0], locals, source, line)
 	case "print":
 		for _, arg := range args {
 			checker.inferExpression(arg, locals, source, line)
@@ -3239,16 +3417,18 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		required := requiredAliasParamCount(alias.Params)
 		if len(args) < required || len(args) > len(alias.Params) {
 			checker.addError(source, line, fmt.Sprintf("alias function %s expects %d to %d argument(s), got %d", name, required, len(alias.Params), len(args)))
-			return alias.Name
+			return checker.aliasConstructedType(alias, nil)
 		}
+		solver := checker.newConstraintSolver()
 		for index, arg := range args {
 			argType := checker.inferExpression(arg, locals, source, line)
 			param := alias.Params[index]
 			if !checker.isAssignable(param.Type, argType) {
 				checker.addError(source, line, fmt.Sprintf("alias function %s argument %d expects %s, got %s", name, index+1, param.Type, argType))
 			}
+			solver.unify(param.Type, argType)
 		}
-		return alias.Name
+		return checker.aliasConstructedType(alias, solver.substitutions)
 	}
 
 	if variable, ok := checker.lookupVariable(name, locals); ok {
@@ -3391,7 +3571,7 @@ func (checker *TypeChecker) checkCallbackCall(name string, paramTypes []string, 
 	}
 	for index, arg := range args {
 		argType := checker.inferExpression(arg, locals, source, line)
-		if !isAssignable(paramTypes[index], argType) {
+		if !checker.isAssignable(paramTypes[index], argType) {
 			checker.addError(source, line, fmt.Sprintf("callback %s argument %d expects %s, got %s", name, index+1, paramTypes[index], argType))
 		}
 	}
@@ -4467,6 +4647,9 @@ func isAssignable(target string, source string) bool {
 func (checker *TypeChecker) isAssignable(target string, source string) bool {
 	target = normalizeType(target)
 	source = normalizeType(source)
+	if checker.aliasTypesAssignable(target, source) {
+		return true
+	}
 	if solver := checker.newConstraintSolver(); solver.unify(target, source) {
 		return true
 	}
@@ -4479,6 +4662,46 @@ func (checker *TypeChecker) isAssignable(target string, source string) bool {
 		return false
 	}
 	return isAssignable(target, source)
+}
+
+func (checker *TypeChecker) aliasTypesAssignable(target string, source string) bool {
+	target = normalizeType(target)
+	source = normalizeType(source)
+	targetBase, targetArgs := checker.aliasBaseAndArgs(target)
+	sourceBase, sourceArgs := checker.aliasBaseAndArgs(source)
+	if targetBase == "" || sourceBase == "" || targetBase != sourceBase {
+		return false
+	}
+	if len(targetArgs) == 0 || len(sourceArgs) == 0 {
+		return true
+	}
+	if len(targetArgs) != len(sourceArgs) {
+		return false
+	}
+	for index := range targetArgs {
+		if !checker.isAssignable(targetArgs[index], sourceArgs[index]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (checker *TypeChecker) aliasBaseAndArgs(typeName string) (string, []string) {
+	typeName = normalizeType(typeName)
+	if _, ok := checker.aliasFunctions[typeName]; ok {
+		return typeName, nil
+	}
+	base, args, ok := splitGenericType(typeName)
+	if !ok {
+		return "", nil
+	}
+	if _, exists := checker.aliasFunctions[base]; !exists {
+		return "", nil
+	}
+	for index := range args {
+		args[index] = normalizeType(args[index])
+	}
+	return base, args
 }
 
 func (checker *TypeChecker) constraintAllows(constraint string, typeName string) bool {
@@ -4616,6 +4839,9 @@ func (solver *constraintSolver) bind(name string, typeName string) bool {
 		return false
 	}
 	key := typeVariableKey(name)
+	if key == normalizeType(typeName) {
+		return true
+	}
 	if _, allowed, ok := restrictedGenericType(name); ok {
 		allowedMatch := false
 		for _, option := range allowed {
@@ -4651,13 +4877,21 @@ func (solver *constraintSolver) constraintAllows(constraint string, typeName str
 }
 
 func (solver *constraintSolver) apply(typeName string) string {
+	return solver.applyWithSeen(typeName, map[string]bool{})
+}
+
+func (solver *constraintSolver) applyWithSeen(typeName string, seen map[string]bool) string {
 	typeName = normalizeType(typeName)
+	if seen[typeName] {
+		return typeName
+	}
+	seen[typeName] = true
 	if resolved, exists := solver.substitutions[typeName]; exists {
-		return solver.apply(resolved)
+		return solver.applyWithSeen(resolved, seen)
 	}
 	if name, _, ok := restrictedGenericType(typeName); ok {
 		if resolved, exists := solver.substitutions[name]; exists {
-			return solver.apply(resolved)
+			return solver.applyWithSeen(resolved, seen)
 		}
 	}
 	name, args, ok := splitGenericType(typeName)
@@ -4665,9 +4899,17 @@ func (solver *constraintSolver) apply(typeName string) string {
 		return typeName
 	}
 	for index, arg := range args {
-		args[index] = solver.apply(arg)
+		args[index] = solver.applyWithSeen(arg, copySeenTypes(seen))
 	}
 	return name + "[" + strings.Join(args, ",") + "]"
+}
+
+func copySeenTypes(seen map[string]bool) map[string]bool {
+	copied := make(map[string]bool, len(seen))
+	for key, value := range seen {
+		copied[key] = value
+	}
+	return copied
 }
 
 func isTypeVariable(typeName string) bool {

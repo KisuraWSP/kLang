@@ -2532,6 +2532,41 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesAliasStructFieldsMethodsAndGenerics(t *testing.T) {
+	result := runParsedSource(t, `
+alias function Boxed[T: Any](items : List[T], capacity : Int) : type = struct {
+    #extend {
+        function count() : Int {
+            return len(this.items);
+        }
+
+        function get(index : Int) : T {
+            local List[T] values = this.items as List[T];
+            return values[index];
+        }
+
+        function push(value : T) : Boxed {
+            local mut List[T] values = clone (this.items as List[T]);
+            values[len(values)] = value;
+            return Boxed(values, this.capacity);
+        }
+    }
+}
+
+function Main() : Int {
+    let mut x = Boxed([1, 2], 2);
+    local Int first = x.get(0);
+    local Int total = x.count();
+    x = x.push(3);
+    return first + total + x.get(2);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 6 {
+		t.Fatalf("expected alias struct generic methods to return 6, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesAliasExtensionMethodArguments(t *testing.T) {
 	result := runParsedSource(t, `
 alias function Counter(value: int) -> type

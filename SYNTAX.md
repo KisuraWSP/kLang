@@ -788,6 +788,32 @@ alias function Array[T: Any](data: T, length: int, capacity: int, allocator: T =
 
 local T heapArray = Array(10, 1, 32, HeapAllocator());
 local T regionArray = Array("text", 1, 64, RegionAllocator("TextRegion"));
+
+-- struct-style alias functions are statically understood by the checker.
+-- Parameters become fields, generic arguments are inferred from constructor
+-- arguments, and #extend methods can use this plus returned alias values.
+alias function Boxed[T: Any](items : List[T], capacity : Int) : type = struct {
+    #extend {
+        function count() : Int {
+            return len(this.items);
+        }
+
+        function get(index : Int) : T {
+            local List[T] values = this.items as List[T];
+            return values[index];
+        }
+
+        function push(value : T) : Boxed {
+            local mut List[T] values = clone (this.items as List[T]);
+            values[len(values)] = value;
+            return Boxed(values, this.capacity);
+        }
+    }
+}
+
+let mut boxed = Boxed([1, 2], 2);
+boxed = boxed.push(3);
+local Int boxedValue = boxed.get(2);
 local T bumpArray = Array(True, 1, 128, BumpAllocator());
 local T defaultArray = Array(0, 0, 16);
 local Int arrayRemaining = heapArray.remaining();

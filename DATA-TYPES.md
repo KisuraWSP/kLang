@@ -50,6 +50,8 @@ Integer values may be written in decimal, hexadecimal (`0x`/`0X`), octal (`0o`/`
 
 Every builtin and user-visible type conforms to the parent `Type` metadata model. `SomeType.get_runtime_type_info()` returns a `Type` object with fields such as `name`, `size`, `alignment`, `footprint`, `fields`, `field_count`, `serialization`, `introspection`, `layout`, `supports_serialization`, `supports_introspection`, and `supports_memory_layout`.
 
+Struct-style alias functions create user-visible object types. Their constructor parameters are statically checked fields, generic constructor arguments flow into those field and method types, and `#extend` methods are checked with `this` bound to the alias receiver.
+
 Builtin values expose a small shared protocol surface through selector syntax:
 - `String`, `List[T]`, `Set[T]`, `Map[K, V]`, `Table`, `SIMD[T]`, and `Iterator[T]` provide `.count : Int`.
 - `String` and `Char` provide `.uppercase()` and `.lowercase()`.

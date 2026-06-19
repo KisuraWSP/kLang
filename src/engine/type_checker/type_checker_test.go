@@ -1882,6 +1882,64 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsAliasStructFieldsMethodsAndGenerics(t *testing.T) {
+	program := programFromSource(`
+alias function Boxed[T: Any](items : List[T], capacity : Int) : type = struct {
+    #extend {
+        function count() : Int {
+            return len(this.items);
+        }
+
+        function get(index : Int) : T {
+            local List[T] values = this.items as List[T];
+            return values[index];
+        }
+
+        function push(value : T) : Boxed {
+            local mut List[T] values = clone (this.items as List[T]);
+            values[len(values)] = value;
+            return Boxed(values, this.capacity);
+        }
+    }
+}
+
+function Main() : Int {
+    let mut x = Boxed([1, 2], 2);
+    local Int first = x.get(0);
+    local Int total = x.count();
+    x = x.push(3);
+    return first + total + x.get(2);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected alias struct fields, methods, and generics to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsAliasStructGenericMethodArgumentMismatch(t *testing.T) {
+	program := programFromSource(`
+alias function Boxed[T: Any](items : List[T], capacity : Int) : type = struct {
+    #extend {
+        function push(value : T) : Boxed {
+            local mut List[T] values = clone (this.items as List[T]);
+            values[len(values)] = value;
+            return Boxed(values, this.capacity);
+        }
+    }
+}
+
+function Main() : Int {
+    let mut x = Boxed([1, 2], 2);
+    x = x.push("bad");
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `callback x.push argument 1 expects Int, got String`)
+}
+
 func TestCheckProgramAcceptsInferredParameterDefaultsAndAtomicBuiltins(t *testing.T) {
 	program := programFromSource(`
 function UserDefinedWorkspace() : String {

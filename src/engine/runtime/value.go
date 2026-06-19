@@ -1344,10 +1344,31 @@ func valueMatchesType(value Value, typeName string) bool {
 		return valueMatchesType(result.Value, errType)
 	default:
 		if value.Kind == ValueObject {
-			return value.Data.(ObjectData).Type == typeName
+			objectType := value.Data.(ObjectData).Type
+			if objectType == typeName {
+				return true
+			}
+			if base, _, ok := splitRuntimeGenericType(typeName); ok {
+				return objectType == base
+			}
+			return false
 		}
 		return true
 	}
+}
+
+func splitRuntimeGenericType(typeName string) (string, []string, bool) {
+	typeName = normalizeRuntimeType(typeName)
+	open := strings.Index(typeName, "[")
+	if open == -1 || !strings.HasSuffix(typeName, "]") {
+		return "", nil, false
+	}
+	base := typeName[:open]
+	if base == "" {
+		return "", nil, false
+	}
+	inner := typeName[open+1 : len(typeName)-1]
+	return base, splitTopLevelType(inner, ','), true
 }
 
 func setElementRuntimeType(typeName string) (string, bool) {
