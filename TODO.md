@@ -2,6 +2,17 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- add support for type aliases
+```lua
+type string_list = List[String];
+```
+
+- add support for members in function aliases
+```lua
+alias function T(test : List[String]) {
+   let member test = this;
+}
+```
 - in the language if there is an error (this is for the error reporting)
    - provide a valid reason why the error occured
    - tell the user what they expect from them to correct the error
