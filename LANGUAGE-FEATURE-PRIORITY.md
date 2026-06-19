@@ -1,0 +1,46 @@
+```
+My top priorities:
+Make Result and Option excellent
+Add ergonomic pattern matching, ?/propagation consistency, helpers like map, unwrap_or, and_then, and make diagnostics around unsafe access very polished. This will make the whole language feel safer.
+
+Strengthen the type system around aliases/structs
+Right now alias structs are useful, but they should become first-class enough that fields, methods, constructors, generics, and returned alias types are statically understood cleanly. This unlocks better stdlib design.
+
+Add real JSON/Table serialization
+Your json.klang is currently string-helper oriented. A powerful version should encode/decode Table, List, String, Int, Float, Bool, Null, and maybe alias structs using Type.get_runtime_type_info().
+
+Improve pattern matching
+Pattern matching over Bool, literals, enums, Option, Result, List, and Table would be huge:
+if value == {
+   case Some(x) => x;
+   case None() => 0;
+}
+
+Make iterators feel real
+Add map, filter, reduce, collect, take, skip, enumerate, zip. Once iterators are good, Lists, Tables, arrays, and streams all become nicer.
+
+Build package/project tooling
+Add klang test, klang fmt, klang doc, klang package, maybe klang add. A language becomes serious when the workflow is smooth.
+
+Add a formatter
+This is underrated. A real formatter stabilizes examples, docs, stdlib style, and user code. It also forces the grammar to become clearer.
+
+Improve error messages
+You’ve already started with ErrorContext and stack traces. Push this hard: source spans, suggestions, “did you mean”, expected/found type trees, import hints. Great errors make a small language feel mature.
+
+Define async/thread safety rules clearly
+You added spawn, join, Atomic. Next step is making shared mutation rules explicit and safe. This is a place where kLang can feel modern if done carefully.
+
+Make the stdlib deeper, not wider
+   I’d polish these first:
+array
+list
+table
+json
+string
+math
+io
+test
+result
+option
+```
