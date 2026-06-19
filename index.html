@@ -4,8 +4,268 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>kLang Programming Language Documentation</title>
+    <meta name="description" content="Documentation website for kLang, an experimental function-first programming language implemented in Go.">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    
+    <header class="topbar">
+        <a class="brand" href="#overview" aria-label="kLang home">
+            <img src="logo.png" alt="kLang logo">
+            <span>kLang</span>
+        </a>
+        <nav class="topnav" aria-label="Primary">
+            <a href="#language">Language</a>
+            <a href="#runtime">Runtime</a>
+            <a href="#cli">CLI</a>
+            <a href="#stdlib">Stdlib</a>
+            <a href="#docs">Docs</a>
+        </nav>
+        <button class="menu-button" type="button" aria-label="Toggle navigation" aria-expanded="false" data-menu-button>
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+    </header>
+
+    <main>
+        <section id="overview" class="hero section">
+            <div class="hero-copy">
+                <p class="eyebrow">Experimental language runtime</p>
+                <h1>kLang is a function-first programming language implemented in Go.</h1>
+                <p class="lead">It brings together a lexer, parser, module resolver, semantic checker, interpreter runtime, standard library, examples, editor extensions, source-aware diagnostics, caching, and early standalone/browser packaging.</p>
+                <div class="hero-actions">
+                    <a class="button primary" href="#quickstart">Start</a>
+                    <a class="button secondary" href="#features">Features</a>
+                </div>
+            </div>
+            <aside class="snapshot" aria-label="Project snapshot">
+                <div class="hero-mark">
+                    <img src="logo.png" alt="">
+                    <span>Go powered language runtime</span>
+                </div>
+                <dl>
+                    <div><dt>Implementation</dt><dd>Go interpreter/runtime</dd></div>
+                    <div><dt>Source files</dt><dd><code>.klang</code> scripts and folder projects</dd></div>
+                    <div><dt>Entry file</dt><dd><code>first.klang</code></dd></div>
+                    <div><dt>Targets</dt><dd>Standalone, JS metadata, browser WASM bundle</dd></div>
+                </dl>
+            </aside>
+        </section>
+
+        <section class="notice" aria-label="Experimental status">
+            <strong>Temporary note:</strong>
+            <span>The examples in the examples folder are incomplete and experimental as language APIs and features will change.</span>
+        </section>
+
+        <section id="quickstart" class="section split">
+            <div>
+                <p class="eyebrow">Quick start</p>
+                <h2>Run, check, package, and document kLang projects from the Go CLI.</h2>
+                <p>Commands run from the repository root. Successful checks and runs can write a `.klang-cache` entry so repeated startups can skip module resolution and type checking when sources are unchanged.</p>
+            </div>
+            <div class="command-panel" data-tabs>
+                <div class="tabs" role="tablist" aria-label="Quick start commands">
+                    <button type="button" class="tab active" data-tab="help">Help</button>
+                    <button type="button" class="tab" data-tab="new">New</button>
+                    <button type="button" class="tab" data-tab="run">Run</button>
+                    <button type="button" class="tab" data-tab="docs">Docs</button>
+                    <button type="button" class="tab" data-tab="wasm">WASM</button>
+                </div>
+                <pre class="code active" data-panel="help"><code>go run . --help</code></pre>
+                <pre class="code" data-panel="new"><code>go run . new examples/myproject
+go run . new examples/myproject --entry=["Process","Int"]</code></pre>
+                <pre class="code" data-panel="run"><code>go run . check examples/helloworld
+go run . run examples/helloworld
+go run . run examples/commandlinearena demo 100</code></pre>
+                <pre class="code" data-panel="docs"><code>go run . doc '--sourcefile=[examples/helloworld]' --out=helloworld-docs.html</code></pre>
+                <pre class="code" data-panel="wasm"><code>go run . serve examples/helloworld --port=8080
+go run . package examples/helloworld --backend=WASM --serve --out dist</code></pre>
+            </div>
+        </section>
+
+        <section id="language" class="section">
+            <div class="section-head">
+                <p class="eyebrow">Language surface</p>
+                <h2>Strong checks, expressive data, and runtime visibility.</h2>
+                <p>kLang is still experimental, but its core now includes a broad set of language mechanisms that work together across parser, checker, runtime, stdlib, and browser packaging.</p>
+            </div>
+            <div id="features" class="feature-grid">
+                <article>
+                    <h3>Typed bindings</h3>
+                    <p>Immutable-by-default variables, explicit `mut`, typed `local`/`global`, inferred `let`/`val`/`var`, strict `const`, destructuring, discard `_`, and lazy declarations.</p>
+                </article>
+                <article>
+                    <h3>Modern data types</h3>
+                    <p>Builtins include `List`, `Map`, `Set`, `Table`, `Option`, `Result`, `Complex`, `SIMD`, `Iterator`, `Coroutine`, `Thread`, `Atomic`, `Context`, `ErrorContext`, and runtime `Type` metadata.</p>
+                </article>
+                <article>
+                    <h3>Function-first model</h3>
+                    <p>First-class functions, lambdas, callbacks, inline candidates, pass-by-value defaults, explicit `ref`, named returns, tuple-style multiple returns, `defer`, and `run` blocks.</p>
+                </article>
+                <article>
+                    <h3>Generic constraints</h3>
+                    <p>Use `restrict[...]`, named constraints such as `numeric`, `comparable`, `hashable`, `iterable`, `allocator_like`, and trait-bound parameters such as `T Printable`.</p>
+                </article>
+                <article>
+                    <h3>Protocols and methods</h3>
+                    <p>Shared selector protocols expose `.count`, string and char case conversion, and integer `.times(callback)` while alias functions can define custom type-like objects and extension methods.</p>
+                </article>
+                <article>
+                    <h3>Safety and diagnostics</h3>
+                    <p>Source-aware `Context`/`ErrorContext`, null-aware helpers, `assert`, `report`, `debug_stack`, `debug_state`, move/copy/clone semantics, and copy-on-write aggregate storage.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="section split">
+            <div>
+                <p class="eyebrow">Example</p>
+                <h2>A compact kLang program.</h2>
+                <p>This example shows enums, options, collection protocols, integer callbacks, state/debug helpers, and ordinary checked functions.</p>
+            </div>
+            <pre class="code large"><code>val appName = "demo";
+const intSize = Int.sizeof;
+
+enum NetworkState {
+    Idle;
+    Connecting = 10;
+    Connected;
+    Failed;
+}
+
+function Add(left : Int, right : Int) : Int {
+    local Int total = left + right;
+    return total;
+}
+
+function RememberIndex(index : Int) : Int {
+    return index;
+}
+
+function Main() : Int {
+    let maybeCount = Some(41);
+    let mut total = Add(maybeCount.value, 1);
+    local NetworkState state = NetworkState.Connected;
+
+    if state == {
+        case NetworkState.Connected:
+            print(appName, "connected", total);
+        case:
+            print(appName, "other state", state.name);
+    }
+
+    local Int itemCount = [10, 20, 30].count;
+    local String loud = "hallo".uppercase();
+    local Int lastIndex = 5.times(RememberIndex);
+    local List[Table] states = debug_state();
+
+    print(loud, itemCount, lastIndex, intSize, len(states));
+    return total;
+}</code></pre>
+        </section>
+
+        <section id="runtime" class="section">
+            <div class="section-head">
+                <p class="eyebrow">Compiler and runtime</p>
+                <h2>The Go engine is split into focused language stages.</h2>
+            </div>
+            <div class="pipeline" aria-label="Execution pipeline">
+                <div><span>1</span><strong>Load</strong><small>file or folder workspace</small></div>
+                <div><span>2</span><strong>Resolve</strong><small>local and stdlib modules</small></div>
+                <div><span>3</span><strong>Check</strong><small>semantic and type rules</small></div>
+                <div><span>4</span><strong>Parse</strong><small>AST and expression trees</small></div>
+                <div><span>5</span><strong>Run</strong><small>interpreter with Args, memory, output</small></div>
+                <div><span>6</span><strong>Package</strong><small>manifest, source bundle, WASM files</small></div>
+            </div>
+            <div class="runtime-grid">
+                <article>
+                    <h3>Source-aware errors</h3>
+                    <p>Module, parse, type, runtime, backend, and WASM failures are shaped into `ErrorContext` records with phase, file, line, column, rule, source line, message, and hint.</p>
+                </article>
+                <article>
+                    <h3>Program cache</h3>
+                    <p>`check` and `run` persist source-fingerprint cache entries in `.klang-cache`, invalidated by source edits, entry changes, or `--raw-lang` changes.</p>
+                </article>
+                <article>
+                    <h3>State tracking</h3>
+                    <p>The checker records compile-time symbol state, and the runtime records `define`, `bind`, `assign`, `move`, and `return` transitions exposed through `debug_state()`.</p>
+                </article>
+                <article>
+                    <h3>Browser bridge</h3>
+                    <p>WASM bundles include `klang.wasm`, `wasm_exec.js`, `klang_browser.js`, `index.html`, a README, source files, and a `klang-build.json` manifest.</p>
+                </article>
+            </div>
+        </section>
+
+        <section id="cli" class="section">
+            <div class="section-head">
+                <p class="eyebrow">Command line</p>
+                <h2>Core workflows are built into the root Go entrypoint.</h2>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Command</th><th>Purpose</th><th>Example</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>new</code></td><td>Create a folder project.</td><td><code>go run . new examples/app</code></td></tr>
+                        <tr><td><code>check</code></td><td>Resolve, type check, and parse.</td><td><code>go run . check examples/helloworld</code></td></tr>
+                        <tr><td><code>run</code></td><td>Check and execute with optional `Args`.</td><td><code>go run . run examples/helloworld</code></td></tr>
+                        <tr><td><code>doc</code></td><td>Generate HTML docs with declaration cards and source chapters.</td><td><code>go run . doc '--sourcefile=[examples/helloworld]'</code></td></tr>
+                        <tr><td><code>package</code></td><td>Write a compact project bundle.</td><td><code>go run . package examples/helloworld --backend=WASM</code></td></tr>
+                        <tr><td><code>serve</code></td><td>Package and serve browser WASM output.</td><td><code>go run . serve examples/helloworld --port=8080</code></td></tr>
+                        <tr><td><code>test</code></td><td>Discover and check multiple Klang programs.</td><td><code>go run . test examples --run</code></td></tr>
+                        <tr><td><code>file</code></td><td>Print a source file with line labels.</td><td><code>go run . file examples/helloworld/first.klang</code></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="stdlib" class="section">
+            <div class="section-head">
+                <p class="eyebrow">Standard library</p>
+                <h2>Plain `.klang` modules extend the language surface.</h2>
+                <p>The stdlib is intentionally small and still evolving. Module resolution can selectively load only referenced functions, while `module_caller(call_entire_module : True);` opts into complete module loading.</p>
+            </div>
+            <div class="module-list" data-filter-list>
+                <label class="search">
+                    <span>Filter modules</span>
+                    <input type="search" placeholder="Search stdlib modules" data-filter-input>
+                </label>
+                <div class="module-grid">
+                    <article data-filter-item><h3>list</h3><p>Function-style list helpers: append, clear, copy, count, extend, index, insert, pop, remove, reverse, sort.</p></article>
+                    <article data-filter-item><h3>fmt</h3><p>Runtime-backed `Format` and `Printf` wrappers using `%` placeholders and `%%` escapes.</p></article>
+                    <article data-filter-item><h3>strings</h3><p>Length, prefix/suffix checks, contains, split, join, replace, slice, trim, and defaults.</p></article>
+                    <article data-filter-item><h3>html</h3><p>Escaped text, attributes, fragments, full documents, and named browser-oriented HTML tags.</p></article>
+                    <article data-filter-item><h3>json</h3><p>JSON formatting, checked encoding helpers, maps, key/value lists, and custom encoder callbacks.</p></article>
+                    <article data-filter-item><h3>runtime</h3><p>Worker thread helpers around `spawn`, `join`, and `thread_status`.</p></article>
+                    <article data-filter-item><h3>hash</h3><p>Stable hashing helpers for hashable values.</p></article>
+                    <article data-filter-item><h3>array and dsa</h3><p>List-backed array-style helpers plus stack, queue, and ordered map aliases.</p></article>
+                    <article data-filter-item><h3>metasystem</h3><p>System descriptors for default program, workspaces, build metadata, and future host integration.</p></article>
+                </div>
+            </div>
+        </section>
+
+        <section id="docs" class="section split">
+            <div>
+                <p class="eyebrow">Documentation map</p>
+                <h2>Where each kind of information lives in the repository.</h2>
+                <p>The website summarizes the active surface. The markdown files remain the source of truth for detailed design and syntax notes.</p>
+            </div>
+            <div class="doc-links">
+                <a href="README.md"><strong>README.md</strong><span>Project overview, CLI, examples, packaging, and testing.</span></a>
+                <a href="LANGUAGE-SPEC.md"><strong>LANGUAGE-SPEC.md</strong><span>Language rules, features, runtime contracts, and backend behavior.</span></a>
+                <a href="DATA-TYPES.md"><strong>DATA-TYPES.md</strong><span>Builtin types, containers, protocols, metadata, tables, sets, and state tracking.</span></a>
+                <a href="SYNTAX.md"><strong>SYNTAX.md</strong><span>Syntax examples for variables, functions, generics, modules, runtime helpers, and FFI.</span></a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>kLang is experimental. APIs, examples, and features may change as the language becomes more powerful.</p>
+        <a href="#overview">Back to top</a>
+    </footer>
+
+    <script src="script.js"></script>
 </body>
 </html>
