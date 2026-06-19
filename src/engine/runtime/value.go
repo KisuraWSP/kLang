@@ -532,13 +532,13 @@ func runtimeTypeName(value Value) string {
 func literalValue(expr parser.LiteralExpression) (Value, error) {
 	switch expr.Kind {
 	case "Int":
-		parsed, err := strconv.ParseInt(expr.Value, 0, 0)
+		parsed, err := strconv.ParseInt(normalizeRuntimeNumberLiteral(expr.Value), 0, 0)
 		if err != nil {
 			return NullValue(), err
 		}
 		return IntValue(int(parsed)), nil
 	case "Float":
-		value, err := strconv.ParseFloat(expr.Value, 64)
+		value, err := strconv.ParseFloat(normalizeRuntimeNumberLiteral(expr.Value), 64)
 		if err != nil {
 			return NullValue(), err
 		}
@@ -552,6 +552,10 @@ func literalValue(expr parser.LiteralExpression) (Value, error) {
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported literal kind %q", expr.Kind)}
 	}
+}
+
+func normalizeRuntimeNumberLiteral(literal string) string {
+	return strings.ReplaceAll(literal, "_", "")
 }
 
 func castValue(value Value, typeName string) (Value, error) {

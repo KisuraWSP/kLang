@@ -5231,11 +5231,13 @@ func isIdentifierRune(char rune) bool {
 }
 
 func isIntegerLiteral(input string) bool {
+	input = normalizeNumericLiteral(input)
 	_, err := strconv.ParseInt(input, 0, 64)
 	return err == nil
 }
 
 func isFloatLiteral(input string) bool {
+	input = normalizeNumericLiteral(input)
 	if strings.HasPrefix(input, "-") {
 		input = input[1:]
 	}
@@ -5265,7 +5267,7 @@ func childTypeLiteralFits(typeName string, expr string) bool {
 		if !isIntegerLiteral(expr) {
 			return true
 		}
-		value, err := strconv.ParseInt(expr, 0, 64)
+		value, err := strconv.ParseInt(normalizeNumericLiteral(expr), 0, 64)
 		if err != nil {
 			return false
 		}
@@ -5278,7 +5280,7 @@ func childTypeLiteralFits(typeName string, expr string) bool {
 		if strings.HasPrefix(expr, "-") {
 			return false
 		}
-		value, err := strconv.ParseUint(expr, 0, 64)
+		value, err := strconv.ParseUint(normalizeNumericLiteral(expr), 0, 64)
 		if err != nil {
 			return false
 		}
@@ -5290,6 +5292,10 @@ func childTypeLiteralFits(typeName string, expr string) bool {
 	default:
 		return true
 	}
+}
+
+func normalizeNumericLiteral(input string) string {
+	return strings.ReplaceAll(input, "_", "")
 }
 
 func signedBitRange(bits int) (int64, int64) {

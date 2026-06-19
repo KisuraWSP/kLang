@@ -44,7 +44,7 @@
 44. Numeric parent types support child-width types through `.child(bits)` and globally available aliases such as `i8`, `u32`, `float64`, and `complex128`.
 45. The checker reports warnings for unused local variables and unused function parameters.
 46. Qualified module calls can infer imports; `list.append(...)` loads a resolvable `list` module even without an explicit import.
-47. Integer literals support optional leading `-` and base prefixes `0x`/`0X`, `0o`/`0O`, and `0b`/`0B`. Identifiers may use Unicode letters, marks, and symbols, including Sinhala text and emoji, but may not begin with a digit.
+47. Integer literals support optional leading `-`, base prefixes `0x`/`0X`, `0o`/`0O`, and `0b`/`0B`, and `_` separators between digits. Identifiers may use Unicode letters, marks, and symbols, including Sinhala text and emoji, but may not begin with a digit.
 48. Modules may import other modules. Stdlib-to-stdlib imports remain stdlib imports, so selective function loading still applies to dependency modules.
 49. `Type` is the parent runtime metadata type for all language types. `SomeType.get_runtime_type_info()` returns metadata for serialization, data introspection, and memory layout interpretation.
 50. `assert expression;` is a builtin statement keyword. The expression must be `Bool`; runtime execution fails with an assertion error when it is false.
@@ -101,7 +101,7 @@ Rules
 - Use `run { ... }` or `run FunctionName();` to execute initialization code before ordinary statements in the same runtime block. A `run` action cannot return, break, or continue.
 - Use `(* ... *)` for multiline comments. Multiline comments are ignored by the lexer before parsing.
 - `Int.child(8)`, `UInt.child(16)`, `Float.child(32)`, and `Complex.child(128)` restrict values to the requested parent type width. The aliases in the builtin `types` namespace are available without imports.
-- Integer literals are decimal by default and may be written as hexadecimal (`0x2A`), octal (`0o52`), or binary (`0b101010`). Signed integer and float literals may use a leading `-`; exponentiation keeps unary-minus precedence, so `-2 ** 3` is parsed as `-(2 ** 3)`.
+- Integer literals are decimal by default and may be written as hexadecimal (`0x2A`), octal (`0o52`), or binary (`0b101010`). Numeric literals may use `_` separators between digits, for example `1_000_000`, `0xFF_FF`, `0b1010_0101`, and `12_345.67_89`; separators cannot appear at the beginning or end of a digit sequence, directly after a base prefix, or consecutively. Signed integer and float literals may use a leading `-`; exponentiation keeps unary-minus precedence, so `-2 ** 3` is parsed as `-(2 ** 3)`.
 - Variable names, function names, and function parameter names may contain Unicode identifier characters, Sinhala letters and marks, and emoji symbols. Identifiers cannot begin with a digit.
 - Use `TypeName.get_runtime_type_info()` to obtain a `Type` object. Its fields describe automated serialization hooks, introspection data such as field tables, and layout values such as byte size, alignment, and footprint.
 - Use `assert condition;` for runtime invariants. The checker requires the condition to be `Bool`.

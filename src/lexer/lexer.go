@@ -193,6 +193,7 @@ func (lexer *Lexer) readIdentifier() string {
 func (lexer *Lexer) readNumber() (string, TokenType) {
 	position := lexer.position
 	tokenType := TokenInt
+	valid := true
 
 	if lexer.ch == '-' {
 		lexer.readChar()
@@ -202,17 +203,15 @@ func (lexer *Lexer) readNumber() (string, TokenType) {
 		prefix := lexer.peekChar()
 		lexer.readChar()
 		lexer.readChar()
-		digitsStart := lexer.position
-		for isDigitForBase(lexer.ch, prefix) {
-			lexer.readChar()
-		}
-		if lexer.position == digitsStart {
+		sawDigit, validSeparators := lexer.readDigitsForBase(prefix)
+		valid = valid && validSeparators
+		if !sawDigit {
 			for isLetter(lexer.ch) || isDigit(lexer.ch) {
 				lexer.readChar()
 			}
 			return lexer.input[position:lexer.position], TokenIllegal
 		}
-		if isLetter(lexer.ch) || isDigit(lexer.ch) || lexer.ch == '.' {
+		if !valid || isLetter(lexer.ch) || isDigit(lexer.ch) || lexer.ch == '.' {
 			for isLetter(lexer.ch) || isDigit(lexer.ch) || lexer.ch == '.' {
 				lexer.readChar()
 			}
@@ -221,23 +220,21 @@ func (lexer *Lexer) readNumber() (string, TokenType) {
 		return lexer.input[position:lexer.position], TokenInt
 	}
 
-	for isDigit(lexer.ch) {
-		lexer.readChar()
-	}
+	_, validSeparators := lexer.readDecimalDigits()
+	valid = valid && validSeparators
 
 	if lexer.ch == '.' && isDigit(lexer.peekChar()) {
 		tokenType = TokenFloat
 		lexer.readChar()
-		for isDigit(lexer.ch) {
-			lexer.readChar()
-		}
+		_, validSeparators := lexer.readDecimalDigits()
+		valid = valid && validSeparators
 	}
 
 	if lexer.ch == '.' && isLetter(lexer.peekChar()) {
 		return lexer.input[position:lexer.position], tokenType
 	}
 
-	if lexer.ch == '.' || isLetter(lexer.ch) {
+	if !valid || lexer.ch == '.' || isLetter(lexer.ch) {
 		for lexer.ch == '.' || isLetter(lexer.ch) || isDigit(lexer.ch) {
 			lexer.readChar()
 		}
@@ -245,6 +242,40 @@ func (lexer *Lexer) readNumber() (string, TokenType) {
 	}
 
 	return lexer.input[position:lexer.position], tokenType
+}
+
+func (lexer *Lexer) readDecimalDigits() (bool, bool) {
+	return lexer.readSeparatedDigits(func(ch byte) bool {
+		return isDigit(ch)
+	})
+}
+
+func (lexer *Lexer) readDigitsForBase(prefix byte) (bool, bool) {
+	return lexer.readSeparatedDigits(func(ch byte) bool {
+		return isDigitForBase(ch, prefix)
+	})
+}
+
+func (lexer *Lexer) readSeparatedDigits(isValidDigit func(byte) bool) (bool, bool) {
+	sawDigit := false
+	valid := true
+	previousWasSeparator := false
+
+	for isValidDigit(lexer.ch) || lexer.ch == '_' {
+		if lexer.ch == '_' {
+			if !sawDigit || previousWasSeparator || !isValidDigit(lexer.peekChar()) {
+				valid = false
+			}
+			previousWasSeparator = true
+			lexer.readChar()
+			continue
+		}
+		sawDigit = true
+		previousWasSeparator = false
+		lexer.readChar()
+	}
+
+	return sawDigit, valid && !previousWasSeparator
 }
 
 func (lexer *Lexer) canStartSignedNumber() bool {
@@ -264,16 +295,16 @@ func (lexer *Lexer) signedNumberWouldBindPower() bool {
 	if position+1 < len(lexer.input) && lexer.input[position] == '0' && isBasePrefix(lexer.input[position+1]) {
 		prefix := lexer.input[position+1]
 		position += 2
-		for position < len(lexer.input) && isDigitForBase(lexer.input[position], prefix) {
+		for position < len(lexer.input) && (isDigitForBase(lexer.input[position], prefix) || lexer.input[position] == '_') {
 			position++
 		}
 	} else {
-		for position < len(lexer.input) && isDigit(lexer.input[position]) {
+		for position < len(lexer.input) && (isDigit(lexer.input[position]) || lexer.input[position] == '_') {
 			position++
 		}
 		if position < len(lexer.input) && lexer.input[position] == '.' {
 			position++
-			for position < len(lexer.input) && isDigit(lexer.input[position]) {
+			for position < len(lexer.input) && (isDigit(lexer.input[position]) || lexer.input[position] == '_') {
 				position++
 			}
 		}

@@ -86,6 +86,9 @@ local Int hexMask = 0xAAAA;
 local Int octalMode = 0o755;
 local Int binaryFlags = 0b1010;
 local Int negativeHex = -0xA;
+local Int readableMillion = 1_000_000;
+local Int readableMask = 0xFF_FF;
+local Float readableRatio = 12_345.67_89;
 
 -- Unicode identifiers are allowed for variables, functions, and parameters.
 function එකතු(අගය : Int, 😀 : Int) : Int {

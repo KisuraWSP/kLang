@@ -106,6 +106,23 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeEvaluatesNumberSeparators(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Int big = 1_000_000;
+    local Int hex = 0xFF_FF;
+    local Int binary = 0b1010_0101;
+    local Int mode = 0o7_55;
+    local Float ratio = 12_345.67_89;
+    return big + hex + binary + mode + ratio as Int;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1078538 {
+		t.Fatalf("expected number separator program to return 1078462, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesMutableVariablesAndWhileLoop(t *testing.T) {
 	result := runSource(t, `
 function Main() : Int {

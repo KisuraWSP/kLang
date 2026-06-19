@@ -738,7 +738,7 @@ func (parser *Parser) parseEnum() Statement {
 		ordinal := nextOrdinal
 		if parser.match(lexer.TokenAssign) {
 			value := parser.consume(lexer.TokenInt, "expected integer ordinal after '='")
-			parsed, err := strconv.ParseInt(value.Literal, 0, 0)
+			parsed, err := strconv.ParseInt(normalizeNumberLiteral(value.Literal), 0, 0)
 			if err != nil {
 				parser.addError(value, "expected integer ordinal after '='")
 			} else {
@@ -757,6 +757,10 @@ func (parser *Parser) parseEnum() Statement {
 	parser.consume(lexer.TokenScopeEnd, "expected '}' to close enum block")
 	parser.consumeOptionalSemicolon()
 	return EnumStatement{Pos: positionFromToken(start), Name: name.Literal, Variants: variants}
+}
+
+func normalizeNumberLiteral(literal string) string {
+	return strings.ReplaceAll(literal, "_", "")
 }
 
 func (parser *Parser) parseFunctionGroup() Statement {

@@ -148,6 +148,44 @@ func TestLexerTokenizesSignedAndPrefixedNumberLiterals(t *testing.T) {
 	})
 }
 
+func TestLexerTokenizesNumberSeparators(t *testing.T) {
+	input := `local Int big = 1_000_000; local Float ratio = 12_345.67_89; local Int mask = 0xFF_FF; local Int flags = 0b1010_0101; local Int mode = 0o7_55;`
+
+	assertTokens(t, input, []Token{
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "big"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "1_000_000"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Float"},
+		{Type: TokenIdentifier, Literal: "ratio"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenFloat, Literal: "12_345.67_89"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "mask"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "0xFF_FF"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "flags"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "0b1010_0101"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenLocal, Literal: "local"},
+		{Type: TokenIdentifier, Literal: "Int"},
+		{Type: TokenIdentifier, Literal: "mode"},
+		{Type: TokenAssign, Literal: "="},
+		{Type: TokenInt, Literal: "0o7_55"},
+		{Type: TokenSemicolon, Literal: ";"},
+		{Type: TokenEOFDescriptor, Literal: ""},
+	})
+}
+
 func TestLexerTokenizesUnicodeIdentifiers(t *testing.T) {
 	input := `function එකතු(අගය : Int, 😀 : Int) : Int { return අගය + 😀; }`
 
@@ -677,7 +715,7 @@ func TestLexerReportsIllegalUnterminatedString(t *testing.T) {
 }
 
 func TestLexerReportsMalformedNumbers(t *testing.T) {
-	for _, input := range []string{`123abc`, `1.2.3`, `10.`, `0x`, `0xG`, `0b102`, `0o789`} {
+	for _, input := range []string{`123abc`, `1.2.3`, `10.`, `0x`, `0xG`, `0b102`, `0o789`, `1_`, `1__2`, `0x_FF`, `0b101_2`, `1_.2`} {
 		tokens := New(input).Tokenize()
 		if tokens[0].Type != TokenIllegal {
 			t.Fatalf("%q: expected malformed number to be illegal, got %#v", input, tokens[0])

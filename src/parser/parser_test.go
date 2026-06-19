@@ -203,6 +203,36 @@ function එකතු(අගය : Int, 😀 : Int) : Int {
 	}
 }
 
+func TestParseNumberSeparators(t *testing.T) {
+	program, errors := Parse(`
+function Main() : Int {
+    local Int big = 1_000_000;
+    local Float ratio = 12_345.67_89;
+    return big + ratio as Int;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	bigDecl, ok := fn.Body[0].(VariableStatement)
+	if !ok {
+		t.Fatalf("expected big variable declaration, got %T", fn.Body[0])
+	}
+	if literal, ok := bigDecl.Expression.Node.(LiteralExpression); !ok || literal.Kind != "Int" || literal.Value != "1_000_000" {
+		t.Fatalf("expected separated int literal, got %#v", bigDecl.Expression.Node)
+	}
+	ratioDecl, ok := fn.Body[1].(VariableStatement)
+	if !ok {
+		t.Fatalf("expected ratio variable declaration, got %T", fn.Body[1])
+	}
+	if literal, ok := ratioDecl.Expression.Node.(LiteralExpression); !ok || literal.Kind != "Float" || literal.Value != "12_345.67_89" {
+		t.Fatalf("expected separated float literal, got %#v", ratioDecl.Expression.Node)
+	}
+}
+
 func TestParseLocalInferredVariableDeclaration(t *testing.T) {
 	program, errors := Parse(`
 local count = 1;

@@ -162,6 +162,25 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsNumberSeparators(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Int big = 1_000_000;
+    local Int hex = 0xFF_FF;
+    local Int binary = 0b1010_0101;
+    local Int mode = 0o7_55;
+    local Float ratio = 12_345.67_89;
+    local i16 small = 32_000;
+    return big + hex + binary + mode + ratio as Int + small;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected number separator program to type check, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramRejectsVariableTypeMismatch(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {
