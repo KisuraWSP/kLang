@@ -20,8 +20,6 @@ Workspace and meta programming types like Program, BuildSystem, Workspace, etcâ€
 
 - Richer pattern destructuring
    Destructuring already exists. It could expand into function parameters, match cases, loops, and records.
-- Better string formatting
-   The docs show a custom Printf example. This probably deserves official language or stdlib support:
 - Compile-time evaluation / macros, carefully limited
    You already have Program, BuildSystem, WorkSpace, .sizeof, and diagnostics. A small compile-time feature could be powerful:
    generate code, validate constants, create specialized functions, or define DSLs.

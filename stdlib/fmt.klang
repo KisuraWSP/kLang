@@ -1,0 +1,19 @@
+-- String formatting helpers backed by runtime formatting builtins.
+
+namespace fmt {
+    --- Signature: function Format(pattern : String, values : List[T]) : String
+    --- Returns: String.
+    --- Summary: Formats a pattern using % placeholders and %% escapes.
+    --- Contract: The number of non-escaped % placeholders must match len(values).
+    function Format(pattern : String, values : List[T]) : String {
+        return format(pattern, values);
+    }
+
+    --- Signature: function Printf(pattern : String, values : List[T]) : Int
+    --- Returns: Int.
+    --- Summary: Formats a pattern, prints the result, and returns the printed character count.
+    --- Contract: The number of non-escaped % placeholders must match len(values).
+    function Printf(pattern : String, values : List[T]) : Int {
+        return printf(pattern, values);
+    }
+}

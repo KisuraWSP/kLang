@@ -776,6 +776,34 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsFormatBuiltins(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local String message = format("Hello %, %", ["kLang", 42]);
+    local Int printed = printf("Ready %% %", [message]);
+    return len(message) + printed;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected format builtin program to type check, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsInvalidFormatArguments(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local String message = format(123, "bad");
+    return len(message);
+}
+`)
+
+	report := CheckProgram(program)
+	assertTypeError(t, report, "format pattern expects String, got Int")
+	assertTypeError(t, report, "format values expect List[T], got String")
+}
+
 func TestCheckProgramRejectsInvalidSetMembershipValue(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

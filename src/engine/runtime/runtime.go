@@ -2362,6 +2362,19 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		}
 		runtime.appendOutput(strings.Join(values, " "))
 		return NullValue(), nil
+	case "format":
+		formatted, err := formatValues(args)
+		if err != nil {
+			return NullValue(), err
+		}
+		return StringValue(formatted), nil
+	case "printf":
+		formatted, err := formatValues(args)
+		if err != nil {
+			return NullValue(), err
+		}
+		runtime.appendOutput(formatted)
+		return IntValue(len([]rune(formatted))), nil
 	case "input":
 		if len(args) > 1 {
 			return NullValue(), Error{Message: "input expects zero or one argument"}
@@ -3027,6 +3040,42 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 	}
 }
 
+func formatValues(args []Value) (string, error) {
+	if len(args) != 2 {
+		return "", Error{Message: "format expects String and List arguments"}
+	}
+	if args[0].Kind != ValueString {
+		return "", Error{Message: fmt.Sprintf("format pattern expects String, got %s", args[0].Kind)}
+	}
+	if args[1].Kind != ValueList {
+		return "", Error{Message: fmt.Sprintf("format values expect List, got %s", args[1].Kind)}
+	}
+	pattern := args[0].Data.(string)
+	values := args[1].Data.([]Value)
+	var builder strings.Builder
+	valueIndex := 0
+	for index := 0; index < len(pattern); index++ {
+		if pattern[index] != '%' {
+			builder.WriteByte(pattern[index])
+			continue
+		}
+		if index+1 < len(pattern) && pattern[index+1] == '%' {
+			builder.WriteByte('%')
+			index++
+			continue
+		}
+		if valueIndex >= len(values) {
+			return "", Error{Message: "format missing value for placeholder"}
+		}
+		builder.WriteString(valueString(values[valueIndex]))
+		valueIndex++
+	}
+	if valueIndex != len(values) {
+		return "", Error{Message: "format received more values than placeholders"}
+	}
+	return builder.String(), nil
+}
+
 func (runtime *Runtime) namedReturnValue(function parser.FunctionStatement, env *Environment) (Value, bool, error) {
 	if len(function.ReturnValues) == 0 {
 		return NullValue(), false, nil
@@ -3536,7 +3585,7 @@ func (runtime *Runtime) resolveAliasPath(name string) string {
 
 func isBuiltinFunction(name string) bool {
 	switch name {
-	case "print", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set",
+	case "print", "format", "printf", "input", "len", "range", "Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set",
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
 		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",

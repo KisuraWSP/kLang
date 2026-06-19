@@ -17,6 +17,7 @@ kLang currently experiments with:
 - Inferred declarations with `let`, `val`, `var`, and `const`.
 - Builtin `Option[T]` and `Result[T, E]` values.
 - Builtin `Set[T]` for deterministic deduplication and membership checks.
+- Runtime-backed string formatting through `format`, `printf`, and the stdlib `fmt` module.
 - Function-first programming, first-class functions, lambdas, and inline candidates.
 - Pass-by-value function calls by default, with explicit `ref` parameters for mutable pass-by-reference calls.
 - Multiple return values, named returns, destructuring, and discard bindings with `_`.

@@ -364,6 +364,16 @@ run Boot();
 2. Functions
 - Basically we want user to be able to write powerful functions like this no matter the functions signature
 ```typescript
+-- Official runtime-backed formatting is available without imports.
+local String formatted = format("Hello %, score %% %", ["kLang", 42]);
+local Int printedCount = printf("%", [formatted]);
+
+-- The stdlib fmt module provides namespaced wrappers.
+import "fmt";
+local String moduleFormatted = fmt.Format("module %", ["fmt"]);
+local Int modulePrinted = fmt.Printf("% ready", [moduleFormatted]);
+
+-- You can still write custom formatters when you need domain-specific rules.
 function Printf(formatString : String, value : List[T]) : Int {
     -- % is the universal placeholder. It consumes the next value from value.
     -- %% prints a literal percent sign.

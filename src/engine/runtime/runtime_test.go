@@ -972,6 +972,72 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesFormatBuiltins(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local String message = format("Hello %, score %% %", ["kLang", 42]);
+    local Int printed = printf("Ready: %", [message]);
+    return len(message) + printed;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 53 {
+		t.Fatalf("expected format program to return 53, got %#v", result.Value)
+	}
+	if len(result.Output) != 1 || result.Output[0] != "Ready: Hello kLang, score % 42" {
+		t.Fatalf("unexpected printf output: %#v", result.Output)
+	}
+}
+
+func TestRuntimeRejectsFormatArityMismatch(t *testing.T) {
+	_, missingErr := runParsedSourceWithError(`
+function Main() : Int {
+    return len(format("Hello % %", ["kLang"]));
+}
+`)
+	assertRuntimeErrorContains(t, missingErr, "format missing value for placeholder")
+
+	_, extraErr := runParsedSourceWithError(`
+function Main() : Int {
+    return len(format("Hello %", ["kLang", 42]));
+}
+`)
+	assertRuntimeErrorContains(t, extraErr, "format received more values than placeholders")
+}
+
+func TestRuntimeExecutesStdlibFmtModule(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd failed: %v", err)
+		}
+	}()
+
+	result := runSource(t, `
+import "fmt";
+
+function Main() : Int {
+    local String message = fmt.Format("module %", ["fmt"]);
+    local Int printed = fmt.Printf("% ready", [message]);
+    return len(message) + printed;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 26 {
+		t.Fatalf("expected stdlib fmt program to return 26, got %#v", result.Value)
+	}
+	if len(result.Output) != 1 || result.Output[0] != "module fmt ready" {
+		t.Fatalf("unexpected fmt.Printf output: %#v", result.Output)
+	}
+}
+
 func TestRuntimeRejectsInvalidSetItem(t *testing.T) {
 	_, err := runSourceWithError(`
 function Main() : Int {

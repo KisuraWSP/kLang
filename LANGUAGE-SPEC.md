@@ -52,6 +52,7 @@
 52. `report expression;` is a builtin runtime reporting statement. It evaluates the expression, prints the expression text, value, runtime type, and current stack trace, then continues execution.
 53. CLI `check` and `run` persist a source-fingerprint program cache in `.klang-cache` so repeated startups can skip module resolution and type checking when the full resolved source set is unchanged.
 54. `Set[T]` is a builtin deterministic hash set for unique primitive values, constructed with `Set(list)`, counted with `.count` or `len`, iterated with `iter`, and queried with `set_has(set, value)`.
+55. `format(pattern : String, values : List[T])` and `printf(pattern : String, values : List[T])` are runtime-backed string formatting builtins. `%` consumes the next value, `%%` emits a literal percent sign, and the number of non-escaped placeholders must match `len(values)`. The stdlib `fmt` module exposes `fmt.Format` and `fmt.Printf` wrappers.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -102,6 +103,7 @@ Rules
 - Use `TypeName.get_runtime_type_info()` to obtain a `Type` object. Its fields describe automated serialization hooks, introspection data such as field tables, and layout values such as byte size, alignment, and footprint.
 - Use `assert condition;` for runtime invariants. The checker requires the condition to be `Bool`.
 - Use `report value;` or `report FunctionCall();` to emit a live diagnostic report containing the evaluated value, runtime type, and stack frames. `report` accepts any expression, respects ordinary expression errors, and does not mutate the reported value.
+- Use `format("Hello %, score %% %", ["kLang", 42])` to build a formatted string and `printf(pattern, values)` to print one. Formatting values use the same display conversion as `print`.
 - Alias functions may contain trait and impl declarations in addition to hooks and extension methods.
 - CLI `run` prints runtime OS, architecture, CPU count, Go runtime version, and elapsed execution time.
 - CLI `package` checks a program and writes a compact source bundle with `klang-build.json`.

@@ -2413,6 +2413,26 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.inferExpression(arg, locals, source, line)
 		}
 		return anyType
+	case "format", "printf":
+		if len(args) != 2 {
+			checker.addError(source, line, name+" expects 2 arguments")
+			if name == "format" {
+				return "String"
+			}
+			return "Int"
+		}
+		patternType := checker.inferExpression(args[0], locals, source, line)
+		valuesType := checker.inferExpression(args[1], locals, source, line)
+		if !isAssignable("String", patternType) {
+			checker.addError(source, line, fmt.Sprintf("%s pattern expects String, got %s", name, patternType))
+		}
+		if !strings.HasPrefix(normalizeType(valuesType), "List[") && valuesType != anyType {
+			checker.addError(source, line, fmt.Sprintf("%s values expect List[T], got %s", name, valuesType))
+		}
+		if name == "format" {
+			return "String"
+		}
+		return "Int"
 	case "input":
 		if len(args) > 1 {
 			checker.addError(source, line, "input expects 0 to 1 argument(s)")
