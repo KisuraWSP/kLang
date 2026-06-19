@@ -56,8 +56,7 @@ Go-style channels would fit beautifully here, especially given your Go influence
 - Resource safety syntax
 Since kLang has allocators, regions, defer, refs, boxes, and arenas, a structured resource feature could fit well:
 something like scoped ownership or using-style blocks that guarantee cleanup at scope end.
-- Exhaustive pattern matching
-Since enums and Result/Option already exist, the checker could warn when a match forgets a case. This would make kLang feel safer without adding much syntax burden.
+
     
 # TODO When All Previous todos are done (End Goal)
 - Make the languages runtime be able to run a million line code project under 10 seconds

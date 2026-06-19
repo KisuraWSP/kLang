@@ -870,9 +870,11 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		checker.checkSemanticChildBlock(fn, current.Alternative, locals)
 	case parser.MatchStatement:
 		checker.checkSemanticExpression(fn, current.Value, locals, line)
+		valueType := checker.inferParsedExpression(current.Value, locals, fn.File, line)
 		for _, matchCase := range current.Cases {
-			checker.checkSemanticExpression(fn, matchCase.Pattern, locals, semanticLine(fn, matchCase.Pos))
-			checker.checkSemanticChildBlock(fn, matchCase.Body, locals)
+			caseLocals := copyLocals(locals)
+			declared := checker.semanticPatternCaptures(matchCase.Pattern.Node, valueType, caseLocals, fn.File, semanticLine(fn, matchCase.Pos))
+			checker.checkSemanticChildBlockWithLocals(fn, matchCase.Body, locals, caseLocals, declared)
 		}
 	case parser.LoopStatement:
 		checker.checkSemanticLoop(fn, current, locals, line)
@@ -1061,6 +1063,68 @@ func (checker *TypeChecker) checkSemanticChildBlockWithLocals(fn functionSymbol,
 		}
 		if _, exists := parent[name]; exists {
 			parent[name] = variable
+		}
+	}
+}
+
+func (checker *TypeChecker) semanticPatternCaptures(pattern parser.ExpressionNode, valueType string, locals map[string]variableSymbol, source string, line int) map[string]bool {
+	declared := map[string]bool{}
+	checker.collectSemanticPatternCaptures(pattern, normalizeType(valueType), locals, declared, source, line)
+	return declared
+}
+
+func (checker *TypeChecker) collectSemanticPatternCaptures(pattern parser.ExpressionNode, valueType string, locals map[string]variableSymbol, declared map[string]bool, source string, line int) {
+	switch current := pattern.(type) {
+	case nil:
+		return
+	case parser.IdentifierExpression:
+		if current.Name == "_" {
+			return
+		}
+		if _, exists := locals[current.Name]; exists {
+			return
+		}
+		locals[current.Name] = variableSymbol{Name: current.Name, Type: valueType, File: source, Line: line}
+		declared[current.Name] = true
+	case parser.GroupExpression:
+		checker.collectSemanticPatternCaptures(current.Inner, valueType, locals, declared, source, line)
+	case parser.CallExpression:
+		callee, ok := current.Callee.(parser.IdentifierExpression)
+		if !ok {
+			return
+		}
+		switch callee.Name {
+		case "Some":
+			elementType, ok := optionElementType(valueType)
+			if ok && len(current.Arguments) == 1 {
+				checker.collectSemanticPatternCaptures(current.Arguments[0], elementType, locals, declared, source, line)
+			}
+		case "Ok":
+			okType, _, ok := resultValueTypes(valueType)
+			if ok && len(current.Arguments) == 1 {
+				checker.collectSemanticPatternCaptures(current.Arguments[0], okType, locals, declared, source, line)
+			}
+		case "Err":
+			_, errType, ok := resultValueTypes(valueType)
+			if ok && len(current.Arguments) == 1 {
+				checker.collectSemanticPatternCaptures(current.Arguments[0], errType, locals, declared, source, line)
+			}
+		}
+	case parser.ListExpression:
+		elementType := anyType
+		if parsed, ok := listElementTypeName(valueType); ok {
+			elementType = parsed
+		}
+		for _, item := range current.Items {
+			checker.collectSemanticPatternCaptures(item, elementType, locals, declared, source, line)
+		}
+	case parser.MapExpression:
+		valueElementType := anyType
+		if _, mapValue, ok := indexedMapTypes(valueType); ok {
+			valueElementType = mapValue
+		}
+		for _, entry := range current.Entries {
+			checker.collectSemanticPatternCaptures(entry.Value, valueElementType, locals, declared, source, line)
 		}
 	}
 }

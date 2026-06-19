@@ -592,6 +592,72 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesOptionResultListAndTablePatterns(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Option[Int] maybe = Some(10);
+    if maybe == {
+        case Some(value):
+            return value;
+        case None():
+            return 0;
+    }
+    return -1;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 10 {
+		t.Fatalf("expected Option pattern to return 10, got %#v", result.Value)
+	}
+
+	result = runParsedSource(t, `
+function Main() : Int {
+    local Result[Int, String] parsed = Err("bad");
+    if parsed == {
+        case Ok(value):
+            return value;
+        case Err(message):
+            return len(message);
+    }
+    return -1;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 3 {
+		t.Fatalf("expected Result pattern to return 3, got %#v", result.Value)
+	}
+
+	result = runParsedSource(t, `
+function Main() : Int {
+    local List[Int] values = [1, 2];
+    partial if values == {
+        case [1, 2]:
+            return 12;
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 12 {
+		t.Fatalf("expected List pattern to return 12, got %#v", result.Value)
+	}
+
+	result = runParsedSource(t, `
+function Main() : Int {
+    local Table data = {"kind": "count", "value": 4};
+    partial if data == {
+        case {"kind": "count", "value": amount}:
+            return amount;
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 4 {
+		t.Fatalf("expected Table pattern to return 4, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesCStyleForLoop(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {

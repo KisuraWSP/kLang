@@ -860,10 +860,11 @@ if maybeCount and parsedCount {
 }
 
 -- pattern matching switch statement
--- Matches are strict and type safe. Bool, String, Int, and Float values are allowed.
--- Table values cannot be matched. Each case breaks by default.
+-- Matches are strict and type safe. Bool, String, Int, Float, Enum, Option,
+-- Result, List, and Table values are allowed. Each case breaks by default.
 -- Use continue inside a case to fall through to the next case.
--- Non-partial matches must include a default case, except Bool matches can cover True and False.
+-- Non-partial matches must be exhaustive for Bool, enum, Option, and Result
+-- values, or include a default case.
 local String mode = "blank";
 if mode == {
     case "blank":
@@ -889,6 +890,34 @@ partial if code == {
         print("one");
     case 2:
         print("two");
+}
+
+local Option[Int] maybeValue = Some(10);
+if maybeValue == {
+    case Some(value):
+        print(value);
+    case None():
+        print(0);
+}
+
+local Result[Int, String] parsedValue = Err("bad");
+if parsedValue == {
+    case Ok(value):
+        print(value);
+    case Err(message):
+        print(message);
+}
+
+local List[Int] pair = [1, 2];
+partial if pair == {
+    case [1, 2]:
+        print("pair");
+}
+
+local Table event = {"kind": "count", "value": 4};
+partial if event == {
+    case {"kind": "count", "value": amount}:
+        print(amount);
 }
 
 -- unless .. else

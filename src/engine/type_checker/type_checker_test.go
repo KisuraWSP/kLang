@@ -2304,19 +2304,74 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "case pattern type String does not match Int")
 }
 
-func TestCheckProgramRejectsTablePatternMatch(t *testing.T) {
+func TestCheckProgramRejectsUnsupportedPatternMatchValue(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {
-    local Table data = {"kind": "blank"};
+    local Set[String] data = Set(["blank"]);
     partial if data == {
-        case "blank":
+        case ["blank"]:
             print("no");
     }
     return 0;
 }
 `)
 
-	assertTypeError(t, CheckProgram(program), "pattern match value must be Bool, String, Int, or Float, got Table")
+	assertTypeError(t, CheckProgram(program), "pattern match value must be Bool, String, Int, Float, Enum, Option, Result, List, or Table, got Set[String]")
+}
+
+func TestCheckProgramAcceptsOptionResultListAndTablePatterns(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Option[Int] maybe = Some(10);
+    if maybe == {
+        case Some(value):
+            print(value);
+        case None():
+            print(0);
+    }
+
+    local Result[Int, String] parsed = Err("bad");
+    if parsed == {
+        case Ok(value):
+            print(value);
+        case Err(message):
+            print(message);
+    }
+
+    local List[Int] values = [1, 2];
+    partial if values == {
+        case [1, 2]:
+            print("pair");
+    }
+
+    local Table data = {"kind": "count", "value": 4};
+    partial if data == {
+        case {"kind": "count", "value": amount}:
+            print(amount);
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected extended pattern match type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsNonExhaustiveResultPatternMatch(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Result[Int, String] parsed = Ok(1);
+    if parsed == {
+        case Ok(value):
+            print(value);
+    }
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "pattern match is not exhaustive")
 }
 
 func TestCheckProgramAcceptsBuiltinProtocolMembers(t *testing.T) {

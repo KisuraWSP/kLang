@@ -9,13 +9,6 @@ Right now alias structs are useful, but they should become first-class enough th
 Add real JSON/Table serialization
 Your json.klang is currently string-helper oriented. A powerful version should encode/decode Table, List, String, Int, Float, Bool, Null, and maybe alias structs using Type.get_runtime_type_info().
 
-Improve pattern matching
-Pattern matching over Bool, literals, enums, Option, Result, List, and Table would be huge:
-if value == {
-   case Some(x) => x;
-   case None() => 0;
-}
-
 Make iterators feel real
 Add map, filter, reduce, collect, take, skip, enumerate, zip. Once iterators are good, Lists, Tables, arrays, and streams all become nicer.
 

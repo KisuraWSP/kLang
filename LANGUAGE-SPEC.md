@@ -59,6 +59,7 @@
 59. `kLang test` is a first-class CLI test runner. It discovers functions named `Test...`, runs them after module resolution, type checking, and parsing, treats failed `assert` statements as test failures, accepts `Bool` returns where `True` passes, accepts `Int` returns where `0` passes, and supports sibling `.golden` output files.
 60. Multiple-return functions can be unpacked directly into typed variable declarations, for example `local Table x, Int y = Multi();`.
 61. The compiler and runtime track state for variables, function parameters, named returns, and return values. Type-check reports expose compile-time state records, and `debug_state()` returns runtime state records as `List[Table]`.
+62. Pattern matching supports exhaustive checks for Bool, enum, Option, and Result values, plus structural cases for List and Table values.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -72,6 +73,7 @@ Rules
 - Destructuring declarations must have an initializer and lower to ordinary inferred declarations before semantic checking and runtime execution.
 - `_ = expression;` evaluates and discards an expression result. Declarations and destructuring bindings named `_` also discard their values instead of entering scope.
 - Unused local variables and function parameters produce warnings. Use `_` for intentionally ignored values.
+- Pattern matches over Bool, enum, Option, and Result values must be exhaustive unless marked `partial` or given a default `case:`. `Some(x)`, `Ok(x)`, `Err(x)`, List patterns, and Table patterns can bind captured values inside the case body.
 - Multiple return signatures use `(name : Type, mut OtherType)` syntax and return values with `return left, right;`.
 - Typed multi-variable declarations use `local Type a, OtherType b = FunctionReturningTwoValues();`. The initializer must be a call to a function with multiple declared return values, the number of bindings must match the number of return values, and each returned value must be assignable to its declared binding type. `_` may be used to discard a returned value.
 - Named return values are zero-initialized in the function body.

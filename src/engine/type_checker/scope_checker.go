@@ -319,53 +319,216 @@ func (checker *TypeChecker) checkMatchScope(stmt parser.MatchStatement, scope *l
 	valueType := checker.inferMatchExpressionType(stmt.Value, locals, source, stmt.Pos.Line)
 	valueType = normalizeType(valueType)
 	if !checker.isPatternMatchType(valueType) {
-		checker.addError(source, stmt.Pos.Line, fmt.Sprintf("pattern match value must be Bool, String, Int, or Float, got %s", valueType))
+		checker.addError(source, stmt.Pos.Line, fmt.Sprintf("pattern match value must be Bool, String, Int, Float, Enum, Option, Result, List, or Table, got %s", valueType))
 	}
 
 	hasDefault := false
 	boolCases := map[string]bool{}
 	enumCases := map[string]bool{}
+	optionCases := map[string]bool{}
+	resultCases := map[string]bool{}
+	hasWildcard := false
 	for _, matchCase := range stmt.Cases {
+		caseScope := newLexicalScope(scope)
 		if matchCase.Default {
 			if hasDefault {
 				checker.addError(source, matchCase.Pos.Line, "pattern match can only have one default case")
 			}
 			hasDefault = true
 		} else {
-			checker.checkScopeExpression(matchCase.Pattern.Node, scope, namespace, source, matchCase.Pos.Line)
-			patternType := normalizeType(checker.inferMatchExpressionType(matchCase.Pattern, locals, source, matchCase.Pos.Line))
-			if !checker.isPatternMatchType(patternType) {
-				checker.addError(source, matchCase.Pos.Line, fmt.Sprintf("case pattern must be Bool, String, Int, or Float, got %s", patternType))
+			info := checker.checkPatternScope(matchCase.Pattern.Node, valueType, caseScope, namespace, source, matchCase.Pos.Line)
+			if info.Wildcard {
+				hasWildcard = true
 			}
-			if valueType != anyType && patternType != anyType && valueType != patternType {
-				checker.addError(source, matchCase.Pos.Line, fmt.Sprintf("case pattern type %s does not match %s", patternType, valueType))
-			}
-			if valueType == "Bool" && patternType == "Bool" {
-				if value, ok := boolPatternLiteral(matchCase.Pattern.Node); ok && value {
-					boolCases["True"] = true
-				}
-				if value, ok := boolPatternLiteral(matchCase.Pattern.Node); ok && !value {
-					boolCases["False"] = true
-				}
-			}
-			if checker.enumExists(valueType) && patternType == valueType {
-				if _, variant, ok := enumPatternLiteral(matchCase.Pattern.Node); ok {
-					enumCases[variant] = true
-				}
+			switch info.Kind {
+			case "bool":
+				boolCases[info.Name] = true
+			case "enum":
+				enumCases[info.Name] = true
+			case "option":
+				optionCases[info.Name] = true
+			case "result":
+				resultCases[info.Name] = true
 			}
 		}
-		checker.checkScopeStatements(matchCase.Body, newLexicalScope(scope), namespace, source, true, false)
+		checker.checkScopeStatements(matchCase.Body, caseScope, namespace, source, true, false)
 	}
 
 	if !stmt.Partial && !hasDefault {
+		if hasWildcard {
+			return
+		}
 		if valueType == "Bool" && boolCases["True"] && boolCases["False"] {
 			return
 		}
 		if enum, ok := checker.enums[valueType]; ok && len(enumCases) == len(enum.Variants) {
 			return
 		}
+		if _, ok := optionElementType(valueType); ok && optionCases["Some"] && optionCases["None"] {
+			return
+		}
+		if _, _, ok := resultValueTypes(valueType); ok && resultCases["Ok"] && resultCases["Err"] {
+			return
+		}
 		checker.addError(source, stmt.Pos.Line, "pattern match is not exhaustive; add case: or mark it partial")
 	}
+}
+
+type matchPatternInfo struct {
+	Kind     string
+	Name     string
+	Wildcard bool
+}
+
+func (checker *TypeChecker) checkPatternScope(pattern parser.ExpressionNode, valueType string, scope *lexicalScope, namespace string, source string, line int) matchPatternInfo {
+	valueType = normalizeType(valueType)
+	switch current := pattern.(type) {
+	case parser.IdentifierExpression:
+		if current.Name == "_" {
+			return matchPatternInfo{Wildcard: true}
+		}
+		if variable, ok := scope.lookup(current.Name); ok {
+			patternType := normalizeType(variable.Type)
+			if valueType != anyType && patternType != anyType && valueType != patternType {
+				checker.addError(source, line, fmt.Sprintf("case pattern type %s does not match %s", patternType, valueType))
+			}
+			return matchPatternInfo{}
+		}
+		scope.define(variableSymbol{Name: current.Name, Type: valueType, File: source, Line: line})
+		return matchPatternInfo{Wildcard: true}
+	case parser.GroupExpression:
+		return checker.checkPatternScope(current.Inner, valueType, scope, namespace, source, line)
+	case parser.CallExpression:
+		return checker.checkConstructorPatternScope(current, valueType, scope, namespace, source, line)
+	case parser.ListExpression:
+		return checker.checkListPatternScope(current, valueType, scope, namespace, source, line)
+	case parser.MapExpression:
+		return checker.checkTablePatternScope(current, valueType, scope, namespace, source, line)
+	case parser.SelectorExpression:
+		checker.checkScopeExpression(pattern, scope, namespace, source, line)
+		patternType := anyType
+		if enumName, variantName, ok := enumPatternLiteral(pattern); ok && checker.enumVariantExists(enumName, variantName) {
+			patternType = enumName
+			if valueType != anyType && valueType != patternType {
+				checker.addError(source, line, fmt.Sprintf("case pattern type %s does not match %s", patternType, valueType))
+			}
+			return matchPatternInfo{Kind: "enum", Name: variantName}
+		}
+		return matchPatternInfo{}
+	default:
+		expr := parser.Expression{Node: pattern}
+		patternType := normalizeType(checker.inferMatchExpressionType(expr, scopeVariables(scope), source, line))
+		if !checker.isPatternMatchType(patternType) {
+			checker.addError(source, line, fmt.Sprintf("case pattern must be Bool, String, Int, Float, Enum, Option, Result, List, or Table, got %s", patternType))
+			return matchPatternInfo{}
+		}
+		if valueType != anyType && patternType != anyType && valueType != patternType {
+			checker.addError(source, line, fmt.Sprintf("case pattern type %s does not match %s", patternType, valueType))
+		}
+		if valueType == "Bool" && patternType == "Bool" {
+			if value, ok := boolPatternLiteral(pattern); ok && value {
+				return matchPatternInfo{Kind: "bool", Name: "True"}
+			}
+			if value, ok := boolPatternLiteral(pattern); ok && !value {
+				return matchPatternInfo{Kind: "bool", Name: "False"}
+			}
+		}
+		if checker.enumExists(valueType) && patternType == valueType {
+			if _, variant, ok := enumPatternLiteral(pattern); ok {
+				return matchPatternInfo{Kind: "enum", Name: variant}
+			}
+		}
+		return matchPatternInfo{}
+	}
+}
+
+func (checker *TypeChecker) checkConstructorPatternScope(pattern parser.CallExpression, valueType string, scope *lexicalScope, namespace string, source string, line int) matchPatternInfo {
+	callee, ok := pattern.Callee.(parser.IdentifierExpression)
+	if !ok {
+		checker.checkScopeExpression(pattern, scope, namespace, source, line)
+		return matchPatternInfo{}
+	}
+	switch callee.Name {
+	case "Some":
+		elementType, ok := optionElementType(valueType)
+		if !ok {
+			checker.addError(source, line, fmt.Sprintf("case pattern type Option[T] does not match %s", valueType))
+			return matchPatternInfo{}
+		}
+		if len(pattern.Arguments) != 1 {
+			checker.addError(source, line, "Some pattern expects one argument")
+			return matchPatternInfo{Kind: "option", Name: "Some"}
+		}
+		checker.checkPatternScope(pattern.Arguments[0], elementType, scope, namespace, source, line)
+		return matchPatternInfo{Kind: "option", Name: "Some"}
+	case "None":
+		if _, ok := optionElementType(valueType); !ok {
+			checker.addError(source, line, fmt.Sprintf("case pattern type Option[T] does not match %s", valueType))
+		}
+		if len(pattern.Arguments) != 0 {
+			checker.addError(source, line, "None pattern expects no arguments")
+		}
+		return matchPatternInfo{Kind: "option", Name: "None"}
+	case "Ok":
+		okType, _, ok := resultValueTypes(valueType)
+		if !ok {
+			checker.addError(source, line, fmt.Sprintf("case pattern type Result[T,E] does not match %s", valueType))
+			return matchPatternInfo{}
+		}
+		if len(pattern.Arguments) != 1 {
+			checker.addError(source, line, "Ok pattern expects one argument")
+			return matchPatternInfo{Kind: "result", Name: "Ok"}
+		}
+		checker.checkPatternScope(pattern.Arguments[0], okType, scope, namespace, source, line)
+		return matchPatternInfo{Kind: "result", Name: "Ok"}
+	case "Err":
+		_, errType, ok := resultValueTypes(valueType)
+		if !ok {
+			checker.addError(source, line, fmt.Sprintf("case pattern type Result[T,E] does not match %s", valueType))
+			return matchPatternInfo{}
+		}
+		if len(pattern.Arguments) != 1 {
+			checker.addError(source, line, "Err pattern expects one argument")
+			return matchPatternInfo{Kind: "result", Name: "Err"}
+		}
+		checker.checkPatternScope(pattern.Arguments[0], errType, scope, namespace, source, line)
+		return matchPatternInfo{Kind: "result", Name: "Err"}
+	default:
+		checker.checkScopeExpression(pattern, scope, namespace, source, line)
+		patternType := anyType
+		if valueType != anyType && patternType != anyType && valueType != patternType {
+			checker.addError(source, line, fmt.Sprintf("case pattern type %s does not match %s", patternType, valueType))
+		}
+		return matchPatternInfo{}
+	}
+}
+
+func (checker *TypeChecker) checkListPatternScope(pattern parser.ListExpression, valueType string, scope *lexicalScope, namespace string, source string, line int) matchPatternInfo {
+	elementType, ok := listElementTypeName(valueType)
+	if !ok {
+		checker.addError(source, line, fmt.Sprintf("case pattern type List[T] does not match %s", valueType))
+		return matchPatternInfo{}
+	}
+	for _, item := range pattern.Items {
+		checker.checkPatternScope(item, elementType, scope, namespace, source, line)
+	}
+	return matchPatternInfo{}
+}
+
+func (checker *TypeChecker) checkTablePatternScope(pattern parser.MapExpression, valueType string, scope *lexicalScope, namespace string, source string, line int) matchPatternInfo {
+	if valueType != anyType && valueType != "Table" && !strings.HasPrefix(valueType, "Map[") {
+		checker.addError(source, line, fmt.Sprintf("case pattern type Table does not match %s", valueType))
+		return matchPatternInfo{}
+	}
+	valueElementType := anyType
+	if _, mapValue, ok := indexedMapTypes(valueType); ok {
+		valueElementType = mapValue
+	}
+	for _, entry := range pattern.Entries {
+		checker.checkScopeExpression(entry.Key, scope, namespace, source, line)
+		checker.checkPatternScope(entry.Value, valueElementType, scope, namespace, source, line)
+	}
+	return matchPatternInfo{}
 }
 
 func (checker *TypeChecker) inferMatchExpressionType(expr parser.Expression, locals map[string]variableSymbol, source string, line int) string {
@@ -418,11 +581,24 @@ func scopeVariables(scope *lexicalScope) map[string]variableSymbol {
 func (checker *TypeChecker) isPatternMatchType(typeName string) bool {
 	typeName = normalizeType(typeName)
 	switch typeName {
-	case anyType, "Bool", "String", "Int", "Float":
+	case anyType, "Bool", "String", "Int", "Float", "Table":
 		return true
 	default:
-		return checker.enumExists(typeName)
+		return checker.enumExists(typeName) ||
+			strings.HasPrefix(typeName, "Option[") ||
+			strings.HasPrefix(typeName, "Result[") ||
+			strings.HasPrefix(typeName, "List[") ||
+			strings.HasPrefix(typeName, "Map[")
 	}
+}
+
+func listElementTypeName(typeName string) (string, bool) {
+	typeName = normalizeType(typeName)
+	if !strings.HasPrefix(typeName, "List[") || !strings.HasSuffix(typeName, "]") {
+		return "", false
+	}
+	elementType := normalizeType(typeName[len("List[") : len(typeName)-1])
+	return elementType, elementType != ""
 }
 
 func (checker *TypeChecker) checkFunctionScope(fn parser.FunctionStatement, parent *lexicalScope, namespace string, source string) {

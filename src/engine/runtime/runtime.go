@@ -1149,33 +1149,36 @@ func (runtime *Runtime) executeMatch(stmt parser.MatchStatement, env *Environmen
 		return signal{}, err
 	}
 	if !isRuntimePatternMatchValue(value) {
-		return signal{}, errorAt(stmt.Pos, fmt.Sprintf("pattern match value must be Bool, String, Int, or Float, got %s", value.Kind))
+		return signal{}, errorAt(stmt.Pos, fmt.Sprintf("pattern match value must be Bool, String, Int, Float, Enum, Option, Result, List, or Table, got %s", value.Kind))
 	}
 
 	matched := false
+	var captures map[string]Value
 	for _, matchCase := range stmt.Cases {
 		if !matched {
 			if matchCase.Default {
 				matched = true
+				captures = nil
 			} else {
-				pattern, err := runtime.evalExpression(matchCase.Pattern.Node, env)
+				caseCaptures := map[string]Value{}
+				matched, err = runtime.matchPattern(value, matchCase.Pattern.Node, env, caseCaptures)
 				if err != nil {
-					return signal{}, err
+					return signal{}, errorAt(matchCase.Pos, err.Error())
 				}
-				if !isRuntimePatternMatchValue(pattern) {
-					return signal{}, errorAt(matchCase.Pos, fmt.Sprintf("case pattern must be Bool, String, Int, or Float, got %s", pattern.Kind))
-				}
-				if value.Kind != pattern.Kind {
-					return signal{}, errorAt(matchCase.Pos, fmt.Sprintf("case pattern type %s does not match %s", pattern.Kind, value.Kind))
-				}
-				matched = valuesEqual(value, pattern)
+				captures = caseCaptures
 			}
 		}
 		if !matched {
 			continue
 		}
 
-		currentSignal, err := runtime.executeBlock(matchCase.Body, NewEnvironment(env), true)
+		caseEnv := NewEnvironment(env)
+		for name, captured := range captures {
+			if err := runtime.defineValueInRegion(caseEnv, name, false, runtimeTypeName(captured), captured, MemoryStack); err != nil {
+				return signal{}, errorAt(matchCase.Pos, err.Error())
+			}
+		}
+		currentSignal, err := runtime.executeBlock(matchCase.Body, caseEnv, true)
 		if err != nil {
 			return signal{}, err
 		}
@@ -1391,11 +1394,146 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 
 func isRuntimePatternMatchValue(value Value) bool {
 	switch value.Kind {
-	case ValueBool, ValueString, ValueInt, ValueFloat, ValueEnum:
+	case ValueBool, ValueString, ValueInt, ValueFloat, ValueEnum, ValueOption, ValueResult, ValueList, ValueTable:
 		return true
 	default:
 		return false
 	}
+}
+
+func (runtime *Runtime) matchPattern(value Value, pattern parser.ExpressionNode, env *Environment, captures map[string]Value) (bool, error) {
+	switch current := pattern.(type) {
+	case parser.IdentifierExpression:
+		if current.Name == "_" {
+			return true, nil
+		}
+		if binding, ok := env.Get(current.Name); ok {
+			patternValue, err := runtime.forceBindingValue(binding)
+			if err != nil {
+				return false, err
+			}
+			if value.Kind != patternValue.Kind {
+				return false, nil
+			}
+			return valuesEqual(value, patternValue), nil
+		}
+		captures[current.Name] = cloneValue(value)
+		return true, nil
+	case parser.GroupExpression:
+		return runtime.matchPattern(value, current.Inner, env, captures)
+	case parser.CallExpression:
+		return runtime.matchConstructorPattern(value, current, env, captures)
+	case parser.ListExpression:
+		return runtime.matchListPattern(value, current, env, captures)
+	case parser.MapExpression:
+		return runtime.matchTablePattern(value, current, env, captures)
+	default:
+		patternValue, err := runtime.evalExpression(pattern, env)
+		if err != nil {
+			return false, err
+		}
+		if !isRuntimePatternMatchValue(patternValue) {
+			return false, Error{Message: fmt.Sprintf("case pattern must be Bool, String, Int, Float, Enum, Option, Result, List, or Table, got %s", patternValue.Kind)}
+		}
+		if value.Kind != patternValue.Kind {
+			return false, nil
+		}
+		return valuesEqual(value, patternValue), nil
+	}
+}
+
+func (runtime *Runtime) matchConstructorPattern(value Value, pattern parser.CallExpression, env *Environment, captures map[string]Value) (bool, error) {
+	callee, ok := pattern.Callee.(parser.IdentifierExpression)
+	if !ok {
+		patternValue, err := runtime.evalExpression(pattern, env)
+		if err != nil {
+			return false, err
+		}
+		return valuesEqual(value, patternValue), nil
+	}
+	switch callee.Name {
+	case "Some":
+		if len(pattern.Arguments) != 1 || value.Kind != ValueOption {
+			return false, nil
+		}
+		option := value.Data.(OptionData)
+		if !option.Some {
+			return false, nil
+		}
+		return runtime.matchPattern(option.Value, pattern.Arguments[0], env, captures)
+	case "None":
+		if len(pattern.Arguments) != 0 || value.Kind != ValueOption {
+			return false, nil
+		}
+		return !value.Data.(OptionData).Some, nil
+	case "Ok":
+		if len(pattern.Arguments) != 1 || value.Kind != ValueResult {
+			return false, nil
+		}
+		result := value.Data.(ResultData)
+		if !result.Ok {
+			return false, nil
+		}
+		return runtime.matchPattern(result.Value, pattern.Arguments[0], env, captures)
+	case "Err":
+		if len(pattern.Arguments) != 1 || value.Kind != ValueResult {
+			return false, nil
+		}
+		result := value.Data.(ResultData)
+		if result.Ok {
+			return false, nil
+		}
+		return runtime.matchPattern(result.Value, pattern.Arguments[0], env, captures)
+	default:
+		patternValue, err := runtime.evalExpression(pattern, env)
+		if err != nil {
+			return false, err
+		}
+		return valuesEqual(value, patternValue), nil
+	}
+}
+
+func (runtime *Runtime) matchListPattern(value Value, pattern parser.ListExpression, env *Environment, captures map[string]Value) (bool, error) {
+	if value.Kind != ValueList {
+		return false, nil
+	}
+	items := value.Data.([]Value)
+	if len(items) != len(pattern.Items) {
+		return false, nil
+	}
+	for index, itemPattern := range pattern.Items {
+		matched, err := runtime.matchPattern(items[index], itemPattern, env, captures)
+		if err != nil || !matched {
+			return matched, err
+		}
+	}
+	return true, nil
+}
+
+func (runtime *Runtime) matchTablePattern(value Value, pattern parser.MapExpression, env *Environment, captures map[string]Value) (bool, error) {
+	if value.Kind != ValueTable {
+		return false, nil
+	}
+	table := value.Data.(TableData)
+	for _, entry := range pattern.Entries {
+		keyValue, err := runtime.evalExpression(entry.Key, env)
+		if err != nil {
+			return false, err
+		}
+		key, err := tableKey(keyValue)
+		if err != nil {
+			return false, err
+		}
+		tableValue, ok := tableGet(table, key)
+		if !ok {
+			return false, nil
+		}
+		matched, err := runtime.matchPattern(tableValue, entry.Value, env, captures)
+		if err != nil || !matched {
+			return matched, err
+		}
+	}
+	return true, nil
 }
 
 func valuesEqual(left Value, right Value) bool {
@@ -1415,6 +1553,45 @@ func valuesEqual(left Value, right Value) bool {
 		leftData := left.Data.(EnumData)
 		rightData := right.Data.(EnumData)
 		return leftData.Type == rightData.Type && leftData.Variant == rightData.Variant
+	case ValueOption:
+		leftData := left.Data.(OptionData)
+		rightData := right.Data.(OptionData)
+		if leftData.Some != rightData.Some {
+			return false
+		}
+		if !leftData.Some {
+			return true
+		}
+		return valuesEqual(leftData.Value, rightData.Value)
+	case ValueResult:
+		leftData := left.Data.(ResultData)
+		rightData := right.Data.(ResultData)
+		return leftData.Ok == rightData.Ok && valuesEqual(leftData.Value, rightData.Value)
+	case ValueList:
+		leftItems := left.Data.([]Value)
+		rightItems := right.Data.([]Value)
+		if len(leftItems) != len(rightItems) {
+			return false
+		}
+		for index := range leftItems {
+			if !valuesEqual(leftItems[index], rightItems[index]) {
+				return false
+			}
+		}
+		return true
+	case ValueTable:
+		leftTable := left.Data.(TableData)
+		rightTable := right.Data.(TableData)
+		if len(leftTable.Entries) != len(rightTable.Entries) {
+			return false
+		}
+		for key, leftValue := range leftTable.Entries {
+			rightValue, ok := rightTable.Entries[key]
+			if !ok || !valuesEqual(leftValue, rightValue) {
+				return false
+			}
+		}
+		return true
 	default:
 		return false
 	}
