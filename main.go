@@ -18,6 +18,7 @@ import (
 	langcontext "kLang/src/engine/context"
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
+	programcache "kLang/src/engine/program_cache"
 	"kLang/src/engine/runtime"
 	typechecker "kLang/src/engine/type_checker"
 	"kLang/src/parser"
@@ -866,33 +867,53 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 	fmt.Printf("  entry: %s\n", program.EntryPoint)
 	fmt.Printf("  files: %d\n", len(program.Files))
 
-	resolvedProgram, moduleReport := resolver.ResolveProgram(program)
-	if !moduleReport.Passed() {
-		printModuleErrors(resolvedProgram, moduleReport)
-		return fmt.Errorf("module resolution failed")
-	}
-	if options.Verbose {
-		for _, module := range moduleReport.Modules {
-			fmt.Printf("  import: %s -> %s (%s)\n", module.Name, module.Path, module.Kind)
+	resolvedProgram, cacheEntry, cacheHit := programcache.Load(program, options.RawLang)
+	typeReport := typechecker.Report{}
+	if cacheHit {
+		typeReport.Warnings = warningsFromCache(cacheEntry.Warnings)
+		if options.Verbose {
+			if cachePath, ok := programcache.Path(program, options.RawLang); ok {
+				fmt.Printf("  program cache: hit (%s)\n", cachePath)
+			}
 		}
-	}
-	fmt.Printf("  modules: ok")
-	if len(moduleReport.Modules) != 0 {
-		fmt.Printf(" (%d import(s))", len(moduleReport.Modules))
-	}
-	fmt.Println()
-	if options.Verbose {
-		stats := resolver.Stats()
-		fmt.Printf("  cache: paths=%d program(s)=%d import-set(s)=%d\n", stats.ExistsEntries, stats.ProgramEntries, stats.ImportEntries)
-	}
+		fmt.Printf("  modules: ok (cached)\n")
+		fmt.Printf("  type check: ok (cached)\n")
+		printTypeWarnings(typeReport)
+	} else {
+		if options.Verbose {
+			if cachePath, ok := programcache.Path(program, options.RawLang); ok {
+				fmt.Printf("  program cache: miss (%s)\n", cachePath)
+			}
+		}
+		var moduleReport modulesystem.Report
+		resolvedProgram, moduleReport = resolver.ResolveProgram(program)
+		if !moduleReport.Passed() {
+			printModuleErrors(resolvedProgram, moduleReport)
+			return fmt.Errorf("module resolution failed")
+		}
+		if options.Verbose {
+			for _, module := range moduleReport.Modules {
+				fmt.Printf("  import: %s -> %s (%s)\n", module.Name, module.Path, module.Kind)
+			}
+		}
+		fmt.Printf("  modules: ok")
+		if len(moduleReport.Modules) != 0 {
+			fmt.Printf(" (%d import(s))", len(moduleReport.Modules))
+		}
+		fmt.Println()
+		if options.Verbose {
+			stats := resolver.Stats()
+			fmt.Printf("  resolver cache: paths=%d program(s)=%d import-set(s)=%d\n", stats.ExistsEntries, stats.ProgramEntries, stats.ImportEntries)
+		}
 
-	typeReport := typechecker.CheckProgram(resolvedProgram)
-	if !typeReport.Passed() {
-		printTypeErrors(resolvedProgram, typeReport)
-		return fmt.Errorf("type check failed")
+		typeReport = typechecker.CheckProgram(resolvedProgram)
+		if !typeReport.Passed() {
+			printTypeErrors(resolvedProgram, typeReport)
+			return fmt.Errorf("type check failed")
+		}
+		fmt.Printf("  type check: ok\n")
+		printTypeWarnings(typeReport)
 	}
-	fmt.Printf("  type check: ok\n")
-	printTypeWarnings(typeReport)
 
 	parsedProgram := parser.ParseLoadedProgram(resolvedProgram)
 	if !parsedProgram.Passed() {
@@ -900,6 +921,9 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 		return fmt.Errorf("parse failed")
 	}
 	fmt.Printf("  parse: ok\n")
+	if !cacheHit {
+		_ = programcache.Store(resolvedProgram, options.RawLang, warningsToCache(typeReport.Warnings))
+	}
 
 	if !options.Run {
 		return nil
@@ -924,6 +948,36 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 			result.Memory.HeapObjects, result.Memory.HeapBytes)
 	}
 	return nil
+}
+
+func warningsToCache(warnings []typechecker.Warning) []programcache.Warning {
+	if len(warnings) == 0 {
+		return nil
+	}
+	cached := make([]programcache.Warning, 0, len(warnings))
+	for _, warning := range warnings {
+		cached = append(cached, programcache.Warning{
+			File:    warning.File,
+			Line:    warning.Line,
+			Message: warning.Message,
+		})
+	}
+	return cached
+}
+
+func warningsFromCache(warnings []programcache.Warning) []typechecker.Warning {
+	if len(warnings) == 0 {
+		return nil
+	}
+	restored := make([]typechecker.Warning, 0, len(warnings))
+	for _, warning := range warnings {
+		restored = append(restored, typechecker.Warning{
+			File:    warning.File,
+			Line:    warning.Line,
+			Message: warning.Message,
+		})
+	}
+	return restored
 }
 
 func printModuleErrors(program file.Program, report modulesystem.Report) {

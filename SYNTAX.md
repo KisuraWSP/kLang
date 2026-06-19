@@ -891,6 +891,7 @@ impl Printable for Int {
 - Each standalone script or folder project is resolved as a separate workspace.
 - Local imports are resolved inside the workspace before stdlib imports.
 - Resolver caches imported files and parsed import lists to speed repeated checks.
+- Successful CLI checks and runs also write a `.klang-cache` entry for the workspace. Repeating the same unchanged script or project can reuse the resolved and checked source set, while source edits, entry changes, or `--raw-lang` changes force a miss.
 - Stdlib imports use selective function lookup by default; only functions called through the imported module namespace and their same-module helper dependencies are collected.
 - Use `module_caller(call_entire_module : True);` in the importing source to load complete stdlib modules.
 - Use `module(disabled : True);` in a module source to make imports of that module fail until the directive is removed or set to false.

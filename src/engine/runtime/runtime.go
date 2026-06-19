@@ -11,6 +11,7 @@ import (
 
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
+	programcache "kLang/src/engine/program_cache"
 	typechecker "kLang/src/engine/type_checker"
 	"kLang/src/lexer"
 	"kLang/src/parser"
@@ -253,19 +254,26 @@ func RunProgram(program file.Program) (Result, error) {
 }
 
 func RunProgramWithArgs(program file.Program, args []string) (Result, error) {
-	resolvedProgram, moduleReport := modulesystem.ResolveProgram(program)
-	if !moduleReport.Passed() {
-		return Result{}, Error{Message: fmt.Sprintf("module resolution failed: %v", moduleReport.Errors)}
-	}
+	resolvedProgram, _, cacheHit := programcache.Load(program, false)
+	if !cacheHit {
+		var moduleReport modulesystem.Report
+		resolvedProgram, moduleReport = modulesystem.ResolveProgram(program)
+		if !moduleReport.Passed() {
+			return Result{}, Error{Message: fmt.Sprintf("module resolution failed: %v", moduleReport.Errors)}
+		}
 
-	typeReport := typechecker.CheckProgram(resolvedProgram)
-	if !typeReport.Passed() {
-		return Result{}, Error{Message: fmt.Sprintf("type check failed: %v", typeReport.Errors)}
+		typeReport := typechecker.CheckProgram(resolvedProgram)
+		if !typeReport.Passed() {
+			return Result{}, Error{Message: fmt.Sprintf("type check failed: %v", typeReport.Errors)}
+		}
 	}
 
 	parsed := parser.ParseLoadedProgram(resolvedProgram)
 	if !parsed.Passed() {
 		return Result{}, Error{Message: fmt.Sprintf("parse failed: %v", parsed.Errors())}
+	}
+	if !cacheHit {
+		_ = programcache.Store(resolvedProgram, false, nil)
 	}
 
 	return NewWithArgs(args).Run(parsed)

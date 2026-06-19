@@ -37,6 +37,7 @@ For the full design surface, read `LANGUAGE-SPEC.md`, `DATA-TYPES.md`, and `SYNT
 - `src/lexer` tokenizes `.klang` source files.
 - `src/parser` builds the AST and expression trees.
 - `src/engine/module_system` resolves local and stdlib imports.
+- `src/engine/program_cache` persists safe startup cache entries for unchanged scripts and projects.
 - `src/engine/type_checker` performs semantic checks and type checks.
 - `src/engine/runtime` executes parsed kLang programs.
 - `src/engine/context` carries workspace context and source-aware diagnostics.
@@ -166,6 +167,8 @@ Show import cache/details:
 ```sh
 go run . check examples/showcase --verbose
 ```
+
+Successful `check` and `run` commands write a best-effort `.klang-cache` folder beside the program root. On the next unchanged startup, kLang can reuse the resolved and type-checked source set and skip that work. Source edits, entry changes, and `--raw-lang` changes invalidate the cache automatically.
 
 Print a source file with line labels:
 

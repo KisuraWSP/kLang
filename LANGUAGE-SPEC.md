@@ -50,6 +50,7 @@
 50. `assert expression;` is a builtin statement keyword. The expression must be `Bool`; runtime execution fails with an assertion error when it is false.
 51. CLI `doc --sourcefile=[...]` generates a static HTML documentation UI for one or more Klang source files or folder projects, including declaration cards and source-code chapters for each file.
 52. `report expression;` is a builtin runtime reporting statement. It evaluates the expression, prints the expression text, value, runtime type, and current stack trace, then continues execution.
+53. CLI `check` and `run` persist a source-fingerprint program cache in `.klang-cache` so repeated startups can skip module resolution and type checking when the full resolved source set is unchanged.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -83,7 +84,7 @@ Rules
 - `resume(coroutine)` returns Option[T], with None after the coroutine has completed.
 - `spawn(functionValue, [args...])` starts a child interpreter worker and returns `Thread[T]`; `join(thread)` waits and returns `T`.
 - Threaded workers share loaded functions, globals, memory tracking, and output. Use `Atomic[T]` for shared mutable values that need safe read-modify-write behavior.
-- Each standalone script or project is resolved as its own workspace. Resolver caches speed repeated imports without sharing visited-state between workspaces.
+- Each standalone script or project is resolved as its own workspace. Resolver caches speed repeated imports without sharing visited-state between workspaces. Successful CLI checks/runs also write a `.klang-cache` entry keyed by entry point, raw-lang mode, and source fingerprints; valid hits may reuse the resolved and checked source set.
 - `import` statements may appear anywhere in a source file. Qualified module calls such as `math.Add(...)` also infer an import when `math` resolves to a local or stdlib module.
 - Imported modules may contain their own `import` statements. The resolver loads these recursively, reports cycles, and treats sibling imports under the stdlib root as stdlib modules so function lookup filters continue to apply.
 - Stdlib imports are selectively collected by default. For example, `import "html";` plus `html.Document(...)` collects `html.Document` and its same-module helper dependencies, not every function in `stdlib/html.klang`.
@@ -112,4 +113,4 @@ Rules
 - Ordinary assignment of aggregate collection values such as `List`, `Map`, `Table`, and `SIMD` may share storage until one binding is mutated. Indexed mutation detaches the mutated binding first, preserving referential transparency for the other binding. Explicit `copy` and `clone` still request an eager cloned value.
 - Table mutation respects mutable bindings. `None()` and `Null` are stored as ordinary values and do not delete keys. Invalid key types such as `Table`, `List`, functions, refs, allocator values, and runtime objects produce diagnostics.
 - `Context` tracks the program name, entry point, selected backend, source files, and collected diagnostics. `ErrorContext` includes the failing phase (`SOURCE`, `MODULE`, `PARSE`, `TYPE`, `RUNTIME`, `BACKEND`, or `WASM`), location, source line, rule, message, and fix hint. CLI `check`, `run`, `package`, and WASM packaging must report through this structure.
-- Runtime errors raised inside function calls include a stack trace before the error leaves the active call stack. The Go implementation parses loaded source files concurrently, reuses that parsed program through semantic checks, collects runtime symbols per source concurrently, and merges compiler/runtime setup results in source order before sequential program execution.
+- Runtime errors raised inside function calls include a stack trace before the error leaves the active call stack. The Go implementation parses loaded source files concurrently, reuses that parsed program through semantic checks, persists a best-effort `.klang-cache` for repeated unchanged program startups, collects runtime symbols per source concurrently, and merges compiler/runtime setup results in source order before sequential program execution.
