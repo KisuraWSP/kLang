@@ -223,6 +223,7 @@ type Runtime struct {
 	functionFiles   map[string]string
 	globalFunctions map[string][]string
 	aliasFunctions  map[string]parser.AliasFunctionStatement
+	keywordMacros   map[string]parser.AliasStatement
 	enums           map[string]parser.EnumStatement
 	regions         map[string]RegionData
 	groups          map[string][]string
@@ -236,6 +237,7 @@ type Runtime struct {
 	nextFunc        int
 	innerSets       []map[string]Value
 	args            []string
+	parsableArgs    [][]Value
 	states          []StateRecord
 }
 
@@ -266,6 +268,7 @@ func New() *Runtime {
 		functionFiles:   map[string]string{},
 		globalFunctions: map[string][]string{},
 		aliasFunctions:  map[string]parser.AliasFunctionStatement{},
+		keywordMacros:   map[string]parser.AliasStatement{},
 		enums:           map[string]parser.EnumStatement{},
 		regions:         map[string]RegionData{},
 		groups:          map[string][]string{},
@@ -395,6 +398,7 @@ type runtimeSymbolSet struct {
 	functionFiles   map[string]string
 	globalFunctions map[string][]string
 	aliasFunctions  map[string]parser.AliasFunctionStatement
+	keywordMacros   map[string]parser.AliasStatement
 	enums           map[string]parser.EnumStatement
 	regions         map[string]RegionData
 	groups          map[string][]string
@@ -433,6 +437,7 @@ func collectRuntimeSymbolsForSource(source parser.ParsedSource) (runtimeSymbolSe
 		functionFiles:   local.functionFiles,
 		globalFunctions: local.globalFunctions,
 		aliasFunctions:  local.aliasFunctions,
+		keywordMacros:   local.keywordMacros,
 		enums:           local.enums,
 		regions:         local.regions,
 		groups:          local.groups,
@@ -449,6 +454,12 @@ func (runtime *Runtime) mergeRuntimeSymbols(symbols runtimeSymbolSet) error {
 			return Error{Message: fmt.Sprintf("alias function %q is already defined", name)}
 		}
 		runtime.aliasFunctions[name] = aliasFunction
+	}
+	for name, macro := range symbols.keywordMacros {
+		if _, exists := runtime.keywordMacros[name]; exists {
+			return Error{Message: fmt.Sprintf("keyword macro %q is already defined", name)}
+		}
+		runtime.keywordMacros[name] = macro
 	}
 	for name, enum := range symbols.enums {
 		if _, exists := runtime.enums[name]; exists {
@@ -589,6 +600,7 @@ func (runtime *Runtime) childRuntime() *Runtime {
 		functionFiles:   cloneStringMap(runtime.functionFiles),
 		globalFunctions: cloneGroupMap(runtime.globalFunctions),
 		aliasFunctions:  cloneAliasFunctionMap(runtime.aliasFunctions),
+		keywordMacros:   cloneKeywordMacroMap(runtime.keywordMacros),
 		enums:           cloneEnumMap(runtime.enums),
 		regions:         cloneRegionMap(runtime.regions),
 		groups:          cloneGroupMap(runtime.groups),
@@ -599,6 +611,14 @@ func (runtime *Runtime) childRuntime() *Runtime {
 		args:            append([]string(nil), runtime.args...),
 	}
 	return child
+}
+
+func cloneKeywordMacroMap(items map[string]parser.AliasStatement) map[string]parser.AliasStatement {
+	copied := make(map[string]parser.AliasStatement, len(items))
+	for key, value := range items {
+		copied[key] = value
+	}
+	return copied
 }
 
 func cloneFunctionMap(items map[string]parser.FunctionStatement) map[string]parser.FunctionStatement {
@@ -704,6 +724,13 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 	case parser.ImplStatement:
 		return nil
 	case parser.AliasStatement:
+		if current.KeywordMacro {
+			if _, exists := runtime.keywordMacros[current.Name]; exists {
+				return errorAt(current.Pos, fmt.Sprintf("keyword macro %q is already defined", current.Name))
+			}
+			runtime.keywordMacros[current.Name] = current
+			return nil
+		}
 		if current.Target == "" {
 			return errorAt(current.Pos, fmt.Sprintf("alias %q is missing a namespace target", current.Name))
 		}
@@ -1614,7 +1641,7 @@ func typeSizeof(typeName string) (int, bool) {
 		return 8, true
 	case "Complex":
 		return 16, true
-	case "String", "List", "Map", "Table", "JSON", "T", "Type", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic", "Context", "ErrorContext":
+	case "String", "List", "Map", "Table", "JSON", "Parsable", "T", "Type", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic", "Context", "ErrorContext":
 		return 16, true
 	default:
 		return 0, false
@@ -2087,6 +2114,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			return FunctionValue(target), nil
 		}
 		if _, ok := runtime.aliasFunctions[current.Name]; ok {
+			return FunctionValue(current.Name), nil
+		}
+		if _, ok := runtime.keywordMacros[current.Name]; ok {
 			return FunctionValue(current.Name), nil
 		}
 		if _, ok := runtime.groups[current.Name]; ok {
@@ -2620,6 +2650,19 @@ func (runtime *Runtime) evalPipe(value Value, target parser.ExpressionNode, env 
 }
 
 func (runtime *Runtime) evalCall(expr parser.CallExpression, env *Environment) (Value, error) {
+	if identifier, ok := expr.Callee.(parser.IdentifierExpression); ok {
+		if macro, exists := runtime.keywordMacros[identifier.Name]; exists {
+			args := make([]Value, 0, len(expr.Arguments))
+			for _, arg := range expr.Arguments {
+				value, err := runtime.evalExpression(arg, env)
+				if err != nil {
+					return NullValue(), err
+				}
+				args = append(args, value)
+			}
+			return runtime.executeKeywordMacro(macro, args, env)
+		}
+	}
 	callee, err := runtime.evalExpression(expr.Callee, env)
 	if err != nil {
 		return NullValue(), err
@@ -2758,6 +2801,21 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		return typeInfoValue(typeName), nil
 	}
 	switch name {
+	case "get_args_from_parsable":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: "get_args_from_parsable expects no arguments"}
+		}
+		if len(runtime.parsableArgs) == 0 {
+			return NullValue(), Error{Message: "get_args_from_parsable is only available inside a keyword macro"}
+		}
+		items := runtime.parsableArgs[len(runtime.parsableArgs)-1]
+		return Value{Kind: ValueList, Data: append([]Value(nil), items...)}, nil
+	case "Parsable":
+		return runtime.newParsable(args)
+	case "parsable_source", "parsable_ast", "parsable_args", "parsable_runtime_info", "parsable_workspace":
+		return runtime.parsableField(name, args)
+	case "parsable_with_source", "parsable_replace", "parsable_append":
+		return runtime.transformParsable(name, args)
 	case "print":
 		values := make([]string, 0, len(args))
 		for _, arg := range args {
@@ -4257,12 +4315,13 @@ func isBuiltinFunction(name string) bool {
 	case "print", "format", "printf", "input", "len", "range",
 		"option_map", "option_unwrap_or", "option_and_then",
 		"result_map", "result_map_err", "result_unwrap_or", "result_and_then",
-		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON",
+		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON", "Parsable",
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
 		"json_parse", "json_stringify", "json_get", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null",
 		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",
+		"parsable_source", "parsable_ast", "parsable_args", "parsable_runtime_info", "parsable_workspace", "parsable_with_source", "parsable_replace", "parsable_append", "get_args_from_parsable",
 		"runtime_debug_loc", "runtime_debug_file", "runtime_debug_line", "runtime_debug_module", "runtime_debug_pos", "runtime_debug_function",
 		"runtime_debug_loc_of", "runtime_debug_line_of", "runtime_debug_pos_of",
 		"runtime.debug.__LOC__", "runtime.debug.__FILE__", "runtime.debug.__LINE__", "runtime.debug.__MODULE__", "runtime.debug.__POS__", "runtime.debug.__FUNCTION__",

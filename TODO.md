@@ -2,6 +2,7 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- add delete keyword for use cases for deleting memory when user requests to
 - add support for type aliases
 ```lua
 type string_list = List[String];
@@ -27,26 +28,6 @@ alias function[T restrict[List[Option[Int]]] Test2(){
 
 }
 ```
-- Add a builtin type called Parsable that is a type that reads a specific program
-   - contains meta programming features
-   - stores the runtime information
-   - stores information of the AST of a single program
-   - Works seemlessly with Workspace, BuildSystem, etc..
-   - this type can also be restricted like the below to according to the users use case
-   ```lua
-      let mut Parsable[T Printable] parsable;
-   ```
-   - allows the ability to modify source code when specified
-   - allows the ability to add new keywords while letting user define there own functionality
-   ```lua
-   alias printer = Parsable[T Printable].keyword_macro {
-      print(get_args_from_parsable(), T);
-   }
-
-   printer "hallo";
-   ```
-   - this type has the ability to get stored arguments provided by user as if its a function
-      - this counts for both cli args and runtime args, source code args
 
 - add support for members in function aliases
 ```lua

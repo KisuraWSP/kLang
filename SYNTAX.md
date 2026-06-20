@@ -1112,3 +1112,34 @@ kLang check examples/helloworld --raw-lang
 kLang doc '--sourcefile=["test.klang", "file.klang"]' --out=docs.html
 kLang doc '--sourcefile=[examples/helloworld]' --out=helloworld-docs.html
 ```
+
+11. Parsable metaprogramming
+- `Parsable[T]` parses one Klang source string and exposes its AST, runtime argument channels, and workspace metadata.
+- Adjacent generic constraint syntax such as `T Printable` is canonicalized to `T:Printable`.
+- A `.keyword_macro` alias introduces a contextual bare-call keyword after its declaration.
+```lua
+trait Printable {
+    function Render(value : String) : String;
+}
+
+impl Printable for String {
+    function Render(value : String) : String {
+        return value;
+    }
+}
+
+let source = //
+function Parsed() : Int { return 1; }
+//;
+let parsed = Parsable(source, ["source-argument"]);
+print(len(parsable_ast(parsed)));
+print(parsable_workspace(parsed));
+
+alias printer = Parsable[T Printable].keyword_macro {
+    print(get_args_from_parsable(), T);
+}
+
+printer "hallo";
+
+let changed = parsable_replace(parsed, "return 1", "return 2");
+```

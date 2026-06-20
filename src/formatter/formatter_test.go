@@ -42,6 +42,25 @@ function Main() : Int {
 	}
 }
 
+func TestFormatPreservesParsableKeywordMacros(t *testing.T) {
+	input := `alias printer=Parsable[T Printable].keyword_macro{
+print(get_args_from_parsable(),T);
+}
+printer "hallo";
+`
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	formattedAgain, err := Format(formatted)
+	if err != nil {
+		t.Fatalf("formatted macro is not parse-valid: %v", err)
+	}
+	if formattedAgain != formatted {
+		t.Fatalf("Parsable keyword macro formatting is not idempotent:\n%s", formatted)
+	}
+}
+
 func TestFormatPreservesBlockComments(t *testing.T) {
 	input := `function Main() : Int {
 (* keep this

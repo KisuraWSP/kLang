@@ -724,7 +724,7 @@ func collectNamespaceAliases(statements []parser.Statement) map[string]string {
 		for _, stmt := range currentStatements {
 			switch current := stmt.(type) {
 			case parser.AliasStatement:
-				if current.Name != "" && current.Target != "" {
+				if !current.KeywordMacro && current.Name != "" && current.Target != "" {
 					aliases[current.Name] = normalizeNamespacePath(current.Target)
 				}
 			case parser.NamespaceStatement:

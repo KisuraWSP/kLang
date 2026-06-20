@@ -357,6 +357,9 @@ func zeroValue(typeName string) Value {
 	case "T":
 		return NullValue()
 	}
+	if typeName == "Parsable" || strings.HasPrefix(typeName, "Parsable[") {
+		return objectValue("Parsable", map[string]Value{})
+	}
 	if strings.HasPrefix(typeName, "Function[") {
 		return NullValue()
 	}
@@ -1298,6 +1301,8 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Kind == ValueString
 	case typeName == "JSON":
 		return value.Kind == ValueJSON
+	case typeName == "Parsable" || strings.HasPrefix(typeName, "Parsable["):
+		return isObjectType(value, "Parsable")
 	case typeName == "Bool":
 		return value.Kind == ValueBool
 	case typeName == "Char":

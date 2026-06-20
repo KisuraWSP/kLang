@@ -29,6 +29,66 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeBuildsParsableMetadataAndPreservesArgumentChannels(t *testing.T) {
+	parsedProgram, errors := parser.Parse(`
+function Main() : Parsable[T] {
+    return Parsable(//
+function Parsed() : Int {
+    return 1;
+}
+//, ["source"]);
+}
+`)
+	if len(errors) != 0 {
+		t.Fatalf("parse failed: %#v", errors)
+	}
+	result, err := NewWithArgs([]string{"cli"}).Run(parser.ParsedProgram{
+		Name:    "parsable",
+		Sources: []parser.ParsedSource{{Path: "parsable.klang", Program: parsedProgram}},
+	})
+	if err != nil {
+		t.Fatalf("runtime failed: %v", err)
+	}
+	if !isObjectType(result.Value, "Parsable") {
+		t.Fatalf("expected Parsable, got %#v", result.Value)
+	}
+	fields := result.Value.Data.(ObjectData).Fields
+	if fields["statement_count"].Data.(int) != 1 || len(fields["ast"].Data.([]Value)) != 1 {
+		t.Fatalf("unexpected AST metadata: %#v", fields)
+	}
+	args, _ := stringList(fields["args"])
+	if strings.Join(args, ",") != "cli,source" {
+		t.Fatalf("expected combined argument channels, got %#v", args)
+	}
+	if !isObjectType(fields["workspace"], "WorkSpace") {
+		t.Fatalf("expected workspace metadata, got %#v", fields["workspace"])
+	}
+	transformed, err := New().transformParsable("parsable_replace", []Value{result.Value, StringValue("return 1"), StringValue("return 2")})
+	if err != nil {
+		t.Fatalf("source transform failed: %v", err)
+	}
+	resultData := transformed.Data.(ResultData)
+	if !resultData.Ok || !strings.Contains(resultData.Value.Data.(ObjectData).Fields["source"].Data.(string), "return 2") {
+		t.Fatalf("expected reparsed immutable source replacement, got %#v", transformed)
+	}
+}
+
+func TestRuntimeExecutesParsableKeywordMacro(t *testing.T) {
+	result := runParsedSource(t, `
+alias printer = Parsable[T Printable].keyword_macro {
+    print(get_args_from_parsable()[0]);
+}
+
+function Main() : Int {
+    printer "hallo";
+    return 0;
+}
+`)
+	if strings.Join(result.Output, ",") != "hallo" {
+		t.Fatalf("unexpected keyword macro output: %#v", result.Output)
+	}
+}
+
 func TestRuntimeTracksExecutionState(t *testing.T) {
 	result := runParsedSource(t, `
 function Add(left : Int, mut right : Int) : Int {

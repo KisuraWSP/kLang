@@ -41,9 +41,11 @@ type ModuleDirectiveStatement struct {
 }
 
 type AliasStatement struct {
-	Pos    Position
-	Name   string
-	Target string
+	Pos          Position
+	Name         string
+	Target       string
+	KeywordMacro bool
+	Body         []Statement
 }
 
 type RegionStatement struct {

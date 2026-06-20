@@ -41,6 +41,7 @@
 40. ErrorContext // Source-aware diagnostic containing phase, file, line, column span, rule, message, hint, source line, suggestions, and type context
 41. Type // Runtime metadata for every language type, returned by `SomeType.get_runtime_type_info()`
 42. JSON // Immutable parsed JSON value with object, array, string, number, bool, and null variants
+43. Parsable[$Item] // Immutable source, AST, runtime argument, Program, BuildSystem, and WorkSpace metadata for one Klang program
 
 All builtin type names expose a compile-time size query through `.sizeof`, which returns an `Int`.
 For example, `Int.sizeof` returns the runtime size used for an `Int` value.
@@ -54,6 +55,8 @@ Every builtin and user-visible type conforms to the parent `Type` metadata model
 Struct-style alias functions create user-visible object types. Their constructor parameters are statically checked fields, generic constructor arguments flow into those field and method types, and `#extend` methods are checked with `this` bound to the alias receiver.
 
 `JSON` is a distinct immutable builtin type. `JSON(source : String)` parses JSON directly and is especially useful with here strings. `json_parse(source)` provides the non-throwing `Result[JSON, String]` form. Object fields and array items are accessed with selectors or indexes and remain typed as `JSON`; `json_string`, `json_int`, `json_float`, and `json_bool` safely extract scalar values as `Option[T]`. JSON also provides `.kind`, `.count` for objects, arrays, and strings, `json_get`, `json_is_null`, and `json_stringify`. The `json` stdlib module exposes these operations as `parse`, `must_parse`, `stringify`, `get_field`, `get_index`, `kind`, `as_string`, `as_int`, `as_float`, `as_bool`, `is_null`, `null_json`, and `encode_json` while retaining the older String encoder helpers for compatibility.
+
+`Parsable[T]` is an immutable metaprogramming value created from a source `String`, commonly a here string, plus an optional `List[String]` of source arguments. It exposes `source`, `original_source`, `ast : List[Table]`, `statement_count`, `runtime_type`, `runtime_info`, `cli_args`, `source_args`, combined `args`, `program`, `build_system`, `workspace`, and `keywords`. `parsable_with_source`, `parsable_replace`, and `parsable_append` reparse changed source and return `Result[Parsable[T], String]`, preventing stale AST metadata. `parsable_source`, `parsable_ast`, `parsable_args`, `parsable_runtime_info`, and `parsable_workspace` are typed accessors.
 
 Builtin values expose a small shared protocol surface through selector syntax:
 - `String`, `List[T]`, `Set[T]`, `Map[K, V]`, `Table`, `JSON`, `SIMD[T]`, and `Iterator[T]` provide `.count : Int`. JSON count is defined for object, array, and string values.

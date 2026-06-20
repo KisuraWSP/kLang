@@ -16,13 +16,14 @@ type Error struct {
 }
 
 type Parser struct {
-	tokens []lexer.Token
-	pos    int
-	errors []Error
+	tokens        []lexer.Token
+	pos           int
+	errors        []Error
+	keywordMacros map[string]bool
 }
 
 func New(tokens []lexer.Token) *Parser {
-	return &Parser{tokens: tokens}
+	return &Parser{tokens: tokens, keywordMacros: map[string]bool{}}
 }
 
 func Parse(input string) (*Program, []Error) {
@@ -154,6 +155,9 @@ func (parser *Parser) parseStatement() Statement {
 		if token.Type == lexer.TokenIdentifier && token.Literal == "module_caller" {
 			return parser.parseModuleDirective()
 		}
+		if token.Type == lexer.TokenIdentifier && parser.keywordMacros[token.Literal] && parser.peek().Type != lexer.TokenLeftBrace {
+			return parser.parseKeywordMacroInvocation()
+		}
 		return parser.parseExpressionOrAssignment()
 	}
 }
@@ -208,6 +212,9 @@ func (parser *Parser) parseAlias() Statement {
 	start := parser.consume(lexer.TokenAlias, "expected alias")
 	name := parser.consume(lexer.TokenIdentifier, "expected alias name")
 	parser.consume(lexer.TokenAssign, "expected '=' after alias name")
+	if parser.check(lexer.TokenIdentifier) && parser.current().Literal == "Parsable" {
+		return parser.parseKeywordMacroAlias(start, name)
+	}
 
 	var parts []string
 	for !parser.check(lexer.TokenSemicolon) && !parser.atEnd() {
@@ -221,6 +228,59 @@ func (parser *Parser) parseAlias() Statement {
 		Name:   name.Literal,
 		Target: strings.Join(parts, ""),
 	}
+}
+
+func (parser *Parser) parseKeywordMacroAlias(start lexer.Token, name lexer.Token) Statement {
+	target := parser.parseParsableTypeHeader()
+	if !parser.match(lexer.TokenDot) || !parser.check(lexer.TokenIdentifier) || parser.current().Literal != "keyword_macro" {
+		parser.addError(parser.current(), "expected .keyword_macro after Parsable type")
+		return AliasStatement{Pos: positionFromToken(start), Name: name.Literal, Target: target}
+	}
+	parser.advance()
+	body := parser.parseBlock()
+	parser.consumeOptionalSemicolon()
+	parser.keywordMacros[name.Literal] = true
+	return AliasStatement{Pos: positionFromToken(start), Name: name.Literal, Target: target, KeywordMacro: true, Body: body}
+}
+
+func (parser *Parser) parseParsableTypeHeader() string {
+	parser.consume(lexer.TokenIdentifier, "expected Parsable")
+	parts := []string{"Parsable"}
+	if !parser.match(lexer.TokenLeftSquareBrace) {
+		return "Parsable"
+	}
+	parts = append(parts, "[")
+	previousIdentifier := false
+	for !parser.check(lexer.TokenRightSquareBrace) && !parser.atEnd() {
+		token := parser.advance()
+		if token.Type == lexer.TokenIdentifier && previousIdentifier {
+			parts = append(parts, ":")
+		}
+		parts = append(parts, token.Literal)
+		previousIdentifier = token.Type == lexer.TokenIdentifier
+		if token.Type == lexer.TokenComma || token.Type == lexer.TokenInferReturn || token.Type == lexer.TokenTypeUnion {
+			previousIdentifier = false
+		}
+	}
+	parser.consume(lexer.TokenRightSquareBrace, "expected ']' after Parsable type restriction")
+	parts = append(parts, "]")
+	return strings.Join(parts, "")
+}
+
+func (parser *Parser) parseKeywordMacroInvocation() Statement {
+	start := parser.advance()
+	expr := parser.parseExpressionUntil(lexer.TokenSemicolon)
+	parser.consumeOptionalSemicolon()
+	parts := splitTopLevelExpressionTokens(expr.Tokens, lexer.TokenComma)
+	args := make([]ExpressionNode, 0, len(parts))
+	for _, part := range parts {
+		if len(trimExpressionTokens(part)) == 0 {
+			continue
+		}
+		args = append(args, parseExpressionNode(part))
+	}
+	call := CallExpression{Pos: positionFromToken(start), Callee: IdentifierExpression{Name: start.Literal}, Arguments: args}
+	return ExpressionStatement{Pos: positionFromToken(start), Expression: Expression{Node: call}}
 }
 
 func (parser *Parser) parseRegion() Statement {
@@ -1308,6 +1368,16 @@ func (parser *Parser) parseInferredVariableFromStart(start lexer.Token, scope st
 	if !constant && (parser.check(lexer.TokenLeftSquareBrace) || parser.check(lexer.TokenScopeBegin)) {
 		return parser.parseDestructuringFromStart(start, scope, false, mutable, lazy, temporary)
 	}
+	if parser.check(lexer.TokenIdentifier) && parser.current().Literal == "Parsable" && parser.peek().Type == lexer.TokenLeftSquareBrace {
+		typeName := parser.parseType()
+		name := parser.consumeIdentifierLike("expected variable name")
+		var expr Expression
+		if parser.match(lexer.TokenAssign) {
+			expr = parser.parseExpressionUntil(lexer.TokenSemicolon)
+		}
+		parser.consumeOptionalSemicolon()
+		return VariableStatement{Pos: positionFromToken(start), Scope: scope, Inferred: false, Mutable: mutable, Lazy: lazy, Temporary: temporary, Type: typeName, Name: name.Literal, Expression: expr}
+	}
 	typeName := "T"
 	name := parser.consumeIdentifierLike("expected variable name")
 	if parser.checkIdentifierLike() && parser.peek().Type == lexer.TokenAssign {
@@ -1755,6 +1825,9 @@ func (parser *Parser) parseType() string {
 
 		switch token.Type {
 		case lexer.TokenIdentifier, lexer.TokenRegion:
+			if squareDepth > 0 && token.Type == lexer.TokenIdentifier && len(parts) > 0 && parser.previous().Type == lexer.TokenIdentifier {
+				parts = append(parts, ":")
+			}
 			parts = append(parts, token.Literal)
 		case lexer.TokenInt:
 			parts = append(parts, token.Literal)

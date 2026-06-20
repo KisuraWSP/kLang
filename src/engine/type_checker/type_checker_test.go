@@ -1,6 +1,7 @@
 package typechecker
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -27,6 +28,63 @@ function Main() : Int {
 	report := CheckProgram(program)
 	if !report.Passed() {
 		t.Fatalf("expected type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsParsableMetadataAndRestrictedKeywordMacro(t *testing.T) {
+	program := programFromSource(`
+trait Printable {
+    function Render(value : String) : String;
+}
+
+impl Printable for String {
+    function Render(value : String) : String {
+        return value;
+    }
+}
+
+alias printer = Parsable[T Printable].keyword_macro {
+    print(get_args_from_parsable()[0]);
+}
+
+function Main() : Int {
+    let mut Parsable[T Printable] empty;
+    let source = //
+function Parsed() : Int { return 1; }
+//;
+    let parsed = Parsable(source, ["source"]);
+    print(len(parsable_ast(parsed)), parsable_workspace(parsed));
+    printer "hallo";
+    return 0;
+}
+`)
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected Parsable program to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsKeywordMacroArgumentOutsideTraitRestriction(t *testing.T) {
+	program := programFromSource(`
+trait Printable {
+    function Render(value : String) : String;
+}
+
+alias printer = Parsable[T Printable].keyword_macro {
+    print(get_args_from_parsable());
+}
+
+function Main() : Int {
+    printer 10;
+    return 0;
+}
+`)
+	report := CheckProgram(program)
+	if report.Passed() {
+		t.Fatal("expected Printable restriction failure")
+	}
+	if !strings.Contains(fmt.Sprint(report.Errors), "requires Printable") {
+		t.Fatalf("expected restriction diagnostic, got: %v", report.Errors)
 	}
 }
 

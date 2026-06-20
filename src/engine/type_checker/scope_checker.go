@@ -204,6 +204,11 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 	case parser.EntryPointStatement:
 		return
 	case parser.AliasStatement:
+		if current.KeywordMacro {
+			macroScope := newLexicalScope(scope)
+			macroScope.define(variableSymbol{Name: "T", Type: "Type", File: source, Line: current.Pos.Line})
+			checker.checkScopeStatements(current.Body, macroScope, namespace, source, false, false)
+		}
 		return
 	case parser.RegionStatement:
 		return
@@ -797,7 +802,7 @@ func (checker *TypeChecker) checkCallScope(callee parser.ExpressionNode, scope *
 		}
 		if isBuiltinFunctionName(current.Name) || checker.functionExists(current.Name, namespace) ||
 			checker.aliasFunctionExistsInNamespace(current.Name, namespace) ||
-			checker.functionGroupExistsInNamespace(current.Name, namespace) {
+			checker.functionGroupExistsInNamespace(current.Name, namespace) || checker.keywordMacroExists(current.Name) {
 			return
 		}
 		checker.addError(source, line, fmt.Sprintf("unknown function %q", current.Name))
@@ -809,6 +814,11 @@ func (checker *TypeChecker) checkCallScope(callee parser.ExpressionNode, scope *
 	default:
 		checker.checkScopeExpression(callee, scope, namespace, source, line)
 	}
+}
+
+func (checker *TypeChecker) keywordMacroExists(name string) bool {
+	_, ok := checker.keywordMacros[checker.resolveAliasPath(name)]
+	return ok
 }
 
 func (checker *TypeChecker) functionGroupExistsInNamespace(name string, namespace string) bool {
@@ -919,12 +929,13 @@ func isBuiltinFunctionName(name string) bool {
 	case "print", "format", "printf", "input", "len", "range",
 		"option_map", "option_unwrap_or", "option_and_then",
 		"result_map", "result_map_err", "result_unwrap_or", "result_and_then",
-		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON",
+		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON", "Parsable",
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
 		"json_parse", "json_stringify", "json_get", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null",
 		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",
+		"parsable_source", "parsable_ast", "parsable_args", "parsable_runtime_info", "parsable_workspace", "parsable_with_source", "parsable_replace", "parsable_append", "get_args_from_parsable",
 		"runtime_debug_loc", "runtime_debug_file", "runtime_debug_line", "runtime_debug_module", "runtime_debug_pos", "runtime_debug_function",
 		"runtime_debug_loc_of", "runtime_debug_line_of", "runtime_debug_pos_of",
 		"runtime.debug.__LOC__", "runtime.debug.__FILE__", "runtime.debug.__LINE__", "runtime.debug.__MODULE__", "runtime.debug.__POS__", "runtime.debug.__FUNCTION__",

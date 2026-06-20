@@ -53,6 +53,7 @@ type TypeChecker struct {
 	functions       map[string]functionSymbol
 	globalFunctions map[string][]string
 	aliasFunctions  map[string]parser.AliasFunctionStatement
+	keywordMacros   map[string]parser.AliasStatement
 	regions         map[string]parser.RegionStatement
 	groups          map[string][]string
 	globals         map[string]variableSymbol
@@ -142,6 +143,7 @@ func CheckProgram(program file.Program) Report {
 		functions:       map[string]functionSymbol{},
 		globalFunctions: map[string][]string{},
 		aliasFunctions:  map[string]parser.AliasFunctionStatement{},
+		keywordMacros:   map[string]parser.AliasStatement{},
 		regions:         map[string]parser.RegionStatement{},
 		groups:          map[string][]string{},
 		globals:         map[string]variableSymbol{},
@@ -505,6 +507,14 @@ func (checker *TypeChecker) collectAliasStatements(statements []parser.Statement
 	for _, stmt := range statements {
 		switch current := stmt.(type) {
 		case parser.AliasStatement:
+			if current.KeywordMacro {
+				if _, exists := checker.keywordMacros[current.Name]; exists {
+					checker.addError(source, current.Pos.Line, fmt.Sprintf("keyword macro %q is already defined", current.Name))
+					continue
+				}
+				checker.keywordMacros[current.Name] = current
+				continue
+			}
 			target := normalizeNamespaceAccess(current.Target)
 			if target == "" {
 				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias %q is missing a namespace target", current.Name))
@@ -2261,6 +2271,16 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	if expr == "" {
 		return anyType
 	}
+	for name, macro := range checker.keywordMacros {
+		prefix := name + " "
+		if strings.HasPrefix(expr, prefix) {
+			arguments := splitTopLevel(strings.TrimSpace(strings.TrimPrefix(expr, prefix)), ',')
+			if len(arguments) == 1 && strings.TrimSpace(arguments[0]) == "" {
+				arguments = nil
+			}
+			return checker.checkKeywordMacroCall(macro, arguments, locals, source, line)
+		}
+	}
 	if typeName, ok := splitSizeofExpression(expr); ok {
 		if isKnownType(typeName) {
 			return "Int"
@@ -2632,6 +2652,34 @@ func (checker *TypeChecker) enumVariantExists(enumName string, variantName strin
 
 func (checker *TypeChecker) selectorFieldType(targetType string, fieldName string) (string, bool) {
 	targetType = normalizeType(targetType)
+	if targetType == "Parsable" || strings.HasPrefix(targetType, "Parsable[") {
+		elementType := anyType
+		if _, args, ok := splitGenericType(targetType); ok && len(args) == 1 {
+			elementType = args[0]
+		}
+		switch fieldName {
+		case "source", "original_source":
+			return "String", true
+		case "ast":
+			return "List[Table]", true
+		case "statement_count":
+			return "Int", true
+		case "runtime_type":
+			return "Type", true
+		case "runtime_info":
+			return "Table", true
+		case "cli_args", "source_args", "args", "keywords":
+			return "List[String]", true
+		case "program":
+			return "Program", true
+		case "build_system":
+			return "BuildSystem", true
+		case "workspace":
+			return "WorkSpace", true
+		case "argument_type":
+			return elementType, true
+		}
+	}
 	if targetType == "JSON" {
 		switch fieldName {
 		case "kind":
@@ -2926,6 +2974,9 @@ func (checker *TypeChecker) inferListComprehension(valueExpr string, iterator st
 func (checker *TypeChecker) checkCall(name string, args []string, locals map[string]variableSymbol, source string, line int) string {
 	name = strings.TrimPrefix(strings.TrimSpace(name), "call ")
 	name = checker.resolveAliasPath(normalizeNamespaceAccess(name))
+	if macro, ok := checker.keywordMacros[name]; ok {
+		return checker.checkKeywordMacroCall(macro, args, locals, source, line)
+	}
 	if typeName, ok := runtimeTypeInfoCallTarget(name); ok {
 		if len(args) != 0 {
 			checker.addError(source, line, fmt.Sprintf("%s expects 0 arguments", name))
@@ -2936,6 +2987,47 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		return "Type"
 	}
 	switch name {
+	case "get_args_from_parsable":
+		if len(args) != 0 {
+			checker.addError(source, line, "get_args_from_parsable expects 0 arguments")
+		}
+		return "List[T]"
+	case "Parsable":
+		if len(args) < 1 || len(args) > 2 {
+			checker.addError(source, line, "Parsable expects source and an optional List[String] of source arguments")
+			return "Parsable[T]"
+		}
+		if sourceType := checker.inferExpression(args[0], locals, source, line); !isAssignable("String", sourceType) {
+			checker.addError(source, line, fmt.Sprintf("Parsable source expects String, got %s", sourceType))
+		}
+		if len(args) == 2 {
+			argType := checker.inferExpression(args[1], locals, source, line)
+			if !isAssignable("List[String]", argType) {
+				checker.addError(source, line, fmt.Sprintf("Parsable source arguments expect List[String], got %s", argType))
+			}
+		}
+		return "Parsable[T]"
+	case "parsable_source":
+		checker.checkParsableArguments(name, args, 1, locals, source, line)
+		return "String"
+	case "parsable_ast":
+		checker.checkParsableArguments(name, args, 1, locals, source, line)
+		return "List[Table]"
+	case "parsable_args":
+		checker.checkParsableArguments(name, args, 1, locals, source, line)
+		return "List[String]"
+	case "parsable_runtime_info":
+		checker.checkParsableArguments(name, args, 1, locals, source, line)
+		return "Table"
+	case "parsable_workspace":
+		checker.checkParsableArguments(name, args, 1, locals, source, line)
+		return "WorkSpace"
+	case "parsable_with_source", "parsable_append":
+		checker.checkParsableArguments(name, args, 2, locals, source, line)
+		return "Result[Parsable[T],String]"
+	case "parsable_replace":
+		checker.checkParsableArguments(name, args, 3, locals, source, line)
+		return "Result[Parsable[T],String]"
 	case "option_map":
 		return checker.checkOptionMap(args, locals, source, line)
 	case "option_unwrap_or":
@@ -3679,6 +3771,54 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		return "Awaitable[" + returnType + "]"
 	}
 	return returnType
+}
+
+func (checker *TypeChecker) checkKeywordMacroCall(macro parser.AliasStatement, args []string, locals map[string]variableSymbol, source string, line int) string {
+	argumentTypes := make([]string, 0, len(args))
+	for _, argument := range args {
+		argumentTypes = append(argumentTypes, checker.inferExpression(argument, locals, source, line))
+	}
+	_, parameters, ok := splitGenericType(normalizeType(macro.Target))
+	if !ok || len(parameters) != 1 {
+		checker.addError(source, line, fmt.Sprintf("keyword macro %s must declare exactly one Parsable type parameter", macro.Name))
+		return anyType
+	}
+	_, constraints, restricted := restrictedGenericType(parameters[0])
+	if restricted {
+		for _, argumentType := range argumentTypes {
+			allowed := false
+			for _, constraint := range constraints {
+				if checker.constraintAllows(constraint, argumentType) {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				checker.addError(source, line, fmt.Sprintf("keyword macro %s requires %s, got %s", macro.Name, strings.Join(constraints, " or "), argumentType))
+			}
+		}
+	}
+	if len(argumentTypes) == 0 {
+		return anyType
+	}
+	return argumentTypes[0]
+}
+
+func (checker *TypeChecker) checkParsableArguments(name string, args []string, expected int, locals map[string]variableSymbol, source string, line int) {
+	if len(args) != expected {
+		checker.addError(source, line, fmt.Sprintf("%s expects %d argument(s)", name, expected))
+		return
+	}
+	parsableType := checker.inferExpression(args[0], locals, source, line)
+	if parsableType != anyType && parsableType != "Parsable" && !strings.HasPrefix(normalizeType(parsableType), "Parsable[") {
+		checker.addError(source, line, fmt.Sprintf("%s expects Parsable as its first argument, got %s", name, parsableType))
+	}
+	for _, argument := range args[1:] {
+		argumentType := checker.inferExpression(argument, locals, source, line)
+		if !isAssignable("String", argumentType) {
+			checker.addError(source, line, fmt.Sprintf("%s source arguments expect String, got %s", name, argumentType))
+		}
+	}
 }
 
 func (checker *TypeChecker) inferLambdaExpression(expr string, locals map[string]variableSymbol, source string, line int) string {
@@ -4593,7 +4733,7 @@ func isKnownType(typeName string) bool {
 	if _, ok := childType(typeName); ok {
 		return true
 	}
-	if typeName == anyType || typeName == dynamicAnyType || typeName == "Int" || typeName == "UInt" || typeName == "String" || typeName == "JSON" ||
+	if typeName == anyType || typeName == dynamicAnyType || typeName == "Int" || typeName == "UInt" || typeName == "String" || typeName == "JSON" || typeName == "Parsable" ||
 		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" || typeName == "Type" ||
 		typeName == "Table" || typeName == "Program" || typeName == "BuildSystem" || typeName == "WorkSpace" ||
 		typeName == "JSModule" || typeName == "JSCall" || typeName == "Context" || typeName == "ErrorContext" {
@@ -4644,6 +4784,9 @@ func isKnownType(typeName string) bool {
 	if strings.HasPrefix(typeName, "Atomic[") && strings.HasSuffix(typeName, "]") {
 		return isKnownType(typeName[len("Atomic[") : len(typeName)-1])
 	}
+	if strings.HasPrefix(typeName, "Parsable[") && strings.HasSuffix(typeName, "]") {
+		return isKnownType(typeName[len("Parsable[") : len(typeName)-1])
+	}
 	if params, returnType, ok := functionValueType(typeName); ok {
 		if !isKnownType(returnType) {
 			return false
@@ -4683,7 +4826,7 @@ func isArrayTypeName(typeName string) bool {
 		!strings.HasPrefix(typeName, "SIMD[") && !strings.HasPrefix(typeName, "Function[") &&
 		!strings.HasPrefix(typeName, "Awaitable[") && !strings.HasPrefix(typeName, "Iterator[") &&
 		!strings.HasPrefix(typeName, "Coroutine[") && !strings.HasPrefix(typeName, "Thread[") &&
-		!strings.HasPrefix(typeName, "Atomic[")
+		!strings.HasPrefix(typeName, "Atomic[") && !strings.HasPrefix(typeName, "Parsable[")
 }
 
 func arrayElementType(typeName string) (string, bool) {
