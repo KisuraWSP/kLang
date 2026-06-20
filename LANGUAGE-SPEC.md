@@ -63,6 +63,7 @@
 63. Option and Result have checked helper functions for mapping, chaining, fallback recovery, and consistent safe access diagnostics.
 64. CLI `fmt`/`format` parse-validates Klang source, writes a canonical four-space style, preserves comments and here strings, supports `--write` for rewrites, and supports `--check` for CI-style formatting verification.
 65. `JSON` is a builtin immutable parsed-data type implemented by the Go runtime. It supports direct construction from strings and here strings, safe `Result` parsing, object/array access, scalar extraction, null checks, and serialization.
+66. Namespace aliases can target local, imported, or nested namespace paths. Alias-qualified calls participate in inferred imports and selective stdlib function loading after transitive alias expansion.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -83,6 +84,7 @@ Rules
 - `JSON(source)` parses one complete JSON value and raises a source-positioned runtime error for invalid input. `json_parse(source)` returns `Result[JSON, String]` instead. JSON indexes cannot be assigned.
 - JSON object selectors and String indexes, plus array Int indexes, return `JSON`. `json_get` returns `Option[JSON]`; `json_string`, `json_int`, `json_float`, and `json_bool` return typed options. `.kind`, `.count`, `json_is_null`, and `json_stringify` provide inspection and serialization.
 - The `json` stdlib module provides typed wrappers over the runtime JSON operations. Its legacy String-returning encoders remain compatibility APIs, while `decode_value` and `decode` now validate input with the runtime parser and return canonical JSON text.
+- `alias short = namespace.path;` creates a namespace path alias. Calls may use `short::Function(...)` or `short.Function(...)`. Alias targets may reference an earlier alias, and resolution repeatedly expands the longest matching alias prefix. Cyclic and unknown namespace targets are rejected.
 - Postfix `?` checks presence/success as `Bool` for Option and Result values. Postfix `!` unwraps successful Result values or propagates the error as a thrown value.
 - Multiple return signatures use `(name : Type, mut OtherType)` syntax and return values with `return left, right;`.
 - Typed multi-variable declarations use `local Type a, OtherType b = FunctionReturningTwoValues();`. The initializer must be a call to a function with multiple declared return values, the number of bindings must match the number of return values, and each returned value must be assignable to its declared binding type. `_` may be used to discard a returned value.

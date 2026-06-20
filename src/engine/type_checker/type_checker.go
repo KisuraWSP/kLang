@@ -505,22 +505,28 @@ func (checker *TypeChecker) collectAliasStatements(statements []parser.Statement
 	for _, stmt := range statements {
 		switch current := stmt.(type) {
 		case parser.AliasStatement:
-			if current.Target == "" {
+			target := normalizeNamespaceAccess(current.Target)
+			if target == "" {
 				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias %q is missing a namespace target", current.Name))
 				continue
 			}
-			if isKnownType(normalizeType(current.Target)) {
+			if isKnownType(normalizeType(target)) {
 				continue
 			}
 			if _, exists := checker.aliases[current.Name]; exists {
 				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias %q is already defined", current.Name))
 				continue
 			}
-			if !checker.namespaceExists(current.Target) {
+			resolvedTarget := checker.resolveAliasPath(target)
+			if resolvedTarget == current.Name || strings.HasPrefix(resolvedTarget, current.Name+".") {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias %q creates a namespace alias cycle", current.Name))
+				continue
+			}
+			if !checker.namespaceExists(resolvedTarget) {
 				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias %q targets unknown namespace %q", current.Name, current.Target))
 				continue
 			}
-			checker.aliases[current.Name] = current.Target
+			checker.aliases[current.Name] = resolvedTarget
 		case parser.NamespaceStatement:
 			checker.collectAliasStatements(current.Body, source)
 		case parser.AliasFunctionStatement:
@@ -3814,15 +3820,32 @@ func functionTypeForSymbol(fn functionSymbol) string {
 
 func (checker *TypeChecker) resolveAliasPath(name string) string {
 	name = normalizeNamespaceAccess(strings.TrimSpace(name))
-	for alias, target := range checker.aliases {
-		if name == alias {
-			return target
+	seen := map[string]bool{}
+	for !seen[name] {
+		seen[name] = true
+		alias, target, ok := longestAliasPath(name, checker.aliases)
+		if !ok {
+			break
 		}
-		if strings.HasPrefix(name, alias+".") {
-			return target + strings.TrimPrefix(name, alias)
-		}
+		name = target + strings.TrimPrefix(name, alias)
 	}
 	return name
+}
+
+func longestAliasPath(name string, aliases map[string]string) (string, string, bool) {
+	best := ""
+	for alias := range aliases {
+		if name != alias && !strings.HasPrefix(name, alias+".") {
+			continue
+		}
+		if len(alias) > len(best) {
+			best = alias
+		}
+	}
+	if best == "" {
+		return "", "", false
+	}
+	return best, aliases[best], true
 }
 
 func (checker *TypeChecker) addError(source string, line int, message string) {

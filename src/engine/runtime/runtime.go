@@ -713,7 +713,7 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 		if _, exists := runtime.aliases[current.Name]; exists {
 			return errorAt(current.Pos, fmt.Sprintf("alias %q is already defined", current.Name))
 		}
-		runtime.aliases[current.Name] = current.Target
+		runtime.aliases[current.Name] = strings.ReplaceAll(strings.TrimSpace(current.Target), "::", ".")
 	case parser.NamespaceStatement:
 		for _, nested := range current.Body {
 			if err := runtime.collectFunctions(nested, namespace+current.Name+".", filter, sourcePath, globalNamespace || current.Global); err != nil {
@@ -4224,15 +4224,32 @@ func (runtime *Runtime) isLazyFunction(name string) bool {
 
 func (runtime *Runtime) resolveAliasPath(name string) string {
 	name = strings.ReplaceAll(strings.TrimSpace(name), "::", ".")
-	for alias, target := range runtime.aliases {
-		if name == alias {
-			return target
+	seen := map[string]bool{}
+	for !seen[name] {
+		seen[name] = true
+		alias, target, ok := longestRuntimeAliasPath(name, runtime.aliases)
+		if !ok {
+			break
 		}
-		if strings.HasPrefix(name, alias+".") {
-			return target + strings.TrimPrefix(name, alias)
-		}
+		name = target + strings.TrimPrefix(name, alias)
 	}
 	return name
+}
+
+func longestRuntimeAliasPath(name string, aliases map[string]string) (string, string, bool) {
+	best := ""
+	for alias := range aliases {
+		if name != alias && !strings.HasPrefix(name, alias+".") {
+			continue
+		}
+		if len(alias) > len(best) {
+			best = alias
+		}
+	}
+	if best == "" {
+		return "", "", false
+	}
+	return best, aliases[best], true
 }
 
 func isBuiltinFunction(name string) bool {

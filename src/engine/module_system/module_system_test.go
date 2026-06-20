@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"kLang/src/engine/file"
+	typechecker "kLang/src/engine/type_checker"
 )
 
 func TestResolveProgramLoadsStdlibImportWithoutExtension(t *testing.T) {
@@ -205,6 +206,67 @@ function Main() : Int { return a.A(); }
 	}
 	if !filters["b.klang"]["b.B"] || filters["b.klang"]["b.Hidden"] {
 		t.Fatalf("expected module b filter to include only b.B, got %#v", filters["b.klang"])
+	}
+}
+
+func TestResolveProgramSelectsFunctionsThroughChainedNamespaceAliases(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "array.klang", `
+namespace array {
+    function empty(values : List[Int]) : Bool { return len(values) == 0; }
+    function len(values : List[Int]) : Int { return values.count; }
+    function clear(values : List[Int]) : List[Int] { local List[Int] result; return result; }
+    function copy(values : List[Int]) : List[Int] { return clone values; }
+    function Hidden() : Int { return 99; }
+
+    namespace sort {
+        function sort(values : List[Int]) : List[Int] { return values; }
+        function Hidden() : Int { return 99; }
+    }
+}
+`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `
+alias arr = array;
+alias arr_name = arr.sort;
+
+function Main() : Int {
+    local List[Int] values = [1, 2, 3, 4];
+    _ = arr::empty(values);
+    _ = arr::len(values);
+    _ = arr::clear(values);
+    _ = arr::copy(values);
+    _ = arr_name::sort(values);
+    return 0;
+}
+`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load aliased import program: %v", err)
+	}
+	resolved, report := NewResolver(stdlibRoot).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected aliased module resolution to pass, got %#v", report.Errors)
+	}
+	if len(report.Modules) != 1 || report.Modules[0].Name != "array" {
+		t.Fatalf("expected inferred array import, got %#v", report.Modules)
+	}
+	if len(resolved.Files) != 2 {
+		t.Fatalf("expected app and aliased stdlib module, got %d files", len(resolved.Files))
+	}
+	filter := resolved.Files[1].ModuleFunctionFilter
+	for _, name := range []string{"array.empty", "array.len", "array.clear", "array.copy", "array.sort.sort"} {
+		if !filter[name] {
+			t.Fatalf("expected aliased call to select %s, got %#v", name, filter)
+		}
+	}
+	if filter["array.Hidden"] || filter["array.sort.Hidden"] {
+		t.Fatalf("did not expect hidden functions in aliased filter: %#v", filter)
+	}
+	typeReport := typechecker.CheckProgram(resolved)
+	if !typeReport.Passed() {
+		t.Fatalf("expected aliased imported calls to type check, got %#v", typeReport.Errors)
 	}
 }
 

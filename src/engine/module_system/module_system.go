@@ -685,7 +685,9 @@ func moduleNameFromImportPath(importPath string) string {
 
 func collectCalledModuleFunctions(statements []parser.Statement, moduleName string) map[string]bool {
 	selected := map[string]bool{}
+	aliases := collectNamespaceAliases(statements)
 	collectStatementCalls(statements, func(name string) {
+		name = resolveNamespaceAliasPath(name, aliases)
 		if strings.HasPrefix(name, moduleName+".") {
 			selected[name] = true
 		}
@@ -695,7 +697,9 @@ func collectCalledModuleFunctions(statements []parser.Statement, moduleName stri
 
 func collectCalledModuleNames(statements []parser.Statement) []string {
 	names := map[string]bool{}
+	aliases := collectNamespaceAliases(statements)
 	collectStatementCalls(statements, func(name string) {
+		name = resolveNamespaceAliasPath(name, aliases)
 		if !strings.Contains(name, ".") {
 			return
 		}
@@ -711,6 +715,93 @@ func collectCalledModuleNames(statements []parser.Statement) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+func collectNamespaceAliases(statements []parser.Statement) map[string]string {
+	aliases := map[string]string{}
+	var collect func([]parser.Statement)
+	collect = func(currentStatements []parser.Statement) {
+		for _, stmt := range currentStatements {
+			switch current := stmt.(type) {
+			case parser.AliasStatement:
+				if current.Name != "" && current.Target != "" {
+					aliases[current.Name] = normalizeNamespacePath(current.Target)
+				}
+			case parser.NamespaceStatement:
+				collect(current.Body)
+			case parser.FunctionStatement:
+				collect(current.Body)
+			case parser.AliasFunctionStatement:
+				collect(current.Body)
+				for _, method := range current.Methods {
+					collect(method.Body)
+				}
+			case parser.IfStatement:
+				collect(current.Consequence)
+				collect(current.Alternative)
+				if current.ElseIf != nil {
+					collect([]parser.Statement{*current.ElseIf})
+				}
+			case parser.MatchStatement:
+				for _, matchCase := range current.Cases {
+					collect(matchCase.Body)
+				}
+			case parser.LoopStatement:
+				collect(current.Body)
+			case parser.TryCatchStatement:
+				collect(current.TryBody)
+				collect(current.CatchBody)
+			case parser.DeferStatement:
+				if current.Stmt != nil {
+					collect([]parser.Statement{current.Stmt})
+				}
+				collect(current.Body)
+			case parser.RunStatement:
+				if current.Stmt != nil {
+					collect([]parser.Statement{current.Stmt})
+				}
+				collect(current.Body)
+			case parser.PrivateBlockStatement:
+				collect(current.Body)
+			}
+		}
+	}
+	collect(statements)
+	return aliases
+}
+
+func resolveNamespaceAliasPath(name string, aliases map[string]string) string {
+	name = normalizeNamespacePath(name)
+	seen := map[string]bool{}
+	for len(aliases) > 0 && !seen[name] {
+		seen[name] = true
+		alias, target, ok := longestNamespaceAlias(name, aliases)
+		if !ok {
+			break
+		}
+		name = target + strings.TrimPrefix(name, alias)
+	}
+	return name
+}
+
+func longestNamespaceAlias(name string, aliases map[string]string) (string, string, bool) {
+	best := ""
+	for alias := range aliases {
+		if name != alias && !strings.HasPrefix(name, alias+".") {
+			continue
+		}
+		if len(alias) > len(best) {
+			best = alias
+		}
+	}
+	if best == "" {
+		return "", "", false
+	}
+	return best, aliases[best], true
+}
+
+func normalizeNamespacePath(name string) string {
+	return strings.ReplaceAll(strings.TrimSpace(name), "::", ".")
 }
 
 func collectFunctionDefinitions(statements []parser.Statement, namespace string, definitions map[string]parser.FunctionStatement) {

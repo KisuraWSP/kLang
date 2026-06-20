@@ -1054,8 +1054,20 @@ do_while i := range(10) {
 
 8. Namespaces
 - Namespaces can be nested. Nested functions are called through chained dot paths.
-- `alias` binds a shorter name to a namespace path, and `::` calls through that alias.
+- `alias` binds a shorter name to a local or imported namespace path, and `::` calls through that alias.
+- Alias targets can name nested namespaces or use an earlier alias. Selective and inferred imports resolve the full alias chain.
 ```lua
+import "array";
+
+alias arr = array;
+alias arr_sort = arr.sort;
+
+local List[Int] values = [1, 2, 3, 4];
+print(arr::empty(values));
+print(arr::len(values));
+local List[Int] copied = arr::copy(values);
+local List[Int] sorted = arr_sort::sort(values);
+
 namespace std {
     namespace lib {
         function LuaInit() {

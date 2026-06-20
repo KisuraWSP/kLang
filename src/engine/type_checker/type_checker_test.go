@@ -1877,11 +1877,14 @@ namespace std {
 }
 
 alias std_lib = std.lib;
+alias std_alias = std;
+alias nested_alias = std_alias.lib;
 
 function Main() : Int {
     local Int direct = std.lib.LuaInit();
     local Int viaAlias = std_lib::LuaInit();
-    return direct + viaAlias;
+    local Int viaNestedAlias = nested_alias::LuaInit();
+    return direct + viaAlias + viaNestedAlias;
 }
 `)
 
@@ -1901,6 +1904,18 @@ function Main() : Int {
 `)
 
 	assertTypeError(t, CheckProgram(program), `alias "missing_alias" targets unknown namespace "missing.lib"`)
+}
+
+func TestCheckProgramRejectsNamespaceAliasCycle(t *testing.T) {
+	program := programFromSource(`
+alias loop = loop;
+
+function Main() : Int {
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `alias "loop" creates a namespace alias cycle`)
 }
 
 func TestCheckProgramAcceptsAliasFunctionExtensionMethodsAndRegions(t *testing.T) {

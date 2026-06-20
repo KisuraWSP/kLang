@@ -1849,18 +1849,20 @@ namespace std {
 }
 
 alias std_lib = std.lib;
+alias std_alias = std;
+alias lib_alias = std_alias.lib;
 
 function Main() : Int {
     std.lib.LuaInit();
     std_lib::LuaInit();
-    return std.lib.Number() + std_lib::Number();
+    return std.lib.Number() + std_lib::Number() + lib_alias::Number();
 }
 `)
 	if err != nil {
 		t.Fatalf("expected runtime to pass, got: %v", err)
 	}
-	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 14 {
-		t.Fatalf("expected namespace program to return 14, got %#v", result.Value)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 21 {
+		t.Fatalf("expected namespace program to return 21, got %#v", result.Value)
 	}
 	expectedOutput := []string{
 		"std.lib.LuaInit(); is called",
@@ -2168,6 +2170,42 @@ function Main() : Int {
 
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 131 {
 		t.Fatalf("expected stdlib table compatibility helpers to return 131, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesStdlibNamespaceAliasCalls(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd failed: %v", err)
+		}
+	}()
+
+	result := runSource(t, `
+import "array";
+alias arr = array;
+
+function Main() : Int {
+    local List[Int] list = [1, 2, 3, 4];
+    if arr::empty(list) {
+        return 0;
+    }
+    local Int length = arr::len(list);
+    local List[Int] cleared = arr::clear(list);
+    let mut copied = arr::copy(list);
+    return length + copied.count + cleared.count;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 8 {
+		t.Fatalf("expected stdlib namespace alias calls to return 8, got %#v", result.Value)
 	}
 }
 

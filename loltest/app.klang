@@ -13,12 +13,13 @@ import "array";
     Make sure the programming lnaguage is able to understand the users source code
     if the language cannot understand the code atleast it should tell me what it should expect though
 *)
+alias arr = array;
 
 namespace App {
     #set_entry_point_to_here
     function Entry() : Int {
         -- need to fix the alias system
-        alias arr = array;
+        
         const length = Int.sizeof;
         -- there is an error in this 
         -- this should infer the type
