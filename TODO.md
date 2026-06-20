@@ -17,17 +17,6 @@ alias function Array(id : String) : type = struct {
    this.id `json:"id"`;
 }
 ```
-- Allow Type restriction, traits, etc on T in function aliases and structs
-```lua
-alias function[T Printable] Test(){
-
-}
-
-
-alias function[T restrict[List[Option[Int]]] Test2(){
-
-}
-```
 
 - add support for members in function aliases
 ```lua

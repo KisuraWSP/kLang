@@ -311,8 +311,14 @@ func (parser *Parser) parseRegionFromStart(start lexer.Token, temporary bool) St
 func (parser *Parser) parseAliasFunction(inline bool, private bool) Statement {
 	start := parser.consume(lexer.TokenAlias, "expected alias")
 	parser.consume(lexer.TokenFunc, "expected function after alias")
-	name := parser.consume(lexer.TokenIdentifier, "expected alias function name")
 	typeParams := parser.parseAliasTypeParameters()
+	name := parser.consume(lexer.TokenIdentifier, "expected alias function name")
+	trailingTypeParams := parser.parseAliasTypeParameters()
+	if len(typeParams) != 0 && len(trailingTypeParams) != 0 {
+		parser.addError(name, "alias function generic parameters must appear either before or after the name, not both")
+	} else if len(typeParams) == 0 {
+		typeParams = trailingTypeParams
+	}
 	parser.consume(lexer.TokenLeftBrace, "expected '(' after alias function name")
 	params := parser.parseAliasParameters()
 	parser.consume(lexer.TokenRightBrace, "expected ')' after alias function parameters")

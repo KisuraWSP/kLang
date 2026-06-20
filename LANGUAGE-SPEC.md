@@ -99,6 +99,7 @@ Rules
 - Extension methods declared inside an alias function use `this` as their receiver.
 - Alias functions may declare members, traits, impls, allocation hooks, deallocation hooks, side-effect hooks, and extension methods in the same block.
 - Struct-style alias functions are first-class static object types: constructor parameters become readable fields on `this`, `#extend` methods are type checked with the receiver in scope, generic arguments inferred from constructor calls flow into fields and methods, and methods may return either the bare alias name or a specialized alias type from the same alias family.
+- Alias-function generic parameters may be placed immediately after `function` or after the alias name, but not in both positions. Both forms support trait bounds, named constraints, and nested `restrict[...]` allow-lists, which are enforced when constructor arguments specialize the alias type.
 - Function parameters may use `name := DefaultExpression()` to infer the parameter type from the default value.
 - Generic parameters may use `T restrict[Int, Float]` for explicit allow-lists, `T numeric`, `T comparable`, `T hashable`, `T iterable`, `T allocator_like`, or `T TraitName` for trait-bound constraints. Trait-bound constraints require a matching `impl TraitName for ConcreteType` before the concrete type can satisfy the generic call.
 - Entry-point directives apply to the next function in the current namespace or top-level scope.

@@ -767,7 +767,18 @@ local String name = input("name: ");
 -- alias functions and extension methods
 -- alias function creates a constructor-like type value. #extend adds receiver methods.
 -- [T: Any] can later be replaced with stricter forms like T restrict[Int, Float].
+-- Generic restrictions may appear after function or after the alias name.
 -- .DEFAULT asks the runtime to use the default initializer for that argument.
+alias function[T Printable] PrintableValue(value : T) : type = struct {
+}
+
+alias function[T restrict[List[Option[Int]]]] OptionalInts(value : T) : type = struct {
+}
+
+-- The established suffix form remains equivalent:
+alias function NumericValue[T numeric](value : T) : type = struct {
+}
+
 alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type {
     trait LengthTracked {
         function Size(value : Int) : Int;
