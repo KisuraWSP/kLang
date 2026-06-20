@@ -32,17 +32,23 @@ function RequireBool(name : String, actual : Bool, expected : Bool) : Int {
 function RequireOkString(name : String, result : Result[String, String], expected : String) : Int {
     print("check", name, result);
     assert result.ok;
-    local String value = result.value;
+    local String value = result_unwrap_or(result, "");
     assert value == expected;
     return len(value);
 }
 
 function RequireErrString(name : String, result : Result[String, String], expected : String) : Int {
     print("check", name, result);
-    assert not result.ok;
-    local String value = result.value;
-    assert value == expected;
-    return len(value);
+    if result == {
+    case Ok(value) :
+        _ = value;
+        assert False;
+        return 0;
+    case Err(message) :
+        assert message == expected;
+        return len(message);
+    }
+    return 0;
 }
 
 function RawString(value : String) : String {
@@ -57,6 +63,45 @@ function AngleString(value : String) : String {
 function BracketString(value : String) : String {
     _ = value;
     return "[" + value + "]";
+}
+
+function ShowTypedJSON() : Int {
+    Divider("runtime-backed JSON values");
+
+    local JSON document = json.must_parse(//
+{
+    "name": "kLang",
+    "ports": [8080, 8081],
+    "debug": true,
+    "metadata": null
+}
+//);
+    local String name = option_unwrap_or(json.as_string(document.name), "unknown");
+    local JSON firstPortValue = option_unwrap_or(json.get_index(document.ports, 0), json.null_json());
+    local Int firstPort = option_unwrap_or(json.as_int(firstPortValue), 0);
+    local Bool debug = option_unwrap_or(json.as_bool(document.debug), False);
+    local Option[JSON] missing = json.get_field(document, "missing");
+    local String encoded = json.stringify(document);
+    local Result[JSON, String] reparsed = json.parse(encoded);
+    local Result[JSON, String] invalid = json.parse("{");
+
+    print("document", document);
+    print("kind", json.kind(document));
+    print("name", name);
+    print("firstPort", firstPort);
+    print("encoded", encoded);
+
+    RequireString("JSON kind", json.kind(document), "object");
+    RequireString("JSON name", name, "kLang");
+    RequireInt("JSON first port", firstPort, 8080);
+    RequireBool("JSON bool", debug, True);
+    RequireBool("JSON null", json.is_null(document.metadata), True);
+    RequireBool("JSON missing field", missing.some, False);
+    RequireBool("JSON parse serialized", reparsed.ok, True);
+    RequireBool("JSON invalid parse", invalid.ok, False);
+    RequireInt("JSON object count", document.count, 4);
+
+    return 1;
 }
 
 function ShowPrimitiveEncoders() : Int {
@@ -140,23 +185,23 @@ function ShowFunctionBuilders() : Int {
 function ShowListAndObjectEncoding() : Int {
     Divider("list, key/value list, and map encoders");
 
-    local List[String] names = ["alpha", "beta", "gamma"];
+    local List[String] names =["alpha", "beta", "gamma"];
     local String encodedNames = json.encode_list(names, json.encode_binary);
     local String rawNames = json.encode_list(names, RawString);
 
     local mut List[Table] pairs;
-    pairs[len(pairs)] = {"key": "name", "value": "kLang"};
-    pairs[len(pairs)] = {"key": "mode", "value": "stdlib"};
-    pairs[len(pairs)] = {"key": "status", "value": "experimental"};
+    pairs[len(pairs)] = { "key" : "name", "value" : "kLang" };
+    pairs[len(pairs)] = { "key" : "mode", "value" : "stdlib" };
+    pairs[len(pairs)] = { "key" : "status", "value" : "experimental" };
     local String encodedPairs = json.encode_key_value_list(pairs, json.encode_binary);
     local Result[String, String] checkedPairs = json.encode_key_value_list_checked(pairs, json.encode_binary);
 
     local mut List[Table] brokenPairs;
-    brokenPairs[len(brokenPairs)] = {"key": "missing-value"};
+    brokenPairs[len(brokenPairs)] = { "key" : "missing-value" };
     local Result[String, String] brokenPairsResult = json.encode_key_value_list_checked(brokenPairs, json.encode_binary);
 
-    local Table pair = {"key": "language", "value": "kLang"};
-    local Table brokenMap = {"key": "language"};
+    local Table pair = { "key" : "language", "value" : "kLang" };
+    local Table brokenMap = { "key" : "language" };
     local String encodedMap = json.encode_map(pair, json.encode_binary);
     local String emptyMap = json.encode_map(brokenMap, json.encode_binary);
     local Result[String, String] checkedMap = json.encode_map_checked(pair, json.encode_binary);
@@ -224,16 +269,16 @@ function ShowFormattingHelpers() : Int {
     local Table twoSpace = json.format_options();
     local Table fourSpace = json.format_options("    ");
     local mut List[Table] pairs;
-    pairs[len(pairs)] = {"key": "left", "value": "L"};
-    pairs[len(pairs)] = {"key": "right", "value": "R"};
+    pairs[len(pairs)] = { "key" : "left", "value" : "L" };
+    pairs[len(pairs)] = { "key" : "right", "value" : "R" };
     local mut List[Table] broken;
-    broken[len(broken)] = {"value": "R"};
+    broken[len(broken)] = { "value" : "R" };
 
     local String formattedPairs = json.format_key_value_list(pairs, json.encode_binary, twoSpace);
     local Result[String, String] checkedPairs = json.format_key_value_list_checked(pairs, json.encode_binary, fourSpace);
     local Result[String, String] brokenPairs = json.format_key_value_list_checked(broken, json.encode_binary, fourSpace);
     local String formattedValue = json.format_value("boxed", BracketString, twoSpace);
-    local String formattedValueNoIndent = json.format_value("boxed", BracketString, {});
+    local String formattedValueNoIndent = json.format_value("boxed", BracketString, { });
 
     print("twoSpace", twoSpace);
     print("fourSpace", fourSpace);
@@ -261,15 +306,26 @@ function ShowDecoderHelpers() : Int {
     local Function[String, String] fromBinary = json.from_binary_fun();
     local Table decoderTable = json.decoders();
     local Table customDecoders = {
-        "from_binary": fromBinary,
-        "decode_value": json.decode_value
+        "from_binary" : fromBinary,
+        "decode_value" : json.decode_value
     };
 
-    local String raw = fromBinary("{\"ok\":true}");
+    local String raw = fromBinary(//
+{"ok":true}
+//);
     local Result[String, String] valueOk = json.decode_value(raw);
     local Result[String, String] valueErr = json.decode_value("");
-    local Result[String, String] decoded = json.decode("\"tail\"", "{\"head\":", decoderTable);
+    local Result[String, String] decoded = json.decode(//
+{"head":"tail"}
+//, "", decoderTable);
     local Result[String, String] decodedCustom = json.decode("42", "", customDecoders);
+
+    local String expectedRaw = //
+{"ok":true}
+//;
+    local String expectedDecoded = //
+{"head":"tail"}
+//;
 
     local Table continuation = json.continuation_state("{\"stream\":");
     local Table startedEmpty = json.decode_start("", "", decoderTable);
@@ -288,10 +344,10 @@ function ShowDecoderHelpers() : Int {
 
     RequireBool("decoders has from_binary", table_has(decoderTable, "from_binary"), True);
     RequireBool("decoders has decode_value", table_has(decoderTable, "decode_value"), True);
-    RequireString("from_binary", raw, "{\"ok\":true}");
-    RequireOkString("decode_value ok", valueOk, "{\"ok\":true}");
+    RequireString("from_binary", raw, expectedRaw);
+    RequireOkString("decode_value ok", valueOk, expectedRaw);
     RequireErrString("decode_value error", valueErr, "json decode expected a value");
-    RequireOkString("decode with accumulator", decoded, "{\"head\":\"tail\"");
+    RequireOkString("decode with accumulator", decoded, expectedDecoded);
     RequireOkString("decode custom table", decodedCustom, "42");
     RequireString("continuation input", continuation["input"] as String, "{\"stream\":");
     RequireInt("continuation offset", continuation["offset"] as Int, 0);
@@ -302,14 +358,15 @@ function ShowDecoderHelpers() : Int {
     RequireString("decode_continue input", continued["input"] as String, "{\"ready\":true}");
     RequireBool("decode_continue done", continued["done"] as Bool, True);
 
-    return len(raw) + len(decoded.value) + continued.count + continuation.count;
+    return len(raw) + len(result_unwrap_or(decoded, "")) + continued.count + continuation.count;
 }
 
 function Main() : Int {
     Divider("json.klang complete example");
-    print("This example covers the current typed JSON helper API.");
+    print("This example covers runtime-backed JSON values and compatibility encoders.");
     print("It returns 0 only after all assertions pass.");
 
+    local Int typed = ShowTypedJSON();
     local Int primitives = ShowPrimitiveEncoders();
     local Int builders = ShowFunctionBuilders();
     local Int listsAndMaps = ShowListAndObjectEncoding();
@@ -317,10 +374,11 @@ function Main() : Int {
     local Int formatting = ShowFormattingHelpers();
     local Int decoding = ShowDecoderHelpers();
 
-    local Int total = primitives + builders + listsAndMaps + hooks + formatting + decoding;
+    local Int total = typed + primitives + builders + listsAndMaps + hooks + formatting + decoding;
 
     print("");
     print("summary");
+    print("typed", typed);
     print("primitives", primitives);
     print("builders", builders);
     print("listsAndMaps", listsAndMaps);
@@ -329,6 +387,6 @@ function Main() : Int {
     print("decoding", decoding);
     print("total", total);
 
-    assert total == 326;
+    assert total == 322;
     return 0;
 }

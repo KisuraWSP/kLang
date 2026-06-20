@@ -110,6 +110,56 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsJSONBuiltinsAndHereStrings(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local JSON document = JSON(//
+{"name":"kLang","items":[1,2]}
+//);
+    local JSON name = document.name;
+    local JSON first = document["items"][0];
+    local Option[String] text = json_string(name);
+    local Option[Int] number = json_int(first);
+    local Option[JSON] missing = json_get(document, "missing");
+    local Result[JSON, String] parsed = json_parse("null");
+    local String encoded = json_stringify(document);
+    return document.count + len(encoded);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected JSON program to type check, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsInvalidJSONUse(t *testing.T) {
+	badConstructor := programFromSource(`
+function Main() : Int {
+    local JSON value = JSON(42);
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(badConstructor), "JSON expects String, got Int")
+
+	badMutation := programFromSource(`
+function Main() : Int {
+    local mut JSON value = JSON("{}");
+    value["name"] = JSON("null");
+    return 0;
+}
+`)
+	assertTypeError(t, CheckProgram(badMutation), "JSON indexes cannot be assigned")
+
+	badHelper := programFromSource(`
+function Main() : Int {
+    local String value = json_stringify("not json");
+    return len(value);
+}
+`)
+	assertTypeError(t, CheckProgram(badHelper), "json_stringify expects JSON, got String")
+}
+
 func TestCheckProgramAcceptsAssertAndRuntimeTypeInfo(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

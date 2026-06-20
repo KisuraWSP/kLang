@@ -1,14 +1,75 @@
--- JSON helpers inspired by Erlang's json module and Go's encoding/json.
--- The current language has String/List/Table/Result and first-class functions,
--- so this module provides practical encoders plus lightweight decoder state.
+-- Typed JSON helpers backed by Klang's Go runtime parser and serializer.
+-- The older String encoder functions remain as compatibility helpers.
 
 namespace json {
+    --- Parses one complete JSON value without throwing.
+    function parse(source : String) : Result[JSON, String] {
+        return json_parse(source);
+    }
+
+    --- Parses one complete JSON value or raises a positioned runtime error.
+    function must_parse(source : String) : JSON {
+        return JSON(source);
+    }
+
+    --- Serializes a JSON value to canonical compact JSON text.
+    function stringify(value : JSON) : String {
+        return json_stringify(value);
+    }
+
+    --- Returns an object field without raising when the field is absent.
+    function get_field(value : JSON, key : String) : Option[JSON] {
+        return json_get(value, key);
+    }
+
+    --- Returns an array item without raising when the index is absent.
+    function get_index(value : JSON, index : Int) : Option[JSON] {
+        return json_get(value, index);
+    }
+
+    --- Returns object, array, string, number, bool, or null.
+    function kind(value : JSON) : String {
+        return json_kind(value);
+    }
+
+    function as_string(value : JSON) : Option[String] {
+        return json_string(value);
+    }
+
+    function as_int(value : JSON) : Option[Int] {
+        return json_int(value);
+    }
+
+    function as_float(value : JSON) : Option[Float] {
+        return json_float(value);
+    }
+
+    function as_bool(value : JSON) : Option[Bool] {
+        return json_bool(value);
+    }
+
+    function is_null(value : JSON) : Bool {
+        return json_is_null(value);
+    }
+
+    --- A reusable JSON null value built from a here string.
+    function null_json() : JSON {
+        return JSON(//
+null
+//);
+    }
+
+    --- Encodes an already typed JSON value.
+    function encode_json(value : JSON) : String {
+        return stringify(value);
+    }
+
     --- Signature: function Null() : String
     --- Returns: String.
     --- Summary: Provides the stdlib null operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Null() : String {
-        return "null";
+        return stringify(null_json());
     }
 
     --- Signature: function Bool(value : Bool) : String
@@ -16,7 +77,10 @@ namespace json {
     --- Summary: Provides the stdlib bool operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Bool(value : Bool) : String {
-        if value { return "true"; } else { return "false"; }
+        if value {
+            return stringify(must_parse("true"));
+        }
+        return stringify(must_parse("false"));
     }
 
     --- Signature: function String(value : String) : String
@@ -156,10 +220,10 @@ namespace json {
     function continuation_state(binary : String) : Table {
         _ = binary;
         return {
-            "input": binary,
-            "offset": 0,
-            "done": False,
-            "value": ""
+            "input" : binary,
+            "offset" : 0,
+            "done" : False,
+            "value" : ""
         };
     }
 
@@ -169,8 +233,8 @@ namespace json {
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function decoders() : Table {
         return {
-            "from_binary": from_binary_fun(),
-            "decode_value": decode_value
+            "from_binary" : from_binary_fun(),
+            "decode_value" : decode_value
         };
     }
 
@@ -200,7 +264,7 @@ namespace json {
         --- Summary: Provides the stdlib default formatter operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
         function default_formatter(value : T) : String {
-            return format(value);
+            return value as String;
         }
 
         return default_formatter;
@@ -231,7 +295,11 @@ namespace json {
             return Err("json decode expected a value");
         }
 
-        return Ok(binary);
+        local Result[JSON, String] parsed = parse(binary);
+        if parsed.ok {
+            return Ok(stringify(parsed.value));
+        }
+        return Err("json decode expected valid JSON");
     }
 
     --- Signature: function decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, String]
@@ -257,11 +325,11 @@ namespace json {
         _ = acc;
         _ = decoderTable;
         return {
-            "input": acc + binary,
-            "offset": 0,
-            "done": len(binary) != 0,
-            "value": "",
-            "decoders": decoderTable
+            "input" : acc + binary,
+            "offset" : 0,
+            "done" : len(binary) != 0,
+            "value" : "",
+            "decoders" : decoderTable
         };
     }
 
@@ -270,14 +338,14 @@ namespace json {
     --- Summary: Reads, locates, or decodes decode continue from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function decode_continue(state : Table, binary : String) : Table {
-        local String nextInput = (state["input"] as String) + binary;
+        local String nextInput =(state["input"] as String) + binary;
         _ = nextInput;
         return {
-            "input": nextInput,
-            "offset": state["offset"],
-            "done": len(nextInput) != 0,
-            "value": state["value"],
-            "decoders": state["decoders"]
+            "input" : nextInput,
+            "offset" : state["offset"],
+            "done" : len(nextInput) != 0,
+            "value" : state["value"],
+            "decoders" : state["decoders"]
         };
     }
 
@@ -320,7 +388,7 @@ namespace json {
     --- Summary: Builds, writes, or formats encode float using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_float(value : Float) : String {
-        return value as String;
+        return stringify(must_parse(value as String));
     }
 
     --- Signature: function encode_integer(value : Int) : String
@@ -328,7 +396,7 @@ namespace json {
     --- Summary: Builds, writes, or formats encode integer using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function encode_integer(value : Int) : String {
-        return value as String;
+        return stringify(must_parse(value as String));
     }
 
     --- Signature: function encode_key_value_list(list : List[Table], encodeFn : Function[String, String] = encode_binary) : String
@@ -440,8 +508,8 @@ namespace json {
     function format_options(indent : String = "  ") : Table {
         _ = indent;
         return {
-            "indent": indent,
-            "newline": "\n"
+            "indent" : indent,
+            "newline" : "\n"
         };
     }
 

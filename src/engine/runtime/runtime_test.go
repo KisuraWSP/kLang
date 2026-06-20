@@ -405,6 +405,68 @@ xy
 	}
 }
 
+func TestRuntimeParsesJSONFromHereString(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local JSON document = JSON(//
+{
+    "name": "kLang",
+    "age": 42,
+    "active": true,
+    "scores": [7, 9],
+    "missing": null
+}
+//);
+    local JSON scores = document["scores"];
+    local Int age = option_unwrap_or(json_int(document.age), 0);
+    local Bool active = option_unwrap_or(json_bool(document.active), False);
+    assert document.kind == "object";
+	assert scores.kind == "array";
+	assert active;
+	assert json_is_null(document.missing);
+	return age + document.count + scores.count;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 49 {
+		t.Fatalf("expected JSON program to return 49, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeJSONParseReturnsResultError(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Result[JSON, String] parsed = json_parse(//
+{
+    "broken":
+}
+//);
+    if parsed.ok {
+        return 1;
+    }
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 0 {
+		t.Fatalf("expected invalid JSON to return Err, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeJSONConstructorReportsSourcePosition(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local JSON parsed = JSON(//
+{
+    "broken":
+}
+//);
+    return 0;
+}
+`)
+	assertRuntimeErrorContains(t, err, "invalid JSON at 3:1")
+}
+
 func TestRuntimeExecutesRunStatementsBeforeNormalStatementsAndMain(t *testing.T) {
 	result := runSource(t, `
 function Boot() {
@@ -2106,6 +2168,44 @@ function Main() : Int {
 
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 131 {
 		t.Fatalf("expected stdlib table compatibility helpers to return 131, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesTypedJSONStdlibFacade(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd failed: %v", err)
+		}
+	}()
+
+	result := runSource(t, `
+import "json";
+
+function Main() : Int {
+    local JSON document = json.must_parse(//
+{"name":"kLang","ports":[8080,8081],"metadata":null}
+//);
+    local String name = option_unwrap_or(json.as_string(document.name), "missing");
+    local JSON first = option_unwrap_or(json.get_index(document.ports, 0), json.null_json());
+    local Int port = option_unwrap_or(json.as_int(first), 0);
+    local Result[JSON, String] reparsed = json.parse(json.stringify(document));
+    if name != "kLang" or not reparsed.ok or not json.is_null(document.metadata) {
+        return 0;
+    }
+    return port + document.count;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 8083 {
+		t.Fatalf("expected typed JSON stdlib facade to return 8083, got %#v", result.Value)
 	}
 }
 

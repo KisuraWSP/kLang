@@ -2626,6 +2626,16 @@ func (checker *TypeChecker) enumVariantExists(enumName string, variantName strin
 
 func (checker *TypeChecker) selectorFieldType(targetType string, fieldName string) (string, bool) {
 	targetType = normalizeType(targetType)
+	if targetType == "JSON" {
+		switch fieldName {
+		case "kind":
+			return "String", true
+		case "count":
+			return "Int", true
+		default:
+			return "JSON", true
+		}
+	}
 	if targetType == "Type" {
 		switch fieldName {
 		case "name", "type_name", "category", "kind":
@@ -2682,7 +2692,7 @@ func builtinProtocolFieldType(targetType string, fieldName string) (string, bool
 	if fieldName != "count" {
 		return "", false
 	}
-	if targetType == "String" || targetType == "Table" ||
+	if targetType == "String" || targetType == "Table" || targetType == "JSON" ||
 		strings.HasPrefix(targetType, "List[") ||
 		strings.HasPrefix(targetType, "Set[") ||
 		strings.HasPrefix(targetType, "Map[") ||
@@ -2795,6 +2805,11 @@ func (checker *TypeChecker) checkIndexExpression(targetType string, indexType st
 			checker.addError(source, line, fmt.Sprintf("Table index expects String, Int, UInt, Float, Bool, or Char key, got %s", indexType))
 		}
 		return anyType
+	case targetType == "JSON":
+		if indexType != anyType && indexType != "String" && !isIntegerIndexType(indexType) {
+			checker.addError(source, line, fmt.Sprintf("JSON index expects String or Int, got %s", indexType))
+		}
+		return "JSON"
 	default:
 		checker.addError(source, line, fmt.Sprintf("%s is not indexable", targetType))
 		return anyType
@@ -2832,6 +2847,9 @@ func (checker *TypeChecker) checkIndexedAssignmentTarget(targetType string, inde
 			checker.addError(source, line, fmt.Sprintf("Table index expects String, Int, UInt, Float, Bool, or Char key, got %s", indexType))
 		}
 		return anyType
+	case targetType == "JSON":
+		checker.addError(source, line, "JSON indexes cannot be assigned; JSON values are immutable")
+		return "JSON"
 	default:
 		checker.addError(source, line, fmt.Sprintf("%s is not index-assignable", targetType))
 		return anyType
@@ -2973,6 +2991,59 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.addError(source, line, "len expects 1 argument")
 		}
 		return "Int"
+	case "JSON", "json_parse":
+		if len(args) != 1 {
+			checker.addError(source, line, name+" expects 1 argument")
+			if name == "json_parse" {
+				return "Result[JSON,String]"
+			}
+			return "JSON"
+		}
+		argType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("String", argType) {
+			checker.addError(source, line, fmt.Sprintf("%s expects String, got %s", name, argType))
+		}
+		if name == "json_parse" {
+			return "Result[JSON,String]"
+		}
+		return "JSON"
+	case "json_stringify", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null":
+		if len(args) != 1 {
+			checker.addError(source, line, name+" expects 1 argument")
+		} else {
+			argType := checker.inferExpression(args[0], locals, source, line)
+			if !isAssignable("JSON", argType) {
+				checker.addError(source, line, fmt.Sprintf("%s expects JSON, got %s", name, argType))
+			}
+		}
+		switch name {
+		case "json_stringify", "json_kind":
+			return "String"
+		case "json_string":
+			return "Option[String]"
+		case "json_int":
+			return "Option[Int]"
+		case "json_float":
+			return "Option[Float]"
+		case "json_bool":
+			return "Option[Bool]"
+		default:
+			return "Bool"
+		}
+	case "json_get":
+		if len(args) != 2 {
+			checker.addError(source, line, "json_get expects 2 arguments")
+			return "Option[JSON]"
+		}
+		jsonType := checker.inferExpression(args[0], locals, source, line)
+		indexType := checker.inferExpression(args[1], locals, source, line)
+		if !isAssignable("JSON", jsonType) {
+			checker.addError(source, line, fmt.Sprintf("json_get expects JSON as first argument, got %s", jsonType))
+		}
+		if indexType != anyType && indexType != "String" && !isIntegerIndexType(indexType) {
+			checker.addError(source, line, fmt.Sprintf("json_get index expects String or Int, got %s", indexType))
+		}
+		return "Option[JSON]"
 	case "debug_state":
 		if len(args) != 0 {
 			checker.addError(source, line, "debug_state expects 0 arguments")
@@ -4499,7 +4570,7 @@ func isKnownType(typeName string) bool {
 	if _, ok := childType(typeName); ok {
 		return true
 	}
-	if typeName == anyType || typeName == dynamicAnyType || typeName == "Int" || typeName == "UInt" || typeName == "String" ||
+	if typeName == anyType || typeName == dynamicAnyType || typeName == "Int" || typeName == "UInt" || typeName == "String" || typeName == "JSON" ||
 		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" || typeName == "Type" ||
 		typeName == "Table" || typeName == "Program" || typeName == "BuildSystem" || typeName == "WorkSpace" ||
 		typeName == "JSModule" || typeName == "JSCall" || typeName == "Context" || typeName == "ErrorContext" {
@@ -5205,6 +5276,9 @@ func canCast(source string, target string) bool {
 	source = normalizeType(source)
 	target = normalizeType(target)
 	if source == anyType || target == anyType || source == target {
+		return true
+	}
+	if source == "String" && target == "JSON" || source == "JSON" && target == "String" {
 		return true
 	}
 	if _, allowed, ok := restrictedGenericType(source); ok {

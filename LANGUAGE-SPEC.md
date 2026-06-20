@@ -62,6 +62,7 @@
 62. Pattern matching supports exhaustive checks for Bool, enum, Option, and Result values, plus structural cases for List and Table values.
 63. Option and Result have checked helper functions for mapping, chaining, fallback recovery, and consistent safe access diagnostics.
 64. CLI `fmt`/`format` parse-validates Klang source, writes a canonical four-space style, preserves comments and here strings, supports `--write` for rewrites, and supports `--check` for CI-style formatting verification.
+65. `JSON` is a builtin immutable parsed-data type implemented by the Go runtime. It supports direct construction from strings and here strings, safe `Result` parsing, object/array access, scalar extraction, null checks, and serialization.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -79,6 +80,9 @@ Rules
 - `Option[T]` values expose `.some : Bool` and guarded `.value : T`; `Result[T,E]` values expose `.ok : Bool` and guarded `.value : T`. Accessing `.value` without a proven `Some`/`Ok` state is rejected with a diagnostic that suggests checks, pattern matching, helper functions, or `!` propagation for Result values.
 - `option_map`, `option_unwrap_or`, `option_and_then`, `result_map`, `result_map_err`, `result_unwrap_or`, and `result_and_then` are builtin helper functions. They preserve `None`/`Err` without calling success callbacks, and they statically check callback and fallback types.
 - The formatter only formats parse-valid Klang source. It normalizes indentation, operator spacing, punctuation spacing, and trailing newlines while preserving line comments, multiline comments, and here-string contents.
+- `JSON(source)` parses one complete JSON value and raises a source-positioned runtime error for invalid input. `json_parse(source)` returns `Result[JSON, String]` instead. JSON indexes cannot be assigned.
+- JSON object selectors and String indexes, plus array Int indexes, return `JSON`. `json_get` returns `Option[JSON]`; `json_string`, `json_int`, `json_float`, and `json_bool` return typed options. `.kind`, `.count`, `json_is_null`, and `json_stringify` provide inspection and serialization.
+- The `json` stdlib module provides typed wrappers over the runtime JSON operations. Its legacy String-returning encoders remain compatibility APIs, while `decode_value` and `decode` now validate input with the runtime parser and return canonical JSON text.
 - Postfix `?` checks presence/success as `Bool` for Option and Result values. Postfix `!` unwraps successful Result values or propagates the error as a thrown value.
 - Multiple return signatures use `(name : Type, mut OtherType)` syntax and return values with `return left, right;`.
 - Typed multi-variable declarations use `local Type a, OtherType b = FunctionReturningTwoValues();`. The initializer must be a call to a function with multiple declared return values, the number of bindings must match the number of return values, and each returned value must be assignable to its declared binding type. `_` may be used to discard a returned value.

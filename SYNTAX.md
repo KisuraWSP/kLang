@@ -8,6 +8,28 @@
 - `kLang fmt file.klang --write` rewrites one file, and `kLang fmt src --write` rewrites every `.klang` file in a folder.
 - `kLang fmt src --check` fails when any source file would change, which is suitable for CI.
 
+3. JSON
+- `JSON` parses a String or here string into an immutable builtin JSON value.
+- Use `json_parse` when invalid input should be handled as `Result[JSON, String]` instead of a runtime error.
+
+```klang
+local JSON config = JSON(//
+{
+    "name": "kLang",
+    "ports": [8080, 8081],
+    "debug": true,
+    "metadata": null
+}
+//);
+
+local String name = option_unwrap_or(json_string(config.name), "unknown");
+local Int firstPort = option_unwrap_or(json_int(config.ports[0]), 0);
+local Bool debug = option_unwrap_or(json_bool(config.debug), False);
+local Bool missingMetadata = json_is_null(config.metadata);
+local String encoded = json_stringify(config);
+local Result[JSON, String] checked = json_parse(userInput);
+```
+
 ```lua
 -- local variable
 local Int x = 10;
@@ -446,7 +468,7 @@ run {
 run Boot();
 ```
 
-2. Functions
+4. Functions
 - Basically we want user to be able to write powerful functions like this no matter the functions signature
 ```typescript
 -- Official runtime-backed formatting is available without imports.
@@ -872,7 +894,7 @@ function ParseNumber(value : String) : Int {
 }
 ```
 
-3. Error Handling
+5. Error Handling
 - Errors can be handled as values with `Result[T, E]`, or as exceptions with `throw` and `try/catch`.
 - `Result!` propagates `Err(value)` through the exception path and unwraps `Ok(value)`.
 ```lua
@@ -895,7 +917,7 @@ function FailFast() {
 }
 ```
 
-4. Condition Handling
+6. Condition Handling
 - Used to do basic boolean based condition operations
 ```lua
 -- if .. else if .. else statement
@@ -987,7 +1009,7 @@ unless x > y {
 }
 ```
 
-5. Loops
+7. Loops
 - These are basic repetition constructs used by programming languages
 ```lua
 -- basic for loop (like in C)
@@ -1030,7 +1052,7 @@ do_while i := range(10) {
 }
 ```
 
-6. Namespaces
+8. Namespaces
 - Namespaces can be nested. Nested functions are called through chained dot paths.
 - `alias` binds a shorter name to a namespace path, and `::` calls through that alias.
 ```lua
@@ -1048,7 +1070,7 @@ alias std_lib = std.lib;
 std_lib::LuaInit();
 ```
 
-7. Traits
+9. Traits
 - Traits declare required method signatures. Impl blocks must define matching methods for a type.
 ```lua
 trait Printable {
@@ -1062,7 +1084,7 @@ impl Printable for Int {
 }
 ```
 
-8. Workspaces and raw language mode
+10. Workspaces and raw language mode
 - Each standalone script or folder project is resolved as a separate workspace.
 - Local imports are resolved inside the workspace before stdlib imports.
 - Resolver caches imported files and parsed import lists to speed repeated checks.

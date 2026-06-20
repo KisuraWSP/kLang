@@ -2,7 +2,6 @@ package formatter
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"kLang/src/lexer"
@@ -45,8 +44,8 @@ func Format(input string) (string, error) {
 	for _, line := range lines {
 		raw := strings.TrimSpace(line)
 		if inHereString {
-			if raw == "//;" || raw == "//" {
-				output = append(output, strings.Repeat(indentUnit, indent)+raw)
+			if strings.HasPrefix(raw, "//") {
+				output = append(output, raw)
 				inHereString = false
 			} else {
 				output = append(output, line)
@@ -92,7 +91,12 @@ func Format(input string) (string, error) {
 		formatted := formatCodeLine(raw)
 		if startsHereString(raw) {
 			prefix := strings.TrimSpace(strings.TrimSuffix(raw, "//"))
-			formatted = formatCodeLine(prefix) + " //"
+			formatted = formatCodeLine(prefix)
+			if strings.HasSuffix(formatted, "(") {
+				formatted += "//"
+			} else {
+				formatted += " //"
+			}
 		}
 		output = append(output, strings.Repeat(indentUnit, indent)+formatted)
 
@@ -115,9 +119,7 @@ func Format(input string) (string, error) {
 
 func startsHereString(line string) bool {
 	trimmed := strings.TrimSpace(line)
-	return strings.HasSuffix(trimmed, "= //") ||
-		strings.HasSuffix(trimmed, "=//") ||
-		strings.HasSuffix(trimmed, " //")
+	return strings.HasSuffix(trimmed, "//")
 }
 
 func closesBefore(line string) bool {
@@ -231,7 +233,7 @@ func formatTokens(code string) string {
 func tokenLiteral(token lexer.Token) string {
 	switch token.Type {
 	case lexer.TokenString:
-		return strconv.Quote(token.Literal)
+		return `"` + token.Literal + `"`
 	case lexer.TokenChar:
 		return "'" + token.Literal + "'"
 	default:

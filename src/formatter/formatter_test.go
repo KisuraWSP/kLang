@@ -65,6 +65,25 @@ return 1;
 	}
 }
 
+func TestFormatPreservesStringEscapesIdempotently(t *testing.T) {
+	input := "function Main():String{\nreturn \"\\\\n\\\\\\\"\";\n}\n"
+
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	formattedAgain, err := Format(formatted)
+	if err != nil {
+		t.Fatalf("second format failed: %v", err)
+	}
+	if formattedAgain != formatted {
+		t.Fatalf("escaped strings are not idempotent:\nfirst:\n%s\nsecond:\n%s", formatted, formattedAgain)
+	}
+	if !strings.Contains(formatted, `"\\n\\\""`) {
+		t.Fatalf("formatter changed string escapes: %s", formatted)
+	}
+}
+
 func TestFormatPreservesHereStringContents(t *testing.T) {
 	input := `function Main():Int{
 local String value=//
@@ -80,7 +99,7 @@ return len(value);
   first line
 
     indented line
-    //;
+//;
     return len(value);
 }
 `
@@ -91,6 +110,43 @@ return len(value);
 	}
 	if formatted != expected {
 		t.Fatalf("unexpected formatting:\n%s", formatted)
+	}
+}
+
+func TestFormatPreservesHereStringInsideJSONConstructor(t *testing.T) {
+	input := `function Main():Int{
+local JSON document=JSON(//
+{
+  "name": "kLang"
+}
+//);
+return document.count;
+}
+`
+	expected := `function Main() : Int {
+    local JSON document = JSON(//
+{
+  "name": "kLang"
+}
+//);
+    return document.count;
+}
+`
+
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	if formatted != expected {
+		t.Fatalf("unexpected formatting:\n%s", formatted)
+	}
+
+	formattedAgain, err := Format(formatted)
+	if err != nil {
+		t.Fatalf("formatted JSON did not parse: %v", err)
+	}
+	if formattedAgain != formatted {
+		t.Fatalf("JSON formatting is not idempotent:\n%s", formattedAgain)
 	}
 }
 

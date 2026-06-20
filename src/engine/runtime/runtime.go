@@ -34,6 +34,7 @@ const (
 	ValueComplex     ValueKind = "Complex"
 	ValueSIMD        ValueKind = "SIMD"
 	ValueTable       ValueKind = "Table"
+	ValueJSON        ValueKind = "JSON"
 	ValueAwaitable   ValueKind = "Awaitable"
 	ValueIterator    ValueKind = "Iterator"
 	ValueCoroutine   ValueKind = "Coroutine"
@@ -1592,6 +1593,10 @@ func valuesEqual(left Value, right Value) bool {
 			}
 		}
 		return true
+	case ValueJSON:
+		leftJSON, leftErr := stringifyJSONValue(left)
+		rightJSON, rightErr := stringifyJSONValue(right)
+		return leftErr == nil && rightErr == nil && leftJSON == rightJSON
 	default:
 		return false
 	}
@@ -1609,7 +1614,7 @@ func typeSizeof(typeName string) (int, bool) {
 		return 8, true
 	case "Complex":
 		return 16, true
-	case "String", "List", "Map", "Table", "T", "Type", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic", "Context", "ErrorContext":
+	case "String", "List", "Map", "Table", "JSON", "T", "Type", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic", "Context", "ErrorContext":
 		return 16, true
 	default:
 		return 0, false
@@ -1664,7 +1669,7 @@ func typeMetadataCategory(typeName string) string {
 		return "child"
 	}
 	switch {
-	case strings.HasPrefix(typeName, "List["), strings.HasPrefix(typeName, "Map["), typeName == "Table":
+	case strings.HasPrefix(typeName, "List["), strings.HasPrefix(typeName, "Map["), typeName == "Table", typeName == "JSON":
 		return "collection"
 	case strings.HasPrefix(typeName, "Function["):
 		return "function"
@@ -2132,6 +2137,19 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			field, ok := tableGet(value.Data.(TableData), key)
 			if !ok {
 				return NullValue(), Error{Message: fmt.Sprintf("table key %q does not exist", current.Field)}
+			}
+			return field, nil
+		}
+		if err == nil && value.Kind == ValueJSON {
+			if field, ok := builtinProtocolField(value, current.Field); ok {
+				return field, nil
+			}
+			field, ok, lookupErr := jsonLookup(value, StringValue(current.Field))
+			if lookupErr != nil {
+				return NullValue(), lookupErr
+			}
+			if !ok {
+				return NullValue(), Error{Message: fmt.Sprintf("JSON object key %q does not exist", current.Field)}
 			}
 			return field, nil
 		}
@@ -2710,6 +2728,15 @@ func (runtime *Runtime) evalIndex(expr parser.IndexExpression, env *Environment)
 			return NullValue(), Error{Message: fmt.Sprintf("table key %s does not exist", valueString(tableKeyValue(key)))}
 		}
 		return value, nil
+	case ValueJSON:
+		value, ok, err := jsonLookup(target, index)
+		if err != nil {
+			return NullValue(), err
+		}
+		if !ok {
+			return NullValue(), Error{Message: fmt.Sprintf("JSON index %s does not exist", valueString(index))}
+		}
+		return value, nil
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("%s is not indexable", target.Kind)}
 	}
@@ -2781,6 +2808,78 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			return NullValue(), err
 		}
 		return IntValue(length), nil
+	case "JSON":
+		if len(args) != 1 || args[0].Kind != ValueString {
+			return NullValue(), Error{Message: "JSON expects one String argument"}
+		}
+		return parseJSONValue(args[0].Data.(string))
+	case "json_parse":
+		if len(args) != 1 || args[0].Kind != ValueString {
+			return NullValue(), Error{Message: "json_parse expects one String argument"}
+		}
+		parsed, err := parseJSONValue(args[0].Data.(string))
+		if err != nil {
+			return ResultErrValue(StringValue(err.Error())), nil
+		}
+		return ResultOkValue(parsed), nil
+	case "json_stringify":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "json_stringify expects one JSON argument"}
+		}
+		encoded, err := stringifyJSONValue(args[0])
+		if err != nil {
+			return NullValue(), err
+		}
+		return StringValue(encoded), nil
+	case "json_get":
+		if len(args) != 2 {
+			return NullValue(), Error{Message: "json_get expects JSON and a String or Int index"}
+		}
+		value, ok, err := jsonLookup(args[0], args[1])
+		if err != nil {
+			return NullValue(), err
+		}
+		if !ok {
+			return OptionNoneValue(), nil
+		}
+		return OptionSomeValue(value), nil
+	case "json_kind":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "json_kind expects one JSON argument"}
+		}
+		kind, err := jsonValueKind(args[0])
+		if err != nil {
+			return NullValue(), err
+		}
+		return StringValue(kind), nil
+	case "json_string", "json_int", "json_float", "json_bool":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: name + " expects one JSON argument"}
+		}
+		if args[0].Kind != ValueJSON {
+			return NullValue(), Error{Message: fmt.Sprintf("%s expects JSON, got %s", name, args[0].Kind)}
+		}
+		var value Value
+		var ok bool
+		switch name {
+		case "json_string":
+			value, ok = jsonStringValue(args[0])
+		case "json_int":
+			value, ok = jsonIntValue(args[0])
+		case "json_float":
+			value, ok = jsonFloatValue(args[0])
+		case "json_bool":
+			value, ok = jsonBoolValue(args[0])
+		}
+		if !ok {
+			return OptionNoneValue(), nil
+		}
+		return OptionSomeValue(value), nil
+	case "json_is_null":
+		if len(args) != 1 || args[0].Kind != ValueJSON {
+			return NullValue(), Error{Message: "json_is_null expects one JSON argument"}
+		}
+		return BoolValue(jsonIsNull(args[0])), nil
 	case "table_has", "has_key":
 		if len(args) != 2 {
 			return NullValue(), Error{Message: name + " expects two arguments"}
@@ -3933,6 +4032,15 @@ func builtinProtocolField(value Value, field string) (Value, bool) {
 			return NullValue(), false
 		}
 		return IntValue(length), true
+	case "kind":
+		if value.Kind != ValueJSON {
+			return NullValue(), false
+		}
+		kind, err := jsonValueKind(value)
+		if err != nil {
+			return NullValue(), false
+		}
+		return StringValue(kind), true
 	default:
 		return NullValue(), false
 	}
@@ -4132,8 +4240,9 @@ func isBuiltinFunction(name string) bool {
 	case "print", "format", "printf", "input", "len", "range",
 		"option_map", "option_unwrap_or", "option_and_then",
 		"result_map", "result_map_err", "result_unwrap_or", "result_and_then",
-		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set",
+		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON",
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
+		"json_parse", "json_stringify", "json_get", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null",
 		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",

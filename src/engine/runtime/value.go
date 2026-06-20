@@ -346,6 +346,8 @@ func zeroValue(typeName string) Value {
 		return FloatValue(0)
 	case "String":
 		return StringValue("")
+	case "JSON":
+		return JSONValue(nil)
 	case "Bool":
 		return BoolValue(false)
 	case "Char":
@@ -415,6 +417,8 @@ func cloneValue(value Value) Value {
 		return Value{Kind: ValueMap, Data: cloned}
 	case ValueTable:
 		return Value{Kind: ValueTable, Data: cloneTableData(value.Data.(TableData))}
+	case ValueJSON:
+		return value
 	case ValueOption:
 		option := value.Data.(OptionData)
 		option.Value = cloneValue(option.Value)
@@ -455,6 +459,8 @@ func shareValue(value Value) Value {
 		return Value{Kind: ValueResult, Data: result}
 	case ValueTable:
 		return Value{Kind: ValueTable, Data: shareTableData(value.Data.(TableData))}
+	case ValueJSON:
+		return value
 	case ValueSet:
 		return Value{Kind: ValueSet, Data: shareSetData(value.Data.(SetData))}
 	case ValueAwaitable:
@@ -496,6 +502,8 @@ func runtimeTypeName(value Value) string {
 		return "Map[T,T]"
 	case ValueTable:
 		return "Table"
+	case ValueJSON:
+		return "JSON"
 	case ValueOption:
 		return "Option[T]"
 	case ValueResult:
@@ -595,6 +603,11 @@ func castValue(value Value, typeName string) (Value, error) {
 		return castToFloat(value)
 	case "String":
 		return StringValue(valueString(value)), nil
+	case "JSON":
+		if value.Kind != ValueString {
+			return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to JSON", value.Kind)}
+		}
+		return parseJSONValue(value.Data.(string))
 	case "Bool":
 		return castToBool(value), nil
 	case "Char":
@@ -1046,6 +1059,12 @@ func valueString(value Value) string {
 			}
 		}
 		return "Table{" + strings.Join(parts, ", ") + "}"
+	case ValueJSON:
+		encoded, err := stringifyJSONValue(value)
+		if err != nil {
+			return "<invalid JSON>"
+		}
+		return encoded
 	case ValueAwaitable:
 		data := value.Data.(*AwaitableData)
 		if data.Done {
@@ -1129,6 +1148,12 @@ func valueSize(value Value) int {
 			size += valueSize(Value{Kind: ValueTable, Data: *table.Fallback})
 		}
 		return size
+	case ValueJSON:
+		encoded, err := stringifyJSONValue(value)
+		if err != nil {
+			return 16
+		}
+		return 16 + len(encoded)
 	case ValueOption:
 		return 8 + valueSize(value.Data.(OptionData).Value)
 	case ValueResult:
@@ -1184,6 +1209,8 @@ func valueLen(value Value) (int, error) {
 		return len(value.Data.(map[string]Value)), nil
 	case ValueTable:
 		return len(value.Data.(TableData).Entries), nil
+	case ValueJSON:
+		return jsonValueLength(value)
 	case ValueSIMD:
 		return len(value.Data.(SIMDData).Lanes), nil
 	default:
@@ -1269,6 +1296,8 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Kind == ValueFloat || value.Kind == ValueInt
 	case typeName == "String":
 		return value.Kind == ValueString
+	case typeName == "JSON":
+		return value.Kind == ValueJSON
 	case typeName == "Bool":
 		return value.Kind == ValueBool
 	case typeName == "Char":
