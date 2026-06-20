@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	sourcefile "kLang/src/engine/file"
+	"kLang/src/lexer"
 )
 
 type ParsedSource struct {
@@ -21,11 +22,18 @@ type ParsedProgram struct {
 }
 
 func ParseSource(source sourcefile.SourceFile) ParsedSource {
-	program, errors := Parse(strings.Join(source.Lines, "\n"))
+	text := strings.Join(source.Lines, "\n")
+	tokens := lexer.New(text).Tokenize()
+	return parseSourceWithTypeAliases(source, tokens, discoverTypeAliases(tokens))
+}
+
+func parseSourceWithTypeAliases(source sourcefile.SourceFile, tokens []lexer.Token, aliases map[string]string) ParsedSource {
+	parser := NewWithTypeAliases(tokens, aliases)
+	program := parser.ParseProgram()
 	return ParsedSource{
 		Path:                 source.Path,
 		Program:              program,
-		Errors:               errors,
+		Errors:               parser.Errors(),
 		ModuleFunctionFilter: source.ModuleFunctionFilter,
 	}
 }
@@ -36,12 +44,22 @@ func ParseLoadedProgram(program sourcefile.Program) ParsedProgram {
 		Sources: make([]ParsedSource, len(program.Files)),
 	}
 
+	tokensBySource := make([][]lexer.Token, len(program.Files))
+	aliases := map[string]string{}
+	for index, source := range program.Files {
+		tokens := lexer.New(strings.Join(source.Lines, "\n")).Tokenize()
+		tokensBySource[index] = tokens
+		for name, target := range discoverTypeAliases(tokens) {
+			aliases[name] = target
+		}
+	}
+
 	var wait sync.WaitGroup
 	for index, source := range program.Files {
 		wait.Add(1)
 		go func(index int, source sourcefile.SourceFile) {
 			defer wait.Done()
-			parsed.Sources[index] = ParseSource(source)
+			parsed.Sources[index] = parseSourceWithTypeAliases(source, tokensBySource[index], aliases)
 		}(index, source)
 	}
 	wait.Wait()

@@ -3,10 +3,7 @@
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
 - add delete keyword for use cases for deleting memory when user requests to
-- add support for type aliases
-```lua
-type string_list = List[String];
-```
+
 - Add CSV as a built in type in the language 
    - with its own parser/implementation as part of the go source code
    - make use of the here strings for this

@@ -935,6 +935,8 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		return signal{kind: signalNone}, nil
 	case parser.AliasStatement:
 		return signal{kind: signalNone}, nil
+	case parser.TypeAliasStatement:
+		return signal{kind: signalNone}, nil
 	case parser.NamespaceStatement:
 		return signal{kind: signalNone}, nil
 	case parser.RegionStatement:

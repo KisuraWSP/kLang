@@ -65,9 +65,11 @@
 65. `JSON` is a builtin immutable parsed-data type implemented by the Go runtime. It supports direct construction from strings and here strings, safe `Result` parsing, object/array access, scalar extraction, null checks, and serialization.
 66. Namespace aliases can target local, imported, or nested namespace paths. Alias-qualified calls participate in inferred imports and selective stdlib function loading after transitive alias expansion.
 67. `Parsable[T]` is a builtin metaprogramming type that parses one source program, retains AST/runtime/argument metadata, integrates with `Program`, `BuildSystem`, and `WorkSpace`, supports reparsed immutable source transforms, and can define trait-restricted keyword macros.
+68. `type name = ExistingType;` declares a workspace-scoped compile-time type alias that is recursively expanded in declarations, signatures, generic arguments, and casts.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
+- Type aliases are exact synonyms rather than nominal types. They may be chained and forward-referenced across loaded workspace files, emit no runtime binding, and must resolve to a known non-cyclic target type.
 - Variables are immutable by default unless specified mutable via (mut keyword)
 - `let` declares a local inferred immutable variable, and `let mut` declares a local inferred mutable variable.
 - `val` declares a global inferred immutable variable, and `var` declares a global inferred mutable variable.

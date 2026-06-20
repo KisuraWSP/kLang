@@ -20,10 +20,16 @@ type Parser struct {
 	pos           int
 	errors        []Error
 	keywordMacros map[string]bool
+	typeAliases   map[string]string
 }
 
 func New(tokens []lexer.Token) *Parser {
-	return &Parser{tokens: tokens, keywordMacros: map[string]bool{}}
+	return NewWithTypeAliases(tokens, discoverTypeAliases(tokens))
+
+}
+
+func NewWithTypeAliases(tokens []lexer.Token, aliases map[string]string) *Parser {
+	return &Parser{tokens: tokens, keywordMacros: map[string]bool{}, typeAliases: cloneTypeAliases(aliases)}
 }
 
 func Parse(input string) (*Program, []Error) {
@@ -57,6 +63,9 @@ func (parser *Parser) Errors() []Error {
 
 func (parser *Parser) parseStatement() Statement {
 	token := parser.current()
+	if token.Type == lexer.TokenIdentifier && token.Literal == "type" && parser.peek().Type == lexer.TokenIdentifier {
+		return parser.parseTypeAlias()
+	}
 	switch token.Type {
 	case lexer.TokenIllegal:
 		parser.addError(token, fmt.Sprintf("illegal token %q", token.Literal))
@@ -160,6 +169,20 @@ func (parser *Parser) parseStatement() Statement {
 		}
 		return parser.parseExpressionOrAssignment()
 	}
+}
+
+func (parser *Parser) parseTypeAlias() Statement {
+	start := parser.advance()
+	name := parser.consume(lexer.TokenIdentifier, "expected type alias name")
+	parser.consume(lexer.TokenAssign, "expected '=' after type alias name")
+	target := parser.parseTypeRaw()
+	parser.consumeOptionalSemicolon()
+	resolved, cycle := resolveTypeAlias(target, parser.typeAliases, map[string]bool{name.Literal: true})
+	if cycle {
+		parser.addError(name, fmt.Sprintf("type alias %q creates a cycle", name.Literal))
+		resolved = target
+	}
+	return TypeAliasStatement{Pos: positionFromToken(start), Name: name.Literal, Target: target, Resolved: resolved}
 }
 
 func (parser *Parser) parseImport() Statement {
@@ -1829,6 +1852,12 @@ func (parser *Parser) parseBlock() []Statement {
 }
 
 func (parser *Parser) parseType() string {
+	typeName := parser.parseTypeRaw()
+	resolved, _ := resolveTypeAlias(typeName, parser.typeAliases, nil)
+	return resolved
+}
+
+func (parser *Parser) parseTypeRaw() string {
 	if parser.atEnd() {
 		parser.addError(parser.previous(), "expected type")
 		return ""
@@ -2008,7 +2037,7 @@ func (parser *Parser) parseExpressionUntil(stopTypes ...lexer.TokenType) Express
 			braceDepth++
 		case lexer.TokenScopeEnd:
 			if braceDepth == 0 && tokenTypeIn(lexer.TokenScopeEnd, stopTypes) {
-				return expressionFromTokens(tokens)
+				return parser.expressionFromTokens(tokens)
 			}
 			if braceDepth > 0 {
 				braceDepth--
@@ -2018,7 +2047,13 @@ func (parser *Parser) parseExpressionUntil(stopTypes ...lexer.TokenType) Express
 		tokens = append(tokens, token)
 		parser.advance()
 	}
-	return expressionFromTokens(tokens)
+	return parser.expressionFromTokens(tokens)
+}
+
+func (parser *Parser) expressionFromTokens(tokens []lexer.Token) Expression {
+	expression := expressionFromTokens(tokens)
+	expression.Node = resolveExpressionTypeAliases(expression.Node, parser.typeAliases)
+	return expression
 }
 
 func (parser *Parser) consume(expected lexer.TokenType, message string) lexer.Token {

@@ -58,6 +58,7 @@ type TypeChecker struct {
 	groups          map[string][]string
 	globals         map[string]variableSymbol
 	aliases         map[string]string
+	typeAliases     map[string]string
 	traits          map[string]traitSymbol
 	traitImpls      map[string]map[string]bool
 	enums           map[string]enumSymbol
@@ -148,6 +149,7 @@ func CheckProgram(program file.Program) Report {
 		groups:          map[string][]string{},
 		globals:         map[string]variableSymbol{},
 		aliases:         map[string]string{},
+		typeAliases:     map[string]string{},
 		traits:          map[string]traitSymbol{},
 		traitImpls:      map[string]map[string]bool{},
 		enums:           map[string]enumSymbol{},
@@ -162,6 +164,7 @@ func CheckProgram(program file.Program) Report {
 		})
 	}
 	parsed := parser.ParseLoadedProgram(program)
+	checker.collectTypeAliases(parsed)
 
 	for _, unit := range units {
 		checker.collectFunctions(unit, "", false)
@@ -189,6 +192,41 @@ func CheckProgram(program file.Program) Report {
 	checker.checkLexicalScopes(program.EntryPoint, parsed)
 
 	return Report{Errors: checker.errors, Warnings: checker.warnings, States: checker.states}
+}
+
+func (checker *TypeChecker) collectTypeAliases(parsed parser.ParsedProgram) {
+	if !parsed.Passed() {
+		return
+	}
+	var collect func([]parser.Statement, string)
+	collect = func(statements []parser.Statement, source string) {
+		for _, stmt := range statements {
+			switch current := stmt.(type) {
+			case parser.TypeAliasStatement:
+				if _, exists := checker.typeAliases[current.Name]; exists {
+					checker.addError(source, current.Pos.Line, fmt.Sprintf("type alias %q is already defined", current.Name))
+					continue
+				}
+				if !isKnownType(current.Resolved) {
+					checker.addError(source, current.Pos.Line, fmt.Sprintf("type alias %s targets unknown type %s", current.Name, current.Target))
+					continue
+				}
+				checker.typeAliases[current.Name] = current.Resolved
+			case parser.NamespaceStatement:
+				collect(current.Body, source)
+			case parser.PrivateBlockStatement:
+				collect(current.Body, source)
+			}
+		}
+	}
+	for _, source := range parsed.Sources {
+		collect(source.Program.Statements, source.Path)
+	}
+}
+
+func (checker *TypeChecker) resolveTypeAlias(typeName string) string {
+	resolved, _ := parser.ResolveTypeAlias(normalizeType(typeName), checker.typeAliases)
+	return normalizeType(resolved)
 }
 
 func (checker *TypeChecker) recordState(state State) {
@@ -360,6 +398,16 @@ func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string, 
 			checker.addError(unit.Path, lineAt(unit.Text, nextFunction), err.Error())
 			index = nextFunction + len("function")
 			continue
+		}
+		for index := range fn.Params {
+			fn.Params[index].Type = checker.resolveTypeAlias(fn.Params[index].Type)
+		}
+		fn.ReturnType = checker.resolveTypeAlias(fn.ReturnType)
+		for index := range fn.ReturnTypes {
+			fn.ReturnTypes[index].Type = checker.resolveTypeAlias(fn.ReturnTypes[index].Type)
+		}
+		for name, restriction := range fn.TypeRestrictions {
+			fn.TypeRestrictions[name] = checker.resolveTypeAlias(restriction)
 		}
 
 		if _, exists := checker.functions[fn.Name]; exists {
@@ -598,6 +646,7 @@ func (checker *TypeChecker) collectGlobals(unit sourceUnit) {
 
 		decl.File = unit.Path
 		decl.Line = lineAt(text, stmt.Start)
+		decl.Type = checker.resolveTypeAlias(decl.Type)
 		if _, exists := checker.globals[decl.Name]; exists {
 			checker.addError(unit.Path, decl.Line, fmt.Sprintf("global variable %q is already defined", decl.Name))
 			continue
@@ -732,7 +781,7 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 		}
 	}
 	checker.checkFunctionNullSafety(fn)
-	if parsedFn, ok := parseFunctionBodyForSemanticCheck(fn); ok {
+	if parsedFn, ok := checker.parseFunctionBodyForSemanticCheck(fn); ok {
 		checker.checkSemanticStatements(fn, parsedFn.Body, locals, declared)
 	}
 }
@@ -815,14 +864,22 @@ func (checker *TypeChecker) checkTupleReturn(fn functionSymbol, expr string, loc
 	}
 }
 
-func parseFunctionBodyForSemanticCheck(fn functionSymbol) (parser.FunctionStatement, bool) {
-	source := fmt.Sprintf("function __Semantic() : T {\n%s\n}", fn.Body)
+func (checker *TypeChecker) parseFunctionBodyForSemanticCheck(fn functionSymbol) (parser.FunctionStatement, bool) {
+	var aliases strings.Builder
+	for name, target := range checker.typeAliases {
+		fmt.Fprintf(&aliases, "type %s = %s;\n", name, target)
+	}
+	source := aliases.String() + fmt.Sprintf("function __Semantic() : T {\n%s\n}", fn.Body)
 	program, errors := parser.Parse(source)
-	if len(errors) != 0 || len(program.Statements) == 0 {
+	if len(errors) != 0 {
 		return parser.FunctionStatement{}, false
 	}
-	parsedFn, ok := program.Statements[0].(parser.FunctionStatement)
-	return parsedFn, ok
+	for _, stmt := range program.Statements {
+		if parsedFn, ok := stmt.(parser.FunctionStatement); ok {
+			return parsedFn, true
+		}
+	}
+	return parser.FunctionStatement{}, false
 }
 
 func (checker *TypeChecker) checkSemanticStatements(fn functionSymbol, statements []parser.Statement, locals map[string]variableSymbol, declared map[string]bool) {
@@ -841,7 +898,7 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 			return
 		}
 		inferredType := ""
-		typeName := normalizeType(current.Type)
+		typeName := checker.resolveTypeAlias(current.Type)
 		if typeName != anyType {
 			checker.checkDeclaredType(typeName, fn.File, line)
 		}
@@ -909,7 +966,7 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 			return
 		}
 		for index, binding := range current.Bindings {
-			typeName := normalizeType(binding.Type)
+			typeName := checker.resolveTypeAlias(binding.Type)
 			if typeName != anyType {
 				checker.checkDeclaredType(typeName, fn.File, line)
 			}
@@ -1754,10 +1811,6 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 	for index := range returnTypes {
 		returnTypes[index].Type = applyFunctionTypeRestrictions(returnTypes[index].Type, typeRestrictions)
 	}
-	if !isKnownType(returnType) {
-		return functionSymbol{}, openBrace, fmt.Errorf("function %s uses unknown return type %s", name, returnType)
-	}
-
 	fullName := namespace + name
 	deprecated, deprecationMessage := functionDeprecatedMarker(unit.Text, start)
 	return functionSymbol{
@@ -1912,9 +1965,6 @@ func parseParams(input string) ([]variableSymbol, error) {
 		typeName := normalizeType(part[colon+1:])
 		if name == "" || typeName == "" {
 			return nil, fmt.Errorf("function parameter %q must be written as name : Type", strings.TrimSpace(part))
-		}
-		if !isKnownType(typeName) {
-			return nil, fmt.Errorf("function parameter %s uses unknown type %s", name, typeName)
 		}
 		if byRef && defaultValue != "" {
 			return nil, fmt.Errorf("reference parameter %s cannot have a default value", name)
@@ -2426,7 +2476,7 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	}
 	if index := findTopLevelOperator(expr, []string{" as "}); index != -1 && index > 0 {
 		sourceType := checker.inferExpression(expr[:index], locals, source, line)
-		targetType := normalizeType(expr[index+len(" as "):])
+		targetType := checker.resolveTypeAlias(expr[index+len(" as "):])
 		if !isKnownType(targetType) {
 			checker.addError(source, line, fmt.Sprintf("unknown cast target type %s", targetType))
 			return anyType
@@ -2817,7 +2867,7 @@ func runtimeTypeInfoCallTarget(name string) (string, bool) {
 }
 
 func (checker *TypeChecker) checkDeclaredType(typeName string, source string, line int) {
-	typeName = normalizeType(typeName)
+	typeName = checker.resolveTypeAlias(typeName)
 	if !isKnownType(typeName) {
 		checker.addError(source, line, fmt.Sprintf("unknown type %s", typeName))
 		return

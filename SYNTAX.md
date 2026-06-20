@@ -44,6 +44,18 @@ local Type metadata = User.get_runtime_type_info();
 print(metadata.serialization.json_tags);
 ```
 
+Type aliases provide shorter compile-time names without creating a new runtime type:
+```lua
+type string_list = List[String];
+type names = string_list;
+type optional_names = Option[names];
+
+function Echo(values : names) : names {
+    local names copied = values as names;
+    return copied;
+}
+```
+
 ```lua
 -- local variable
 local Int x = 10;

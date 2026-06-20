@@ -48,6 +48,13 @@ type AliasStatement struct {
 	Body         []Statement
 }
 
+type TypeAliasStatement struct {
+	Pos      Position
+	Name     string
+	Target   string
+	Resolved string
+}
+
 type RegionStatement struct {
 	Pos       Position
 	Name      string
@@ -426,8 +433,9 @@ func (stmt ModuleDirectiveStatement) statementNode() {
 }
 func (stmt EntryPointStatement) statementNode() {
 }
-func (stmt AliasStatement) statementNode()  {}
-func (stmt RegionStatement) statementNode() {}
+func (stmt AliasStatement) statementNode()     {}
+func (stmt TypeAliasStatement) statementNode() {}
+func (stmt RegionStatement) statementNode()    {}
 func (stmt AliasFunctionStatement) statementNode() {
 }
 func (stmt NamespaceStatement) statementNode() {}
@@ -465,8 +473,9 @@ func (stmt ModuleDirectiveStatement) Position() Position {
 func (stmt EntryPointStatement) Position() Position {
 	return stmt.Pos
 }
-func (stmt AliasStatement) Position() Position  { return stmt.Pos }
-func (stmt RegionStatement) Position() Position { return stmt.Pos }
+func (stmt AliasStatement) Position() Position     { return stmt.Pos }
+func (stmt TypeAliasStatement) Position() Position { return stmt.Pos }
+func (stmt RegionStatement) Position() Position    { return stmt.Pos }
 func (stmt AliasFunctionStatement) Position() Position {
 	return stmt.Pos
 }

@@ -46,6 +46,8 @@
 All builtin type names expose a compile-time size query through `.sizeof`, which returns an `Int`.
 For example, `Int.sizeof` returns the runtime size used for an `Int` value.
 
+`type name = ExistingType;` declares a workspace-scoped compile-time type alias. Aliases may use lowercase or snake_case names, may refer forward to aliases declared later, may chain through other aliases, and may appear recursively inside generic types such as `Option[string_list]`. They are exact synonyms: they create no runtime value, allocation, or nominal type distinction. Cyclic aliases and aliases targeting unknown types are rejected.
+
 Numeric parent types expose child-width types through `.child(bits)`. `Int` and `UInt` default to 64 bits and support 8, 16, 32, and 64 bit children. `Float` defaults to 64 bits and supports 32 and 64 bit children. `Complex` defaults to 128 bits and supports 64 and 128 bit children. The builtin aliases `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `float32`, `float64`, `complex64`, and `complex128` are globally available through the internal `types` namespace without imports.
 
 Integer values may be written in decimal, hexadecimal (`0x`/`0X`), octal (`0o`/`0O`), or binary (`0b`/`0B`) form. Numeric literals may use `_` separators between digits for readability, such as `1_000_000`, `0xFF_FF`, or `12_345.67_89`. Signed integer and float literals use a leading `-`, and child-width range checks apply after the literal is parsed.
