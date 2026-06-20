@@ -67,8 +67,16 @@ type AliasFunctionStatement struct {
 	Inline     bool
 	Private    bool
 	Hooks      []AliasHook
+	FieldTags  []StructFieldTag
 	Methods    []FunctionStatement
 	Body       []Statement
+}
+
+type StructFieldTag struct {
+	Pos   Position
+	Field string
+	Kind  string
+	Name  string
 }
 
 type AliasHook struct {

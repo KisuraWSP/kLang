@@ -73,6 +73,85 @@ func stringifyJSONValue(value Value) (string, error) {
 	return string(encoded), nil
 }
 
+func runtimeValueToJSON(value Value) (any, error) {
+	switch value.Kind {
+	case ValueNull:
+		return nil, nil
+	case ValueJSON:
+		return value.Data.(JSONData).Value, nil
+	case ValueString, ValueChar:
+		return value.Data.(string), nil
+	case ValueInt, ValueFloat, ValueBool:
+		return value.Data, nil
+	case ValueList:
+		items := value.Data.([]Value)
+		converted := make([]any, 0, len(items))
+		for _, item := range items {
+			jsonItem, err := runtimeValueToJSON(item)
+			if err != nil {
+				return nil, err
+			}
+			converted = append(converted, jsonItem)
+		}
+		return converted, nil
+	case ValueMap:
+		converted := map[string]any{}
+		for key, item := range value.Data.(map[string]Value) {
+			jsonItem, err := runtimeValueToJSON(item)
+			if err != nil {
+				return nil, err
+			}
+			converted[key] = jsonItem
+		}
+		return converted, nil
+	case ValueTable:
+		converted := map[string]any{}
+		table := value.Data.(TableData)
+		for _, key := range table.Order {
+			if key.Kind != ValueString {
+				return nil, Error{Message: "JSON serialization requires String table keys"}
+			}
+			jsonItem, err := runtimeValueToJSON(table.Entries[key])
+			if err != nil {
+				return nil, err
+			}
+			converted[key.Repr] = jsonItem
+		}
+		return converted, nil
+	case ValueOption:
+		option := value.Data.(OptionData)
+		if !option.Some {
+			return nil, nil
+		}
+		return runtimeValueToJSON(option.Value)
+	case ValueEnum:
+		return value.Data.(EnumData).Variant, nil
+	case ValueObject:
+		object := value.Data.(ObjectData)
+		if !object.Struct {
+			return nil, Error{Message: fmt.Sprintf("JSON serialization expects a struct alias, got %s", object.Type)}
+		}
+		converted := map[string]any{}
+		for field, item := range object.Fields {
+			if strings.HasPrefix(field, "__") {
+				continue
+			}
+			name := field
+			if tagged, ok := object.JSONTags[field]; ok {
+				name = tagged
+			}
+			jsonItem, err := runtimeValueToJSON(item)
+			if err != nil {
+				return nil, Error{Message: fmt.Sprintf("cannot serialize %s.%s: %s", object.Type, field, err)}
+			}
+			converted[name] = jsonItem
+		}
+		return converted, nil
+	default:
+		return nil, Error{Message: fmt.Sprintf("cannot serialize %s as JSON", runtimeTypeName(value))}
+	}
+}
+
 func jsonValueKind(value Value) (string, error) {
 	if value.Kind != ValueJSON {
 		return "", Error{Message: fmt.Sprintf("expected JSON, got %s", value.Kind)}

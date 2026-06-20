@@ -30,6 +30,20 @@ local String encoded = json_stringify(config);
 local Result[JSON, String] checked = json_parse(userInput);
 ```
 
+Struct-style aliases can rename constructor fields during JSON serialization:
+```lua
+alias function User(id : String, displayName : String) : type = struct {
+    this.id `json:"user_id"`;
+    this.displayName `json:"display_name"`;
+}
+
+let user = User("42", "Ada");
+local JSON document = JSON(user);
+local String encoded = json_stringify(user);
+local Type metadata = User.get_runtime_type_info();
+print(metadata.serialization.json_tags);
+```
+
 ```lua
 -- local variable
 local Int x = 10;

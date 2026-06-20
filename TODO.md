@@ -11,12 +11,6 @@ type string_list = List[String];
    - with its own parser/implementation as part of the go source code
    - make use of the here strings for this
 
-- add support for json tag annotations on structs parameters like the below
-```lua
-alias function Array(id : String) : type = struct {
-   this.id `json:"id"`;
-}
-```
 
 - add support for members in function aliases
 ```lua

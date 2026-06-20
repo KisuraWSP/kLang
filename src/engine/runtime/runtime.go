@@ -136,9 +136,10 @@ type ThunkData struct {
 }
 
 type ObjectData struct {
-	Type   string
-	Struct bool
-	Fields map[string]Value
+	Type     string
+	Struct   bool
+	Fields   map[string]Value
+	JSONTags map[string]string
 }
 
 type BoundMethodData struct {
@@ -2795,6 +2796,9 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		if len(args) != 0 {
 			return NullValue(), Error{Message: fmt.Sprintf("%s expects no arguments", name)}
 		}
+		if alias, exists := runtime.aliasFunctionForType(typeName); exists {
+			return aliasTypeInfoValue(typeName, alias), nil
+		}
 		if _, ok := typeSizeof(typeName); !ok {
 			return NullValue(), Error{Message: fmt.Sprintf("unknown type %s", typeName)}
 		}
@@ -2867,10 +2871,17 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		}
 		return IntValue(length), nil
 	case "JSON":
-		if len(args) != 1 || args[0].Kind != ValueString {
-			return NullValue(), Error{Message: "JSON expects one String argument"}
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "JSON expects one String or struct alias argument"}
 		}
-		return parseJSONValue(args[0].Data.(string))
+		if args[0].Kind == ValueString {
+			return parseJSONValue(args[0].Data.(string))
+		}
+		converted, err := runtimeValueToJSON(args[0])
+		if err != nil {
+			return NullValue(), err
+		}
+		return JSONValue(converted), nil
 	case "json_parse":
 		if len(args) != 1 || args[0].Kind != ValueString {
 			return NullValue(), Error{Message: "json_parse expects one String argument"}
@@ -2882,9 +2893,17 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		return ResultOkValue(parsed), nil
 	case "json_stringify":
 		if len(args) != 1 {
-			return NullValue(), Error{Message: "json_stringify expects one JSON argument"}
+			return NullValue(), Error{Message: "json_stringify expects one JSON or struct alias argument"}
 		}
-		encoded, err := stringifyJSONValue(args[0])
+		value := args[0]
+		if value.Kind != ValueJSON {
+			converted, err := runtimeValueToJSON(value)
+			if err != nil {
+				return NullValue(), err
+			}
+			value = JSONValue(converted)
+		}
+		encoded, err := stringifyJSONValue(value)
 		if err != nil {
 			return NullValue(), err
 		}
@@ -3723,6 +3742,49 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 	}
 }
 
+func (runtime *Runtime) aliasFunctionForType(typeName string) (parser.AliasFunctionStatement, bool) {
+	base := normalizeRuntimeType(typeName)
+	if index := strings.Index(base, "["); index > 0 {
+		base = base[:index]
+	}
+	alias, ok := runtime.aliasFunctions[base]
+	return alias, ok
+}
+
+func aliasTypeInfoValue(typeName string, alias parser.AliasFunctionStatement) Value {
+	info := typeInfoValue(typeName)
+	object := info.Data.(ObjectData)
+	fieldMetadata := map[string]Value{}
+	jsonTags := map[string]Value{}
+	tagsByField := map[string]string{}
+	for _, tag := range alias.FieldTags {
+		if tag.Kind == "json" {
+			tagsByField[tag.Field] = tag.Name
+			jsonTags[tag.Field] = StringValue(tag.Name)
+		}
+	}
+	for _, field := range alias.Params {
+		metadata := map[string]Value{"type": StringValue(field.Type)}
+		if name, ok := tagsByField[field.Name]; ok {
+			metadata["json"] = StringValue(name)
+		}
+		fieldMetadata[field.Name] = TableValue(metadata)
+	}
+	fields := TableValue(fieldMetadata)
+	serialization := TableValue(map[string]Value{
+		"pack":      StringValue("json"),
+		"unpack":    StringValue("json"),
+		"json_tags": TableValue(jsonTags),
+	})
+	object.Fields["category"] = StringValue("struct")
+	object.Fields["fields"] = fields
+	object.Fields["field_count"] = IntValue(len(alias.Params))
+	object.Fields["serialization"] = serialization
+	object.Fields["introspection"] = TableValue(map[string]Value{"fields": fields})
+	info.Data = object
+	return info
+}
+
 func formatValues(args []Value) (string, error) {
 	if len(args) != 2 {
 		return "", Error{Message: "format expects String and List arguments"}
@@ -3968,7 +4030,13 @@ func (runtime *Runtime) callAliasFunction(name string, args []Value) (Value, err
 	fields["__traits"] = IntValue(traits)
 	fields["__impls"] = IntValue(impls)
 	fields["__struct"] = BoolValue(alias.Struct)
-	return Value{Kind: ValueObject, Data: ObjectData{Type: name, Struct: alias.Struct, Fields: fields}}, nil
+	jsonTags := map[string]string{}
+	for _, tag := range alias.FieldTags {
+		if tag.Kind == "json" {
+			jsonTags[tag.Field] = tag.Name
+		}
+	}
+	return Value{Kind: ValueObject, Data: ObjectData{Type: name, Struct: alias.Struct, Fields: fields, JSONTags: jsonTags}}, nil
 }
 
 func aliasBodyMetadataCounts(statements []parser.Statement) (int, int) {

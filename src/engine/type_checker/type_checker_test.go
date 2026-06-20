@@ -198,7 +198,7 @@ function Main() : Int {
     return 0;
 }
 `)
-	assertTypeError(t, CheckProgram(badConstructor), "JSON expects String, got Int")
+	assertTypeError(t, CheckProgram(badConstructor), "JSON expects String or struct alias, got Int")
 
 	badMutation := programFromSource(`
 function Main() : Int {

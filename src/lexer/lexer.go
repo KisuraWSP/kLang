@@ -81,6 +81,12 @@ func (lexer *Lexer) NextToken() Token {
 			return lexer.emit(Token{Type: TokenIllegal, Literal: literal, Line: line, Column: column})
 		}
 		return lexer.emit(Token{Type: TokenChar, Literal: literal, Line: line, Column: column})
+	case '`':
+		literal, ok := lexer.readStructTag()
+		if !ok {
+			return lexer.emit(Token{Type: TokenIllegal, Literal: literal, Line: line, Column: column})
+		}
+		return lexer.emit(Token{Type: TokenStructTag, Literal: literal, Line: line, Column: column})
 	}
 
 	if tokenType, literal, ok := lexer.readOperator(); ok {
@@ -376,6 +382,20 @@ func (lexer *Lexer) readCharLiteral() (string, bool) {
 
 	lexer.readChar()
 	return literal, valid && isValidCharLiteral(literal)
+}
+
+func (lexer *Lexer) readStructTag() (string, bool) {
+	lexer.readChar()
+	position := lexer.position
+	for lexer.ch != '`' && lexer.ch != 0 && lexer.ch != '\n' {
+		lexer.readChar()
+	}
+	literal := lexer.input[position:lexer.position]
+	if lexer.ch != '`' {
+		return literal, false
+	}
+	lexer.readChar()
+	return literal, true
 }
 
 func (lexer *Lexer) canStartHereString() bool {

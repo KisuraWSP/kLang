@@ -14,6 +14,7 @@ const (
 	TokenString     // "hallo"
 	TokenBool       // True False
 	TokenChar       // 'C'
+	TokenStructTag  // `json:"name"`
 
 	TokenWhiteSpace
 	TokenComment

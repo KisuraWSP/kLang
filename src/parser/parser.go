@@ -371,6 +371,12 @@ func (parser *Parser) parseAliasFunction(inline bool, private bool) Statement {
 			stmt.Hooks = append(stmt.Hooks, AliasHook{Name: directive.Literal, Body: parser.collectAliasBodyTokens("alias directive")})
 			continue
 		}
+		if parser.check(lexer.TokenIdentifier) && parser.current().Literal == "this" && parser.peek().Type == lexer.TokenDot {
+			if tag, ok := parser.parseAliasStructFieldTag(); ok {
+				stmt.FieldTags = append(stmt.FieldTags, tag)
+			}
+			continue
+		}
 		if parser.check(lexer.TokenTrait) {
 			if trait, ok := parser.parseTrait().(TraitStatement); ok {
 				stmt.Body = append(stmt.Body, trait)
@@ -395,6 +401,25 @@ func (parser *Parser) parseAliasFunction(inline bool, private bool) Statement {
 		parser.consume(lexer.TokenEnd, "expected end after alias function")
 	}
 	return stmt
+}
+
+func (parser *Parser) parseAliasStructFieldTag() (StructFieldTag, bool) {
+	start := parser.consume(lexer.TokenIdentifier, "expected this")
+	parser.consume(lexer.TokenDot, "expected '.' after this")
+	field := parser.consume(lexer.TokenIdentifier, "expected struct field name")
+	tag := parser.consume(lexer.TokenStructTag, "expected struct tag after field")
+	parser.consumeOptionalSemicolon()
+	kind, encodedName, ok := strings.Cut(tag.Literal, ":")
+	if !ok || kind != "json" {
+		parser.addError(tag, "struct tags must use json:\"name\"")
+		return StructFieldTag{}, false
+	}
+	name, err := strconv.Unquote(encodedName)
+	if err != nil || strings.TrimSpace(name) == "" {
+		parser.addError(tag, "JSON struct tag name must be a non-empty quoted string")
+		return StructFieldTag{}, false
+	}
+	return StructFieldTag{Pos: positionFromToken(start), Field: field.Literal, Kind: kind, Name: name}, true
 }
 
 func (parser *Parser) collectAliasBodyTokens(label string) []lexer.Token {

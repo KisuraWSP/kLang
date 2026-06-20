@@ -236,6 +236,8 @@ func tokenLiteral(token lexer.Token) string {
 		return `"` + token.Literal + `"`
 	case lexer.TokenChar:
 		return "'" + token.Literal + "'"
+	case lexer.TokenStructTag:
+		return "`" + token.Literal + "`"
 	default:
 		return token.Literal
 	}

@@ -238,11 +238,40 @@ func (checker *TypeChecker) collectAliasFunctionStatements(statements []parser.S
 				checker.addError(source, current.Pos.Line, fmt.Sprintf("alias function %q is already defined", current.Name))
 				continue
 			}
+			checker.checkAliasStructFieldTags(current, source)
 			checker.aliasFunctions[current.Name] = current
 			checker.collectAliasFunctionStatements(current.Body, source)
 		case parser.NamespaceStatement:
 			checker.collectAliasFunctionStatements(current.Body, source)
 		}
+	}
+}
+
+func (checker *TypeChecker) checkAliasStructFieldTags(alias parser.AliasFunctionStatement, source string) {
+	if len(alias.FieldTags) == 0 {
+		return
+	}
+	if !alias.Struct {
+		checker.addError(source, alias.Pos.Line, fmt.Sprintf("alias function %s uses struct field tags without '= struct'", alias.Name))
+	}
+	fields := map[string]bool{}
+	for _, param := range alias.Params {
+		fields[param.Name] = true
+	}
+	seenFields := map[string]bool{}
+	seenJSONNames := map[string]string{}
+	for _, tag := range alias.FieldTags {
+		if !fields[tag.Field] {
+			checker.addError(source, tag.Pos.Line, fmt.Sprintf("JSON tag references unknown struct field %q", tag.Field))
+		}
+		if seenFields[tag.Field] {
+			checker.addError(source, tag.Pos.Line, fmt.Sprintf("struct field %q has more than one JSON tag", tag.Field))
+		}
+		seenFields[tag.Field] = true
+		if previous, exists := seenJSONNames[tag.Name]; exists && previous != tag.Field {
+			checker.addError(source, tag.Pos.Line, fmt.Sprintf("JSON name %q is already used by struct field %q", tag.Name, previous))
+		}
+		seenJSONNames[tag.Name] = tag.Field
 	}
 }
 
@@ -3089,28 +3118,32 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.addError(source, line, "len expects 1 argument")
 		}
 		return "Int"
-	case "JSON", "json_parse":
+	case "JSON":
 		if len(args) != 1 {
-			checker.addError(source, line, name+" expects 1 argument")
-			if name == "json_parse" {
-				return "Result[JSON,String]"
-			}
+			checker.addError(source, line, "JSON expects 1 argument")
 			return "JSON"
 		}
 		argType := checker.inferExpression(args[0], locals, source, line)
-		if !isAssignable("String", argType) {
-			checker.addError(source, line, fmt.Sprintf("%s expects String, got %s", name, argType))
-		}
-		if name == "json_parse" {
-			return "Result[JSON,String]"
+		if !isAssignable("String", argType) && !checker.isStructAliasType(argType) {
+			checker.addError(source, line, fmt.Sprintf("JSON expects String or struct alias, got %s", argType))
 		}
 		return "JSON"
+	case "json_parse":
+		if len(args) != 1 {
+			checker.addError(source, line, "json_parse expects 1 argument")
+			return "Result[JSON,String]"
+		}
+		argType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("String", argType) {
+			checker.addError(source, line, fmt.Sprintf("json_parse expects String, got %s", argType))
+		}
+		return "Result[JSON,String]"
 	case "json_stringify", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null":
 		if len(args) != 1 {
 			checker.addError(source, line, name+" expects 1 argument")
 		} else {
 			argType := checker.inferExpression(args[0], locals, source, line)
-			if !isAssignable("JSON", argType) {
+			if !isAssignable("JSON", argType) && !(name == "json_stringify" && checker.isStructAliasType(argType)) {
 				checker.addError(source, line, fmt.Sprintf("%s expects JSON, got %s", name, argType))
 			}
 		}
@@ -3771,6 +3804,11 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		return "Awaitable[" + returnType + "]"
 	}
 	return returnType
+}
+
+func (checker *TypeChecker) isStructAliasType(typeName string) bool {
+	alias, _, ok := checker.aliasTypeInfo(typeName)
+	return ok && alias.Struct
 }
 
 func (checker *TypeChecker) checkKeywordMacroCall(macro parser.AliasStatement, args []string, locals map[string]variableSymbol, source string, line int) string {

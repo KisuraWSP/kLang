@@ -442,7 +442,7 @@ func cloneValue(value Value) Value {
 		for key, item := range object.Fields {
 			fields[key] = cloneValue(item)
 		}
-		return Value{Kind: ValueObject, Data: ObjectData{Type: object.Type, Struct: object.Struct, Fields: fields}}
+		return Value{Kind: ValueObject, Data: ObjectData{Type: object.Type, Struct: object.Struct, Fields: fields, JSONTags: cloneStringMap(object.JSONTags)}}
 	case ValueThunk:
 		return value
 	default:
@@ -479,7 +479,7 @@ func shareValue(value Value) Value {
 		for key, field := range object.Fields {
 			fields[key] = shareValue(field)
 		}
-		return Value{Kind: ValueObject, Data: ObjectData{Type: object.Type, Struct: object.Struct, Fields: fields}}
+		return Value{Kind: ValueObject, Data: ObjectData{Type: object.Type, Struct: object.Struct, Fields: fields, JSONTags: cloneStringMap(object.JSONTags)}}
 	default:
 		return value
 	}
