@@ -156,6 +156,18 @@ func TestRunCLIFormatsFolderDeterministically(t *testing.T) {
 	}
 }
 
+func TestRunCLIRequiresModeForSingleFileFolder(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.klang"), []byte("function Main() : Int { return 0; }\n"), 0644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	err := runCLI([]string{"fmt", root})
+	if err == nil || !strings.Contains(err.Error(), "requires --write or --check") {
+		t.Fatalf("expected folder mode error, got %v", err)
+	}
+}
+
 func TestParseDocSourceFilesAcceptsListSyntax(t *testing.T) {
 	files, err := parseDocSourceFiles(`["test.klang", "file.klang"]`)
 	if err != nil {

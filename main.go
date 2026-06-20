@@ -281,6 +281,13 @@ func formatPath(sourcePath string, write bool, check bool) error {
 	if write && check {
 		return fmt.Errorf("--write and --check cannot be used together")
 	}
+	info, err := os.Stat(filepath.Clean(sourcePath))
+	if err != nil {
+		return err
+	}
+	if info.IsDir() && !write && !check {
+		return fmt.Errorf("%s fmt on a folder requires --write or --check", cliName)
+	}
 
 	paths, err := discoverFormatSourceFiles(sourcePath)
 	if err != nil {
@@ -289,10 +296,6 @@ func formatPath(sourcePath string, write bool, check bool) error {
 	if len(paths) == 0 {
 		return fmt.Errorf("no %s files found under %s", file.KlangExtension, sourcePath)
 	}
-	if len(paths) > 1 && !write && !check {
-		return fmt.Errorf("%s fmt on a folder requires --write or --check", cliName)
-	}
-
 	var changed []string
 	for _, path := range paths {
 		original, err := os.ReadFile(path)
@@ -1758,7 +1761,7 @@ Usage:
   kLang package <file-or-folder>              Package checked source into a compact bundle
   kLang serve <file-or-folder>                Package and serve a browser WASM runtime bundle
   kLang doc --sourcefile=[file.klang,...]     Generate static HTML source documentation
-  kLang fmt <file-or-folder>                  Format Klang source to stdout
+  kLang fmt <file.klang>                     Format Klang source to stdout
   kLang fmt <file-or-folder> --write          Rewrite Klang source with canonical formatting
   kLang fmt <file-or-folder> --check          Verify source is already formatted
   kLang test <file-or-folder>                 Run Klang Test... functions or check fixtures

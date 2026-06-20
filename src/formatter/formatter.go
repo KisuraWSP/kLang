@@ -44,6 +44,16 @@ func Format(input string) (string, error) {
 
 	for _, line := range lines {
 		raw := strings.TrimSpace(line)
+		if inHereString {
+			if raw == "//;" || raw == "//" {
+				output = append(output, strings.Repeat(indentUnit, indent)+raw)
+				inHereString = false
+			} else {
+				output = append(output, line)
+			}
+			continue
+		}
+
 		if raw == "" {
 			blankPending = len(output) != 0
 			continue
@@ -53,14 +63,6 @@ func Format(input string) (string, error) {
 			output = append(output, "")
 		}
 		blankPending = false
-
-		if inHereString {
-			output = append(output, strings.Repeat(indentUnit, indent)+raw)
-			if raw == "//;" || raw == "//" {
-				inHereString = false
-			}
-			continue
-		}
 
 		if inBlockComment {
 			output = append(output, strings.Repeat(indentUnit, indent)+raw)
@@ -88,6 +90,10 @@ func Format(input string) (string, error) {
 		}
 
 		formatted := formatCodeLine(raw)
+		if startsHereString(raw) {
+			prefix := strings.TrimSpace(strings.TrimSuffix(raw, "//"))
+			formatted = formatCodeLine(prefix) + " //"
+		}
 		output = append(output, strings.Repeat(indentUnit, indent)+formatted)
 
 		if startsHereString(raw) {
@@ -109,7 +115,9 @@ func Format(input string) (string, error) {
 
 func startsHereString(line string) bool {
 	trimmed := strings.TrimSpace(line)
-	return strings.HasSuffix(trimmed, "= //") || strings.HasSuffix(trimmed, " //")
+	return strings.HasSuffix(trimmed, "= //") ||
+		strings.HasSuffix(trimmed, "=//") ||
+		strings.HasSuffix(trimmed, " //")
 }
 
 func closesBefore(line string) bool {

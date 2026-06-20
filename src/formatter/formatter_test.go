@@ -32,6 +32,14 @@ function Main() : Int {
 	if formatted != expected {
 		t.Fatalf("unexpected formatting:\n%s", formatted)
 	}
+
+	formattedAgain, err := Format(formatted)
+	if err != nil {
+		t.Fatalf("second format failed: %v", err)
+	}
+	if formattedAgain != formatted {
+		t.Fatalf("formatter is not idempotent:\n%s", formattedAgain)
+	}
 }
 
 func TestFormatPreservesBlockComments(t *testing.T) {
@@ -45,6 +53,35 @@ return 1;
     (* keep this
     comment shape *)
     return 1;
+}
+`
+
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	if formatted != expected {
+		t.Fatalf("unexpected formatting:\n%s", formatted)
+	}
+}
+
+func TestFormatPreservesHereStringContents(t *testing.T) {
+	input := `function Main():Int{
+local String value=//
+  first line
+
+    indented line
+//;
+return len(value);
+}
+`
+	expected := `function Main() : Int {
+    local String value = //
+  first line
+
+    indented line
+    //;
+    return len(value);
 }
 `
 
