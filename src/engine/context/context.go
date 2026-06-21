@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"kLang/src/engine/backend"
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
 	typechecker "kLang/src/engine/type_checker"
@@ -22,6 +23,7 @@ const (
 	PhaseType    Phase = "TYPE"
 	PhaseRuntime Phase = "RUNTIME"
 	PhaseBackend Phase = "BACKEND"
+	PhaseJS      Phase = "JS"
 	PhaseWASM    Phase = "WASM"
 )
 
@@ -173,6 +175,8 @@ func BackendError(program file.Program, backend string, err error) ErrorContext 
 	phase := PhaseBackend
 	if strings.EqualFold(backend, "WASM") {
 		phase = PhaseWASM
+	} else if strings.EqualFold(backend, "JS") {
+		phase = PhaseJS
 	}
 	return ctx.WithSource(ErrorContext{
 		Phase:   phase,
@@ -183,6 +187,32 @@ func BackendError(program file.Program, backend string, err error) ErrorContext 
 		Rule:    "backend contract",
 		Hint:    fmt.Sprintf("Check the %s backend configuration and any generated bundle requirements.", backend),
 	})
+}
+
+func BackendDiagnostics(program file.Program, backendName string, diagnostics []backend.Diagnostic) []ErrorContext {
+	ctx := New(program)
+	phase := PhaseBackend
+	if strings.EqualFold(backendName, "JS") {
+		phase = PhaseJS
+	} else if strings.EqualFold(backendName, "WASM") {
+		phase = PhaseWASM
+	}
+	errors := make([]ErrorContext, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		hint := diagnostic.Hint
+		if hint == "" {
+			hint = fmt.Sprintf("Use syntax supported by the %s backend or select a runtime packaging backend.", backendName)
+		}
+		rule := diagnostic.Rule
+		if rule == "" {
+			rule = "backend feature support"
+		}
+		errors = append(errors, ctx.WithSource(ErrorContext{
+			Phase: phase, File: diagnostic.File, Line: diagnostic.Line, Column: diagnostic.Column, EndColumn: diagnostic.EndColumn,
+			Message: diagnostic.Message, Rule: rule, Hint: hint,
+		}))
+	}
+	return errors
 }
 
 func RuntimeErrorParts(err error) (int, int, string) {

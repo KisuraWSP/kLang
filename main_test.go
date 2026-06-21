@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -86,6 +87,150 @@ func TestRunCLIPackagesProjectWithManifest(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(outPath, "packaged-standalone", "src", "first.klang")); err != nil {
 		t.Fatalf("expected bundled first.klang: %v", err)
+	}
+}
+
+func TestRunCLIPackagesRealJavaScriptBackend(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "main.klang")
+	outPath := filepath.Join(root, "out")
+	source := `function Sum(limit : Int) : Int {
+    local mut Int total = 0;
+    local mut Int index = 0;
+    while index < limit {
+        total += index;
+        index += 1;
+    }
+    return total;
+}
+
+function Main() : Int {
+    local Int result = Sum(5);
+    print(result);
+    return result;
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	if err := runCLI([]string{"package", sourcePath, "--backend=JS", "--out", outPath}); err != nil {
+		t.Fatalf("JS package failed: %v", err)
+	}
+	bundle := filepath.Join(outPath, "main-js")
+	generated, err := os.ReadFile(filepath.Join(bundle, "program.js"))
+	if err != nil {
+		t.Fatalf("read generated JavaScript: %v", err)
+	}
+	if !strings.Contains(string(generated), "function k_Sum") || strings.Contains(string(generated), "klang_browser") {
+		t.Fatalf("expected native JavaScript output, got:\n%s", generated)
+	}
+	generatedMap, err := os.ReadFile(filepath.Join(bundle, "program.js.map"))
+	if err != nil {
+		t.Fatalf("read generated JavaScript source map: %v", err)
+	}
+	if !strings.Contains(string(generated), "sourceMappingURL=program.js.map") || !strings.Contains(string(generatedMap), "\"version\":3") {
+		t.Fatalf("expected linked Source Map v3 output:\n%s\n%s", generated, generatedMap)
+	}
+	manifest, err := os.ReadFile(filepath.Join(bundle, "klang-build.json"))
+	if err != nil {
+		t.Fatalf("read JS manifest: %v", err)
+	}
+	manifestText := string(manifest)
+	for _, expected := range []string{`"backend": "JS"`, `"backend_mode": "native-codegen"`, `"backend_status": "experimental"`, `"entry": "program.js"`, `"program.js.map"`} {
+		if !strings.Contains(manifestText, expected) {
+			t.Fatalf("manifest missing %s:\n%s", expected, manifestText)
+		}
+	}
+}
+
+func TestRunCLIRejectsUnsupportedJavaScriptBackendFeature(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "unsupported.klang")
+	source := `function Main() : Int {
+    local Map[String, Int] values;
+    return 0;
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	err := runCLI([]string{"package", sourcePath, "--backend=JS", "--out", filepath.Join(root, "out")})
+	if err == nil || !strings.Contains(err.Error(), "JS backend check failed") {
+		t.Fatalf("expected JS subset rejection, got %v", err)
+	}
+}
+
+func TestRunCLIPackagesJavaScriptWithImportedNamespaceModule(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "modules")
+	outPath := filepath.Join(root, "out")
+	if err := os.MkdirAll(project, 0755); err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	mainSource := `import "math";
+
+function Main() : Int {
+    local Int result = math.Add(20, 22);
+    print(result);
+    return result;
+}
+`
+	mathSource := `namespace math {
+    function Add(left : Int, right : Int) : Int {
+        return left + right;
+    }
+}
+`
+	if err := os.WriteFile(filepath.Join(project, "first.klang"), []byte(mainSource), 0644); err != nil {
+		t.Fatalf("write entry: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "math.klang"), []byte(mathSource), 0644); err != nil {
+		t.Fatalf("write module: %v", err)
+	}
+	if err := runCLI([]string{"package", project, "--backend=JS", "--out", outPath}); err != nil {
+		t.Fatalf("package imported JS module: %v", err)
+	}
+	bundle := filepath.Join(outPath, "modules-js")
+	generated, err := os.ReadFile(filepath.Join(bundle, "program.js"))
+	if err != nil {
+		t.Fatalf("read generated module JavaScript: %v", err)
+	}
+	if !strings.Contains(string(generated), "function k_math_u2e_Add") || !strings.Contains(string(generated), "k_math_u2e_Add(__klang_copy(20), __klang_copy(22))") {
+		t.Fatalf("expected flattened imported namespace:\n%s", generated)
+	}
+	if node, err := exec.LookPath("node"); err == nil {
+		command := exec.Command(node, filepath.Join(bundle, "program.js"))
+		printed, runErr := command.CombinedOutput()
+		if runErr != nil || strings.TrimSpace(string(printed)) != "42" {
+			t.Fatalf("generated imported module failed: %v\n%s", runErr, printed)
+		}
+	}
+}
+
+func TestRunCLIPackagesJavaScriptStringOperations(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "strings.klang")
+	outPath := filepath.Join(root, "out")
+	source := `function Main() : Int {
+    local String value = "h😀llo";
+    local String message = "len=" + len(value);
+    print(message, value.uppercase(), value[1], value.count);
+    return len(value);
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {
+		t.Fatalf("write String source: %v", err)
+	}
+	if err := runCLI([]string{"package", sourcePath, "--backend=JS", "--out", outPath}); err != nil {
+		t.Fatalf("package JS String operations: %v", err)
+	}
+	bundle := filepath.Join(outPath, "strings-js")
+	if node, err := exec.LookPath("node"); err == nil {
+		command := exec.Command(node, filepath.Join(bundle, "program.js"))
+		printed, runErr := command.CombinedOutput()
+		if runErr != nil || strings.TrimSpace(string(printed)) != "len=5 H😀LLO 😀 5" {
+			t.Fatalf("generated JS String package failed: %v\n%s", runErr, printed)
+		}
 	}
 }
 

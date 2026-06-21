@@ -196,7 +196,24 @@ Package a checked project into a compact source bundle:
 go run . package examples/helloworld --backend=Standalone
 ```
 
-The package command writes a `klang-build.json` manifest plus source files under `dist/<project>-<backend>`. Valid backends are `Standalone`, `JS`, and `WASM`.
+The package command writes a `klang-build.json` manifest plus source files under `dist/<project>-<backend>`. Valid backends are `Standalone`, `JS`, and `WASM`. Standalone and WASM are currently runtime packaging modes; JS is an experimental native compiler for the typed core subset and emits `program.js` plus `package.json`.
+
+Compile a typed-core program to JavaScript:
+
+```bash
+go run . package main.klang --backend=JS
+node dist/main-js/program.js
+```
+
+The initial JS subset covers primitive and `List[T]` values, variables, expressions, ordinary functions, namespaces, namespace aliases, imported modules, single returns, `if`/`unless`, `while`, integer range loops, assignment, loop control, assertions, throws, and `print`. Selective imports emit only referenced functions and their helper dependencies. Unsupported runtime-heavy features fail during the JS backend check with source-positioned diagnostics.
+
+JS-generated Strings support mixed concatenation, Unicode-aware `len` and `.count`, bounds-checked indexing, `.uppercase()`, `.lowercase()`, and primitive-to-String casts. The generated runtime helpers preserve Klang's code-point and display-format semantics instead of JavaScript's raw UTF-16 behavior.
+
+JS-generated Lists support literals, empty values, `len`/`.count`, bounds-checked reads, indexed growth and compound mutation, list comprehensions, and `for index := range(len(values))`. Nested List values retain kLang's value isolation across assignments and function boundaries.
+
+JS-generated struct aliases support constructors, typed fields, trailing defaults, field access, `#extend` methods, and value isolation. `JSON(value)` and `json_stringify(value)` serialize nested structs and Lists with declared JSON field tags and deterministic key ordering. Runtime-heavy alias hooks still produce source-positioned JS backend diagnostics.
+
+Native JS packages include `program.js.map` with Source Map v3 mappings, portable `src/...` references, and embedded source content. `npm start` enables Node source-map stacks; direct `node program.js` execution still prints built-in kLang function frames, source excerpts, and carets for uncaught runtime errors. Backend rejections retain JS-specific rule identifiers and source spans.
 
 Build a browser-ready WASM bundle:
 

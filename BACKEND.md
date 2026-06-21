@@ -1,6 +1,6 @@
 The language currently says it has these package/build backends:
 Standalone: packaged source bundle meant to run through the Go interpreter/runtime.
-JS: accepted as backend metadata, but not a real compiler/codegen backend yet.
+JS: experimental native compiler backend. It lowers a typed core subset through IR and emits executable JavaScript.
 WASM: browser bundle backend. It compiles the Go-based kLang interpreter/runtime to klang.wasm, includes wasm_exec.js, and loads .klang sources through klang_browser.js.
 
 Standalone: In the future will be a backend where we transpile our klang code into golang code
@@ -13,8 +13,8 @@ Standalone:
 - Future: Go transpilation backend
 
 JS:
-- Current: accepted build metadata
-- Future: JavaScript transpilation backend
+- Current: typed-core JavaScript code generation with namespaces, imported modules, Unicode-aware String operations, `List[T]` creation/indexing/mutation/iteration, struct aliases, tagged JSON serialization, Source Map v3 output, kLang-aware runtime stacks, `len`, and rule/span-rich backend diagnostics
+- Future: runtime support for collections, structs, closures, async, and the wider standard library
 
 WASM:
 - Current: browser-hosted interpreter backend
@@ -60,8 +60,8 @@ Architecturally, I’d probably build this in order:
 Create a backend interface in Go: Check, Emit, Package.
 Keep current Standalone and current WASM as “runtime packaging backends.”
 Add a real IR layer before attempting Go/JS/WASM emitters.
-Implement Go transpilation first, because kLang is written in Go and many runtime semantics already exist there.
-Then JS transpilation.
+Expand the current JS typed-core compiler while preserving the shared IR/backend contract.
+Implement Go transpilation using the same IR, because kLang is written in Go and many runtime semantics already exist there.
 Then true WASM codegen last, because memory, tables, strings, dynamic Table, Any, closures, async, and runtime helpers will need the most design care.
 So: the notes are good, but I’d make the “current vs future” backend distinction official in docs/code soon so users don’t think --backend=JS already compiles to JavaScript.
 ```

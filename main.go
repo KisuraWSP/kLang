@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	enginebackend "kLang/src/engine/backend"
+	jsbackend "kLang/src/engine/backend/js"
 	langcontext "kLang/src/engine/context"
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
@@ -407,6 +409,22 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 		printContextErrors(langcontext.ParseErrors(resolvedProgram, parsedProgram))
 		return fmt.Errorf("parse failed")
 	}
+	var compiledOutput *enginebackend.Output
+	if backend == "JS" {
+		compiler := jsbackend.New()
+		request := backendRequest(resolvedProgram, parsedProgram)
+		diagnostics := compiler.Check(request)
+		if len(diagnostics) != 0 {
+			printContextErrors(langcontext.BackendDiagnostics(resolvedProgram, backend, diagnostics))
+			return fmt.Errorf("JS backend check failed")
+		}
+		output, err := compiler.Emit(request)
+		if err != nil {
+			printContextErrors([]langcontext.ErrorContext{langcontext.BackendError(resolvedProgram, backend, err)})
+			return err
+		}
+		compiledOutput = &output
+	}
 
 	bundleDir := filepath.Join(outRoot, program.Name+"-"+strings.ToLower(backend))
 	sourceDir := filepath.Join(bundleDir, "src")
@@ -415,7 +433,7 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 	}
 
 	manifestFiles := make([]string, 0, len(resolvedProgram.Files))
-	entry := ""
+	sourceEntry := ""
 	for _, source := range resolvedProgram.Files {
 		relativePath := bundleSourcePath(resolvedProgram.Root, source.Path)
 		targetPath := filepath.Join(sourceDir, filepath.Clean(relativePath))
@@ -432,19 +450,31 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 		manifestPath := filepath.ToSlash(filepath.Join("src", filepath.Clean(relativePath)))
 		manifestFiles = append(manifestFiles, manifestPath)
 		if filepath.Clean(source.Path) == filepath.Clean(resolvedProgram.EntryPoint) {
-			entry = manifestPath
+			sourceEntry = manifestPath
 		}
 	}
-	if entry == "" && len(manifestFiles) != 0 {
-		entry = manifestFiles[0]
+	if sourceEntry == "" && len(manifestFiles) != 0 {
+		sourceEntry = manifestFiles[0]
+	}
+	entry := sourceEntry
+	artifacts := []string{}
+	if compiledOutput != nil {
+		entry = compiledOutput.Entry
+		for _, artifact := range compiledOutput.Artifacts {
+			artifacts = append(artifacts, filepath.ToSlash(artifact.Path))
+		}
 	}
 
 	manifest := map[string]any{
 		"project_name":    resolvedProgram.Name,
 		"backend":         backend,
 		"entry":           entry,
+		"source_entry":    sourceEntry,
 		"number_of_files": len(resolvedProgram.Files),
 		"files":           manifestFiles,
+		"artifacts":       artifacts,
+		"backend_mode":    backendMode(backend),
+		"backend_status":  backendStatus(backend),
 		"raw_lang":        options.RawLang,
 	}
 	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
@@ -454,11 +484,20 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 	if err := os.WriteFile(filepath.Join(bundleDir, "klang-build.json"), append(manifestBytes, '\n'), 0644); err != nil {
 		return err
 	}
+	if compiledOutput != nil {
+		if err := jsbackend.New().Package(*compiledOutput, bundleDir); err != nil {
+			printContextErrors([]langcontext.ErrorContext{langcontext.BackendError(resolvedProgram, backend, err)})
+			return err
+		}
+	}
 	if backend == "WASM" {
 		if err := writeWASMBrowserBundle(bundleDir); err != nil {
 			printContextErrors([]langcontext.ErrorContext{langcontext.BackendError(resolvedProgram, backend, err)})
 			return err
 		}
+	}
+	if backend == "JS" {
+		fmt.Printf("  javascript: %s\n", filepath.Join(bundleDir, entry))
 	}
 
 	fmt.Printf("packaged Klang project %s\n", resolvedProgram.Name)
@@ -474,6 +513,28 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 		return serveBundle(bundleDir, packageOptions)
 	}
 	return nil
+}
+
+func backendRequest(program file.Program, parsed parser.ParsedProgram) enginebackend.Request {
+	return enginebackend.Request{Program: program, Parsed: parsed}
+}
+
+func backendMode(name string) string {
+	switch name {
+	case "JS":
+		return "native-codegen"
+	case "WASM":
+		return "browser-runtime"
+	default:
+		return "interpreter-package"
+	}
+}
+
+func backendStatus(name string) string {
+	if name == "JS" {
+		return "experimental"
+	}
+	return "runtime"
 }
 
 func serveBundle(bundleDir string, options packageOptions) error {
@@ -1771,7 +1832,7 @@ Usage:
 Options:
   --run                           Run programs after checks when test mode finds no Test... functions
   --entry=[Name,Type]              Set generated project entry point for new projects
-  --backend=Standalone|JS|WASM      Select package backend metadata
+  --backend=Standalone|JS|WASM      Select runtime packaging or native JS code generation
   --out=<folder>                    Select package output folder
   --sourcefile=[file.klang,...]      Select one or more source files for docs
   --serve                         Serve a WASM browser bundle after packaging

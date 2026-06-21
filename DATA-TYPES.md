@@ -32,7 +32,7 @@
 31. Any // Fully dynamic wildcard type; unlike T, it cannot be restricted and accepts any value
 32. Atomic[$Item] // Runtime synchronized cell for race-safe shared numeric/value updates
 33. Program // Meta-programming descriptor containing module : List[String]
-34. BuildSystem // Compact build descriptor containing project_name, number_of_files, files, and backend
+34. BuildSystem // Compact build descriptor containing project_name, number_of_files, files, and backend; JS selects experimental native JavaScript code generation
 35. WorkSpace // Meta workspace combining Program and BuildSystem
 36. JSModule // Filesystem-only JavaScript module descriptor loaded from a .js file
 37. JSCall // Filesystem-only JavaScript API call descriptor
@@ -87,5 +87,15 @@ Table helper builtins are available without imports:
 `iter(table)` yields insertion-order `{key, value}` entry tables. Table iteration order is deterministic insertion order for own entries; fallback entries are visible through lookup but are not included in `.count`, `table_keys`, `table_values`, `table_entries`, or direct iteration.
 
 The language engine builds a `Context` for each loaded workspace and reports failures through `ErrorContext`. This diagnostic context is used by module resolution, parsing, type checking, runtime execution, packaging, and WASM backend generation. Type diagnostics may include source spans, "did you mean" suggestions, import hints, and expected/found type trees.
+
+Backend compilation uses a Go `Backend` contract with `Check`, `Emit`, and `Package` phases. The JS backend lowers the supported typed core to backend-neutral IR and emits JavaScript. Its initial value surface is `Int`, `UInt`, `Float`, `Bool`, `String`, `Char`, and recursively typed `List[T]`, with variables, arithmetic/comparison/boolean expressions, ordinary functions, namespaces, imported modules, single returns, `if`/`unless`, `while`, range loops, assignment, `break`/`continue`, `assert`, `throw`, and `print`. Qualified namespace names are flattened into collision-safe JavaScript identifiers, while selective module filters keep unused imported functions out of generated artifacts.
+
+The JS backend implements `String` concatenation, `len(value)`, `.count`, Unicode code-point indexing, `.uppercase()`, `.lowercase()`, and primitive-to-String casts. Its generated helpers use `Array.from` for code-point length/index behavior and kLang display formatting for mixed concatenation, preserving values such as `True` rather than JavaScript's lowercase `true`.
+
+JS-generated `List[T]` values support literals, zero values, `len`/`.count`, checked indexing, indexed growth and compound mutation, `for index := range(len(values))`, and filtered or mapped list comprehensions. Generated binding, call, return, indexing, and comprehension boundaries copy nested lists eagerly, preserving the observable isolation required by kLang's copy-on-write collection semantics.
+
+The JS backend supports struct-style alias constructors, typed constructor fields, trailing default arguments, field selectors, `#extend` methods, and nested struct/List value isolation. `JSON(structValue)` and `json_stringify(structValue)` recursively serialize supported fields, apply `json:"name"` tags, omit internal metadata, and order object keys deterministically. Alias lifecycle/allocator hooks and nested trait or impl bodies remain backend errors until the native JS runtime has matching facilities.
+
+Every native JS build emits `program.js.map` using Source Map v3 and links it from `program.js`. Maps use portable `src/...` paths, include the original source content, and map generated functions and statements back to kLang locations. Generated functions retain kLang call frames; uncaught entry-point failures print the JS error kind, message, kLang function stack, source excerpts, and carets. JS backend compile diagnostics carry a stable rule identifier and source span through `ErrorContext`.
 
 The compiler and runtime track symbol state for globals, locals, temporary variables, regions, temporary regions, parameters, named returns, and function return values. Compile-time state records include the declaration kind, name, type, function, mutability, file, and line. Runtime state records include the phase, event (`define`, `bind`, `assign`, `move`, or `return`), kind, declared type, runtime type, function, mutability, and moved status. Temporary variables use the state kind `temporary`, and temporary memory regions use `temporary_region`. `debug_state()` returns the runtime records as `List[Table]`.

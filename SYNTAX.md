@@ -756,7 +756,8 @@ local Int counterValue = atomic_load(counter);
 
 -- compact build/workspace meta-programming
 -- BuildSystem backend must be "WASM", "JS", or "Standalone".
--- WASM packages run the interpreter/runtime in the browser as WebAssembly.
+-- JS emits experimental native JavaScript for the typed core subset.
+-- Standalone packages interpreter sources; WASM runs the interpreter/runtime in browser WebAssembly.
 -- The CLI can also serve a WASM browser bundle through `kLang serve`.
 local Program program = Program(["app", "mathg"]);
 local BuildSystem build = BuildSystem("demo", 2, ["first.klang", "app.klang"], "Standalone");
@@ -764,6 +765,72 @@ local WorkSpace workspace = WorkSpace(program, build);
 local String backend = workspace_backend(workspace);
 local List[String] packageFiles = workspace_files(workspace);
 local String manifest = workspace_manifest(workspace);
+
+-- Native JS core subset example:
+-- kLang package main.klang --backend=JS
+function SumForJS(limit : Int) : Int {
+    local mut Int total = 0;
+    local mut Int index = 0;
+    while index < limit {
+        total += index;
+        index += 1;
+    }
+    return total;
+}
+
+-- JS also lowers nested namespaces and resolved imports. Selective stdlib
+-- imports emit only called functions plus resolver-expanded helpers.
+import "math";
+alias arithmetic = math;
+function ImportedSumForJS() : Int {
+    return arithmetic::Add(20, 22);
+}
+
+-- JS String operations preserve Klang's Unicode code-point behavior.
+function StringsForJS() : Int {
+    local String value = "h😀llo";
+    local String message = "len=" + len(value) + ":" + True;
+    local String upper = value.uppercase();
+    local String lower = upper.lowercase();
+    local Char emoji = value[1];
+    print(message, upper, lower, emoji, value.count);
+    return len(value);
+}
+
+-- JS List operations preserve checked indexing and collection value isolation.
+function ListsForJS() : Int {
+    local mut List[Int] values = [1, 2, 3];
+    local List[Int] original = values;
+    values[len(values)] = 4;
+    for index := range(len(values)) {
+        values[index] += index;
+    }
+    local List[Int] doubled = [value * 2 for value in values if value > 2];
+    print(original, values, doubled, values.count);
+    return doubled[0];
+}
+
+-- JS struct aliases include fields, defaults, extension methods, and JSON tags.
+alias function User(id : String, name : String, active : Bool = True) : type = struct {
+    this.id `json:"user_id"`;
+
+    #extend {
+        function label() : String {
+            return this.name + ":" + this.active;
+        }
+    }
+}
+
+function StructJSONForJS() : String {
+    let user = User("42", "Ada");
+    local JSON document = JSON(user);
+    print(user.label());
+    return json_stringify(document);
+}
+
+-- Native JS packages include program.js.map and a sourceMappingURL.
+-- npm start enables Node's source-map stack rewriting. Direct execution also
+-- renders kLang-aware runtime frames with source excerpts and carets.
 
 -- debugger helpers
 debug(manifest);
