@@ -2,6 +2,49 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- add for each loop to klang
+- add grua file support as a simple subset of klang actually
+   - its supports the klang runtime but it is ristricted to the following rules if users find klang programs complicated and grua files can run via the same toolchain as klang
+      - uses the builtin Table data type for everything in a grua file which was implemented in klang
+      - supports type inference on variables only no static typing like we have in klang (shown in the below)
+      ```lua
+         -- local immutable
+         local xyzw = {}
+
+         -- local mutable
+         local mut xyz = {}
+         
+         -- global mutable
+         var xy = {}
+
+         -- gloable immutable
+         val x = {}
+      ```
+      - no static typing in functions, functions are automatically assigned type via type inference via type hinting
+      ```lua
+         function T(t::Int) : Int {
+            return t;
+         }
+      ```
+      - condtion handling handles via switch cases & pattern matching
+      - one loop for all (like what golang has)
+      ```go
+         for {
+
+         }
+         for True {
+
+         }
+
+         for i:=0; i<10; i+=1 {
+
+         }
+
+         for i in items {
+
+         }
+      ```
+      - has a small standard library
 - add delete keyword for use cases for deleting memory when user requests to
 - add array bounds checking on array like types in our language
 - Add CSV as a built in type in the language 
