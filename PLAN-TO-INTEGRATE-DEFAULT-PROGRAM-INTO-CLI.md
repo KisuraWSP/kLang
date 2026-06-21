@@ -1,6 +1,8 @@
 ```
 Yes. I think the right direction is: keep Go as the host runtime/kernel, but let default_program.klang become the language-owned control plane.
 That means Go still does the hard native things: filesystem, OS process, HTTP server, WASM bridge, actual parser/runtime internals. But kLang starts deciding what should happen next by returning structured plans/actions.
+(like by default we tell go to read this file (default_program.klang) do its thing and execute the said program/project/script or whatever
+thats why i plan to intend for this behaviour anyways)
 The Big Idea
 Right now Go does this:
 Go CLI -> load files -> resolve modules -> type check -> parse -> run
