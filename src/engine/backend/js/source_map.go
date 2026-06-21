@@ -20,9 +20,12 @@ type generatedMapping struct {
 }
 
 type sourceMapBuilder struct {
-	sources []ir.Source
-	index   map[string]int
-	entries []generatedMapping
+	sources         []ir.Source
+	index           map[string]int
+	entries         []generatedMapping
+	scannedBytes    int
+	generatedLine   int
+	generatedColumn int
 }
 
 func newSourceMapBuilder(sources []ir.Source) *sourceMapBuilder {
@@ -41,15 +44,32 @@ func (builder *sourceMapBuilder) mark(output *strings.Builder, position ir.Posit
 	if !ok {
 		return
 	}
-	line, column := generatedPosition(output.String())
+	builder.scan(output.String())
 	originalColumn := position.Column - 1
 	if originalColumn < 0 {
 		originalColumn = 0
 	}
 	builder.entries = append(builder.entries, generatedMapping{
-		line: line, column: column, source: source,
+		line: builder.generatedLine, column: builder.generatedColumn, source: source,
 		originalLine: position.Line - 1, originalCol: originalColumn,
 	})
+}
+
+func (builder *sourceMapBuilder) scan(output string) {
+	if builder.scannedBytes > len(output) {
+		builder.scannedBytes = 0
+		builder.generatedLine = 0
+		builder.generatedColumn = 0
+	}
+	for _, current := range output[builder.scannedBytes:] {
+		if current == '\n' {
+			builder.generatedLine++
+			builder.generatedColumn = 0
+		} else {
+			builder.generatedColumn++
+		}
+	}
+	builder.scannedBytes = len(output)
 }
 
 func (builder *sourceMapBuilder) sourcePath(path string) string {
@@ -98,15 +118,6 @@ func (builder *sourceMapBuilder) encode() []byte {
 	}
 	encoded, _ := json.Marshal(payload)
 	return append(encoded, '\n')
-}
-
-func generatedPosition(output string) (int, int) {
-	line := strings.Count(output, "\n")
-	lastNewline := strings.LastIndexByte(output, '\n')
-	if lastNewline < 0 {
-		return line, len(output)
-	}
-	return line, len(output) - lastNewline - 1
 }
 
 func encodeMappings(entries []generatedMapping) string {

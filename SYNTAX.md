@@ -832,6 +832,9 @@ function StructJSONForJS() : String {
 -- npm start enables Node's source-map stack rewriting. Direct execution also
 -- renders kLang-aware runtime frames with source excerpts and carets.
 
+-- Native JS also preserves typed Map and insertion-ordered Table semantics,
+-- including key-kind identity, copy isolation, fallback lookup, and helpers.
+
 -- debugger helpers
 debug(manifest);
 local String manifestType = debug_type(manifest);

@@ -13,7 +13,7 @@ Standalone:
 - Future: Go transpilation backend
 
 JS:
-- Current: typed-core JavaScript code generation with namespaces, imported modules, Unicode-aware String operations, `List[T]` creation/indexing/mutation/iteration, struct aliases, tagged JSON serialization, Source Map v3 output, kLang-aware runtime stacks, `len`, and rule/span-rich backend diagnostics
+- Current: typed-core JavaScript code generation with namespaces, imported modules, Unicode-aware String operations, `List[T]` and `Map[K,V]` operations, insertion-ordered dynamic `Table` values and helpers, value equality, struct aliases, tagged JSON serialization, Source Map v3 output, kLang-aware runtime stacks, `len`, and rule/span-rich backend diagnostics
 - Future: runtime support for collections, structs, closures, async, and the wider standard library
 
 WASM:

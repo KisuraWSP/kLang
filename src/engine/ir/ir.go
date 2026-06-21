@@ -94,6 +94,7 @@ const (
 	ExpressionIndex         ExpressionKind = "index"
 	ExpressionSelector      ExpressionKind = "selector"
 	ExpressionList          ExpressionKind = "list"
+	ExpressionMap           ExpressionKind = "map"
 	ExpressionComprehension ExpressionKind = "comprehension"
 	ExpressionConditional   ExpressionKind = "conditional"
 	ExpressionCast          ExpressionKind = "cast"
@@ -111,4 +112,10 @@ type Expression struct {
 	Consequence *Expression
 	Alternative *Expression
 	Arguments   []Expression
+	Entries     []MapEntry
+}
+
+type MapEntry struct {
+	Key   Expression
+	Value Expression
 }

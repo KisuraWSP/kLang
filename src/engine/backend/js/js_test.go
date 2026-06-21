@@ -72,12 +72,12 @@ function Main() : Int {
 func TestJavaScriptBackendRejectsRuntimeHeavyFeature(t *testing.T) {
 	request := requestFromSource(`
 function Main() : Int {
-    local Map[String, Int] values;
+    local Set[String] values;
     return 0;
 }
 `)
 	diagnostics := New().Check(request)
-	if len(diagnostics) == 0 || !strings.Contains(diagnostics[0].Message, "Map[String,Int]") {
+	if len(diagnostics) == 0 || !strings.Contains(diagnostics[0].Message, "Set[String]") {
 		t.Fatalf("expected focused unsupported-type diagnostic, got %#v", diagnostics)
 	}
 	if diagnostics[0].File != "main.klang" || diagnostics[0].Line != 2 {
@@ -85,6 +85,65 @@ function Main() : Int {
 	}
 	if diagnostics[0].Rule != "js-backend/unsupported-feature" || diagnostics[0].EndColumn <= diagnostics[0].Column {
 		t.Fatalf("expected rich JS diagnostic metadata, got %#v", diagnostics[0])
+	}
+}
+
+func TestJavaScriptBackendEmitsMapAndTableSemantics(t *testing.T) {
+	request := requestFromSource(`
+function InitialScores() : Map[String, Int] {
+    return {"answer": 42};
+}
+
+function Main() : Int {
+    local mut Map[String, Int] scores = InitialScores();
+    local Map[String, Int] savedScores = scores;
+    scores["answer"] = 7;
+    scores["extra"] = 5;
+    scores["extra"] += 2;
+
+    local mut Table data = {"name": "klang", 0: 9, 1: 10, "1": 20, True: 30, 'x': 40, "count": 99};
+    local Table snapshot = data;
+    data[1] = 11;
+    data = table_delete(data, "name");
+    local Table parent = {"fallback": 7};
+    local Table child = table_set_fallback(data, parent);
+    local List[T] keys = table_keys(child);
+    local List[Table] entries = table_entries(child);
+
+    assert table_has(child, 1);
+    assert not table_has(child, "name");
+    assert 'x' == 'x';
+    assert snapshot != data;
+    local Int total = data[1] + snapshot[1] + data["1"] + data[True] + data['x'] + len(entries) + entries[0].value + scores["extra"];
+    assert total == 133;
+    print(savedScores["answer"], scores.count, child.count, child["count"], child.fallback, len(keys), entries[0].key);
+    return total;
+}
+`)
+	compiler := New()
+	if diagnostics := compiler.Check(request); len(diagnostics) != 0 {
+		t.Fatalf("unexpected Map/Table diagnostics: %#v", diagnostics)
+	}
+	output, err := compiler.Emit(request)
+	if err != nil {
+		t.Fatalf("emit Map/Table operations: %v", err)
+	}
+	source := string(output.Artifacts[0].Content)
+	for _, expected := range []string{"__klang_as_map", "__klang_table_from_pairs", "__klang_collection_put", "__klang_table_set_fallback", "__klang_table_entries"} {
+		if !strings.Contains(source, expected) {
+			t.Fatalf("generated Map/Table JS missing %q:\n%s", expected, source)
+		}
+	}
+	if node, lookupErr := exec.LookPath("node"); lookupErr == nil {
+		bundle := t.TempDir()
+		if err := compiler.Package(output, bundle); err != nil {
+			t.Fatalf("package Map/Table program: %v", err)
+		}
+		command := exec.Command(node, filepath.Join(bundle, "program.js"))
+		printed, runErr := command.CombinedOutput()
+		if runErr != nil || strings.TrimSpace(string(printed)) != "42 2 6 99 7 6 0" {
+			t.Fatalf("generated Map/Table program failed: %v\n%s", runErr, printed)
+		}
 	}
 }
 
@@ -221,6 +280,17 @@ func TestJavaScriptBackendHonorsImportedModuleFunctionFilter(t *testing.T) {
 	source := string(output.Artifacts[0].Content)
 	if !strings.Contains(source, "k_tools_u2e_Used") || !strings.Contains(source, "k_tools_u2e_Helper") || strings.Contains(source, "k_tools_u2e_Unused") {
 		t.Fatalf("unexpected selective module output:\n%s", source)
+	}
+	var sourceMap struct {
+		Sources  []string `json:"sources"`
+		Mappings string   `json:"mappings"`
+	}
+	if err := json.Unmarshal(output.Artifacts[1].Content, &sourceMap); err != nil {
+		t.Fatalf("decode selective module source map: %v", err)
+	}
+	mappedSources := strings.Join(sourceMap.Sources, ",")
+	if !strings.Contains(mappedSources, "src/main.klang") || !strings.Contains(mappedSources, "src/tools.klang") || sourceMap.Mappings == "" {
+		t.Fatalf("expected both imported sources in source map: %#v", sourceMap)
 	}
 }
 

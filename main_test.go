@@ -147,7 +147,7 @@ func TestRunCLIRejectsUnsupportedJavaScriptBackendFeature(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "unsupported.klang")
 	source := `function Main() : Int {
-    local Map[String, Int] values;
+    local Set[String] values;
     return 0;
 }
 `

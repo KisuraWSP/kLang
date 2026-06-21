@@ -205,11 +205,13 @@ go run . package main.klang --backend=JS
 node dist/main-js/program.js
 ```
 
-The initial JS subset covers primitive and `List[T]` values, variables, expressions, ordinary functions, namespaces, namespace aliases, imported modules, single returns, `if`/`unless`, `while`, integer range loops, assignment, loop control, assertions, throws, and `print`. Selective imports emit only referenced functions and their helper dependencies. Unsupported runtime-heavy features fail during the JS backend check with source-positioned diagnostics.
+The JS subset covers primitive, `List[T]`, `Map[K,V]`, and `Table` values, variables, expressions, ordinary functions, namespaces, namespace aliases, imported modules, single returns, `if`/`unless`, `while`, integer range loops, assignment, loop control, assertions, throws, and `print`. Selective imports emit only referenced functions and their helper dependencies. Unsupported runtime-heavy features fail during the JS backend check with source-positioned diagnostics.
 
 JS-generated Strings support mixed concatenation, Unicode-aware `len` and `.count`, bounds-checked indexing, `.uppercase()`, `.lowercase()`, and primitive-to-String casts. The generated runtime helpers preserve Klang's code-point and display-format semantics instead of JavaScript's raw UTF-16 behavior.
 
 JS-generated Lists support literals, empty values, `len`/`.count`, bounds-checked reads, indexed growth and compound mutation, list comprehensions, and `for index := range(len(values))`. Nested List values retain kLang's value isolation across assignments and function boundaries.
+
+JS-generated Maps enforce declared key/value types across literals, reads, mutation, compound assignment, returns, count, and copying. Tables retain insertion order and primitive key identity while supporting selector reads, fallbacks, deletion, keys/values/entries, sequence counts, JSON String-key rules, and value isolation.
 
 JS-generated struct aliases support constructors, typed fields, trailing defaults, field access, `#extend` methods, and value isolation. `JSON(value)` and `json_stringify(value)` serialize nested structs and Lists with declared JSON field tags and deterministic key ordering. Runtime-heavy alias hooks still produce source-positioned JS backend diagnostics.
 

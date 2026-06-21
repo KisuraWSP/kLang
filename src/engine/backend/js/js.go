@@ -74,6 +74,7 @@ type lowerer struct {
 	aliases         map[string]string
 	file            string
 	namespace       string
+	returnType      string
 }
 
 func lowerProgram(request backend.Request) (ir.Program, []backend.Diagnostic) {
@@ -179,8 +180,13 @@ func (lower *lowerer) lowerTopLevel(statements []parser.Statement, namespace str
 
 func (lower *lowerer) lowerFunction(function parser.FunctionStatement, name string, namespace string) (ir.Function, bool) {
 	previousNamespace := lower.namespace
+	previousReturnType := lower.returnType
 	lower.namespace = namespace
-	defer func() { lower.namespace = previousNamespace }()
+	lower.returnType = function.ReturnType
+	defer func() {
+		lower.namespace = previousNamespace
+		lower.returnType = previousReturnType
+	}()
 	valid := true
 	if function.Async || function.Lazy || function.Inner {
 		lower.unsupported(function.Pos, "async, lazy, and inner functions")
@@ -298,7 +304,7 @@ func (lower *lowerer) lowerStatement(statement parser.Statement, inLoop bool) (i
 			return ir.Statement{}, false
 		}
 		value, ok := lower.lowerExpression(current.Expression.Node, current.Pos)
-		return ir.Statement{Pos: position, Kind: ir.StatementReturn, Value: value}, ok
+		return ir.Statement{Pos: position, Kind: ir.StatementReturn, Binding: ir.Binding{Type: lower.returnType}, Value: value}, ok
 	case parser.IfStatement:
 		condition, conditionOK := lower.lowerExpression(current.Condition.Node, current.Pos)
 		if current.Kind == "unless" {
@@ -407,6 +413,16 @@ func (lower *lowerer) lowerExpression(node parser.ExpressionNode, position parse
 			valid = valid && ok
 		}
 		return ir.Expression{Kind: ir.ExpressionList, Arguments: items}, valid
+	case parser.MapExpression:
+		entries := make([]ir.MapEntry, 0, len(current.Entries))
+		valid := true
+		for _, entry := range current.Entries {
+			key, keyOK := lower.lowerExpression(entry.Key, position)
+			value, valueOK := lower.lowerExpression(entry.Value, position)
+			entries = append(entries, ir.MapEntry{Key: key, Value: value})
+			valid = valid && keyOK && valueOK
+		}
+		return ir.Expression{Kind: ir.ExpressionMap, Entries: entries}, valid
 	case parser.ListComprehensionExpression:
 		iterable, iterableOK := lower.lowerExpression(current.Iterable, position)
 		value, valueOK := lower.lowerExpression(current.Value, position)
@@ -438,6 +454,8 @@ func (lower *lowerer) lowerExpression(node parser.ExpressionNode, position parse
 			calleeName, resolved = "__json", len(current.Arguments) == 1
 		} else if calleePath == "json_stringify" {
 			calleeName, resolved = "__json_stringify", len(current.Arguments) == 1
+		} else if builtin, exists := jsCollectionBuiltin(calleePath); exists {
+			calleeName, resolved = builtin, true
 		}
 		if ok && !resolved {
 			if selector, selectorOK := current.Callee.(parser.SelectorExpression); selectorOK {
@@ -573,13 +591,63 @@ func supportedType(typeName string, allowAny bool) bool {
 	if strings.HasPrefix(typeName, "List[") && strings.HasSuffix(typeName, "]") {
 		return supportedType(typeName[len("List["):len(typeName)-1], allowAny)
 	}
+	if keyType, valueType, ok := jsMapTypes(typeName); ok {
+		return supportedType(keyType, allowAny) && supportedType(valueType, allowAny)
+	}
 	switch typeName {
-	case "Int", "UInt", "Float", "Bool", "String", "Char", "JSON":
+	case "Int", "UInt", "Float", "Bool", "String", "Char", "JSON", "Table":
 		return true
 	case "T":
 		return allowAny
 	default:
 		return false
+	}
+}
+
+func jsMapTypes(typeName string) (string, string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	if !strings.HasPrefix(typeName, "Map[") || !strings.HasSuffix(typeName, "]") {
+		return "", "", false
+	}
+	inner := typeName[len("Map[") : len(typeName)-1]
+	depth := 0
+	for index, current := range inner {
+		switch current {
+		case '[':
+			depth++
+		case ']':
+			depth--
+		case ',':
+			if depth == 0 {
+				left := strings.TrimSpace(inner[:index])
+				right := strings.TrimSpace(inner[index+1:])
+				return left, right, left != "" && right != ""
+			}
+		}
+	}
+	return "", "", false
+}
+
+func jsCollectionBuiltin(name string) (string, bool) {
+	switch name {
+	case "Table":
+		return "__table", true
+	case "table_has", "has_key":
+		return "__table_has", true
+	case "table_delete":
+		return "__table_delete", true
+	case "table_keys":
+		return "__table_keys", true
+	case "table_values":
+		return "__table_values", true
+	case "table_entries":
+		return "__table_entries", true
+	case "table_sequence_count":
+		return "__table_sequence_count", true
+	case "table_set_fallback":
+		return "__table_set_fallback", true
+	default:
+		return "", false
 	}
 }
 
@@ -657,22 +725,24 @@ func emitProgram(program ir.Program) (string, []byte) {
 	}
 	output.WriteString("};\n")
 	output.WriteString("const __klang_is_struct = (value) => value !== null && typeof value === \"object\" && typeof value.__klang_struct === \"string\";\n")
-	output.WriteString("const __klang_copy = (value) => { if (Array.isArray(value)) return value.map(__klang_copy); if (!__klang_is_struct(value)) return value; const copied = { __klang_struct: value.__klang_struct }; for (const field of Object.keys(value)) if (!field.startsWith(\"__\")) copied[field] = __klang_copy(value[field]); return copied; };\n")
-	output.WriteString("const __klang_format = (value) => Array.isArray(value) ? `[${value.map(__klang_format).join(\", \")}]` : value === null ? \"Null\" : typeof value === \"boolean\" ? (value ? \"True\" : \"False\") : String(value);\n")
+	output.WriteString("const __klang_copy = (value) => { if (Array.isArray(value)) return value.map(__klang_copy); if (__klang_is_collection(value)) return __klang_collection_copy(value); if (__klang_is_char(value)) return value; if (!__klang_is_struct(value)) return value; const copied = { __klang_struct: value.__klang_struct }; for (const field of Object.keys(value)) if (!field.startsWith(\"__\")) copied[field] = __klang_copy(value[field]); return copied; };\n")
+	output.WriteString("const __klang_format = (value) => Array.isArray(value) ? `[${value.map(__klang_format).join(\", \")}]` : __klang_is_collection(value) ? __klang_collection_format(value) : __klang_is_char(value) ? value.__klang_char : value === null ? \"Null\" : typeof value === \"boolean\" ? (value ? \"True\" : \"False\") : String(value);\n")
 	output.WriteString("const __klang_print = (...values) => console.log(values.map(__klang_format).join(\" \"));\n\n")
 	output.WriteString("const __klang_add_frame = (thrown, frame) => { const error = thrown instanceof Error ? thrown : new Error(__klang_format(thrown)); if (!Object.prototype.hasOwnProperty.call(error, \"klangFrames\")) Object.defineProperty(error, \"klangFrames\", { value: [], enumerable: false }); error.klangFrames.push(frame); return error; };\n")
 	output.WriteString("const __klang_render_error = (thrown) => { const error = thrown instanceof Error ? thrown : new Error(__klang_format(thrown)); const lines = [\"\", \"-- JS RUNTIME ERROR --------------------------------------------------------\", \"\", `${error.name}: ${error.message}`]; for (const frame of error.klangFrames || []) { lines.push(\"\", `at ${frame.function} (${frame.file}:${frame.line}:${frame.column})`); if (frame.source) { lines.push(`${frame.line} | ${frame.source}`); lines.push(`  | ${\" \".repeat(Math.max(0, frame.column - 1))}^`); } } return lines.join(\"\\n\"); };\n\n")
 	output.WriteString("const __klang_add = (left, right) => typeof left === \"string\" || typeof right === \"string\" ? __klang_format(left) + __klang_format(right) : left + right;\n")
-	output.WriteString("const __klang_len = (value) => { if (typeof value === \"string\") return Array.from(value).length; if (Array.isArray(value)) return value.length; throw new TypeError(\"len expects String or List in the JS core backend\"); };\n")
-	output.WriteString("const __klang_index = (value, index) => { if (!Number.isInteger(index)) throw new TypeError(\"index must be an Int\"); const items = typeof value === \"string\" ? Array.from(value) : value; const kind = typeof value === \"string\" ? \"string\" : \"list\"; if (!Array.isArray(items)) throw new TypeError(\"indexing expects String or List\"); if (index < 0 || index >= items.length) throw new RangeError(`${kind} index ${index} is out of bounds`); return __klang_copy(items[index]); };\n")
+	output.WriteString(collectionRuntime)
+	output.WriteString("const __klang_len = (value) => { if (typeof value === \"string\") return Array.from(value).length; if (Array.isArray(value)) return value.length; if (__klang_is_collection(value)) return value.entries.size; throw new TypeError(\"len expects String, List, Map, or Table in the JS backend\"); };\n")
+	output.WriteString("const __klang_index = (value, index) => { if (__klang_is_collection(value)) return __klang_collection_get(value, index); if (!Number.isInteger(index)) throw new TypeError(\"index must be an Int\"); const items = typeof value === \"string\" ? Array.from(value) : value; const kind = typeof value === \"string\" ? \"string\" : \"list\"; if (!Array.isArray(items)) throw new TypeError(\"indexing expects String, List, Map, or Table\"); if (index < 0 || index >= items.length) throw new RangeError(`${kind} index ${index} is out of bounds`); return typeof value === \"string\" ? __klang_char(items[index]) : __klang_copy(items[index]); };\n")
 	output.WriteString("const __klang_list_assign = (list, index, operator, value) => { if (!Array.isArray(list)) throw new TypeError(\"indexed mutation expects List\"); if (!Number.isInteger(index)) throw new TypeError(\"list index must be an Int\"); if (index < 0) throw new RangeError(`list index ${index} is out of bounds`); if (operator !== \"=\" && index >= list.length) throw new RangeError(`compound assignment requires existing list index ${index}`); while (list.length <= index) list.push(null); const right = __klang_copy(value); if (operator === \"=\") list[index] = right; else if (operator === \"+=\") list[index] = __klang_add(list[index], right); else if (operator === \"-=\") list[index] -= right; else if (operator === \"*=\") list[index] *= right; else if (operator === \"/=\") list[index] /= right; else throw new TypeError(`unsupported assignment operator ${operator}`); };\n")
+	output.WriteString("const __klang_assign_index = (target, index, operator, value) => { if (__klang_is_collection(target)) return __klang_collection_put(target, index, value, operator); return __klang_list_assign(target, index, operator, value); };\n")
 	output.WriteString("const __klang_list_iter = (value) => { if (!Array.isArray(value)) throw new TypeError(\"list comprehension expects List\"); return value.map(__klang_copy); };\n")
 	output.WriteString("const __klang_range_count = (value) => { if (!Number.isInteger(value)) throw new TypeError(\"range expects an Int count\"); if (value < 0) throw new RangeError(\"range count cannot be negative\"); return value; };\n")
-	output.WriteString("const __klang_string_uppercase = (value) => value.toUpperCase();\n")
-	output.WriteString("const __klang_string_lowercase = (value) => value.toLowerCase();\n\n")
-	output.WriteString("const __klang_select = (value, field) => { if (__klang_is_struct(value)) { if (!Object.prototype.hasOwnProperty.call(value, field)) throw new TypeError(`unknown field ${value.__klang_struct}.${field}`); return __klang_copy(value[field]); } if (field === \"count\") return __klang_len(value); throw new TypeError(`selector .${field} is not supported for this value`); };\n")
+	output.WriteString("const __klang_string_uppercase = (value) => __klang_is_char(value) ? __klang_char(value.__klang_char.toUpperCase()) : value.toUpperCase();\n")
+	output.WriteString("const __klang_string_lowercase = (value) => __klang_is_char(value) ? __klang_char(value.__klang_char.toLowerCase()) : value.toLowerCase();\n\n")
+	output.WriteString("const __klang_select = (value, field) => { if (__klang_is_struct(value)) { if (!Object.prototype.hasOwnProperty.call(value, field)) throw new TypeError(`unknown field ${value.__klang_struct}.${field}`); return __klang_copy(value[field]); } if (field === \"count\") return __klang_len(value); if (__klang_is_collection(value) && value.__klang_collection === \"Table\") return __klang_collection_get(value, field); throw new TypeError(`selector .${field} is not supported for this value`); };\n")
 	output.WriteString("const __klang_call_method = (value, name, args) => { if (!__klang_is_struct(value)) throw new TypeError(`method .${name} expects a struct alias receiver`); const method = __klang_struct_methods[value.__klang_struct]?.[name]; if (typeof method !== \"function\") throw new TypeError(`unknown method ${value.__klang_struct}.${name}`); return method(__klang_copy(value), ...args.map(__klang_copy)); };\n")
-	output.WriteString("const __klang_to_json = (value) => { if (value === null || typeof value === \"string\" || typeof value === \"number\" || typeof value === \"boolean\") return value; if (Array.isArray(value)) return value.map(__klang_to_json); if (typeof value === \"object\") { const tags = __klang_is_struct(value) ? (__klang_struct_tags[value.__klang_struct] || {}) : {}; const entries = Object.keys(value).filter((field) => !field.startsWith(\"__\")).map((field) => [tags[field] || field, __klang_to_json(value[field])]).sort((left, right) => left[0].localeCompare(right[0])); return Object.fromEntries(entries); } throw new TypeError(\"cannot serialize value as JSON\"); };\n")
+	output.WriteString("const __klang_to_json = (value) => { if (__klang_is_char(value)) return value.__klang_char; if (value === null || typeof value === \"string\" || typeof value === \"number\" || typeof value === \"boolean\") return value; if (Array.isArray(value)) return value.map(__klang_to_json); if (__klang_is_collection(value)) return __klang_collection_json(value); if (typeof value === \"object\") { const tags = __klang_is_struct(value) ? (__klang_struct_tags[value.__klang_struct] || {}) : {}; const entries = Object.keys(value).filter((field) => !field.startsWith(\"__\")).map((field) => [tags[field] || field, __klang_to_json(value[field])]).sort((left, right) => left[0].localeCompare(right[0])); return Object.fromEntries(entries); } throw new TypeError(\"cannot serialize value as JSON\"); };\n")
 	output.WriteString("const __klang_json = (value) => typeof value === \"string\" ? JSON.parse(value) : __klang_to_json(value);\n")
 	output.WriteString("const __klang_json_stringify = (value) => JSON.stringify(__klang_to_json(value));\n\n")
 	for _, structure := range program.Structs {
@@ -789,14 +859,12 @@ func emitStatement(output *strings.Builder, statement ir.Statement, indent int, 
 		if statement.Value.Kind == "" {
 			output.WriteString(jsZeroValue(statement.Binding.Type))
 		} else {
-			output.WriteString("__klang_copy(")
-			emitExpression(output, statement.Value)
-			output.WriteByte(')')
+			emitTypedValue(output, statement.Value, statement.Binding.Type)
 		}
 		output.WriteString(";\n")
 	case ir.StatementAssignment:
 		if statement.Target.Kind == ir.ExpressionIndex {
-			output.WriteString("__klang_list_assign(")
+			output.WriteString("__klang_assign_index(")
 			emitExpression(output, *statement.Target.Left)
 			output.WriteString(", ")
 			emitExpression(output, *statement.Target.Right)
@@ -831,9 +899,7 @@ func emitStatement(output *strings.Builder, statement ir.Statement, indent int, 
 		output.WriteString("return")
 		if statement.Value.Kind != "" {
 			output.WriteByte(' ')
-			output.WriteString("__klang_copy(")
-			emitExpression(output, statement.Value)
-			output.WriteByte(')')
+			emitTypedValue(output, statement.Value, statement.Binding.Type)
 		}
 		output.WriteString(";\n")
 	case ir.StatementIf:
@@ -899,8 +965,12 @@ func emitExpression(output *strings.Builder, expression ir.Expression) {
 	switch expression.Kind {
 	case ir.ExpressionLiteral:
 		switch expression.Type {
-		case "String", "Char":
+		case "String":
 			output.WriteString(strconv.Quote(expression.Value))
+		case "Char":
+			output.WriteString("__klang_char(")
+			output.WriteString(strconv.Quote(expression.Value))
+			output.WriteByte(')')
 		case "Bool":
 			output.WriteString(strings.ToLower(expression.Value))
 		default:
@@ -934,16 +1004,23 @@ func emitExpression(output *strings.Builder, expression ir.Expression) {
 			output.WriteByte(')')
 			return
 		}
+		if expression.Operator == "==" || expression.Operator == "!=" {
+			if expression.Operator == "!=" {
+				output.WriteByte('!')
+			}
+			output.WriteString("__klang_equal(")
+			emitExpression(output, *expression.Left)
+			output.WriteString(", ")
+			emitExpression(output, *expression.Right)
+			output.WriteByte(')')
+			return
+		}
 		operator := expression.Operator
 		switch operator {
 		case "and":
 			operator = "&&"
 		case "or":
 			operator = "||"
-		case "==":
-			operator = "==="
-		case "!=":
-			operator = "!=="
 		}
 		output.WriteByte('(')
 		emitExpression(output, *expression.Left)
@@ -978,6 +1055,22 @@ func emitExpression(output *strings.Builder, expression ir.Expression) {
 			output.WriteString("__klang_json")
 		case "__json_stringify":
 			output.WriteString("__klang_json_stringify")
+		case "__table":
+			output.WriteString("__klang_table")
+		case "__table_has":
+			output.WriteString("__klang_table_has")
+		case "__table_delete":
+			output.WriteString("__klang_table_delete")
+		case "__table_keys":
+			output.WriteString("__klang_table_keys")
+		case "__table_values":
+			output.WriteString("__klang_table_values")
+		case "__table_entries":
+			output.WriteString("__klang_table_entries")
+		case "__table_sequence_count":
+			output.WriteString("__klang_table_sequence_count")
+		case "__table_set_fallback":
+			output.WriteString("__klang_table_set_fallback")
 		default:
 			output.WriteString(jsIdentifier(expression.Name))
 			copyArguments = true
@@ -1015,6 +1108,19 @@ func emitExpression(output *strings.Builder, expression ir.Expression) {
 			emitExpression(output, item)
 		}
 		output.WriteByte(']')
+	case ir.ExpressionMap:
+		output.WriteString("__klang_table_from_pairs([")
+		for index, entry := range expression.Entries {
+			if index != 0 {
+				output.WriteString(", ")
+			}
+			output.WriteByte('[')
+			emitExpression(output, entry.Key)
+			output.WriteString(", ")
+			emitExpression(output, entry.Value)
+			output.WriteByte(']')
+		}
+		output.WriteString("])")
 	case ir.ExpressionComprehension:
 		output.WriteString("(() => { const __klang_result = []; for (const ")
 		output.WriteString(jsIdentifier(expression.Name))
@@ -1052,17 +1158,36 @@ func emitExpression(output *strings.Builder, expression ir.Expression) {
 	}
 }
 
+func emitTypedValue(output *strings.Builder, expression ir.Expression, typeName string) {
+	if keyType, valueType, ok := jsMapTypes(typeName); ok {
+		output.WriteString("__klang_as_map(")
+		emitExpression(output, expression)
+		fmt.Fprintf(output, ", %s, %s)", strconv.Quote(keyType), strconv.Quote(valueType))
+		return
+	}
+	output.WriteString("__klang_copy(")
+	emitExpression(output, expression)
+	output.WriteByte(')')
+}
+
 func jsZeroValue(typeName string) string {
 	if strings.HasPrefix(strings.TrimSpace(typeName), "List[") {
 		return "[]"
 	}
+	if keyType, valueType, ok := jsMapTypes(typeName); ok {
+		return fmt.Sprintf("__klang_collection_new(\"Map\", %s, %s)", strconv.Quote(keyType), strconv.Quote(valueType))
+	}
 	switch typeName {
-	case "String", "Char":
+	case "String":
 		return `""`
+	case "Char":
+		return `__klang_char("")`
 	case "Bool":
 		return "false"
 	case "JSON":
 		return "null"
+	case "Table":
+		return `__klang_table()`
 	default:
 		return "0"
 	}

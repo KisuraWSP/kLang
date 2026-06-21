@@ -2,7 +2,8 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
-- add for each loop to klang
+- add support for user defined scopes
+- add "for_each" loop to klang
 - add grua file support as a simple subset of klang actually
    - its supports the klang runtime but it is ristricted to the following rules if users find klang programs complicated and grua files can run via the same toolchain as klang
       - uses the builtin Table data type for everything in a grua file which was implemented in klang
