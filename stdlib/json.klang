@@ -1,4 +1,4 @@
--- Typed JSON helpers backed by Klang's Go runtime parser and serializer.
+-- Typed JSON and native-value serialization backed by Klang's Go runtime.
 -- The older String encoder functions remain as compatibility helpers.
 
 namespace json {
@@ -12,9 +12,19 @@ namespace json {
         return JSON(source);
     }
 
-    --- Serializes a JSON value to canonical compact JSON text.
-    function stringify(value : JSON) : String {
+    --- Serializes any supported Klang value to canonical compact JSON text.
+    function stringify(value : T) : String {
         return json_stringify(value);
+    }
+
+    --- Safely serializes Table, List, primitive, JSON, Option, enum, or alias struct values.
+    function serialize(value : T) : Result[String, String] {
+        return json_encode(value);
+    }
+
+    --- Safely decodes JSON objects to Table, arrays to List, and scalars to native values.
+    function deserialize(source : String) : Result[T, String] {
+        return json_decode(source);
     }
 
     --- Returns an object field without raising when the field is absent.

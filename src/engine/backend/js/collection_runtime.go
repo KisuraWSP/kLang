@@ -27,6 +27,7 @@ const __klang_type_matches = (value, type) => {
     if (type === "Table") return __klang_is_collection(value) && value.__klang_collection === "Table";
     if (type.startsWith("List[")) return Array.isArray(value);
     if (type.startsWith("Map[")) return __klang_is_collection(value) && value.__klang_collection === "Map";
+    if (type.startsWith("Result[")) return __klang_is_result(value);
     return __klang_is_struct(value) && (value.__klang_struct === type || value.__klang_struct.startsWith(type + "["));
 };
 const __klang_key_info = (value, table) => {
@@ -47,6 +48,7 @@ const __klang_collection_copy = (value) => {
     return copied;
 };
 const __klang_equal = (left, right) => {
+    if (__klang_is_result(left) || __klang_is_result(right)) return __klang_is_result(left) && __klang_is_result(right) && left.ok === right.ok && __klang_equal(left.value, right.value);
     if (__klang_is_char(left) || __klang_is_char(right)) return __klang_is_char(left) && __klang_is_char(right) && left.__klang_char === right.__klang_char;
     if (Array.isArray(left) || Array.isArray(right)) return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => __klang_equal(value, right[index]));
     if (__klang_is_collection(left) || __klang_is_collection(right)) {

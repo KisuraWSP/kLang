@@ -2295,15 +2295,25 @@ function Main() : Int {
     local JSON first = option_unwrap_or(json.get_index(document.ports, 0), json.null_json());
     local Int port = option_unwrap_or(json.as_int(first), 0);
     local Result[JSON, String] reparsed = json.parse(json.stringify(document));
-    if name != "kLang" or not reparsed.ok or not json.is_null(document.metadata) {
+    local Table native = {"enabled": True, "ports": [1, 2]};
+    local Result[String, String] serialized = json.serialize(native);
+    if name != "kLang" or not reparsed.ok or not serialized.ok or not json.is_null(document.metadata) {
         return 0;
     }
-    return port + document.count;
+    local String serializedText = result_unwrap_or(serialized, "");
+    local Result[T, String] restored = json.deserialize(serializedText);
+    if not restored.ok {
+        return 0;
+    }
+    local T restoredValue = result_unwrap_or(restored, {});
+    local Table restoredTable = restoredValue as Table;
+    local List[T] restoredPorts = restoredTable.ports as List[T];
+    return port + document.count + len(restoredPorts);
 }
 `)
 
-	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 8083 {
-		t.Fatalf("expected typed JSON stdlib facade to return 8083, got %#v", result.Value)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 8085 {
+		t.Fatalf("expected typed JSON stdlib facade to return 8085, got %#v", result.Value)
 	}
 }
 

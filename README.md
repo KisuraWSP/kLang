@@ -213,6 +213,8 @@ JS-generated Lists support literals, empty values, `len`/`.count`, bounds-checke
 
 JS-generated Maps enforce declared key/value types across literals, reads, mutation, compound assignment, returns, count, and copying. Tables retain insertion order and primitive key identity while supporting selector reads, fallbacks, deletion, keys/values/entries, sequence counts, JSON String-key rules, and value isolation.
 
+JSON serialization works directly with Tables, String-keyed Maps, Lists, primitives, Null/Option values, enums, and tagged alias structs. `json_encode`/`json_decode` and `json.serialize`/`json.deserialize` provide safe Result-based native-value round trips; generated JavaScript implements the same Table/List conversion surface.
+
 JS-generated struct aliases support constructors, typed fields, trailing defaults, field access, `#extend` methods, and value isolation. `JSON(value)` and `json_stringify(value)` serialize nested structs and Lists with declared JSON field tags and deterministic key ordering. Runtime-heavy alias hooks still produce source-positioned JS backend diagnostics.
 
 Native JS packages include `program.js.map` with Source Map v3 mappings, portable `src/...` references, and embedded source content. `npm start` enables Node source-map stacks; direct `node program.js` execution still prints built-in kLang function frames, source excerpts, and carets for uncaught runtime errors. Backend rejections retain JS-specific rule identifiers and source spans.

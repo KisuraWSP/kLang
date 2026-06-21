@@ -147,6 +147,45 @@ function Main() : Int {
 	}
 }
 
+func TestJavaScriptBackendRoundTripsNativeJSONValues(t *testing.T) {
+	request := requestFromSource(`
+function Main() : String {
+    local Table source = {"name": "Ada", "items": [1, 2], "active": True};
+    local Result[String, String] encoded = json_encode(source);
+    assert encoded.ok;
+    local Result[T, String] decoded = json_decode(encoded.value);
+    assert decoded.ok;
+    local Table object = decoded.value as Table;
+    local List[T] items = object.items as List[T];
+    assert object.name == "Ada";
+    assert object.active;
+    assert items[1] == 2;
+    print(encoded.value, json_stringify("native"), json_stringify(42));
+    return encoded.value;
+}
+`)
+	compiler := New()
+	if diagnostics := compiler.Check(request); len(diagnostics) != 0 {
+		t.Fatalf("unexpected native JSON diagnostics: %#v", diagnostics)
+	}
+	output, err := compiler.Emit(request)
+	if err != nil {
+		t.Fatalf("emit native JSON operations: %v", err)
+	}
+	if node, lookupErr := exec.LookPath("node"); lookupErr == nil {
+		bundle := t.TempDir()
+		if err := compiler.Package(output, bundle); err != nil {
+			t.Fatalf("package native JSON program: %v", err)
+		}
+		command := exec.Command(node, filepath.Join(bundle, "program.js"))
+		printed, runErr := command.CombinedOutput()
+		expected := "{\"active\":true,\"items\":[1,2],\"name\":\"Ada\"} \"native\" 42"
+		if runErr != nil || strings.TrimSpace(string(printed)) != expected {
+			t.Fatalf("generated native JSON program failed: %v\n%s", runErr, printed)
+		}
+	}
+}
+
 func TestJavaScriptBackendEmitsSourceMapV3(t *testing.T) {
 	request := requestFromSource(`
 function Double(value : Int) : Int {

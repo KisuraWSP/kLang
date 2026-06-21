@@ -181,6 +181,10 @@ function Main() : Int {
     local Option[JSON] missing = json_get(document, "missing");
     local Result[JSON, String] parsed = json_parse("null");
     local String encoded = json_stringify(document);
+    local JSON numberJSON = JSON(42);
+    local String encodedString = json_stringify("native");
+    local Result[String, String] safeEncoded = json_encode([1, 2, 3]);
+    local Result[T, String] native = json_decode("{\"ok\":true}");
     return document.count + len(encoded);
 }
 `)
@@ -194,11 +198,11 @@ function Main() : Int {
 func TestCheckProgramRejectsInvalidJSONUse(t *testing.T) {
 	badConstructor := programFromSource(`
 function Main() : Int {
-    local JSON value = JSON(42);
+    local JSON value = JSON(Set(["bad"]));
     return 0;
 }
 `)
-	assertTypeError(t, CheckProgram(badConstructor), "JSON expects String or struct alias, got Int")
+	assertTypeError(t, CheckProgram(badConstructor), "JSON expects a serializable value, got Set[String]")
 
 	badMutation := programFromSource(`
 function Main() : Int {
@@ -211,11 +215,11 @@ function Main() : Int {
 
 	badHelper := programFromSource(`
 function Main() : Int {
-    local String value = json_stringify("not json");
+    local String value = json_stringify(Set(["not json"]));
     return len(value);
 }
 `)
-	assertTypeError(t, CheckProgram(badHelper), "json_stringify expects JSON, got String")
+	assertTypeError(t, CheckProgram(badHelper), "json_stringify expects a serializable value, got Set[String]")
 }
 
 func TestCheckProgramAcceptsAssertAndRuntimeTypeInfo(t *testing.T) {

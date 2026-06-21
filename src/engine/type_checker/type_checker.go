@@ -2629,6 +2629,27 @@ func (checker *TypeChecker) aliasFieldType(typeName string, fieldName string) (s
 	}
 }
 
+func (checker *TypeChecker) isJSONSerializableType(typeName string) bool {
+	typeName = normalizeType(typeName)
+	switch typeName {
+	case anyType, dynamicAnyType, "JSON", "String", "Char", "Int", "UInt", "Float", "Bool", "Null", "Table":
+		return true
+	}
+	if checker.isStructAliasType(typeName) || checker.enums[typeName].Name != "" {
+		return true
+	}
+	if elementType, ok := listElementTypeName(typeName); ok {
+		return checker.isJSONSerializableType(elementType)
+	}
+	if keyType, valueType, ok := indexedMapTypes(typeName); ok {
+		return keyType == "String" && checker.isJSONSerializableType(valueType)
+	}
+	if elementType, ok := optionElementType(typeName); ok {
+		return checker.isJSONSerializableType(elementType)
+	}
+	return false
+}
+
 func (checker *TypeChecker) aliasTypeInfo(typeName string) (parser.AliasFunctionStatement, map[string]string, bool) {
 	typeName = normalizeType(typeName)
 	if alias, ok := checker.aliasFunctions[typeName]; ok {
@@ -3174,8 +3195,8 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			return "JSON"
 		}
 		argType := checker.inferExpression(args[0], locals, source, line)
-		if !isAssignable("String", argType) && !checker.isStructAliasType(argType) {
-			checker.addError(source, line, fmt.Sprintf("JSON expects String or struct alias, got %s", argType))
+		if !checker.isJSONSerializableType(argType) {
+			checker.addError(source, line, fmt.Sprintf("JSON expects a serializable value, got %s", argType))
 		}
 		return "JSON"
 	case "json_parse":
@@ -3188,17 +3209,47 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.addError(source, line, fmt.Sprintf("json_parse expects String, got %s", argType))
 		}
 		return "Result[JSON,String]"
-	case "json_stringify", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null":
+	case "json_decode":
+		if len(args) != 1 {
+			checker.addError(source, line, "json_decode expects 1 argument")
+			return "Result[T,String]"
+		}
+		argType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("String", argType) {
+			checker.addError(source, line, fmt.Sprintf("json_decode expects String, got %s", argType))
+		}
+		return "Result[T,String]"
+	case "json_encode":
+		if len(args) != 1 {
+			checker.addError(source, line, "json_encode expects 1 argument")
+			return "Result[String,String]"
+		}
+		argType := checker.inferExpression(args[0], locals, source, line)
+		if !checker.isJSONSerializableType(argType) {
+			checker.addError(source, line, fmt.Sprintf("json_encode expects a serializable value, got %s", argType))
+		}
+		return "Result[String,String]"
+	case "json_stringify":
+		if len(args) != 1 {
+			checker.addError(source, line, "json_stringify expects 1 argument")
+		} else {
+			argType := checker.inferExpression(args[0], locals, source, line)
+			if !checker.isJSONSerializableType(argType) {
+				checker.addError(source, line, fmt.Sprintf("json_stringify expects a serializable value, got %s", argType))
+			}
+		}
+		return "String"
+	case "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null":
 		if len(args) != 1 {
 			checker.addError(source, line, name+" expects 1 argument")
 		} else {
 			argType := checker.inferExpression(args[0], locals, source, line)
-			if !isAssignable("JSON", argType) && !(name == "json_stringify" && checker.isStructAliasType(argType)) {
+			if !isAssignable("JSON", argType) {
 				checker.addError(source, line, fmt.Sprintf("%s expects JSON, got %s", name, argType))
 			}
 		}
 		switch name {
-		case "json_stringify", "json_kind":
+		case "json_kind":
 			return "String"
 		case "json_string":
 			return "Option[String]"

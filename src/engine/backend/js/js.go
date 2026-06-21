@@ -454,6 +454,10 @@ func (lower *lowerer) lowerExpression(node parser.ExpressionNode, position parse
 			calleeName, resolved = "__json", len(current.Arguments) == 1
 		} else if calleePath == "json_stringify" {
 			calleeName, resolved = "__json_stringify", len(current.Arguments) == 1
+		} else if calleePath == "json_encode" {
+			calleeName, resolved = "__json_encode", len(current.Arguments) == 1
+		} else if calleePath == "json_decode" {
+			calleeName, resolved = "__json_decode", len(current.Arguments) == 1
 		} else if builtin, exists := jsCollectionBuiltin(calleePath); exists {
 			calleeName, resolved = builtin, true
 		}
@@ -594,6 +598,9 @@ func supportedType(typeName string, allowAny bool) bool {
 	if keyType, valueType, ok := jsMapTypes(typeName); ok {
 		return supportedType(keyType, allowAny) && supportedType(valueType, allowAny)
 	}
+	if okType, errType, ok := jsResultTypes(typeName); ok {
+		return supportedType(okType, allowAny) && supportedType(errType, allowAny)
+	}
 	switch typeName {
 	case "Int", "UInt", "Float", "Bool", "String", "Char", "JSON", "Table":
 		return true
@@ -602,6 +609,30 @@ func supportedType(typeName string, allowAny bool) bool {
 	default:
 		return false
 	}
+}
+
+func jsResultTypes(typeName string) (string, string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	if !strings.HasPrefix(typeName, "Result[") || !strings.HasSuffix(typeName, "]") {
+		return "", "", false
+	}
+	inner := typeName[len("Result[") : len(typeName)-1]
+	depth := 0
+	for index, current := range inner {
+		switch current {
+		case '[':
+			depth++
+		case ']':
+			depth--
+		case ',':
+			if depth == 0 {
+				left := strings.TrimSpace(inner[:index])
+				right := strings.TrimSpace(inner[index+1:])
+				return left, right, left != "" && right != ""
+			}
+		}
+	}
+	return "", "", false
 }
 
 func jsMapTypes(typeName string) (string, string, bool) {
@@ -725,8 +756,10 @@ func emitProgram(program ir.Program) (string, []byte) {
 	}
 	output.WriteString("};\n")
 	output.WriteString("const __klang_is_struct = (value) => value !== null && typeof value === \"object\" && typeof value.__klang_struct === \"string\";\n")
-	output.WriteString("const __klang_copy = (value) => { if (Array.isArray(value)) return value.map(__klang_copy); if (__klang_is_collection(value)) return __klang_collection_copy(value); if (__klang_is_char(value)) return value; if (!__klang_is_struct(value)) return value; const copied = { __klang_struct: value.__klang_struct }; for (const field of Object.keys(value)) if (!field.startsWith(\"__\")) copied[field] = __klang_copy(value[field]); return copied; };\n")
-	output.WriteString("const __klang_format = (value) => Array.isArray(value) ? `[${value.map(__klang_format).join(\", \")}]` : __klang_is_collection(value) ? __klang_collection_format(value) : __klang_is_char(value) ? value.__klang_char : value === null ? \"Null\" : typeof value === \"boolean\" ? (value ? \"True\" : \"False\") : String(value);\n")
+	output.WriteString("const __klang_result = (ok, value) => ({ __klang_result: true, ok, value });\n")
+	output.WriteString("const __klang_is_result = (value) => value !== null && typeof value === \"object\" && value.__klang_result === true;\n")
+	output.WriteString("const __klang_copy = (value) => { if (Array.isArray(value)) return value.map(__klang_copy); if (__klang_is_result(value)) return __klang_result(value.ok, __klang_copy(value.value)); if (__klang_is_collection(value)) return __klang_collection_copy(value); if (__klang_is_char(value)) return value; if (!__klang_is_struct(value)) return value; const copied = { __klang_struct: value.__klang_struct }; for (const field of Object.keys(value)) if (!field.startsWith(\"__\")) copied[field] = __klang_copy(value[field]); return copied; };\n")
+	output.WriteString("const __klang_format = (value) => Array.isArray(value) ? `[${value.map(__klang_format).join(\", \")}]` : __klang_is_result(value) ? `${value.ok ? \"Ok\" : \"Err\"}(${__klang_format(value.value)})` : __klang_is_collection(value) ? __klang_collection_format(value) : __klang_is_char(value) ? value.__klang_char : value === null ? \"Null\" : typeof value === \"boolean\" ? (value ? \"True\" : \"False\") : String(value);\n")
 	output.WriteString("const __klang_print = (...values) => console.log(values.map(__klang_format).join(\" \"));\n\n")
 	output.WriteString("const __klang_add_frame = (thrown, frame) => { const error = thrown instanceof Error ? thrown : new Error(__klang_format(thrown)); if (!Object.prototype.hasOwnProperty.call(error, \"klangFrames\")) Object.defineProperty(error, \"klangFrames\", { value: [], enumerable: false }); error.klangFrames.push(frame); return error; };\n")
 	output.WriteString("const __klang_render_error = (thrown) => { const error = thrown instanceof Error ? thrown : new Error(__klang_format(thrown)); const lines = [\"\", \"-- JS RUNTIME ERROR --------------------------------------------------------\", \"\", `${error.name}: ${error.message}`]; for (const frame of error.klangFrames || []) { lines.push(\"\", `at ${frame.function} (${frame.file}:${frame.line}:${frame.column})`); if (frame.source) { lines.push(`${frame.line} | ${frame.source}`); lines.push(`  | ${\" \".repeat(Math.max(0, frame.column - 1))}^`); } } return lines.join(\"\\n\"); };\n\n")
@@ -740,11 +773,14 @@ func emitProgram(program ir.Program) (string, []byte) {
 	output.WriteString("const __klang_range_count = (value) => { if (!Number.isInteger(value)) throw new TypeError(\"range expects an Int count\"); if (value < 0) throw new RangeError(\"range count cannot be negative\"); return value; };\n")
 	output.WriteString("const __klang_string_uppercase = (value) => __klang_is_char(value) ? __klang_char(value.__klang_char.toUpperCase()) : value.toUpperCase();\n")
 	output.WriteString("const __klang_string_lowercase = (value) => __klang_is_char(value) ? __klang_char(value.__klang_char.toLowerCase()) : value.toLowerCase();\n\n")
-	output.WriteString("const __klang_select = (value, field) => { if (__klang_is_struct(value)) { if (!Object.prototype.hasOwnProperty.call(value, field)) throw new TypeError(`unknown field ${value.__klang_struct}.${field}`); return __klang_copy(value[field]); } if (field === \"count\") return __klang_len(value); if (__klang_is_collection(value) && value.__klang_collection === \"Table\") return __klang_collection_get(value, field); throw new TypeError(`selector .${field} is not supported for this value`); };\n")
+	output.WriteString("const __klang_select = (value, field) => { if (__klang_is_result(value) && (field === \"ok\" || field === \"value\")) return __klang_copy(value[field]); if (__klang_is_struct(value)) { if (!Object.prototype.hasOwnProperty.call(value, field)) throw new TypeError(`unknown field ${value.__klang_struct}.${field}`); return __klang_copy(value[field]); } if (field === \"count\") return __klang_len(value); if (__klang_is_collection(value) && value.__klang_collection === \"Table\") return __klang_collection_get(value, field); throw new TypeError(`selector .${field} is not supported for this value`); };\n")
 	output.WriteString("const __klang_call_method = (value, name, args) => { if (!__klang_is_struct(value)) throw new TypeError(`method .${name} expects a struct alias receiver`); const method = __klang_struct_methods[value.__klang_struct]?.[name]; if (typeof method !== \"function\") throw new TypeError(`unknown method ${value.__klang_struct}.${name}`); return method(__klang_copy(value), ...args.map(__klang_copy)); };\n")
 	output.WriteString("const __klang_to_json = (value) => { if (__klang_is_char(value)) return value.__klang_char; if (value === null || typeof value === \"string\" || typeof value === \"number\" || typeof value === \"boolean\") return value; if (Array.isArray(value)) return value.map(__klang_to_json); if (__klang_is_collection(value)) return __klang_collection_json(value); if (typeof value === \"object\") { const tags = __klang_is_struct(value) ? (__klang_struct_tags[value.__klang_struct] || {}) : {}; const entries = Object.keys(value).filter((field) => !field.startsWith(\"__\")).map((field) => [tags[field] || field, __klang_to_json(value[field])]).sort((left, right) => left[0].localeCompare(right[0])); return Object.fromEntries(entries); } throw new TypeError(\"cannot serialize value as JSON\"); };\n")
 	output.WriteString("const __klang_json = (value) => typeof value === \"string\" ? JSON.parse(value) : __klang_to_json(value);\n")
 	output.WriteString("const __klang_json_stringify = (value) => JSON.stringify(__klang_to_json(value));\n\n")
+	output.WriteString("const __klang_json_to_native = (value) => { if (value === null || typeof value === \"string\" || typeof value === \"number\" || typeof value === \"boolean\") return value; if (Array.isArray(value)) return value.map(__klang_json_to_native); const pairs = Object.keys(value).sort().map((key) => [key, __klang_json_to_native(value[key])]); return __klang_table_from_pairs(pairs); };\n")
+	output.WriteString("const __klang_json_encode = (value) => { try { return __klang_result(true, __klang_json_stringify(value)); } catch (error) { return __klang_result(false, error.message); } };\n")
+	output.WriteString("const __klang_json_decode = (source) => { try { return __klang_result(true, __klang_json_to_native(JSON.parse(source))); } catch (error) { return __klang_result(false, error.message); } };\n\n")
 	for _, structure := range program.Structs {
 		emitStruct(&output, structure, sourceMap)
 	}
@@ -1055,6 +1091,10 @@ func emitExpression(output *strings.Builder, expression ir.Expression) {
 			output.WriteString("__klang_json")
 		case "__json_stringify":
 			output.WriteString("__klang_json_stringify")
+		case "__json_encode":
+			output.WriteString("__klang_json_encode")
+		case "__json_decode":
+			output.WriteString("__klang_json_decode")
 		case "__table":
 			output.WriteString("__klang_table")
 		case "__table_has":

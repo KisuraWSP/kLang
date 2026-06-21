@@ -2874,7 +2874,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		return IntValue(length), nil
 	case "JSON":
 		if len(args) != 1 {
-			return NullValue(), Error{Message: "JSON expects one String or struct alias argument"}
+			return NullValue(), Error{Message: "JSON expects one String or serializable value"}
 		}
 		if args[0].Kind == ValueString {
 			return parseJSONValue(args[0].Data.(string))
@@ -2893,9 +2893,35 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			return ResultErrValue(StringValue(err.Error())), nil
 		}
 		return ResultOkValue(parsed), nil
+	case "json_decode":
+		if len(args) != 1 || args[0].Kind != ValueString {
+			return NullValue(), Error{Message: "json_decode expects one String argument"}
+		}
+		parsed, err := parseJSONValue(args[0].Data.(string))
+		if err != nil {
+			return ResultErrValue(StringValue(err.Error())), nil
+		}
+		decoded, err := jsonDataToRuntime(parsed.Data.(JSONData).Value)
+		if err != nil {
+			return ResultErrValue(StringValue(err.Error())), nil
+		}
+		return ResultOkValue(decoded), nil
+	case "json_encode":
+		if len(args) != 1 {
+			return NullValue(), Error{Message: "json_encode expects one serializable argument"}
+		}
+		converted, err := runtimeValueToJSON(args[0])
+		if err != nil {
+			return ResultErrValue(StringValue(err.Error())), nil
+		}
+		encoded, err := stringifyJSONValue(JSONValue(converted))
+		if err != nil {
+			return ResultErrValue(StringValue(err.Error())), nil
+		}
+		return ResultOkValue(StringValue(encoded)), nil
 	case "json_stringify":
 		if len(args) != 1 {
-			return NullValue(), Error{Message: "json_stringify expects one JSON or struct alias argument"}
+			return NullValue(), Error{Message: "json_stringify expects one serializable argument"}
 		}
 		value := args[0]
 		if value.Kind != ValueJSON {
@@ -4387,7 +4413,7 @@ func isBuiltinFunction(name string) bool {
 		"result_map", "result_map_err", "result_unwrap_or", "result_and_then",
 		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON", "Parsable",
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
-		"json_parse", "json_stringify", "json_get", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null",
+		"json_parse", "json_decode", "json_encode", "json_stringify", "json_get", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null",
 		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",

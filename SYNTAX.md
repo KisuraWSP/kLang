@@ -28,6 +28,12 @@ local Bool debug = option_unwrap_or(json_bool(config.debug), False);
 local Bool missingMetadata = json_is_null(config.metadata);
 local String encoded = json_stringify(config);
 local Result[JSON, String] checked = json_parse(userInput);
+local Result[String, String] encodedNative = json_encode({"items": [1, 2], "ok": True});
+local Result[T, String] decodedNative = json_decode(encodedNative.value);
+
+-- The json stdlib names the native-value operations serialize/deserialize.
+local Result[String, String] serialized = json.serialize({"name": "kLang"});
+local Result[T, String] deserialized = json.deserialize(serialized.value);
 ```
 
 Struct-style aliases can rename constructor fields during JSON serialization:

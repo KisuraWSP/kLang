@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -149,6 +150,53 @@ func runtimeValueToJSON(value Value) (any, error) {
 		return converted, nil
 	default:
 		return nil, Error{Message: fmt.Sprintf("cannot serialize %s as JSON", runtimeTypeName(value))}
+	}
+}
+
+func jsonDataToRuntime(value any) (Value, error) {
+	switch current := value.(type) {
+	case nil:
+		return NullValue(), nil
+	case bool:
+		return BoolValue(current), nil
+	case string:
+		return StringValue(current), nil
+	case json.Number:
+		if integer, err := strconv.ParseInt(string(current), 10, 0); err == nil {
+			return IntValue(int(integer)), nil
+		}
+		number, err := strconv.ParseFloat(string(current), 64)
+		if err != nil {
+			return NullValue(), Error{Message: fmt.Sprintf("invalid JSON number %q", current)}
+		}
+		return FloatValue(number), nil
+	case []any:
+		items := make([]Value, 0, len(current))
+		for _, item := range current {
+			decoded, err := jsonDataToRuntime(item)
+			if err != nil {
+				return NullValue(), err
+			}
+			items = append(items, decoded)
+		}
+		return Value{Kind: ValueList, Data: items}, nil
+	case map[string]any:
+		keys := make([]string, 0, len(current))
+		for key := range current {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		entries := make([]TableEntryData, 0, len(keys))
+		for _, key := range keys {
+			decoded, err := jsonDataToRuntime(current[key])
+			if err != nil {
+				return NullValue(), Error{Message: fmt.Sprintf("cannot decode JSON field %q: %s", key, err)}
+			}
+			entries = append(entries, TableEntryData{Key: StringValue(key), Value: decoded})
+		}
+		return TableValueFromEntries(entries), nil
+	default:
+		return NullValue(), Error{Message: fmt.Sprintf("unsupported decoded JSON value %T", value)}
 	}
 }
 
