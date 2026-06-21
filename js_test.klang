@@ -1,6 +1,62 @@
--- writing code to test the js backend
-function Backend(_t : Option[Int]) {
-    let mut t = Some(_t);
+-- import "mathg";
+-- alias arithmetic = mathg;
+
+-- Native JS core subset example:
+-- kLang package main.klang --backend=JS
+function SumForJS(limit : Int) : Int {
+    local mut Int total = 0;
+    local mut Int index = 0;
+    while index < limit {
+        total += index;
+        index += 1;
+    }
+    return total;
 }
 
-Backend(Some(69420));
+-- JS also lowers nested namespaces and resolved imports. Selective stdlib
+-- imports emit only called functions plus resolver-expanded helpers.
+-- function ImportedSumForJS() : Int {
+--     return arithmetic::Add(20, 22);
+-- }
+
+-- JS String operations preserve Klang's Unicode code-point behavior.
+function StringsForJS() : Int {
+    local String value = "h😀llo";
+    local String message = "len=" + len(value) + ":" + True;
+    local String upper = value.uppercase();
+    local String lower = upper.lowercase();
+    local Char emoji = value[1];
+    print(message, upper, lower, emoji, value.count);
+    return len(value);
+}
+
+-- JS List operations preserve checked indexing and collection value isolation.
+function ListsForJS() : Int {
+    local mut List[Int] values = [1, 2, 3];
+    local List[Int] original = values;
+    values[len(values)] = 4;
+    for index := range(len(values)) {
+        values[index] += index;
+    }
+    local List[Int] doubled = [value * 2 for value in values if value > 2];
+    print(original, values, doubled, values.count);
+    return doubled[0];
+}
+
+-- JS struct aliases include fields, defaults, extension methods, and JSON tags.
+alias function User(id : String, name : String, active : Bool = True) : type = struct {
+    this.id `json:"user_id"`;
+
+    #extend {
+        function label() : String {
+            return this.name + ":" + this.active;
+        }
+    }
+}
+
+function StructJSONForJS() : String {
+    let user = User("42", "Ada");
+    local JSON document = JSON(user);
+    print(user.label());
+    return json_stringify(document);
+}
