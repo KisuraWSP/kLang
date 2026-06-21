@@ -1,0 +1,6 @@
+-- writing code to test the js backend
+function Backend(_t : Option[Int]) {
+    let mut t = Some(_t);
+}
+
+Backend(Some(69420));
