@@ -27,6 +27,14 @@ namespace json {
         return json_decode(source);
     }
 
+    function valid(source : String) : Bool {
+        return parse(source).ok;
+    }
+
+    function deserialize_or(source : String, fallback : T) : T {
+        return result_unwrap_or(deserialize(source), fallback);
+    }
+
     --- Returns an object field without raising when the field is absent.
     function get_field(value : JSON, key : String) : Option[JSON] {
         return json_get(value, key);

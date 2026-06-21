@@ -369,6 +369,12 @@ function KeepPrintable[T Printable](value : T) : T {
     return value;
 }
 
+-- Any is the universal generic constraint. Nested callback types participate
+-- in inference across the complete argument list.
+function Transform[T Any, U Any](value : T, mapper : Function[T, U]) : U {
+    return mapper(value);
+}
+
 -- pipe operator
 -- The left value is passed as the first argument to the function on the right.
 local Int piped = 2 |> Add(3) |> Double;
@@ -404,6 +410,15 @@ local Option[Int] positiveCount = option_and_then(maybeCount, KeepPositive);
 local Result[Int, String] doubledParsed = result_map(parsedCount, Double);
 local Int parsedOrZero = result_unwrap_or(failedParse, 0);
 local Result[String, String] parsedLabel = result_and_then(parsedCount, ParseLabel);
+
+-- Focused stdlib facades use the same builtin Option and Result values.
+import "option";
+import "result";
+import "test";
+
+local Int requiredCount = option.expect(maybeCount, "count is missing");
+local Result[Int, String] mappedCount = result.map(parsedCount, Double);
+_ = test.ok(mappedCount);
 
 -- Error propagation
 -- The postfix ! operator unwraps Ok(value), or throws Err(value) to the nearest catch.

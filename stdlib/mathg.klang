@@ -29,6 +29,18 @@ namespace mathg {
         return value;
     }
 
+    function ClampFloat(value : Float, low : Float, high : Float) : Float {
+        if value < low { return low; }
+        if value > high { return high; }
+        return value;
+    }
+
+    function Sign(value : Int) : Int {
+        if value < 0 { return 0 - 1; }
+        if value > 0 { return 1; }
+        return 0;
+    }
+
     --- Signature: function Max(left : Int, right : Int) : Int
     --- Returns: Int.
     --- Summary: Provides the stdlib max operation using current Klang data types and runtime helpers.
@@ -80,6 +92,47 @@ namespace mathg {
     function Average(values : List[Int]) : Int {
         if len(values) == 0 { return 0; }
         return Sum(values) / len(values);
+    }
+
+    function Product(values : List[Int]) : Int {
+        local mut Int total = 1;
+        local mut Int index = 0;
+        while index < len(values) {
+            total *= values[index];
+            index += 1;
+        }
+        return total;
+    }
+
+    function GCD(left : Int, right : Int) : Int {
+        local mut Int a = Abs(left);
+        local mut Int b = Abs(right);
+        while b != 0 {
+            local Int remainder = a % b;
+            a = b;
+            b = remainder;
+        }
+        return a;
+    }
+
+    function LCM(left : Int, right : Int) : Int {
+        if left == 0 or right == 0 { return 0; }
+        return Abs((left / GCD(left, right)) * right);
+    }
+
+    function SumFloat(values : List[Float]) : Float {
+        local mut Float total = 0.0;
+        local mut Int index = 0;
+        while index < len(values) {
+            total += values[index];
+            index += 1;
+        }
+        return total;
+    }
+
+    function AverageFloat(values : List[Float]) : Float {
+        if len(values) == 0 { return 0.0; }
+        return SumFloat(values) / (len(values) as Float);
     }
 
     --- Signature: function Seed(value : Int) : Int

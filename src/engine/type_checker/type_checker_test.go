@@ -858,6 +858,25 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(reject), "argument 1 expects T:UInt|Int|Float, got String")
 }
 
+func TestCheckProgramAcceptsAnyConstrainedGenericFunctions(t *testing.T) {
+	program := programFromSource(`
+function Transform[T Any, U Any](value : T, mapper : Function[T, U]) : U {
+    return mapper(value);
+}
+
+function Length(value : String) : Int { return len(value); }
+
+function Main() : Int {
+    return Transform("kLang", Length);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected Any-constrained generic function to type check, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramRejectsRestrictedGenericVariableMismatch(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

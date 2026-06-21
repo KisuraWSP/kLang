@@ -67,7 +67,11 @@ Builtin values expose a small shared protocol surface through selector syntax:
 
 Generic type parameters may use named constraints in addition to explicit `restrict[...]` allow-lists. `T numeric` accepts numeric parent and child-width types, `T comparable` accepts primitive comparable values, `T hashable` accepts the safe primitive key space used by `Table` and `Set`, `T iterable` accepts values supported by `iter`/`len`, `T allocator_like` accepts builtin allocator/value wrappers, and `T TraitName` requires an `impl TraitName for ConcreteType` declaration.
 
+`T Any` is the universal named constraint for reusable generic stdlib functions. Constraints are substituted recursively inside container, callback, tuple, and return types, and one call shares inferred substitutions across all arguments. This allows signatures such as `function map[T Any, U Any](values : List[T], mapper : Function[T, U]) : List[U]` to infer both types from the list and callback.
+
 `Option[T]` and `Result[T, E]` are the standard absence and fallibility types. `Some(value)`/`None()` construct options, and `Ok(value)`/`Err(error)` construct results. Use `.some` and `.ok` for presence checks, `!` to propagate a `Result` error from a fallible expression, and helpers such as `option_map`, `option_unwrap_or`, `option_and_then`, `result_map`, `result_map_err`, `result_unwrap_or`, and `result_and_then` to transform or recover values without unsafe `.value` access.
+
+The focused stdlib facades deepen these core types without changing their runtime representation. `list` and `array` provide safe lookup and functional transforms; `table` provides immutable set/delete/merge, ordered views, filtering, mapping, and fallback composition; `option` and `result` provide named transforms, recovery, conversion, and throwing `expect` helpers. The `strings`, `mathg`, `io`, `json`, and `test` modules provide deterministic string/math helpers, in-memory reader/writer operations, native JSON validation/decoding, and reusable assertions.
 
 User-defined `enum` declarations create typed ordinal values inspired by Go `const`/`iota` enums. Variants are selected as `EnumName.Variant`, compare only with variants from the same enum type, and expose `.ordinal`, `.name`, and `.variant`.
 

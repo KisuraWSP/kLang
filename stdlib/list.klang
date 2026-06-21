@@ -2,6 +2,29 @@
 -- These functions return new lists instead of mutating the input list in place.
 
 namespace list {
+    function empty(values : List[T]) : Bool {
+        return list.len(values) == 0;
+    }
+
+    function len(values : List[T]) : Int {
+        return values.count;
+    }
+
+    function get(values : List[T], position : Int) : Option[T] {
+        if position < 0 or position >= list.len(values) {
+            return None();
+        }
+        return Some(values[position]);
+    }
+
+    function first(values : List[T]) : Option[T] {
+        return list.get(values, 0);
+    }
+
+    function last(values : List[T]) : Option[T] {
+        return list.get(values, list.len(values) - 1);
+    }
+
     --- Signature: function append(values : List[T], value : T) : List[T]
     --- Returns: List[T].
     --- Summary: Adds value at the end of values and returns the resulting list.
@@ -43,6 +66,10 @@ namespace list {
             index += 1;
         }
         return total;
+    }
+
+    function contains(values : List[T], value : T) : Bool {
+        return list.index(values, value) >= 0;
     }
 
     --- Signature: function extend(values : List[T], extra : List[T]) : List[T]
@@ -149,6 +176,49 @@ namespace list {
         while index >= 0 {
             result[len(result)] = values[index];
             index -= 1;
+        }
+        return result;
+    }
+
+    function slice(values : List[T], start : Int, stop : Int) : List[T] {
+        local mut List[T] result;
+        local mut Int index = start;
+        local mut Int limit = stop;
+        if index < 0 { index = 0; }
+        if limit > len(values) { limit = len(values); }
+        while index < limit {
+            result[len(result)] = values[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    function map[T Any, U Any](values : List[T], mapper : Function[T, U]) : List[U] {
+        local mut List[U] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            result[len(result)] = mapper(values[index]);
+            index += 1;
+        }
+        return result;
+    }
+
+    function filter[T Any](values : List[T], predicate : Function[T, Bool]) : List[T] {
+        local mut List[T] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            if predicate(values[index]) { result[len(result)] = values[index]; }
+            index += 1;
+        }
+        return result;
+    }
+
+    function fold[T Any, U Any](values : List[T], initial : U, reducer : Function[U, T, U]) : U {
+        local mut U result = initial;
+        local mut Int index = 0;
+        while index < len(values) {
+            result = reducer(result, values[index]);
+            index += 1;
         }
         return result;
     }

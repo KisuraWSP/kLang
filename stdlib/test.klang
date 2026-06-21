@@ -1,0 +1,47 @@
+-- Small assertion helpers for tests written in kLang.
+
+namespace test {
+    function fail(message : String) : Bool {
+        throw message;
+    }
+
+    function assert_true(condition : Bool, message : String = "expected condition to be true") : Bool {
+        if not condition { throw message; }
+        return True;
+    }
+
+    function assert_false(condition : Bool, message : String = "expected condition to be false") : Bool {
+        if condition { throw message; }
+        return True;
+    }
+
+    function equal[T comparable](left : T, right : T, message : String = "expected values to be equal") : Bool {
+        if left != right { throw message; }
+        return True;
+    }
+
+    function not_equal[T comparable](left : T, right : T, message : String = "expected values to differ") : Bool {
+        if left == right { throw message; }
+        return True;
+    }
+
+    function some[T Any](value : Option[T], message : String = "expected Some") : Bool {
+        if not value.some { throw message; }
+        return True;
+    }
+
+    function none[T Any](value : Option[T], message : String = "expected None") : Bool {
+        if value.some { throw message; }
+        return True;
+    }
+
+    function ok[T Any, E Any](value : Result[T, E], message : String = "expected Ok") : Bool {
+        if not value.ok { throw message; }
+        return True;
+    }
+
+    function err[T Any, E Any](value : Result[T, E], message : String = "expected Err") : Bool {
+        if value.ok { throw message; }
+        return True;
+    }
+}

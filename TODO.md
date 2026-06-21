@@ -2,6 +2,10 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- in code if user doesnt want cache we do the below code
+```lua
+no_cache;
+```
 - add support for user defined scopes
 - add "for_each" loop to klang
 - add grua file support as a simple subset of klang actually

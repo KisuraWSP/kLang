@@ -488,4 +488,34 @@ namespace array {
         }
         return total;
     }
+
+    function map[T Any, U Any](values : List[T], mapper : Function[T, U]) : List[U] {
+        local mut List[U] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            result[len(result)] = mapper(values[index]);
+            index += 1;
+        }
+        return result;
+    }
+
+    function filter[T Any](values : List[T], predicate : Function[T, Bool]) : List[T] {
+        local mut List[T] result;
+        local mut Int index = 0;
+        while index < len(values) {
+            if predicate(values[index]) { result[len(result)] = values[index]; }
+            index += 1;
+        }
+        return result;
+    }
+
+    function fold[T Any, U Any](values : List[T], initial : U, reducer : Function[U, T, U]) : U {
+        local mut U result = initial;
+        local mut Int index = 0;
+        while index < len(values) {
+            result = reducer(result, values[index]);
+            index += 1;
+        }
+        return result;
+    }
 }

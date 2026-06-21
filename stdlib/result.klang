@@ -1,0 +1,59 @@
+-- Ergonomic operations for fallible values.
+
+namespace result {
+    function ok[T Any, E Any](value : T) : Result[T, E] { return Ok(value); }
+
+    function err[T Any, E Any](error : E) : Result[T, E] { return Err(error); }
+
+    function is_ok[T Any, E Any](value : Result[T, E]) : Bool { return value.ok; }
+
+    function is_err[T Any, E Any](value : Result[T, E]) : Bool { return not value.ok; }
+
+    function map[T Any, E Any, U Any](value : Result[T, E], mapper : Function[T, U]) : Result[U, E] {
+        return result_map(value, mapper);
+    }
+
+    function map_err[T Any, E Any, F Any](value : Result[T, E], mapper : Function[E, F]) : Result[T, F] {
+        return result_map_err(value, mapper);
+    }
+
+    function and_then[T Any, E Any, U Any](value : Result[T, E], mapper : Function[T, Result[U, E]]) : Result[U, E] {
+        return result_and_then(value, mapper);
+    }
+
+    function unwrap_or[T Any, E Any](value : Result[T, E], fallback : T) : T {
+        return result_unwrap_or(value, fallback);
+    }
+
+    function expect[T Any, E Any](value : Result[T, E], message : String) : T {
+        if value == {
+            case Ok(item): return item;
+            case Err(error): throw message;
+        }
+        throw message;
+    }
+
+    function expect_err[T Any, E Any](value : Result[T, E], message : String) : E {
+        if value == {
+            case Ok(item): throw message;
+            case Err(error): return error;
+        }
+        throw message;
+    }
+
+    function ok_option[T Any, E Any](value : Result[T, E]) : Option[T] {
+        if value == {
+            case Ok(item): return Some(item);
+            case Err(error): return None();
+        }
+        return None();
+    }
+
+    function err_option[T Any, E Any](value : Result[T, E]) : Option[E] {
+        if value == {
+            case Ok(item): return None();
+            case Err(error): return Some(error);
+        }
+        return None();
+    }
+}

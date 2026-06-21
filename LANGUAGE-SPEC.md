@@ -66,6 +66,7 @@
 66. Namespace aliases can target local, imported, or nested namespace paths. Alias-qualified calls participate in inferred imports and selective stdlib function loading after transitive alias expansion.
 67. `Parsable[T]` is a builtin metaprogramming type that parses one source program, retains AST/runtime/argument metadata, integrates with `Program`, `BuildSystem`, and `WorkSpace`, supports reparsed immutable source transforms, and can define trait-restricted keyword macros.
 68. `type name = ExistingType;` declares a workspace-scoped compile-time type alias that is recursively expanded in declarations, signatures, generic arguments, and casts.
+69. The core stdlib is depth-oriented: `array`, `list`, `table`, `json`, `strings`, `mathg`, `io`, `test`, `result`, and `option` expose composable operations over existing builtin semantics rather than introducing parallel runtime types.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -108,6 +109,9 @@ Rules
 - Alias type metadata exposes JSON mappings as `Type.serialization.json_tags`, keyed by constructor field name. Untagged fields serialize under their source names.
 - Function parameters may use `name := DefaultExpression()` to infer the parameter type from the default value.
 - Generic parameters may use `T restrict[Int, Float]` for explicit allow-lists, `T numeric`, `T comparable`, `T hashable`, `T iterable`, `T allocator_like`, or `T TraitName` for trait-bound constraints. Trait-bound constraints require a matching `impl TraitName for ConcreteType` before the concrete type can satisfy the generic call.
+- `T Any` is a universal generic constraint. Generic restrictions are applied recursively inside types such as `List[T]`, `Result[T,E]`, and `Function[T,U]`, and substitutions inferred from earlier arguments remain available while checking later arguments in the same call.
+- Stdlib collection transforms are non-mutating. `list.map/filter/fold`, `array.map/filter/fold`, and `table.set/delete/merge/filter/map_values` return new values under the ordinary copy-on-write rules.
+- `option.expect` and `result.expect` use exhaustive matching and throw the supplied message on the absent/error path. `test` assertion helpers also throw their message, so they integrate with the CLI test runner and ordinary `try/catch`.
 - Entry-point directives apply to the next function in the current namespace or top-level scope.
 - Region-backed array types use the `ElementType[RegionName]` form and must reference an existing `region`.
 - `temp region Name(Type, size, count);` declares a temporary region. Region-backed arrays that reference it use the same `ElementType[Name]` syntax and count checks as ordinary regions.

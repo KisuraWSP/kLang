@@ -1,0 +1,44 @@
+-- Ergonomic operations for values that may be absent.
+
+namespace option {
+    function some[T Any](value : T) : Option[T] { return Some(value); }
+
+    function none[T Any]() : Option[T] { return None(); }
+
+    function is_some[T Any](value : Option[T]) : Bool { return value.some; }
+
+    function is_none[T Any](value : Option[T]) : Bool { return not value.some; }
+
+    function map[T Any, U Any](value : Option[T], mapper : Function[T, U]) : Option[U] {
+        return option_map(value, mapper);
+    }
+
+    function and_then[T Any, U Any](value : Option[T], mapper : Function[T, Option[U]]) : Option[U] {
+        return option_and_then(value, mapper);
+    }
+
+    function unwrap_or[T Any](value : Option[T], fallback : T) : T {
+        return option_unwrap_or(value, fallback);
+    }
+
+    function expect[T Any](value : Option[T], message : String) : T {
+        if value == {
+            case Some(item): return item;
+            case None(): throw message;
+        }
+        throw message;
+    }
+
+    function ok_or[T Any, E Any](value : Option[T], error : E) : Result[T, E] {
+        if value.some { return Ok(value.value); }
+        return Err(error);
+    }
+
+    function flatten[T Any](value : Option[Option[T]]) : Option[T] {
+        if value == {
+            case Some(item): return item;
+            case None(): return None();
+        }
+        return None();
+    }
+}

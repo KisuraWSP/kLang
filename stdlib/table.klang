@@ -1,4 +1,82 @@
-
 namespace table {
-    -- future functions to be implemented to be used to manipulate the Table datatype
+    function empty(value : Table) : Bool { return value.count == 0; }
+
+    function len(value : Table) : Int { return value.count; }
+
+    function has[T hashable](value : Table, key : T) : Bool { return table_has(value, key); }
+
+    function get[T hashable, U Any](value : Table, key : T) : Option[U] {
+        if not table_has(value, key) { return None(); }
+        return Some(value[key] as U);
+    }
+
+    function get_or[T hashable, U Any](value : Table, key : T, fallback : U) : U {
+        return option_unwrap_or(table.get(value, key), fallback);
+    }
+
+    function set[T hashable, U Any](value : Table, key : T, item : U) : Table {
+        local mut Table result = clone value;
+        result[key] = item;
+        return result;
+    }
+
+    function delete[T hashable](value : Table, key : T) : Table { return table_delete(value, key); }
+
+    function clear(value : Table) : Table {
+        _ = value;
+        return {};
+    }
+
+    function copy(value : Table) : Table { return clone value; }
+
+    function keys[T hashable](value : Table) : List[T] { return table_keys(value); }
+
+    function values[T Any](value : Table) : List[T] { return table_values(value); }
+
+    function entries(value : Table) : List[Table] { return table_entries(value); }
+
+    function sequence_len(value : Table) : Int { return table_sequence_count(value); }
+
+    function with_fallback(value : Table, fallback : Table) : Table {
+        return table_set_fallback(value, fallback);
+    }
+
+    function merge(left : Table, right : Table) : Table {
+        local mut Table result = clone left;
+        local List[Table] source = table_entries(right);
+        local mut Int index = 0;
+        while index < len(source) {
+            local Table entry = source[index];
+            result[entry.key] = entry.value;
+            index += 1;
+        }
+        return result;
+    }
+
+    function filter[T hashable, U Any](value : Table, predicate : Function[T, U, Bool]) : Table {
+        local mut Table result = {};
+        local List[Table] source = table_entries(value);
+        local mut Int index = 0;
+        while index < len(source) {
+            local Table entry = source[index];
+            local T key = entry.key as T;
+            local U item = entry.value as U;
+            if predicate(key, item) { result[key] = item; }
+            index += 1;
+        }
+        return result;
+    }
+
+    function map_values[T hashable, U Any, V Any](value : Table, mapper : Function[T, U, V]) : Table {
+        local mut Table result = {};
+        local List[Table] source = table_entries(value);
+        local mut Int index = 0;
+        while index < len(source) {
+            local Table entry = source[index];
+            local T key = entry.key as T;
+            result[key] = mapper(key, entry.value as U);
+            index += 1;
+        }
+        return result;
+    }
 }

@@ -3879,6 +3879,7 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		return fn.ReturnType
 	}
 
+	callSolver := checker.newConstraintSolver()
 	for index, arg := range args {
 		argType := checker.inferExpression(arg, locals, source, line)
 		param := fn.Params[index]
@@ -3895,7 +3896,11 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 				checker.addError(source, line, fmt.Sprintf("function %s reference argument %d expects a variable", name, index+1))
 			}
 		}
-		if !checker.isAssignable(param.Type, argType) {
+		assignable := checker.isAssignable(param.Type, argType)
+		if len(fn.TypeRestrictions) > 0 {
+			assignable = callSolver.unify(param.Type, argType) || checker.isAssignable(callSolver.apply(param.Type), argType)
+		}
+		if !assignable {
 			checker.addError(source, line, fmt.Sprintf("function %s argument %d expects %s, got %s", name, index+1, param.Type, argType))
 		}
 	}
@@ -4846,7 +4851,20 @@ func applyFunctionTypeRestrictions(typeName string, restrictions map[string]stri
 	if restricted, ok := restrictions[typeName]; ok {
 		return restricted
 	}
-	return typeName
+	if parts, ok := tupleTypeParts(typeName); ok {
+		for index := range parts {
+			parts[index] = applyFunctionTypeRestrictions(parts[index], restrictions)
+		}
+		return "(" + strings.Join(parts, ",") + ")"
+	}
+	name, args, ok := splitGenericType(typeName)
+	if !ok {
+		return typeName
+	}
+	for index := range args {
+		args[index] = applyFunctionTypeRestrictions(args[index], restrictions)
+	}
+	return name + "[" + strings.Join(args, ",") + "]"
 }
 
 func isKnownType(typeName string) bool {
@@ -5132,6 +5150,15 @@ func isIntegerIndexType(typeName string) bool {
 
 func isTableKeyType(typeName string) bool {
 	typeName = normalizeType(typeName)
+	if _, allowed, ok := restrictedGenericType(typeName); ok {
+		for _, option := range allowed {
+			if normalizeConstraintName(option) == "hashable" || isTableKeyType(option) {
+				continue
+			}
+			return false
+		}
+		return true
+	}
 	return typeName == anyType || typeName == "String" || typeName == "Int" || typeName == "UInt" ||
 		typeName == "Float" || typeName == "Bool" || typeName == "Char" ||
 		strings.HasPrefix(typeName, "Int.child(") || strings.HasPrefix(typeName, "UInt.child(") ||
@@ -5321,6 +5348,9 @@ func (checker *TypeChecker) aliasBaseAndArgs(typeName string) (string, []string)
 func (checker *TypeChecker) constraintAllows(constraint string, typeName string) bool {
 	constraint = normalizeConstraintName(normalizeType(constraint))
 	typeName = normalizeType(typeName)
+	if constraint == dynamicAnyType {
+		return true
+	}
 	if isGenericConstraintName(constraint) {
 		return builtinConstraintAllows(constraint, typeName)
 	}
@@ -5479,6 +5509,9 @@ func (solver *constraintSolver) bind(name string, typeName string) bool {
 func (solver *constraintSolver) constraintAllows(constraint string, typeName string) bool {
 	constraint = normalizeConstraintName(normalizeType(constraint))
 	typeName = normalizeType(typeName)
+	if constraint == dynamicAnyType {
+		return true
+	}
 	if isGenericConstraintName(constraint) {
 		return builtinConstraintAllows(constraint, typeName)
 	}

@@ -115,6 +115,16 @@ namespace strings {
         return 0 - 1;
     }
 
+    function LastIndex(value : String, part : String) : Int {
+        if len(part) == 0 { return len(value); }
+        local mut Int index = len(value) - len(part);
+        while index >= 0 {
+            if Slice(value, index, len(part)) == part { return index; }
+            index -= 1;
+        }
+        return 0 - 1;
+    }
+
     --- Signature: function Join(values : List[String], sep : String) : String
     --- Returns: String.
     --- Summary: Combines or extends Klang value(s) for the join operation.
@@ -190,8 +200,10 @@ namespace strings {
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Slice(value : String, start : Int, count : Int) : String {
         local mut String result = "";
+        if count <= 0 { return result; }
         local mut Int index = start;
-        local Int stop = start + count;
+        if index < 0 { index = 0; }
+        local Int stop = index + count;
         while index < stop and index < len(value) {
             result += value[index] as String;
             index += 1;
@@ -223,5 +235,27 @@ namespace strings {
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function DefaultIfEmpty(value : String, fallback : String) : String {
         if len(value) == 0 { return fallback; } else { return value; }
+    }
+
+    function PadLeft(value : String, width : Int, fill : String = " ") : String {
+        if len(value) >= width or len(fill) == 0 { return value; }
+        local Int padding = width - len(value);
+        return Slice(Repeat(fill, padding), 0, padding) + value;
+    }
+
+    function PadRight(value : String, width : Int, fill : String = " ") : String {
+        if len(value) >= width or len(fill) == 0 { return value; }
+        local Int padding = width - len(value);
+        return value + Slice(Repeat(fill, padding), 0, padding);
+    }
+
+    function ToList(value : String) : List[String] {
+        local mut List[String] result;
+        local mut Int index = 0;
+        while index < len(value) {
+            result[len(result)] = value[index] as String;
+            index += 1;
+        }
+        return result;
     }
 }

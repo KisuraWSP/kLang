@@ -61,7 +61,37 @@ namespace io {
     --- Summary: Reads, locates, or decodes read all from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ReadAll(reader : Table) : String {
-        return reader["data"] as String;
+        local String data = reader["data"] as String;
+        local mut Int offset = reader["offset"] as Int;
+        local mut String result = "";
+        while offset < len(data) {
+            result += data[offset] as String;
+            offset += 1;
+        }
+        return result;
+    }
+
+    function Remaining(reader : Table) : Int {
+        local Int remaining = len(reader["data"] as String) - (reader["offset"] as Int);
+        if remaining < 0 { return 0; }
+        return remaining;
+    }
+
+    function Read(reader : Table, count : Int) : Table {
+        local String data = reader["data"] as String;
+        local mut Int offset = reader["offset"] as Int;
+        local mut Int remaining = count;
+        local mut String value = "";
+        while remaining > 0 and offset < len(data) {
+            value += data[offset] as String;
+            offset += 1;
+            remaining -= 1;
+        }
+        return {"data": data, "offset": offset, "value": value};
+    }
+
+    function ResetReader(reader : Table) : Table {
+        return {"data": reader["data"], "offset": 0};
     }
 
     --- Signature: function WriteString(writer : Table, value : String) : Table
@@ -70,6 +100,15 @@ namespace io {
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function WriteString(writer : Table, value : String) : Table {
         return {"buffer": (writer["buffer"] as String) + value};
+    }
+
+    function WriteLine(writer : Table, value : String) : Table {
+        return WriteString(writer, value + "\n");
+    }
+
+    function ResetWriter(writer : Table) : Table {
+        _ = writer;
+        return Writer();
     }
 
     --- Signature: function BufferString(writer : Table) : String

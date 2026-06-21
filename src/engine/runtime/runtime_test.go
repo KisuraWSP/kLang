@@ -2317,6 +2317,84 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesDeepStdlibCoreFacades(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd failed: %v", err)
+		}
+	}()
+
+	result := runSource(t, `
+import "array";
+import "list";
+import "table";
+import "strings";
+import "mathg";
+import "io";
+import "json";
+import "option";
+import "result";
+import "test";
+
+function Double(value : Int) : Int { return value * 2; }
+function Positive(value : Int) : Bool { return value > 0; }
+function Add(total : Int, value : Int) : Int { return total + value; }
+function KeepEntry(key : String, value : Int) : Bool { return key != "drop" and value > 0; }
+function DoubleEntry(key : String, value : Int) : Int { _ = key; return value * 2; }
+
+function Main() : Int {
+    local List[Int] values = [-1, 2, 3];
+    local List[Int] positive = list.filter(values, Positive);
+    local List[Int] doubled = array.map(positive, Double);
+    local Int total = list.fold(doubled, 0, Add);
+    _ = test.equal(total, 10);
+    _ = test.some(list.first(values));
+    _ = test.none(list.get(values, 20));
+
+    local Table source = {"keep": 2, "drop": 4};
+    local Table kept = table.filter(source, KeepEntry);
+    local Table mapped = table.map_values(kept, DoubleEntry);
+    local Option[Int] found = table.get(mapped, "keep");
+    _ = test.equal(option.expect(found, "missing keep"), 4);
+    _ = test.equal(table.len(mapped), 1);
+
+    local Result[Int, String] okValue = result.ok(5);
+    local Result[Int, String] mappedResult = result.map(okValue, Double);
+    local Result[Int, String] badValue = result.err("bad");
+    _ = test.equal(result.expect(mappedResult, "expected mapped result"), 10);
+    _ = test.err(badValue);
+
+    local Table reader = io.Reader("abcd");
+    local Table read = io.Read(reader, 2);
+    local Table writer = io.WriteLine(io.Writer(), read.value as String);
+    _ = test.equal(io.BufferString(writer), "ab\n");
+    _ = test.equal(io.Remaining(read), 2);
+
+    _ = test.equal(strings.LastIndex("one two one", "one"), 8);
+    _ = test.equal(strings.Slice("abc", 0 - 2, 2), "ab");
+    _ = test.equal(mathg.GCD(54, 24), 6);
+    _ = test.equal(mathg.LCM(6, 8), 24);
+    _ = test.assert_true(json.valid(//
+{"ok":true}
+//));
+    _ = test.assert_false(json.valid("{"));
+    return 42;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 42 {
+		t.Fatalf("expected deep stdlib facade program to return 42, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesStdlibDSAModule(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
