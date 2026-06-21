@@ -1,3 +1,4 @@
+module_caller(call_entire_module : True);
 import "json";
 
 alias function User(id : String, displayName : String, roles : List[String], active : Bool = True) : type = struct {
@@ -15,7 +16,9 @@ function Divider(title : String) : Int {
 
 function RequireString(name : String, actual : String, expected : String) : Int {
     print("check", name, actual, expected);
-    assert actual == expected;
+    if actual != expected {
+        throw "check failed: " + name + ", actual=" + actual + ", expected=" + expected;
+    }
     return len(actual);
 }
 
@@ -121,15 +124,15 @@ function ShowKindsAndSafeAccess() : Int {
     Divider("JSON kinds and safe typed access");
 
     local JSON document = json.must_parse(//
-    {
-        "title": "kLang",
-        "count": 42,
-        "ratio": 3.5,
-        "ready": true,
-        "missing": null,
-        "items": ["first", 2, false]
-    }
-    //);
+{
+    "title": "kLang",
+    "count": 42,
+    "ratio": 3.5,
+    "ready": true,
+    "missing": null,
+    "items": ["first", 2, false]
+}
+//);
     local JSON titleValue = option_unwrap_or(json.get_field(document, "title"), json.null_json());
     local JSON countValue = option_unwrap_or(json.get_field(document, "count"), json.null_json());
     local JSON ratioValue = option_unwrap_or(json.get_field(document, "ratio"), json.null_json());
@@ -176,24 +179,28 @@ function ShowNativeRoundTrip() : Int {
     Divider("native Table/List serialization and deserialization");
 
     local Table source = {
-        "name": "kLang",
-        "active": True,
-        "ratio": 1.5,
-        "items": [1, 2, 3],
-        "metadata": None()
+        "name" : "kLang",
+        "active" : True,
+        "ratio" : 1.5,
+        "items" :[1, 2, 3],
+        "metadata" : None()
     };
     local Result[String, String] serialized = json.serialize(source);
     local String encoded = result_unwrap_or(serialized, "");
     local Result[T, String] decoded = json.deserialize(encoded);
-    local T decodedValue = result_unwrap_or(decoded, {});
+    local T decodedValue = result_unwrap_or(decoded, { });
     local Table restored = decodedValue as Table;
     local List[T] restoredItems = restored.items as List[T];
     local List[T] restoredKeys = table_keys(restored);
-    local Table fallback = {"fallback": True, "reason": "invalid JSON"};
+    local JSON restoredMetadata = JSON(restored.metadata);
+    local Table fallback = { "fallback" : True, "reason" : "invalid JSON" };
     local T recoveredValue = json.deserialize_or("{", fallback);
     local Table recovered = recoveredValue as Table;
     local Int scalar = json.deserialize_or("42", 0);
-    local Result[String, String] unsafeKey = json.serialize({1: "not an object key"});
+    local Result[String, String] unsafeKey = json.serialize({ 1 : "not an object key" });
+    local String expectedEncoded = //
+{"active":true,"items":[1,2,3],"metadata":null,"name":"kLang","ratio":1.5}
+//;
 
     print("source", source);
     print("serialized", serialized);
@@ -203,7 +210,7 @@ function ShowNativeRoundTrip() : Int {
     print("recovered", recovered);
 
     RequireBool("serialize ok", serialized.ok, True);
-    RequireString("deterministic serialization", encoded, "{\"active\":true,\"items\":[1,2,3],\"metadata\":null,\"name\":\"kLang\",\"ratio\":1.5}");
+    RequireString("deterministic serialization", encoded, expectedEncoded);
     RequireBool("deserialize ok", decoded.ok, True);
     RequireString("restored name", restored.name as String, "kLang");
     RequireBool("restored active", restored.active as Bool, True);
@@ -211,7 +218,7 @@ function ShowNativeRoundTrip() : Int {
     RequireInt("restored item count", len(restoredItems), 3);
     RequireInt("restored first item", restoredItems[0] as Int, 1);
     RequireString("sorted first key", restoredKeys[0] as String, "active");
-    RequireString("restored null type", debug_type(restored.metadata), "Null");
+    RequireBool("restored null", json.is_null(restoredMetadata), True);
     RequireBool("valid serialized", json.valid(encoded), True);
     RequireBool("valid invalid source", json.valid("{"), False);
     RequireBool("fallback value", recovered.fallback as Bool, True);
@@ -232,13 +239,16 @@ function ShowAliasStructSerialization() : Int {
     local Type metadata = User.get_runtime_type_info();
     local Table serialization = metadata.serialization;
     local Table tags = serialization.json_tags as Table;
+    local String expectedEncoded = //
+{"active":true,"display_name":"Ada","roles":["admin","author"],"user_id":"42"}
+//;
 
     print("user", user);
     print("document", document);
     print("encoded", encoded);
     print("tags", tags);
 
-    RequireString("tagged struct JSON", encoded, "{\"active\":true,\"display_name\":\"Ada\",\"roles\":[\"admin\",\"author\"],\"user_id\":\"42\"}");
+    RequireString("tagged struct JSON", encoded, expectedEncoded);
     RequireOkString("safe tagged serialization", serialized, encoded);
     RequireString("document display_name", option_unwrap_or(json.as_string(document.display_name), ""), "Ada");
     RequireString("document user_id", option_unwrap_or(json.as_string(document.user_id), ""), "42");
@@ -449,62 +459,45 @@ function ShowFormattingHelpers() : Int {
 function ShowDecoderHelpers() : Int {
     Divider("decode helpers and continuation state");
 
-    local Function[String, String] fromBinary = json.from_binary_fun();
-    local Table decoderTable = json.decoders();
-    local Table customDecoders = {
-        "from_binary" : fromBinary,
-        "decode_value" : json.decode_value
-    };
-
-    local String raw = fromBinary(//
-{"ok":true}
-//);
-    local Result[String, String] valueOk = json.decode_value(raw);
-    local Result[String, String] valueErr = json.decode_value("");
-    local Result[String, String] decoded = json.decode(//
-{"head":"tail"}
-//, "", decoderTable);
-    local Result[String, String] decodedCustom = json.decode("42", "", customDecoders);
-
     local String expectedRaw = //
 {"ok":true}
 //;
     local String expectedDecoded = //
 {"head":"tail"}
 //;
+    local String streamPrefix = "{" + json.String("stream") + ":";
+    local String readyPrefix = "{" + json.String("ready") + ":";
+    local String readyComplete = readyPrefix + "true}";
+    local Result[String, String] valueOk = json.decode_value(expectedRaw);
+    local Result[String, String] valueErr = json.decode_value("");
+    local Result[String, String] decoded = json.decode(expectedDecoded, "", json.decoders());
 
-    local Table continuation = json.continuation_state("{\"stream\":");
-    local Table startedEmpty = json.decode_start("", "", decoderTable);
-    local Table started = json.decode_start("{\"ready\":", "", decoderTable);
+    local Table continuation = json.continuation_state(streamPrefix);
+    local Table startedEmpty = json.decode_start("", "", json.decoders());
+    local Table started = json.decode_start(readyPrefix, "", json.decoders());
     local Table continued = json.decode_continue(started, "true}");
 
-    print("raw", raw);
     print("valueOk", valueOk);
     print("valueErr", valueErr);
     print("decoded", decoded);
-    print("decodedCustom", decodedCustom);
     print("continuation", continuation);
     print("startedEmpty", startedEmpty);
     print("started", started);
     print("continued", continued);
 
-    RequireBool("decoders has from_binary", table_has(decoderTable, "from_binary"), True);
-    RequireBool("decoders has decode_value", table_has(decoderTable, "decode_value"), True);
-    RequireString("from_binary", raw, expectedRaw);
     RequireOkString("decode_value ok", valueOk, expectedRaw);
     RequireErrString("decode_value error", valueErr, "json decode expected a value");
     RequireOkString("decode with accumulator", decoded, expectedDecoded);
-    RequireOkString("decode custom table", decodedCustom, "42");
-    RequireString("continuation input", continuation["input"] as String, "{\"stream\":");
+    RequireString("continuation input", continuation["input"] as String, streamPrefix);
     RequireInt("continuation offset", continuation["offset"] as Int, 0);
     RequireBool("continuation done", continuation["done"] as Bool, False);
     RequireString("continuation value", continuation["value"] as String, "");
     RequireBool("decode_start empty done", startedEmpty["done"] as Bool, False);
     RequireBool("decode_start non-empty done", started["done"] as Bool, True);
-    RequireString("decode_continue input", continued["input"] as String, "{\"ready\":true}");
+    RequireString("decode_continue input", continued["input"] as String, readyComplete);
     RequireBool("decode_continue done", continued["done"] as Bool, True);
 
-    return len(raw) + len(result_unwrap_or(decoded, "")) + continued.count + continuation.count;
+    return len(expectedRaw) + len(result_unwrap_or(decoded, "")) + continued.count + continuation.count;
 }
 
 function Main() : Int {

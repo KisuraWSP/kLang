@@ -1,0 +1,371 @@
+import "dsa";
+
+type score = Int;
+type scores = List[score];
+type score_history = scores;
+type maybe_score = Option[score];
+type label = String;
+type labels = List[label];
+type maybe_label = Option[label];
+type pair_rows = List[Table];
+type score_stack = Stack;
+type label_queue = Queue;
+type score_map = OrderedMap;
+
+function Section(title : String) : Int {
+    print("");
+    print("------------------------------------------------------------");
+    print(title);
+    print("------------------------------------------------------------");
+    return len(title);
+}
+
+function PrintPairs(label : String, pairs : pair_rows) : Int {
+    print(label);
+    local mut Int index = 0;
+    while index < len(pairs) {
+        local Table pair = pairs[index];
+        print(" ", pair.key, "=>", pair.value);
+        index += 1;
+    }
+    return len(pairs);
+}
+
+function SumScores(values : score_history) : score {
+    local mut score total = 0;
+    local mut Int index = 0;
+    while index < len(values) {
+        total += values[index];
+        index += 1;
+    }
+    return total;
+}
+
+function ShowTypeAliases() : Int {
+    Section("type aliases with DSA values");
+
+    local scores seededScores =[5, 10, 15];
+    local score_history history = seededScores;
+    local maybe_score selected = Some(history[1]);
+
+    local mut score_stack stack = Stack(seededScores);
+    local score_stack stackSnapshot = stack;
+    local mut scores nextStackItems = stack.items as scores;
+    nextStackItems[len(nextStackItems)] = 20;
+    stack = Stack(nextStackItems);
+
+    local labels jobs =["parse", "check", "run"];
+    local label_queue queue = Queue(jobs);
+    local maybe_label nextJob = Some((queue.items as labels)[0]);
+
+    local score_map weights = OrderedMap([1, 2, 3], [10, 20, 30]);
+    local scores weightKeys = weights.keys as scores;
+    local scores weightValues = weights.values as scores;
+
+    assert SumScores(history) == 30;
+    assert option_unwrap_or(selected, 0) == 10;
+    assert stack.count() == 4;
+    assert stackSnapshot.count() == 3;
+    assert option_unwrap_or(nextJob, "") == "parse";
+    assert queue.count() == 3;
+    assert weights.count() == 3;
+    assert weightKeys[2] == 3;
+    assert weightValues[2] == 30;
+
+    print("score_history", history, "sum", SumScores(history));
+    print("maybe_score", selected);
+    print("score_stack snapshot", stackSnapshot.items);
+    print("score_stack current", stack.items);
+    print("label_queue", queue.items, "next", nextJob);
+    print("score_map keys", weightKeys);
+    print("score_map values", weightValues);
+
+    return 1;
+}
+
+function ShowStack() : Int {
+    Section("immutable Stack");
+
+    let direct = Stack([4, 8]);
+    local T empty = dsa.StackEmpty();
+    local T seeded = dsa.StackNew([10, 20]);
+    local T pushed = dsa.StackPush(seeded, 30);
+    local maybe_score top = dsa.StackPeek(pushed);
+    local Table popped = dsa.StackPop(pushed);
+    local T afterPop = popped.stack;
+    local maybe_score poppedValue = popped.value as maybe_score;
+    local Table emptyPop = dsa.StackPop(empty);
+    local T afterEmptyPop = emptyPop.stack;
+    local maybe_score emptyValue = emptyPop.value as maybe_score;
+
+    assert direct.count() == 2;
+    assert not direct.empty();
+    assert dsa.StackIsEmpty(empty);
+    assert dsa.StackCount(seeded) == 2;
+    assert dsa.StackCount(pushed) == 3;
+    assert dsa.StackCount(seeded) == 2;
+    assert option_unwrap_or(top, 0) == 30;
+    assert option_unwrap_or(poppedValue, 0) == 30;
+    assert dsa.StackValues(afterPop)[1] == 20;
+    assert dsa.StackCount(afterEmptyPop) == 0;
+    assert not emptyValue.some;
+
+    print("direct alias", direct.items, "count", direct.count());
+    print("seeded", dsa.StackValues(seeded));
+    print("after push", dsa.StackValues(pushed));
+    print("peek", top);
+    print("popped value", poppedValue);
+    print("after pop", dsa.StackValues(afterPop));
+    print("empty pop", emptyValue, dsa.StackValues(afterEmptyPop));
+
+    return 1;
+}
+
+function ShowMutableStack() : Int {
+    Section("mutable Stack binding");
+
+    local mut T stack = dsa.StackEmpty();
+    stack = dsa.StackPush(stack, 10);
+    stack = dsa.StackPush(stack, 20);
+    local T snapshot = stack;
+    stack = dsa.StackPush(stack, 30);
+
+    local Table firstPop = dsa.StackPop(stack);
+    local maybe_score firstValue = firstPop.value as maybe_score;
+    stack = firstPop.stack;
+
+    local Table secondPop = dsa.StackPop(stack);
+    local maybe_score secondValue = secondPop.value as maybe_score;
+    stack = secondPop.stack;
+
+    assert option_unwrap_or(firstValue, 0) == 30;
+    assert option_unwrap_or(secondValue, 0) == 20;
+    assert dsa.StackCount(stack) == 1;
+    assert dsa.StackValues(stack)[0] == 10;
+    assert dsa.StackCount(snapshot) == 2;
+    assert dsa.StackValues(snapshot)[1] == 20;
+
+    print("snapshot before final push", dsa.StackValues(snapshot));
+    print("popped in order", firstValue, secondValue);
+    print("mutable binding now", dsa.StackValues(stack));
+
+    return 1;
+}
+
+function ShowQueue() : Int {
+    Section("immutable Queue");
+
+    let direct = Queue(["first", "second"]);
+    local T empty = dsa.QueueEmpty();
+    local T seeded = dsa.QueueNew([10, 20]);
+    local T pushed = dsa.QueuePush(seeded, 30);
+    local maybe_score front = dsa.QueuePeek(pushed);
+    local Table shifted = dsa.QueuePop(pushed);
+    local T afterPop = shifted.queue;
+    local maybe_score shiftedValue = shifted.value as maybe_score;
+    local Table emptyPop = dsa.QueuePop(empty);
+    local T afterEmptyPop = emptyPop.queue;
+    local maybe_score emptyValue = emptyPop.value as maybe_score;
+
+    assert direct.count() == 2;
+    assert not direct.empty();
+    assert dsa.QueueIsEmpty(empty);
+    assert dsa.QueueCount(seeded) == 2;
+    assert dsa.QueueCount(pushed) == 3;
+    assert dsa.QueueCount(seeded) == 2;
+    assert option_unwrap_or(front, 0) == 10;
+    assert option_unwrap_or(shiftedValue, 0) == 10;
+    assert dsa.QueueValues(afterPop)[0] == 20;
+    assert dsa.QueueValues(afterPop)[1] == 30;
+    assert dsa.QueueCount(afterEmptyPop) == 0;
+    assert not emptyValue.some;
+
+    print("direct alias", direct.items, "count", direct.count());
+    print("seeded", dsa.QueueValues(seeded));
+    print("after push", dsa.QueueValues(pushed));
+    print("peek", front);
+    print("dequeued value", shiftedValue);
+    print("after dequeue", dsa.QueueValues(afterPop));
+    print("empty dequeue", emptyValue, dsa.QueueValues(afterEmptyPop));
+
+    return 1;
+}
+
+function ShowMutableQueue() : Int {
+    Section("mutable Queue binding");
+
+    local mut T queue = dsa.QueueEmpty();
+    queue = dsa.QueuePush(queue, "first");
+    queue = dsa.QueuePush(queue, "second");
+    local T snapshot = queue;
+    queue = dsa.QueuePush(queue, "third");
+
+    local Table firstShift = dsa.QueuePop(queue);
+    local maybe_label firstValue = firstShift.value as maybe_label;
+    queue = firstShift.queue;
+
+    local Table secondShift = dsa.QueuePop(queue);
+    local maybe_label secondValue = secondShift.value as maybe_label;
+    queue = secondShift.queue;
+
+    assert option_unwrap_or(firstValue, "") == "first";
+    assert option_unwrap_or(secondValue, "") == "second";
+    assert dsa.QueueCount(queue) == 1;
+    assert dsa.QueueValues(queue)[0] == "third";
+    assert dsa.QueueCount(snapshot) == 2;
+    assert dsa.QueueValues(snapshot)[0] == "first";
+
+    print("snapshot before final enqueue", dsa.QueueValues(snapshot));
+    print("dequeued in order", firstValue, secondValue);
+    print("mutable binding now", dsa.QueueValues(queue));
+
+    return 1;
+}
+
+function ShowOrderedMap() : Int {
+    Section("insertion-ordered map");
+
+    let direct = OrderedMap(["left", "right"], ["L", "R"]);
+    local T empty = dsa.OrderedMapEmpty();
+    local T initial = dsa.OrderedMapNew(["a", "b", "a", "ignored"], [10, 20, 99]);
+    local T replaced = dsa.OrderedMapPut(initial, "a", 12);
+    local T inserted = dsa.OrderedMapPut(replaced, "c", 30);
+    local Option[T] foundA = dsa.OrderedMapGet(inserted, "a");
+    local Option[T] missing = dsa.OrderedMapGet(inserted, "missing");
+    local T removed = dsa.OrderedMapRemove(inserted, "b");
+    local T unchanged = dsa.OrderedMapRemove(removed, "missing");
+    local List[T] keys = dsa.OrderedMapKeys(removed);
+    local List[T] values = dsa.OrderedMapValues(removed);
+    local pair_rows pairs = dsa.OrderedMapPairs(removed);
+    local Table standalonePair = dsa.Pair("language", "kLang");
+
+    assert direct.count() == 2;
+    assert not direct.empty();
+    assert dsa.OrderedMapIsEmpty(empty);
+    assert dsa.OrderedMapCount(initial) == 2;
+    assert dsa.OrderedMapKeys(initial)[0] == "a";
+    assert dsa.OrderedMapValues(initial)[0] == 10;
+    assert dsa.OrderedMapIndexOf(inserted, "a") == 0;
+    assert dsa.OrderedMapIndexOf(inserted, "c") == 2;
+    assert dsa.OrderedMapIndexOf(inserted, "missing") == 0 - 1;
+    assert dsa.OrderedMapContains(inserted, "b");
+    assert not dsa.OrderedMapContains(removed, "b");
+    assert foundA.some;
+    assert option_unwrap_or(foundA, 0) as Int == 12;
+    assert not missing.some;
+    assert dsa.OrderedMapCount(removed) == 2;
+    assert dsa.OrderedMapCount(unchanged) == 2;
+    assert keys[0] == "a";
+    assert keys[1] == "c";
+    assert values[0] == 12;
+    assert values[1] == 30;
+    assert pairs[0].key == "a";
+    assert pairs[0].value == 12;
+    assert standalonePair.key == "language";
+
+    print("direct alias", direct.keys, direct.values, "count", direct.count());
+    print("initial", dsa.OrderedMapKeys(initial), dsa.OrderedMapValues(initial));
+    print("after replace and insert", dsa.OrderedMapKeys(inserted), dsa.OrderedMapValues(inserted));
+    print("lookup a", foundA);
+    print("lookup missing", missing);
+    print("after remove", keys, values);
+    PrintPairs("pairs", pairs);
+    print("standalone pair", standalonePair.key, "=>", standalonePair.value);
+
+    return 1;
+}
+
+function ShowMutableOrderedMap() : Int {
+    Section("mutable OrderedMap binding");
+
+    local mut T map = dsa.OrderedMapEmpty();
+    map = dsa.OrderedMapPut(map, "alpha", 10);
+    map = dsa.OrderedMapPut(map, "beta", 20);
+    local T snapshot = map;
+    map = dsa.OrderedMapPut(map, "alpha", 15);
+    map = dsa.OrderedMapPut(map, "gamma", 30);
+    map = dsa.OrderedMapRemove(map, "beta");
+
+    local Option[T] alpha = dsa.OrderedMapGet(map, "alpha");
+    local Option[T] removedBeta = dsa.OrderedMapGet(map, "beta");
+    local Option[T] snapshotAlpha = dsa.OrderedMapGet(snapshot, "alpha");
+
+    assert option_unwrap_or(alpha, 0) as Int == 15;
+    assert not removedBeta.some;
+    assert dsa.OrderedMapCount(map) == 2;
+    assert dsa.OrderedMapCount(snapshot) == 2;
+    assert option_unwrap_or(snapshotAlpha, 0) as Int == 10;
+    assert dsa.OrderedMapContains(snapshot, "beta");
+
+    PrintPairs("snapshot before updates", dsa.OrderedMapPairs(snapshot));
+    PrintPairs("mutable binding now", dsa.OrderedMapPairs(map));
+
+    local mut T compat = dsa.arrayhashmap.New(["x"], [1]);
+    local T compatSnapshot = compat;
+    compat = dsa.arrayhashmap.Put(compat, "y", 2);
+    compat = dsa.arrayhashmap.Put(compat, "x", 3);
+    compat = dsa.arrayhashmap.Remove(compat, "y");
+    local Option[T] compatSnapshotX = dsa.arrayhashmap.Get(compatSnapshot, "x");
+    local Option[T] compatX = dsa.arrayhashmap.Get(compat, "x");
+    local Option[T] compatY = dsa.arrayhashmap.Get(compat, "y");
+
+    assert dsa.OrderedMapCount(compatSnapshot) == 1;
+    assert option_unwrap_or(compatSnapshotX, 0) as Int == 1;
+    assert option_unwrap_or(compatX, 0) as Int == 3;
+    assert not compatY.some;
+
+    PrintPairs("arrayhashmap snapshot", dsa.OrderedMapPairs(compatSnapshot));
+    PrintPairs("mutable arrayhashmap now", dsa.OrderedMapPairs(compat));
+
+    return 1;
+}
+
+function ShowArrayHashMapCompatibility() : Int {
+    Section("arrayhashmap compatibility namespace");
+
+    local T initial = dsa.arrayhashmap.New(["x"], [4]);
+    local T inserted = dsa.arrayhashmap.Put(initial, "y", 6);
+    local T replaced = dsa.arrayhashmap.Put(inserted, "x", 5);
+    local Option[T] foundX = dsa.arrayhashmap.Get(replaced, "x");
+    local Option[T] foundY = dsa.arrayhashmap.Get(replaced, "y");
+    local Option[T] missing = dsa.arrayhashmap.Get(replaced, "z");
+    local T removed = dsa.arrayhashmap.Remove(replaced, "x");
+
+    assert dsa.OrderedMapCount(initial) == 1;
+    assert dsa.OrderedMapCount(inserted) == 2;
+    assert foundX.some;
+    assert option_unwrap_or(foundX, 0) as Int == 5;
+    assert foundY.some;
+    assert option_unwrap_or(foundY, 0) as Int == 6;
+    assert not missing.some;
+    assert dsa.OrderedMapCount(removed) == 1;
+    assert not dsa.OrderedMapContains(removed, "x");
+    assert dsa.OrderedMapContains(removed, "y");
+
+    PrintPairs("initial", dsa.OrderedMapPairs(initial));
+    PrintPairs("after insert", dsa.OrderedMapPairs(inserted));
+    PrintPairs("after replace", dsa.OrderedMapPairs(replaced));
+    print("lookups", foundX, foundY, missing);
+    PrintPairs("after remove", dsa.OrderedMapPairs(removed));
+
+    return 1;
+}
+
+function Main() : Int {
+    print("dsa stdlib example");
+
+    local mut Int completed = 0;
+    completed += ShowTypeAliases();
+    completed += ShowStack();
+    completed += ShowMutableStack();
+    completed += ShowQueue();
+    completed += ShowMutableQueue();
+    completed += ShowOrderedMap();
+    completed += ShowMutableOrderedMap();
+    completed += ShowArrayHashMapCompatibility();
+
+    assert completed == 8;
+    print("");
+    print("completed structures", completed);
+    return 0;
+}

@@ -1,0 +1,345 @@
+import "dsa";
+import "json";
+import "list";
+import "metasystem";
+import "strings";
+
+type names = List[String];
+type priorities = List[Int];
+type rows = List[Table];
+type maybe_json = Option[JSON];
+type maybe_string = Option[String];
+
+trait SourcePrintable {
+    function Render(value : String) : String;
+}
+
+impl SourcePrintable for String {
+    function Render(value : String) : String {
+        return value;
+    }
+}
+
+alias source_note = Parsable[T SourcePrintable].keyword_macro {
+    print("source keyword", get_args_from_parsable()[0]);
+}
+
+function Section(title : String) : Int {
+    print("");
+    print("------------------------------------------------------------");
+    print(title);
+    print("------------------------------------------------------------");
+    return len(title);
+}
+
+function JSONStrings(values : JSON) : names {
+    local mut names result;
+    local mut Int index = 0;
+    while index < values.count {
+        local maybe_json item = json.get_index(values, index);
+        if item.some {
+            local maybe_string value = json.as_string(item.value);
+            if value.some {
+                result = list.append(result, value.value);
+            }
+        }
+        index += 1;
+    }
+    return result;
+}
+
+function DisplayName(value : String) : String {
+    return strings.ReplaceAll(value, "-", " ").uppercase();
+}
+
+function IsHighPriority(value : Int) : Bool {
+    return value >= 3;
+}
+
+function AddPriority(total : Int, value : Int) : Int {
+    return total + value;
+}
+
+function ASTLabel(node : Table) : String {
+    local String kind = node["kind"] as String;
+    if table_has(node, "name") {
+        return kind + ":" +(node["name"] as String);
+    }
+    return kind;
+}
+
+function PrintPairs(label : String, pairs : rows) : Int {
+    print(label);
+    local mut Int index = 0;
+    while index < len(pairs) {
+        local Table pair = pairs[index];
+        print(" ", strings.PadRight(pair.key as String, 18, "."), pair.value);
+        index += 1;
+    }
+    return len(pairs);
+}
+
+function Main() : Int {
+    print("compound stdlib project pipeline");
+
+    Section("parse project JSON");
+    local String source = //
+{
+  "project": {
+    "name": "project:klang-toolkit",
+    "backend": "Standalone"
+  },
+  "modules": ["dsa", "json", "list", "metasystem", "strings"],
+  "files": ["first.klang", "pipeline.klang", "report.klang"],
+  "tasks": [
+    {"name": "parse-config", "owner": "ada", "priority": 3, "done": true},
+    {"name": "normalize-names", "owner": "lin", "priority": 2, "done": false},
+    {"name": "build-index", "owner": "ada", "priority": 5, "done": false},
+    {"name": "emit-report", "owner": "sam", "priority": 4, "done": true}
+  ]
+}
+//;
+
+    local Result[JSON, String] parsed = json.parse(source);
+    assert parsed.ok;
+    local JSON document = result_unwrap_or(parsed, json.null_json());
+    local JSON project = document.project;
+    local JSON tasks = document.tasks;
+    local String rawProjectName = option_unwrap_or(json.as_string(project.name), "unknown");
+    local String projectName = strings.TrimPrefix(rawProjectName, "project:");
+    local String displayProject = DisplayName(projectName);
+    local String backend = option_unwrap_or(json.as_string(project.backend), "Standalone");
+    local names modules = JSONStrings(document.modules);
+    local names files = JSONStrings(document.files);
+
+    assert json.kind(document) == "object";
+    assert json.valid(source);
+    assert tasks.count == 4;
+    assert projectName == "klang-toolkit";
+    print("project", displayProject);
+    print("backend", backend);
+    print("modules", strings.Join(modules, ", "));
+    print("files", strings.Join(files, ", "));
+
+    Section("list transforms and DSA indexing");
+    local mut names taskNames;
+    local mut names owners;
+    local mut priorities taskPriorities;
+    local mut T pending = dsa.QueueEmpty();
+    local mut T completed = dsa.StackEmpty();
+    local mut T statuses = dsa.OrderedMapEmpty();
+    local mut Int taskIndex = 0;
+
+    while taskIndex < tasks.count {
+        local JSON task = option_unwrap_or(json.get_index(tasks, taskIndex), json.null_json());
+        local String taskName = option_unwrap_or(json.as_string(task.name), "unnamed");
+        local String owner = option_unwrap_or(json.as_string(task.owner), "unassigned");
+        local Int priority = option_unwrap_or(json.as_int(task.priority), 0);
+        local Bool done = option_unwrap_or(json.as_bool(task.done), False);
+
+        taskNames = list.append(taskNames, taskName);
+        owners = list.append(owners, owner);
+        taskPriorities = list.append(taskPriorities, priority);
+        if done {
+            completed = dsa.StackPush(completed, taskName);
+            statuses = dsa.OrderedMapPut(statuses, taskName, "done");
+        } else {
+            pending = dsa.QueuePush(pending, taskName);
+            statuses = dsa.OrderedMapPut(statuses, taskName, "pending");
+        }
+        taskIndex += 1;
+    }
+
+    local names displayTasks = list.map(taskNames, DisplayName);
+    local priorities highPriorities = list.filter(taskPriorities, IsHighPriority);
+    local Int priorityTotal = list.fold(taskPriorities, 0, AddPriority);
+    local names uniqueOwners =[owners[0], owners[1], owners[3]];
+    local names sortedOwners = list.sort(uniqueOwners);
+    local names pendingSnapshot = dsa.QueueValues(pending);
+
+    assert list.first(taskNames).some;
+    assert option_unwrap_or(list.last(taskNames), "") == "emit-report";
+    assert list.contains(taskNames, "build-index");
+    assert list.index(taskNames, "normalize-names") == 1;
+    assert len(highPriorities) == 3;
+    assert priorityTotal == 14;
+    assert dsa.QueueCount(pending) == 2;
+    assert dsa.StackCount(completed) == 2;
+
+    print("display tasks", displayTasks);
+    print("owners sorted", sortedOwners);
+    print("high priorities", highPriorities, "total", priorityTotal);
+    print("pending queue", pendingSnapshot);
+    print("completed stack", dsa.StackValues(completed));
+    PrintPairs("status index", dsa.OrderedMapPairs(statuses));
+
+    Section("process the queue without losing its snapshot");
+    while not dsa.QueueIsEmpty(pending) {
+        local Table shifted = dsa.QueuePop(pending);
+        local maybe_string nextTask = shifted.value as maybe_string;
+        pending = shifted.queue;
+        if nextTask.some {
+            completed = dsa.StackPush(completed, nextTask.value);
+            statuses = dsa.OrderedMapPut(statuses, nextTask.value, "processed");
+        }
+    }
+
+    assert len(pendingSnapshot) == 2;
+    assert dsa.QueueIsEmpty(pending);
+    assert dsa.StackCount(completed) == 4;
+    assert option_unwrap_or(dsa.StackPeek(completed), "") == "build-index";
+    print("original pending snapshot", pendingSnapshot);
+    print("completion order", dsa.StackValues(completed));
+    PrintPairs("final status index", dsa.OrderedMapPairs(statuses));
+
+    Section("metasystem workspace and build messages");
+    local WorkSpace workspace = metasystem.workspace.UserDefinedWorkspace(
+    projectName,
+    modules,
+    files,
+    backend
+    );
+    local Result[WorkSpace, String] validation = metasystem.workspace.Validate(workspace);
+    local Table summary = metasystem.workspace.Summary(workspace);
+    local names flags = list.append(["check"], "run");
+    local Table plan = metasystem.build.BuildPlan(workspace, flags);
+    local Table indexedMessage = metasystem.build.ToolMessage("INDEXED", workspace, dsa.OrderedMapPairs(statuses));
+    local Table completeMessage = metasystem.build.CompleteMessage(workspace, summary);
+    local rows messages =[indexedMessage, completeMessage];
+    local Table messageResult = metasystem.build.message_loop(workspace, messages);
+    local Table ast = metasystem.build.GetAstFromEntireProject(Some(workspace));
+
+    assert validation.ok;
+    assert summary["ready"] as Bool;
+    assert summary["file_count"] as Int == 3;
+    assert plan["ready"] as Bool;
+    assert messageResult["processed"] as Int == 2;
+    assert messageResult["complete"] as Bool;
+    assert ast["kind"] as String == "ProjectAST";
+    print("workspace", summary["main_file"], summary["backend"], summary["file_count"], "files");
+    print("build flags", plan["flags"]);
+    print("message loop", messageResult["processed"], "processed, complete", messageResult["complete"]);
+    print("AST", ast["kind"], "nodes", ast["nodes"]);
+
+    Section("Parsable source as live project data");
+    local String sourceTemplate = //
+type generated_tasks = List[String];
+
+function GeneratedTaskCount() : Int {
+    return __TASK_COUNT__;
+}
+//;
+    local String generatedSource = strings.ReplaceAll(sourceTemplate, "__TASK_COUNT__", len(taskNames) as String);
+    local names sourceArgs =["--project=" + projectName, "--backend=" + backend];
+    local Parsable[T] parsedSource = Parsable(generatedSource, sourceArgs);
+    local rows initialSourceAST = parsable_ast(parsedSource);
+    _ = initialSourceAST;
+    local names combinedArgs = parsable_args(parsedSource);
+    local Table runtimeInfo = parsable_runtime_info(parsedSource);
+    local WorkSpace generatedWorkspace = parsable_workspace(parsedSource);
+    local Table generatedWorkspaceSummary = metasystem.workspace.Summary(generatedWorkspace);
+
+    assert parsedSource.statement_count == 2;
+    assert len(initialSourceAST) == 2;
+    assert runtimeInfo["statement_count"] as Int == 2;
+    assert runtimeInfo["source_bytes"] as Int == len(generatedSource);
+    assert len(combinedArgs) >= 2;
+    assert combinedArgs[len(combinedArgs) - 2] == "--project=" + projectName;
+    assert combinedArgs[len(combinedArgs) - 1] == "--backend=" + backend;
+    assert generatedWorkspaceSummary["main_file"] as String == "<parsable>";
+
+    local Result[Parsable[T], String] replacedResult = parsable_replace(
+    parsedSource,
+    "return 4",
+    "return 5"
+    );
+    assert replacedResult.ok;
+    local Parsable[T] replacedSource = result_unwrap_or(replacedResult, parsedSource);
+    assert strings.Contains(parsable_source(parsedSource), "return 4");
+    assert not strings.Contains(parsable_source(parsedSource), "return 5");
+    assert strings.Contains(parsable_source(replacedSource), "return 5");
+
+    local String generatedFunction = //
+
+function GeneratedProject() : String {
+    return "KLANG TOOLKIT";
+}
+//;
+    local Result[Parsable[T], String] appendedResult = parsable_append(replacedSource, generatedFunction);
+    assert appendedResult.ok;
+    local Parsable[T] appendedSource = result_unwrap_or(appendedResult, replacedSource);
+    local rows appendedAST = parsable_ast(appendedSource);
+    local names astLabels = list.map(appendedAST, ASTLabel);
+    local T astQueue = dsa.QueueNew(astLabels);
+    local Result[Parsable[T], String] rejectedEdit = parsable_append(appendedSource, "\nlocal");
+
+    assert len(appendedAST) == 3;
+    assert appendedSource.statement_count == 3;
+    assert parsedSource.statement_count == 2;
+    assert dsa.QueueCount(astQueue) == 3;
+    assert not rejectedEdit.ok;
+
+    source_note "generated source passed trait checks";
+    print("source arguments", sourceArgs);
+    print("combined CLI + source arguments", combinedArgs);
+    print("runtime source metadata", runtimeInfo);
+    print("AST labels", astLabels);
+    print("AST queue", dsa.QueueValues(astQueue));
+    print("generated workspace", generatedWorkspaceSummary["main_file"], generatedWorkspaceSummary["backend"]);
+    print("original source still has return 4", strings.Contains(parsable_source(parsedSource), "return 4"));
+    print("rewritten source has return 5", strings.Contains(parsable_source(replacedSource), "return 5"));
+    print("invalid edit rejected", not rejectedEdit.ok);
+
+    local Table parsableSummary = {
+        "statement_count" : appendedSource.statement_count,
+        "ast_labels" : astLabels,
+        "source_arguments" : sourceArgs,
+        "workspace_file" : generatedWorkspaceSummary["main_file"],
+        "immutable_original" : strings.Contains(parsable_source(parsedSource), "return 4"),
+        "invalid_edit_rejected" : not rejectedEdit.ok
+    };
+
+    Section("serialize the compound report");
+    local Table taskSummary = {
+        "total" : len(taskNames),
+        "priority_total" : priorityTotal,
+        "high_priorities" : highPriorities,
+        "display_names" : displayTasks,
+        "completion_order" : dsa.StackValues(completed),
+        "statuses" : dsa.OrderedMapPairs(statuses)
+    };
+    local Table buildSummary = {
+        "ready" : plan["ready"],
+        "flags" : plan["flags"],
+        "messages_processed" : messageResult["processed"],
+        "ast_kind" : ast["kind"]
+    };
+    _ = taskSummary;
+    _ = buildSummary;
+    _ = parsableSummary;
+    local Table outputReport = {
+        "project" : projectName,
+        "backend" : backend,
+        "modules" : modules,
+        "files" : files,
+        "tasks" : taskSummary,
+        "build" : buildSummary,
+        "source_program" : parsableSummary
+    };
+    local Result[String, String] encodedResult = json.serialize(outputReport);
+    assert encodedResult.ok;
+    local String encoded = result_unwrap_or(encodedResult, "{}");
+    local Result[JSON, String] reportDocument = json.parse(encoded);
+    assert reportDocument.ok;
+    local JSON verifiedReport = result_unwrap_or(reportDocument, json.null_json());
+    local JSON verifiedTasks = option_unwrap_or(json.get_field(verifiedReport, "tasks"), json.null_json());
+    local JSON verifiedTotal = option_unwrap_or(json.get_field(verifiedTasks, "total"), json.null_json());
+    assert option_unwrap_or(json.as_string(verifiedReport.project), "") == projectName;
+    assert option_unwrap_or(json.as_int(verifiedTotal), 0) == 4;
+
+    print("report valid", json.valid(encoded));
+    print("report", encoded);
+    print("");
+    print("compound pipeline completed", len(taskNames), "tasks across", len(modules), "stdlib modules plus Parsable");
+    return 0;
+}

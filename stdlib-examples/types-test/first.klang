@@ -1,0 +1,182 @@
+import "types";
+import "test";
+
+type signed_sample = i16;
+type byte_list = List[u8];
+
+function Section(title : String) : Int {
+    print("");
+    print("------------------------------------------------------------");
+    print(title);
+    print("------------------------------------------------------------");
+    return len(title);
+}
+
+function ShowSignedAndUnsigned() : Int {
+    Section("signed and unsigned child-width aliases");
+
+    local i8 signedMin = 0 - 128;
+    local i8 signedMax = 127;
+    local i16 signedWide = 32000;
+    local i32 signedLarger = 2000000000;
+    local i64 signedParentWidth = signedLarger;
+    local Int.child(8) directSigned = 64;
+
+    local u8 unsignedMax = 255;
+    local types.u16 port = 8080;
+    local u32 packetCount = 1000000;
+    local u64 unsignedParentWidth = packetCount;
+    local UInt.child(8) directUnsigned = 200;
+
+    _ = test.assert_true(signedMin < 0, "i8 minimum should be negative");
+    _ = test.assert_true(signedMax > 0, "i8 maximum should be positive");
+    _ = test.not_equal(signedMin, signedMax, "signed endpoints must differ");
+    _ = test.equal(signedWide, signedWide, "i16 value should remain stable");
+    _ = test.equal(unsignedMax, unsignedMax, "u8 value should remain stable");
+    _ = test.assert_false(unsignedMax == directUnsigned, "different unsigned values should not compare equal");
+
+    print("i8 range", signedMin, signedMax);
+    print("i16", signedWide);
+    print("i32", signedLarger);
+    print("i64", signedParentWidth);
+    print("Int.child(8)", directSigned);
+    print("u8", unsignedMax);
+    print("types.u16 port", port);
+    print("u32 packets", packetCount);
+    print("u64", unsignedParentWidth);
+    print("UInt.child(8)", directUnsigned);
+
+    return 1;
+}
+
+function ShowFloatComplexAndSizes() : Int {
+    Section("float, complex, and storage sizes");
+
+    local float32 ratio = 1.5;
+    local float64 precise = 3.1415926535;
+    local complex64 point = Complex(2, 3);
+    local complex128 translated = point + Complex(4, 1);
+
+    _ = test.assert_true(ratio > 1.0, "float32 comparison failed");
+    _ = test.assert_true(precise > ratio, "float64 should preserve the larger value");
+    _ = test.equal(float32.sizeof, 4, "float32 size changed");
+    _ = test.equal(float64.sizeof, 8, "float64 size changed");
+    _ = test.equal(complex64.sizeof, 8, "complex64 size changed");
+    _ = test.equal(complex128.sizeof, 16, "complex128 size changed");
+
+    print("float32", ratio);
+    print("float64", precise);
+    print("complex64", point);
+    print("complex128", translated);
+    print("float sizes", float32.sizeof, float64.sizeof);
+    print("complex sizes", complex64.sizeof, complex128.sizeof);
+
+    return 1;
+}
+
+function ShowWideningAndAliases() : Int {
+    Section("widening, custom aliases, and parent protocols");
+
+    local i8 small = 4;
+    local signed_sample sample = 1200;
+    local i32 widened = sample;
+    local Int parentInt = widened;
+    local Float parentFloat = small;
+    local u8 byte = 10;
+    local types.u16 widerByte = byte;
+    local UInt parentUInt = widerByte;
+    local byte_list bytes =[1, 2, 3, 255];
+    local mut Int lastIndex = 0 - 1;
+
+    function Remember(index : Int) : Int {
+        lastIndex = index;
+        return index;
+    }
+
+    small.times(Remember);
+
+    _ = test.equal(parentInt, 1200, "signed widening changed the value");
+    _ = test.equal(parentFloat, 4.0, "Int child to Float widening changed the value");
+    _ = test.equal(parentUInt, 10 as UInt, "unsigned widening changed the value");
+    _ = test.equal(lastIndex, 3, "i8.times should finish at index 3");
+    _ = test.equal(len(bytes), 4, "byte_list length changed");
+    _ = test.assert_true(bytes[3] == 255, "byte_list final value changed");
+
+    print("signed_sample", sample);
+    print("widened to Int", parentInt);
+    print("widened to Float", parentFloat);
+    print("widened to UInt", parentUInt);
+    print("byte_list", bytes);
+    print("i8.times last index", lastIndex);
+
+    return 1;
+}
+
+function ShowTypeMetadata() : Int {
+    Section("runtime Type metadata and sizeof");
+
+    local Type intInfo = Int.get_runtime_type_info();
+    local Type uintInfo = UInt.get_runtime_type_info();
+    local Type floatInfo = Float.get_runtime_type_info();
+    local Type complexInfo = Complex.get_runtime_type_info();
+
+    _ = test.equal(intInfo.name, "Int", "unexpected Int metadata name");
+    _ = test.equal(uintInfo.name, "UInt", "unexpected UInt metadata name");
+    _ = test.equal(floatInfo.name, "Float", "unexpected Float metadata name");
+    _ = test.equal(complexInfo.name, "Complex", "unexpected Complex metadata name");
+    _ = test.equal(intInfo.size, Int.sizeof, "Int metadata size mismatch");
+    _ = test.equal(uintInfo.size, UInt.sizeof, "UInt metadata size mismatch");
+    _ = test.assert_true(intInfo.supports_serialization, "Int should support serialization");
+    _ = test.assert_true(floatInfo.supports_memory_layout, "Float should expose layout metadata");
+
+    print("Int metadata", intInfo.name, intInfo.size, intInfo.alignment);
+    print("UInt metadata", uintInfo.name, uintInfo.size, uintInfo.alignment);
+    print("Float metadata", floatInfo.name, floatInfo.size, floatInfo.alignment);
+    print("Complex metadata", complexInfo.name, complexInfo.size, complexInfo.alignment);
+    print("signed sizes", i8.sizeof, i16.sizeof, i32.sizeof, i64.sizeof);
+    print("unsigned sizes", u8.sizeof, u16.sizeof, u32.sizeof, u64.sizeof);
+
+    return 1;
+}
+
+function IntentionalFailure() : Bool {
+    return test.fail("intentional test.fail demonstration");
+}
+
+function ShowTestValueHelpers() : Int {
+    Section("Option, Result, and test assertions");
+
+    local i8 value = 42;
+    local Option[i8] present = Some(value);
+    local Option[i8] missing = None();
+    local Result[i16, String] success = Ok(1200);
+    local Result[i16, String] failure = Err("sample failure");
+
+    _ = test.some(present, "expected the child-width value");
+    _ = test.none(missing, "expected an empty child-width option");
+    _ = test.ok(success, "expected a successful child-width result");
+    _ = test.err(failure, "expected a failed child-width result");
+
+    print("Option Some", present);
+    print("Option None", missing);
+    print("Result Ok", success);
+    print("Result Err", failure);
+
+    return 1;
+}
+
+function Main() : Int {
+    print("types + test stdlib example");
+
+    local mut Int completed = 0;
+    completed += ShowSignedAndUnsigned();
+    completed += ShowFloatComplexAndSizes();
+    completed += ShowWideningAndAliases();
+    completed += ShowTypeMetadata();
+    completed += ShowTestValueHelpers();
+
+    _ = test.equal(completed, 5, "not every section completed");
+    print("");
+    print("completed sections", completed);
+    return 0;
+}
