@@ -1,5 +1,10 @@
 import "json";
 
+alias function User(id : String, displayName : String, roles : List[String], active : Bool = True) : type = struct {
+    this.id `json:"user_id"`;
+    this.displayName `json:"display_name"`;
+}
+
 function Divider(title : String) : Int {
     print("");
     print("------------------------------------------------------------");
@@ -18,6 +23,12 @@ function RequireInt(name : String, actual : Int, expected : Int) : Int {
     print("check", name, actual, expected);
     assert actual == expected;
     return actual;
+}
+
+function RequireFloat(name : String, actual : Float, expected : Float) : Int {
+    print("check", name, actual, expected);
+    assert actual == expected;
+    return actual as Int;
 }
 
 function RequireBool(name : String, actual : Bool, expected : Bool) : Int {
@@ -82,6 +93,7 @@ function ShowTypedJSON() : Int {
     local Bool debug = option_unwrap_or(json.as_bool(document.debug), False);
     local Option[JSON] missing = json.get_field(document, "missing");
     local String encoded = json.stringify(document);
+    local String encodedDirect = json.encode_json(document);
     local Result[JSON, String] reparsed = json.parse(encoded);
     local Result[JSON, String] invalid = json.parse("{");
 
@@ -100,6 +112,140 @@ function ShowTypedJSON() : Int {
     RequireBool("JSON parse serialized", reparsed.ok, True);
     RequireBool("JSON invalid parse", invalid.ok, False);
     RequireInt("JSON object count", document.count, 4);
+    RequireString("JSON encode_json", encodedDirect, encoded);
+
+    return 1;
+}
+
+function ShowKindsAndSafeAccess() : Int {
+    Divider("JSON kinds and safe typed access");
+
+    local JSON document = json.must_parse(//
+    {
+        "title": "kLang",
+        "count": 42,
+        "ratio": 3.5,
+        "ready": true,
+        "missing": null,
+        "items": ["first", 2, false]
+    }
+    //);
+    local JSON titleValue = option_unwrap_or(json.get_field(document, "title"), json.null_json());
+    local JSON countValue = option_unwrap_or(json.get_field(document, "count"), json.null_json());
+    local JSON ratioValue = option_unwrap_or(json.get_field(document, "ratio"), json.null_json());
+    local JSON readyValue = option_unwrap_or(json.get_field(document, "ready"), json.null_json());
+    local JSON firstValue = option_unwrap_or(json.get_index(document.items, 0), json.null_json());
+    local JSON secondValue = option_unwrap_or(json.get_index(document.items, 1), json.null_json());
+    local JSON thirdValue = option_unwrap_or(json.get_index(document.items, 2), json.null_json());
+    local Option[JSON] missingField = json.get_field(document, "unknown");
+    local Option[JSON] missingIndex = json.get_index(document.items, 99);
+    local Option[JSON] negativeIndex = json.get_index(document.items, 0 - 1);
+
+    print("document", document);
+    print("titleValue", titleValue);
+    print("countValue", countValue);
+    print("ratioValue", ratioValue);
+    print("readyValue", readyValue);
+    print("items", document.items);
+
+    RequireString("kind object", json.kind(document), "object");
+    RequireString("kind array", json.kind(document.items), "array");
+    RequireString("kind string", json.kind(titleValue), "string");
+    RequireString("kind integer number", json.kind(countValue), "number");
+    RequireString("kind float number", json.kind(ratioValue), "number");
+    RequireString("kind bool", json.kind(readyValue), "bool");
+    RequireString("kind null", json.kind(document.missing), "null");
+    RequireString("as_string", option_unwrap_or(json.as_string(titleValue), ""), "kLang");
+    RequireInt("as_int", option_unwrap_or(json.as_int(countValue), 0), 42);
+    RequireFloat("as_float", option_unwrap_or(json.as_float(ratioValue), 0.0), 3.5);
+    RequireBool("as_bool", option_unwrap_or(json.as_bool(readyValue), False), True);
+    RequireString("first array item", option_unwrap_or(json.as_string(firstValue), ""), "first");
+    RequireInt("second array item", option_unwrap_or(json.as_int(secondValue), 0), 2);
+    RequireBool("third array item", option_unwrap_or(json.as_bool(thirdValue), True), False);
+    RequireBool("wrong scalar extractor", json.as_int(titleValue).some, False);
+    RequireBool("missing field", missingField.some, False);
+    RequireBool("missing index", missingIndex.some, False);
+    RequireBool("negative index", negativeIndex.some, False);
+    RequireBool("is_null", json.is_null(document.missing), True);
+    RequireInt("array count", len(document.items), 3);
+
+    return 1;
+}
+
+function ShowNativeRoundTrip() : Int {
+    Divider("native Table/List serialization and deserialization");
+
+    local Table source = {
+        "name": "kLang",
+        "active": True,
+        "ratio": 1.5,
+        "items": [1, 2, 3],
+        "metadata": None()
+    };
+    local Result[String, String] serialized = json.serialize(source);
+    local String encoded = result_unwrap_or(serialized, "");
+    local Result[T, String] decoded = json.deserialize(encoded);
+    local T decodedValue = result_unwrap_or(decoded, {});
+    local Table restored = decodedValue as Table;
+    local List[T] restoredItems = restored.items as List[T];
+    local List[T] restoredKeys = table_keys(restored);
+    local Table fallback = {"fallback": True, "reason": "invalid JSON"};
+    local T recoveredValue = json.deserialize_or("{", fallback);
+    local Table recovered = recoveredValue as Table;
+    local Int scalar = json.deserialize_or("42", 0);
+    local Result[String, String] unsafeKey = json.serialize({1: "not an object key"});
+
+    print("source", source);
+    print("serialized", serialized);
+    print("decoded", decoded);
+    print("restored", restored);
+    print("restoredKeys", restoredKeys);
+    print("recovered", recovered);
+
+    RequireBool("serialize ok", serialized.ok, True);
+    RequireString("deterministic serialization", encoded, "{\"active\":true,\"items\":[1,2,3],\"metadata\":null,\"name\":\"kLang\",\"ratio\":1.5}");
+    RequireBool("deserialize ok", decoded.ok, True);
+    RequireString("restored name", restored.name as String, "kLang");
+    RequireBool("restored active", restored.active as Bool, True);
+    RequireFloat("restored ratio", restored.ratio as Float, 1.5);
+    RequireInt("restored item count", len(restoredItems), 3);
+    RequireInt("restored first item", restoredItems[0] as Int, 1);
+    RequireString("sorted first key", restoredKeys[0] as String, "active");
+    RequireString("restored null type", debug_type(restored.metadata), "Null");
+    RequireBool("valid serialized", json.valid(encoded), True);
+    RequireBool("valid invalid source", json.valid("{"), False);
+    RequireBool("fallback value", recovered.fallback as Bool, True);
+    RequireString("fallback reason", recovered.reason as String, "invalid JSON");
+    RequireInt("scalar deserialize_or", scalar, 42);
+    RequireErrString("unsafe Table key", unsafeKey, "JSON serialization requires String table keys");
+
+    return 1;
+}
+
+function ShowAliasStructSerialization() : Int {
+    Divider("alias structs, JSON tags, and runtime metadata");
+
+    let user = User("42", "Ada", ["admin", "author"]);
+    local JSON document = JSON(user);
+    local String encoded = json.stringify(user);
+    local Result[String, String] serialized = json.serialize(user);
+    local Type metadata = User.get_runtime_type_info();
+    local Table serialization = metadata.serialization;
+    local Table tags = serialization.json_tags as Table;
+
+    print("user", user);
+    print("document", document);
+    print("encoded", encoded);
+    print("tags", tags);
+
+    RequireString("tagged struct JSON", encoded, "{\"active\":true,\"display_name\":\"Ada\",\"roles\":[\"admin\",\"author\"],\"user_id\":\"42\"}");
+    RequireOkString("safe tagged serialization", serialized, encoded);
+    RequireString("document display_name", option_unwrap_or(json.as_string(document.display_name), ""), "Ada");
+    RequireString("document user_id", option_unwrap_or(json.as_string(document.user_id), ""), "42");
+    RequireBool("document active", option_unwrap_or(json.as_bool(document.active), False), True);
+    RequireInt("document role count", len(document.roles), 2);
+    RequireString("id tag metadata", tags.id as String, "user_id");
+    RequireString("displayName tag metadata", tags.displayName as String, "display_name");
 
     return 1;
 }
@@ -367,6 +513,9 @@ function Main() : Int {
     print("It returns 0 only after all assertions pass.");
 
     local Int typed = ShowTypedJSON();
+    local Int kinds = ShowKindsAndSafeAccess();
+    local Int nativeRoundTrip = ShowNativeRoundTrip();
+    local Int aliasStruct = ShowAliasStructSerialization();
     local Int primitives = ShowPrimitiveEncoders();
     local Int builders = ShowFunctionBuilders();
     local Int listsAndMaps = ShowListAndObjectEncoding();
@@ -374,11 +523,14 @@ function Main() : Int {
     local Int formatting = ShowFormattingHelpers();
     local Int decoding = ShowDecoderHelpers();
 
-    local Int total = typed + primitives + builders + listsAndMaps + hooks + formatting + decoding;
+    local Int total = typed + kinds + nativeRoundTrip + aliasStruct + primitives + builders + listsAndMaps + hooks + formatting + decoding;
 
     print("");
     print("summary");
     print("typed", typed);
+    print("kinds", kinds);
+    print("nativeRoundTrip", nativeRoundTrip);
+    print("aliasStruct", aliasStruct);
     print("primitives", primitives);
     print("builders", builders);
     print("listsAndMaps", listsAndMaps);
@@ -387,6 +539,6 @@ function Main() : Int {
     print("decoding", decoding);
     print("total", total);
 
-    assert total == 322;
+    assert total == 325;
     return 0;
 }

@@ -1,0 +1,190 @@
+import "strings";
+
+function Divider(title : String) : Int {
+    print("");
+    print("============================================================");
+    print(title);
+    print("============================================================");
+    return len(title);
+}
+
+function RequireString(name : String, actual : String, expected : String) : Int {
+    print("check", name, actual, expected);
+    assert actual == expected;
+    return len(actual);
+}
+
+function RequireInt(name : String, actual : Int, expected : Int) : Int {
+    print("check", name, actual, expected);
+    assert actual == expected;
+    return actual;
+}
+
+function RequireBool(name : String, actual : Bool, expected : Bool) : Int {
+    print("check", name, actual, expected);
+    assert actual == expected;
+    if actual == expected {
+        return 1;
+    }
+    return 0;
+}
+
+function RequireStringList(name : String, actual : List[String], expected : List[String]) : Int {
+    print("check", name, actual, expected);
+    assert len(actual) == len(expected);
+
+    local mut Int index = 0;
+    while index < len(expected) {
+        assert actual[index] == expected[index];
+        index += 1;
+    }
+
+    return len(actual);
+}
+
+function ShowShapeAndIdentity() : Int {
+    Divider("shape, identity, and comparison");
+
+    local String empty = "";
+    local String language = "kLang";
+    local String cloned = strings.Clone(language);
+    local String combined = strings.Concat(language, " stdlib");
+
+    RequireInt("Len empty", strings.Len(empty), 0);
+    RequireInt("Len kLang", strings.Len(language), 5);
+    RequireBool("IsEmpty empty", strings.IsEmpty(empty), True);
+    RequireBool("IsEmpty value", strings.IsEmpty(language), False);
+    RequireBool("NotEmpty empty", strings.NotEmpty(empty), False);
+    RequireBool("NotEmpty value", strings.NotEmpty(language), True);
+    RequireBool("Equal same", strings.Equal(language, cloned), True);
+    RequireBool("Equal different", strings.Equal(language, "KLANG"), False);
+    RequireInt("Compare less", strings.Compare("alpha", "beta"), 0 - 1);
+    RequireInt("Compare equal", strings.Compare("alpha", "alpha"), 0);
+    RequireInt("Compare greater", strings.Compare("beta", "alpha"), 1);
+    RequireString("Concat", combined, "kLang stdlib");
+    RequireString("Clone", cloned, language);
+
+    return strings.Len(combined);
+}
+
+function ShowSearch() : Int {
+    Divider("search, prefixes, suffixes, and counts");
+
+    local String value = "one fish two fish red fish blue fish";
+
+    RequireBool("Contains present", strings.Contains(value, "red"), True);
+    RequireBool("Contains missing", strings.Contains(value, "green"), False);
+    RequireBool("Contains empty", strings.Contains(value, ""), True);
+    RequireInt("Count fish", strings.Count(value, "fish"), 4);
+    RequireInt("Count missing", strings.Count(value, "bird"), 0);
+    RequireInt("Count empty", strings.Count(value, ""), 0);
+    RequireInt("Count overlaps", strings.Count("aaaa", "aa"), 3);
+    RequireBool("HasPrefix present", strings.HasPrefix(value, "one"), True);
+    RequireBool("HasPrefix too long", strings.HasPrefix("one", "one fish"), False);
+    RequireBool("HasPrefix empty", strings.HasPrefix(value, ""), True);
+    RequireBool("HasSuffix present", strings.HasSuffix(value, "fish"), True);
+    RequireBool("HasSuffix missing", strings.HasSuffix(value, "bird"), False);
+    RequireBool("HasSuffix empty", strings.HasSuffix(value, ""), True);
+    RequireInt("Index first fish", strings.Index(value, "fish"), 4);
+    RequireInt("Index missing", strings.Index(value, "bird"), 0 - 1);
+    RequireInt("Index empty", strings.Index(value, ""), 0);
+    RequireInt("LastIndex fish", strings.LastIndex(value, "fish"), 32);
+    RequireInt("LastIndex missing", strings.LastIndex(value, "bird"), 0 - 1);
+    RequireInt("LastIndex empty", strings.LastIndex(value, ""), len(value));
+
+    return strings.Count(value, "fish");
+}
+
+function ShowBuildingAndSplitting() : Int {
+    Divider("joining, repeating, replacing, and splitting");
+
+    local List[String] words =["alpha", "beta", "gamma"];
+    local List[String] noWords;
+    local String joined = strings.Join(words, " | ");
+    local String joinedEmpty = strings.Join(noWords, ",");
+    local String repeated = strings.Repeat("ab", 3);
+    local String repeatedZero = strings.Repeat("ab", 0);
+    local String repeatedNegative = strings.Repeat("ab", 0 - 2);
+    local String replaced = strings.ReplaceAll("red-green-red", "red", "blue");
+    local String removed = strings.ReplaceAll("a-b-c", "-", "");
+    local String unchanged = strings.ReplaceAll("plain", "", "x");
+    local List[String] split = strings.Split("alpha--beta--gamma", "--");
+    local List[String] splitTrailing = strings.Split("a--b--", "--");
+    local List[String] splitMissing = strings.Split("whole", ",");
+    local List[String] splitEmptyInput = strings.Split("", ",");
+    local List[String] splitEmptySeparator = strings.Split("whole", "");
+
+    RequireString("Join", joined, "alpha | beta | gamma");
+    RequireString("Join empty", joinedEmpty, "");
+    RequireString("Repeat", repeated, "ababab");
+    RequireString("Repeat zero", repeatedZero, "");
+    RequireString("Repeat negative", repeatedNegative, "");
+    RequireString("ReplaceAll", replaced, "blue-green-blue");
+    RequireString("ReplaceAll remove", removed, "abc");
+    RequireString("ReplaceAll empty old", unchanged, "plain");
+    RequireStringList("Split", split, ["alpha", "beta", "gamma"]);
+    RequireStringList("Split trailing", splitTrailing, ["a", "b", ""]);
+    RequireStringList("Split missing", splitMissing, ["whole"]);
+    RequireStringList("Split empty input", splitEmptyInput, [""]);
+    RequireStringList("Split empty separator", splitEmptySeparator, ["whole"]);
+
+    return len(split) + len(splitTrailing) + len(splitMissing);
+}
+
+function ShowSlicingAndDefaults() : Int {
+    Divider("slicing, trimming, and defaults");
+
+    local String value = "prefix-core-suffix";
+
+    RequireString("Slice middle", strings.Slice(value, 7, 4), "core");
+    RequireString("Slice negative start clamps", strings.Slice("abcdef", 0 - 3, 2), "ab");
+    RequireString("Slice past end truncates", strings.Slice("abcdef", 4, 20), "ef");
+    RequireString("Slice zero count", strings.Slice("abcdef", 2, 0), "");
+    RequireString("Slice negative count", strings.Slice("abcdef", 2, 0 - 1), "");
+    RequireString("Slice start after end", strings.Slice("abcdef", 20, 3), "");
+    RequireString("TrimPrefix present", strings.TrimPrefix(value, "prefix-"), "core-suffix");
+    RequireString("TrimPrefix missing", strings.TrimPrefix(value, "other-"), value);
+    RequireString("TrimPrefix empty", strings.TrimPrefix(value, ""), value);
+    RequireString("TrimSuffix present", strings.TrimSuffix(value, "-suffix"), "prefix-core");
+    RequireString("TrimSuffix missing", strings.TrimSuffix(value, "-other"), value);
+    RequireString("TrimSuffix empty", strings.TrimSuffix(value, ""), value);
+    RequireString("DefaultIfEmpty fallback", strings.DefaultIfEmpty("", "fallback"), "fallback");
+    RequireString("DefaultIfEmpty value", strings.DefaultIfEmpty("ready", "fallback"), "ready");
+
+    return strings.Len(value);
+}
+
+function ShowPaddingAndCharacters() : Int {
+    Divider("padding, character lists, and Unicode");
+
+    local String unicode = "k😀Lang";
+    local List[String] characters = strings.ToList(unicode);
+    local List[String] emptyCharacters = strings.ToList("");
+
+    RequireString("PadLeft default", strings.PadLeft("42", 5), "   42");
+    RequireString("PadRight default", strings.PadRight("42", 5), "42   ");
+    RequireString("PadLeft fill", strings.PadLeft("42", 5, "0"), "00042");
+    RequireString("PadRight fill", strings.PadRight("42", 5, "."), "42...");
+    RequireString("PadLeft multi fill", strings.PadLeft("x", 6, "ab"), "ababax");
+    RequireString("PadRight multi fill", strings.PadRight("x", 6, "ab"), "xababa");
+    RequireString("PadLeft already wide", strings.PadLeft("ready", 3, "0"), "ready");
+    RequireString("PadRight empty fill", strings.PadRight("x", 4, ""), "x");
+    RequireInt("Unicode Len", strings.Len(unicode), 6);
+    RequireStringList("Unicode ToList", characters, ["k", "😀", "L", "a", "n", "g"]);
+    RequireStringList("empty ToList", emptyCharacters, []);
+
+    return len(characters);
+}
+
+function Main() : Int {
+    local mut Int sections = 0;
+    sections += ShowShapeAndIdentity();
+    sections += ShowSearch();
+    sections += ShowBuildingAndSplitting();
+    sections += ShowSlicingAndDefaults();
+    sections += ShowPaddingAndCharacters();
+
+    print("");
+    print("strings example completed", sections);
+    return 0;
+}
