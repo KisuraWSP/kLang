@@ -1,0 +1,263 @@
+name: Draft native releases
+
+on:
+  schedule:
+    # 23:00 in Sri Lanka (UTC+05:30).
+    - cron: "30 17 * * *"
+  workflow_dispatch:
+    inputs:
+      release_kind:
+        description: Release cycle to evaluate
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - nightly
+          - dev
+
+permissions:
+  contents: write
+
+concurrency:
+  group: draft-native-releases
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Find due releases
+    runs-on: ubuntu-latest
+    outputs:
+      releases: ${{ steps.plan.outputs.releases }}
+      should_build: ${{ steps.plan.outputs.should_build }}
+    steps:
+      - name: Check out the complete history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Plan release cycles
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_KIND: ${{ inputs.release_kind || 'all' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          export TZ=Asia/Colombo
+          local_day="$(date +%d)"
+          local_month="$(date +%m)"
+          local_year="$(date +%Y)"
+          local_date="$(date +%F)"
+          head_sha="$(git rev-parse HEAD)"
+          releases='[]'
+
+          add_release() {
+            local kind="$1"
+            local tag="$2"
+            local title="$3"
+            local marker="$4"
+
+            releases="$(jq -c \
+              --arg kind "$kind" \
+              --arg tag "$tag" \
+              --arg title "$title" \
+              --arg marker "$marker" \
+              --arg sha "$head_sha" \
+              '. + [{kind: $kind, tag: $tag, title: $title, marker: $marker, sha: $sha}]' \
+              <<<"$releases")"
+          }
+
+          cycle_exists() {
+            local marker="$1"
+            local tag="$2"
+            git show-ref --verify --quiet "refs/tags/$marker" || \
+              gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1
+          }
+
+          if [[ "$REQUESTED_KIND" == "all" || "$REQUESTED_KIND" == "nightly" ]]; then
+            nightly_tag="nightly-${local_date}"
+            nightly_title="nightly-${local_day}-${local_month}"
+            nightly_marker="release-cycle/nightly-${local_date}"
+
+            # Midnight in Sri Lanka is 18:30 UTC on the preceding date. Git's
+            # date parser honors TZ, so this checks only commits from today.
+            today_start="$(date -d 'today 00:00' --iso-8601=seconds)"
+            commits_today="$(git rev-list --count --since="$today_start" HEAD)"
+
+            if cycle_exists "$nightly_marker" "$nightly_tag"; then
+              echo "Nightly cycle $local_date was already handled."
+            elif [[ "$commits_today" -eq 0 ]]; then
+              echo "No commits were made on $local_date; skipping the nightly draft."
+            else
+              add_release nightly "$nightly_tag" "$nightly_title" "$nightly_marker"
+            fi
+          fi
+
+          if [[ "$local_day" == "02" && ( "$REQUESTED_KIND" == "all" || "$REQUESTED_KIND" == "dev" ) ]] || \
+             [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_KIND" == "dev" ]]; then
+            dev_tag="dev-${local_year}-${local_month}"
+            dev_title="dev-${local_month}"
+            dev_marker="release-cycle/dev-${local_year}-${local_month}"
+
+            previous_marker="$(git tag --list 'release-cycle/dev-*' --sort=-version:refname | head -n 1)"
+            has_monthly_changes=true
+            if [[ -n "$previous_marker" ]]; then
+              commits_since_previous="$(git rev-list --count "${previous_marker}..HEAD")"
+              if [[ "$commits_since_previous" -eq 0 ]]; then
+                has_monthly_changes=false
+              fi
+            fi
+
+            if cycle_exists "$dev_marker" "$dev_tag"; then
+              echo "Development cycle ${local_year}-${local_month} was already handled."
+            elif [[ "$has_monthly_changes" != true ]]; then
+              echo "No commits were added since $previous_marker; skipping the development draft."
+            else
+              add_release dev "$dev_tag" "$dev_title" "$dev_marker"
+            fi
+          fi
+
+          echo "releases=$releases" >> "$GITHUB_OUTPUT"
+          if [[ "$releases" == '[]' ]]; then
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: Test before packaging
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs:
+      - prepare
+      - test
+    if: needs.prepare.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build and archive kLang
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          archive="kLang-${GOOS}-${GOARCH}"
+          executable="kLang"
+          if [[ "$GOOS" == "windows" ]]; then
+            executable="kLang.exe"
+          fi
+
+          mkdir -p "dist/$archive"
+          go build -trimpath -ldflags="-s -w" -o "dist/$archive/$executable" .
+
+          if [[ "$GOOS" == "windows" ]]; then
+            (cd dist && zip -9 -r "${archive}.zip" "$archive")
+          else
+            tar -C dist -czf "dist/${archive}.tar.gz" "$archive"
+          fi
+
+      - name: Upload native archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  draft:
+    name: Draft ${{ matrix.release.title }}
+    needs:
+      - prepare
+      - build
+    if: needs.prepare.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1
+      matrix:
+        release: ${{ fromJSON(needs.prepare.outputs.releases) }}
+    steps:
+      - name: Check out the complete history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download native archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create checksums
+        shell: bash
+        run: |
+          cd release-assets
+          sha256sum kLang-* > SHA256SUMS
+
+      - name: Create draft release and cycle marker
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_KIND: ${{ matrix.release.kind }}
+          RELEASE_TAG: ${{ matrix.release.tag }}
+          RELEASE_TITLE: ${{ matrix.release.title }}
+          RELEASE_MARKER: ${{ matrix.release.marker }}
+          RELEASE_SHA: ${{ matrix.release.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          notes="Automated ${RELEASE_KIND} native build from commit \`${RELEASE_SHA}\`.
+
+          Included platforms: Linux, macOS, and Windows (AMD64 and ARM64). See \`SHA256SUMS\` to verify downloads. Feature and patch notes are generated from merged pull requests and commits below."
+
+          gh release create "$RELEASE_TAG" release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RELEASE_SHA" \
+            --title "$RELEASE_TITLE" \
+            --notes "$notes" \
+            --generate-notes \
+            --draft
+
+          # This durable marker records that the cycle was handled. It remains
+          # if a reviewer deletes the draft, preventing recreation this cycle.
+          git tag "$RELEASE_MARKER" "$RELEASE_SHA"
+          git push origin "refs/tags/$RELEASE_MARKER"
