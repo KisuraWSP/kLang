@@ -1,0 +1,192 @@
+import "mathg";
+
+-- need to make the runtime way faster
+-- like it 14s to do this go run . run stdlib-examples/loops print-all 10000000
+-- that means there is alot to improve on the system than it meets the eye
+const LARGE_LIMIT = 100_000_000_000;
+const CHECKPOINT_SIZE = 10_000_000_000;
+
+function Section(title : String) : Int {
+    print("");
+    print("============================================================");
+    print(title);
+    print("============================================================");
+    return len(title);
+}
+
+-- A range loop performing enough arithmetic to exercise Int iteration.
+function SumSquares(limit : Int) : Int {
+    if limit < 0 {
+        return 0;
+    }
+    local mut Int total = 0;
+    for value := range(limit + 1) {
+        total += value * value;
+    }
+    return total;
+}
+
+function SumSquaresFormula(limit : Int) : Int {
+    return limit *(limit + 1) *(2 * limit + 1) / 6;
+}
+
+-- A while loop with repeated modular arithmetic. The modulo keeps every
+-- intermediate inside the Int range even for a long-running calculation.
+function PolynomialChecksum(limit : Int) : Int {
+    if limit <= 0 {
+        return 0;
+    }
+    local mut Int checksum = 0;
+    local mut Int value = 0;
+    while value < limit {
+        local Int squared = value * value % 1_000_003;
+        local Int mixed =(squared + value * 31 + 17) % 1_000_003;
+        checksum =(checksum + mixed) % 1_000_003;
+        value += 1;
+    }
+    return checksum;
+}
+
+-- Nested range loops model a small numerical grid without allocating a matrix.
+function GridEnergy(size : Int) : Int {
+    if size <= 0 {
+        return 0;
+    }
+    local mut Int energy = 0;
+    for row := range(size) {
+        for column := range(size) {
+            local Int distance = row * row + column * column;
+            local Int wave =(row + 1) *(column + 1) % 97;
+            energy =(energy + distance % 101 + wave) % 1_000_003;
+        }
+    }
+    return energy;
+}
+
+-- This while loop explores the Collatz sequence and includes a safety ceiling.
+function CollatzSteps(start : Int) : Int {
+    local mut Int value = start;
+    local mut Int steps = 0;
+    while value > 1 and steps < 10_000 {
+        if value % 2 == 0 {
+            value /= 2;
+        } else {
+            value = value * 3 + 1;
+        }
+        steps += 1;
+    }
+    return steps;
+}
+
+function FindLongestCollatz(searchLimit : Int) : Table {
+    if searchLimit <= 0 {
+        return { "seed" : 0, "steps" : 0 };
+    }
+    local mut Int bestSeed = 1;
+    local mut Int bestSteps = 0;
+    for seedIndex := range(searchLimit) {
+        local Int seed = seedIndex + 1;
+        local Int steps = CollatzSteps(seed);
+        if steps > bestSteps {
+            bestSeed = seed;
+            bestSteps = steps;
+        }
+    }
+    assert bestSeed >= 1;
+    return { "seed" : bestSeed, "steps" : bestSteps };
+}
+
+-- Newton's method demonstrates a fixed-count numerical refinement loop.
+function SquareRoot(value : Float, iterations : Int) : Float {
+    local mut Float estimate = value / 2.0;
+    if iterations <= 0 {
+        return estimate;
+    }
+    for iteration := range(iterations) {
+        _ = iteration;
+        estimate =(estimate + value / estimate) / 2.0;
+    }
+    return estimate;
+}
+
+-- Iterating one hundred billion times merely to print is intentionally not the
+-- default. These checkpoints still demonstrate the complete numeric range.
+function PrintLargeRangeCheckpoints(limit : Int, stride : Int) : Int {
+    if limit < 0 or stride <= 0 {
+        return 0;
+    }
+    local mut Int value = 0;
+    local mut Int printed = 0;
+    while value <= limit {
+        print("checkpoint", value);
+        printed += 1;
+        value += stride;
+    }
+    return printed;
+}
+
+-- This is the literal 0..limit printer. Keep limits small unless enormous
+-- output, disk usage, and runtime are genuinely intended.
+function PrintEveryValue(limit : Int) : Int {
+    if limit < 0 {
+        return 0;
+    }
+    local mut Int value = 0;
+    while value <= limit {
+        print(value);
+        value += 1;
+    }
+    return value;
+}
+
+function Main() : Int {
+    Section("range loop: sum of squares");
+    local Int squareLimit = 100_000;
+    local Int iteratedSquares = SumSquares(squareLimit);
+    local Int calculatedSquares = SumSquaresFormula(squareLimit);
+    assert iteratedSquares == calculatedSquares;
+    print("sum of squares through", squareLimit, iteratedSquares);
+
+    Section("while loop: polynomial checksum");
+    local Int checksum = PolynomialChecksum(250_000);
+    assert checksum >= 0 and checksum < 1_000_003;
+    print("checksum", checksum);
+
+    Section("nested loops: numerical grid");
+    local Int energy = GridEnergy(180);
+    assert energy >= 0 and energy < 1_000_003;
+    print("180 x 180 grid energy", energy);
+
+    Section("nested iteration: Collatz search");
+    local Table collatz = FindLongestCollatz(5_000);
+    print("longest Collatz sequence under 5000", collatz);
+
+    Section("fixed iteration: Newton square root");
+    local Float root = SquareRoot(2.0, 12);
+    assert root > 1.414 and root < 1.415;
+    print("sqrt(2)", root);
+
+    Section("0 to 100 billion: safe checkpoints");
+    local Int checkpointCount = PrintLargeRangeCheckpoints(LARGE_LIMIT, CHECKPOINT_SIZE);
+    assert checkpointCount == 11;
+    local Float largeLimitFloat = LARGE_LIMIT as Float;
+    local Float estimatedSum = largeLimitFloat *(largeLimitFloat + 1.0) / 2.0;
+    print("values represented", LARGE_LIMIT + 1);
+    print("estimated sum from 0 through 100 billion", estimatedSum);
+
+    -- Opt in to literal printing with:
+    -- go run . run stdlib-examples/loops print-all 1000
+    -- Passing 100_000_000_000 is supported by Int, but is deliberately not
+    -- done by default because it would emit 100,000,000,001 lines.
+    if len(Args) >= 2 and Args[0] == "print-all" {
+        local Int requestedLimit = Args[1] as Int;
+        if requestedLimit >= 0 {
+            Section("explicit every-value printer");
+            PrintEveryValue(requestedLimit);
+        }
+    }
+
+    print("");
+    print("all loop calculations completed");
+    return 0;
+}
