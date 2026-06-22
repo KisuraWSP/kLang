@@ -1,0 +1,177 @@
+name: Test workflow
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Adding this file triggers the smoke test. The guard below ensures that
+      # later edits cannot create another test release.
+      - .github/workflows/test-release.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-time-test-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Check one-time release guard
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.guard.outputs.should_build }}
+      release_sha: ${{ steps.guard.outputs.release_sha }}
+    steps:
+      - name: Check out the complete history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check whether the test was already completed
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          marker="release-cycle/test-release"
+          if git show-ref --verify --quiet "refs/tags/$marker" || \
+             gh release view test-release --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "The one-time test release was already created; nothing to do."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_build=true" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Test before packaging
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs:
+      - prepare
+      - test
+    if: needs.prepare.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build and archive kLang
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          archive="kLang-${GOOS}-${GOARCH}"
+          executable="kLang"
+          if [[ "$GOOS" == "windows" ]]; then
+            executable="kLang.exe"
+          fi
+
+          mkdir -p "dist/$archive"
+          go build -trimpath -ldflags="-s -w" -o "dist/$archive/$executable" .
+
+          if [[ "$GOOS" == "windows" ]]; then
+            (cd dist && zip -9 -r "${archive}.zip" "$archive")
+          else
+            tar -C dist -czf "dist/${archive}.tar.gz" "$archive"
+          fi
+
+      - name: Upload native archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-native-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  draft:
+    name: Create TEST RELEASE draft
+    needs:
+      - prepare
+      - build
+    if: needs.prepare.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the complete history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download native archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-native-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create checksums
+        shell: bash
+        run: |
+          cd release-assets
+          sha256sum kLang-* > SHA256SUMS
+
+      - name: Create the one-time draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          notes="One-time smoke test of the kLang native release workflow from commit \`${RELEASE_SHA}\`.
+
+          Included platforms: Linux, macOS, and Windows (AMD64 and ARM64). This draft is for testing only and may be deleted after review."
+
+          gh release create test-release release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RELEASE_SHA" \
+            --title "TEST RELEASE" \
+            --notes "$notes" \
+            --generate-notes \
+            --draft
+
+          # Keep this marker even if the draft is deleted. It makes the test
+          # genuinely one-shot and prevents future workflow edits from rerunning it.
+          git tag release-cycle/test-release "$RELEASE_SHA"
+          git push origin refs/tags/release-cycle/test-release
