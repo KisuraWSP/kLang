@@ -5,6 +5,10 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- once language is more powerful u should be able to do powerful commands via default program like the below
+```shell
+ go run . run default_program.klang check stdlib/args.klang
+```
 - allow null when we need it
 - make null a builtin value for this programmign langauge
 - array/list bounds checking
