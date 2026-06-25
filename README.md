@@ -1,6 +1,8 @@
 # kLang
 
-![Logo](logo.png)
+<!-- ![Logo](logo.png) -->
+<img src="logo.png" width="30%">
+
 
 kLang is an experimental programming language implemented in Go. The project includes a lexer, parser, module resolver, type checker, interpreter runtime, standard library modules, test fixtures, example projects, editor extensions, and early packaging support for standalone and browser/WASM workflows.
 
