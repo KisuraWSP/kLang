@@ -5,6 +5,8 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- array/list bounds checking
+- ability to disable bounds checking on certain arrays/lists
 - make sure every program/project/script is a multithreaded program
    - the intention for this is to take more computation power to perform parallel tasks better
    - add a special flag for any program/project/script to perform more computationally faster
