@@ -5,6 +5,8 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- allow null when we need it
+- make null a builtin value for this programmign langauge
 - array/list bounds checking
 - ability to disable bounds checking on certain arrays/lists
 - make sure every program/project/script is a multithreaded program
