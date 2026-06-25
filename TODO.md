@@ -2,6 +2,9 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- ENTIRE LANGUAGE SPEED UP
+   - add optimizations
+   - add optimization passes
 - in code if user doesnt want cache we do the below code
 ```lua
 no_cache;
