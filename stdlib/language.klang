@@ -1,3 +1,188 @@
--- this module contains functions which are used by the runtime
--- basically we will do a like a similar implementation of our programming language like what we did with the go code
--- so basically we are making this module an api in which future klang programs can use for there own code usage but we will keep the golang implementation as we are not planning to self host this language
+-- High-level language/metaprogramming helpers.
+-- The Go runtime still owns parsing and execution, but this module exposes a
+-- stable Klang-facing API around Parsable, source transforms, macro expansion,
+-- workspace descriptors, and message polling.
+
+namespace language {
+    type SOURCE_ARGS = List[String];
+    type AST_NODE = Table;
+    type AST = List[Table];
+    type MESSAGE = Table;
+    type DIAGNOSTICS = List[String];
+
+    alias function SOURCE_EDIT(source : String, args : List[String], diagnostics : List[String]) : type = struct {
+        #extend {
+            function OK() : Bool {
+                return len(this.diagnostics) == 0;
+            }
+
+            function HAS_ARGS() : Bool {
+                return len(this.args) > 0;
+            }
+
+            function TO_TABLE() : Table {
+                return {
+                    "source": this.source,
+                    "args": this.args,
+                    "diagnostics": this.diagnostics,
+                    "ok": this.OK()
+                };
+            }
+
+            function TO_JSON() : String {
+                return json_stringify(this.TO_TABLE());
+            }
+        }
+    }
+
+    function EMPTY_ARGS() : List[String] {
+        local List[String] args;
+        return args;
+    }
+
+    function EMPTY_DIAGNOSTICS() : List[String] {
+        local List[String] diagnostics;
+        return diagnostics;
+    }
+
+    function SOURCE(source : String, args : List[String] = EMPTY_ARGS()) : SOURCE_EDIT {
+        return SOURCE_EDIT(source, args, EMPTY_DIAGNOSTICS());
+    }
+
+    function SOURCE_WITH_DIAGNOSTIC(source : String, message : String) : SOURCE_EDIT {
+        local mut List[String] diagnostics;
+        diagnostics[len(diagnostics)] = message;
+        return SOURCE_EDIT(source, EMPTY_ARGS(), diagnostics);
+    }
+
+    function PARSE(source : String, args : List[String] = EMPTY_ARGS()) : Parsable[T] {
+        return Parsable(source, args);
+    }
+
+    function PARSE_EDIT(edit : SOURCE_EDIT) : Result[Parsable[T], String] {
+        if not edit.OK() {
+            return Err(edit.diagnostics[0]);
+        }
+        return Ok(Parsable(edit.source, edit.args));
+    }
+
+    function SOURCE_OF(value : Parsable[T]) : String {
+        return parsable_source(value);
+    }
+
+    function AST_OF(value : Parsable[T]) : List[Table] {
+        return parsable_ast(value);
+    }
+
+    function ARGS_OF(value : Parsable[T]) : List[String] {
+        return parsable_args(value);
+    }
+
+    function RUNTIME_INFO_OF(value : Parsable[T]) : Table {
+        return parsable_runtime_info(value);
+    }
+
+    function WORKSPACE_OF(value : Parsable[T]) : WorkSpace {
+        return parsable_workspace(value);
+    }
+
+    function AST_COUNT(value : Parsable[T]) : Int {
+        return len(AST_OF(value));
+    }
+
+    function DESCRIBE(value : Parsable[T]) : Table {
+        local List[Table] ast = AST_OF(value);
+        local List[String] args = ARGS_OF(value);
+        local WorkSpace workspace = WORKSPACE_OF(value);
+        return {
+            "source": SOURCE_OF(value),
+            "statement_count": len(ast),
+            "arg_count": len(args),
+            "args": args,
+            "runtime": RUNTIME_INFO_OF(value),
+            "backend": workspace_backend(workspace),
+            "files": workspace_files(workspace),
+            "manifest": workspace_manifest(workspace)
+        };
+    }
+
+    function DESCRIBE_JSON(value : Parsable[T]) : String {
+        return json_stringify(DESCRIBE(value));
+    }
+
+    function WITH_SOURCE(value : Parsable[T], source : String) : Result[Parsable[T], String] {
+        return parsable_with_source(value, source);
+    }
+
+    function REPLACE_SOURCE(value : Parsable[T], old : String, next : String) : Result[Parsable[T], String] {
+        return parsable_replace(value, old, next);
+    }
+
+    function APPEND_SOURCE(value : Parsable[T], extra : String) : Result[Parsable[T], String] {
+        return parsable_append(value, extra);
+    }
+
+    function BEGIN_POLLING(value : Parsable[T]) : Parsable[T] {
+        return parsable_begin_polling(value);
+    }
+
+    function MESSAGE(kind : String, payload : Any) : Table {
+        return {
+            "kind": kind,
+            "payload": payload
+        };
+    }
+
+    function REQUEST_AST(value : Parsable[T]) : Table {
+        return parsable_poll_message(value, MESSAGE("REQUEST_AST", SOURCE_OF(value)));
+    }
+
+    function POLL_MESSAGE(value : Parsable[T], message : Table) : Table {
+        return parsable_poll_message(value, message);
+    }
+
+    function INTERCEPT_MESSAGE(value : Parsable[T], message : Table) : Table {
+        return parsable_intercept_message(value, message);
+    }
+
+    function MACRO_CONTEXT_TABLE() : Table {
+        return macro_context();
+    }
+
+    function MACRO_ARGS() : List[T] {
+        return get_args_from_parsable();
+    }
+
+    function MACRO_EXPAND_SOURCE(source : String) : Parsable[T] {
+        return macro_expand(source);
+    }
+
+    function PROGRAM_FROM_MODULES(modules : List[String]) : Program {
+        return Program(modules);
+    }
+
+    function BUILD_SYSTEM(name : String, files : List[String], backend : String = "Standalone") : BuildSystem {
+        return BuildSystem(name, len(files), files, backend);
+    }
+
+    function WORKSPACE(modules : List[String], files : List[String], backend : String = "Standalone") : WorkSpace {
+        return WorkSpace(PROGRAM_FROM_MODULES(modules), BUILD_SYSTEM("workspace", files, backend));
+    }
+
+    function WORKSPACE_TABLE(workspace : WorkSpace) : Table {
+        return {
+            "backend": workspace_backend(workspace),
+            "files": workspace_files(workspace),
+            "manifest": workspace_manifest(workspace),
+            "file_count": len(workspace_files(workspace))
+        };
+    }
+
+    function STATE_SNAPSHOT() : List[Table] {
+        return debug_state();
+    }
+
+    function STACK_SNAPSHOT() : List[String] {
+        return debug_stack();
+    }
+}

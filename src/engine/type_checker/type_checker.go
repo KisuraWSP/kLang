@@ -2528,6 +2528,10 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 			checker.addError(source, line, fmt.Sprintf("unknown cast target type %s", targetType))
 			return anyType
 		}
+		if !isBuiltinCastTarget(targetType) {
+			checker.addError(source, line, fmt.Sprintf("cast target %s is not a builtin type", targetType))
+			return targetType
+		}
 		if !canCast(sourceType, targetType) {
 			checker.addError(source, line, fmt.Sprintf("cannot cast %s to %s", sourceType, targetType))
 		}
@@ -2817,6 +2821,8 @@ func (checker *TypeChecker) selectorFieldType(targetType string, fieldName strin
 			return "Table", true
 		case "cli_args", "source_args", "args", "keywords":
 			return "List[String]", true
+		case "message_poll":
+			return "Table", true
 		case "program":
 			return "Program", true
 		case "build_system":
@@ -3139,6 +3145,26 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.addError(source, line, "get_args_from_parsable expects 0 arguments")
 		}
 		return "List[T]"
+	case "macro_context":
+		if len(args) != 0 {
+			checker.addError(source, line, "macro_context expects 0 arguments")
+		}
+		return "Table"
+	case "macro_expand":
+		if len(args) < 1 || len(args) > 2 {
+			checker.addError(source, line, "macro_expand expects source and an optional List[String] of source arguments")
+			return "Parsable[T]"
+		}
+		if sourceType := checker.inferExpression(args[0], locals, source, line); !isAssignable("String", sourceType) {
+			checker.addError(source, line, fmt.Sprintf("macro_expand source expects String, got %s", sourceType))
+		}
+		if len(args) == 2 {
+			argType := checker.inferExpression(args[1], locals, source, line)
+			if !isAssignable("List[String]", argType) {
+				checker.addError(source, line, fmt.Sprintf("macro_expand source arguments expect List[String], got %s", argType))
+			}
+		}
+		return "Parsable[T]"
 	case "Parsable":
 		if len(args) < 1 || len(args) > 2 {
 			checker.addError(source, line, "Parsable expects source and an optional List[String] of source arguments")
@@ -3175,6 +3201,12 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 	case "parsable_replace":
 		checker.checkParsableArguments(name, args, 3, locals, source, line)
 		return "Result[Parsable[T],String]"
+	case "parsable_begin_polling":
+		checker.checkParsableArguments(name, args, 1, locals, source, line)
+		return "Parsable[T]"
+	case "parsable_poll_message", "parsable_intercept_message":
+		checker.checkParsableMessageArguments(name, args, locals, source, line)
+		return "Table"
 	case "option_map":
 		return checker.checkOptionMap(args, locals, source, line)
 	case "option_unwrap_or":
@@ -3989,10 +4021,31 @@ func (checker *TypeChecker) checkKeywordMacroCall(macro parser.AliasStatement, a
 			}
 		}
 	}
+	if keywordMacroReturnsExpansion(macro) {
+		return anyType
+	}
 	if len(argumentTypes) == 0 {
 		return anyType
 	}
 	return argumentTypes[0]
+}
+
+func keywordMacroReturnsExpansion(macro parser.AliasStatement) bool {
+	for _, stmt := range macro.Body {
+		returnStmt, ok := stmt.(parser.ReturnStatement)
+		if !ok {
+			continue
+		}
+		call, ok := returnStmt.Expression.Node.(parser.CallExpression)
+		if !ok {
+			continue
+		}
+		callee, ok := call.Callee.(parser.IdentifierExpression)
+		if ok && callee.Name == "macro_expand" {
+			return true
+		}
+	}
+	return false
 }
 
 func (checker *TypeChecker) checkParsableArguments(name string, args []string, expected int, locals map[string]variableSymbol, source string, line int) {
@@ -4009,6 +4062,21 @@ func (checker *TypeChecker) checkParsableArguments(name string, args []string, e
 		if !isAssignable("String", argumentType) {
 			checker.addError(source, line, fmt.Sprintf("%s source arguments expect String, got %s", name, argumentType))
 		}
+	}
+}
+
+func (checker *TypeChecker) checkParsableMessageArguments(name string, args []string, locals map[string]variableSymbol, source string, line int) {
+	if len(args) != 2 {
+		checker.addError(source, line, fmt.Sprintf("%s expects 2 argument(s)", name))
+		return
+	}
+	parsableType := checker.inferExpression(args[0], locals, source, line)
+	if parsableType != anyType && parsableType != "Parsable" && !strings.HasPrefix(normalizeType(parsableType), "Parsable[") {
+		checker.addError(source, line, fmt.Sprintf("%s expects Parsable as its first argument, got %s", name, parsableType))
+	}
+	messageType := checker.inferExpression(args[1], locals, source, line)
+	if messageType != anyType && messageType != "Table" && !strings.HasPrefix(normalizeType(messageType), "Map[") {
+		checker.addError(source, line, fmt.Sprintf("%s expects Table as its message argument, got %s", name, messageType))
 	}
 }
 
@@ -5660,6 +5728,9 @@ func splitGenericType(typeName string) (string, []string, bool) {
 func canCast(source string, target string) bool {
 	source = normalizeType(source)
 	target = normalizeType(target)
+	if !isBuiltinCastTarget(target) {
+		return false
+	}
 	if source == anyType || target == anyType || source == target {
 		return true
 	}
@@ -5693,6 +5764,50 @@ func canCast(source string, target string) bool {
 		return isAssignable(target, source)
 	}
 	return false
+}
+
+func isBuiltinCastTarget(typeName string) bool {
+	typeName = normalizeType(typeName)
+	if typeName == "" {
+		return false
+	}
+	if _, ok := childType(typeName); ok {
+		return true
+	}
+	if _, _, ok := restrictedGenericType(typeName); ok {
+		return true
+	}
+	if isGenericCastTargetVariable(typeName) {
+		return true
+	}
+	if isAllocatorType(typeName) {
+		return true
+	}
+	switch typeName {
+	case anyType, dynamicAnyType,
+		"Int", "UInt", "String", "JSON", "Parsable",
+		"Float", "Bool", "Char", "Complex", "Type",
+		"Table", "Program", "BuildSystem", "WorkSpace",
+		"JSModule", "JSCall", "Context", "ErrorContext":
+		return true
+	}
+	name, _, ok := splitGenericType(typeName)
+	if !ok {
+		return false
+	}
+	switch name {
+	case "List", "Set", "Map", "Option", "Result", "SIMD",
+		"Awaitable", "Iterator", "Coroutine", "Thread", "Atomic",
+		"Parsable", "Function":
+		return true
+	default:
+		return false
+	}
+}
+
+func isGenericCastTargetVariable(typeName string) bool {
+	runes := []rune(typeName)
+	return len(runes) == 1 && unicode.IsUpper(runes[0])
 }
 
 func isScalarType(typeName string) bool {

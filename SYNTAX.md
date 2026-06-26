@@ -79,6 +79,15 @@ function Echo(values : names) : names {
 }
 ```
 
+Cast expressions are restricted to builtin target types or aliases that resolve to builtin target types:
+```lua
+local Float ratio = count as Float;
+local string_list copied = values as string_list;
+
+-- Invalid: User is a user-defined alias struct, not a builtin cast target.
+-- local User user = raw as User;
+```
+
 ```lua
 -- local variable
 local Int x = 10;
@@ -1295,11 +1304,29 @@ let parsed = Parsable(source, ["source-argument"]);
 print(len(parsable_ast(parsed)));
 print(parsable_workspace(parsed));
 
+let polling = parsable_begin_polling(parsed);
+let response = parsable_poll_message(polling, {"kind": "REQUEST_AST", "payload": "Parsed"});
+local List[T] ast = response["ast"] as List[T];
+print(len(ast), response["intercepted"] as Bool);
+
 alias printer = Parsable[T Printable].keyword_macro {
     print(get_args_from_parsable(), T);
 }
 
 printer "hallo";
+
+alias answer = Parsable[T Any].keyword_macro {
+    local Table context = macro_context();
+    if context["arg_count"] as Int != 1 {
+        return macro_expand("return 0;");
+    }
+    return macro_expand(//
+local Int generated = 40 + 2;
+return generated;
+//);
+}
+
+print(answer("ignored"));
 
 let changed = parsable_replace(parsed, "return 1", "return 2");
 ```

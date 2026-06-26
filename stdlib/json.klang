@@ -82,6 +82,46 @@ null
         return stringify(value);
     }
 
+    function Parse(source : String) : Result[JSON, String] { return json.parse(source); }
+
+    function MustParse(source : String) : JSON { return json.must_parse(source); }
+
+    function Stringify(value : T) : String { return json.stringify(value); }
+
+    function Serialize(value : T) : Result[String, String] { return json.serialize(value); }
+
+    function Deserialize(source : String) : Result[T, String] { return json.deserialize(source); }
+
+    function Valid(source : String) : Bool { return json.valid(source); }
+
+    function DeserializeOr(source : String, fallback : T) : T {
+        return json.deserialize_or(source, fallback);
+    }
+
+    function GetField(value : JSON, key : String) : Option[JSON] {
+        return json.get_field(value, key);
+    }
+
+    function GetIndex(value : JSON, index : Int) : Option[JSON] {
+        return json.get_index(value, index);
+    }
+
+    function Kind(value : JSON) : String { return json.kind(value); }
+
+    function AsString(value : JSON) : Option[String] { return json.as_string(value); }
+
+    function AsInt(value : JSON) : Option[Int] { return json.as_int(value); }
+
+    function AsFloat(value : JSON) : Option[Float] { return json.as_float(value); }
+
+    function AsBool(value : JSON) : Option[Bool] { return json.as_bool(value); }
+
+    function IsNull(value : JSON) : Bool { return json.is_null(value); }
+
+    function NullJSON() : JSON { return json.null_json(); }
+
+    function EncodeJSON(value : JSON) : String { return json.encode_json(value); }
+
     --- Signature: function Null() : String
     --- Returns: String.
     --- Summary: Provides the stdlib null operation using current Klang data types and runtime helpers.

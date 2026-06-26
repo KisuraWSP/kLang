@@ -1,4 +1,91 @@
--- this module will contain source code for u 
--- to do an interactive read eval print loop in the langauge
--- this library will access every deep crevice in the langauage source code, 
--- stdlib, runtime, parser, lexer, etc...
+-- REPL building blocks backed by Parsable metadata.
+-- This module parses and describes source snippets. Execution remains owned by
+-- the host runtime/CLI so tools can decide whether evaluation is allowed.
+
+namespace repl {
+    alias function SESSION(history : List[String], diagnostics : List[String], last : Option[Parsable[Any]]) : type = struct {
+        #extend {
+            function COUNT() : Int {
+                return len(this.history);
+            }
+
+            function OK() : Bool {
+                return len(this.diagnostics) == 0;
+            }
+
+            function TO_TABLE() : Table {
+                return {
+                    "history": this.history,
+                    "history_count": len(this.history),
+                    "diagnostics": this.diagnostics,
+                    "ok": this.OK(),
+                    "has_last": this.last.some
+                };
+            }
+
+            function TO_JSON() : String {
+                return json_stringify(this.TO_TABLE());
+            }
+        }
+    }
+
+    function EMPTY_STRINGS() : List[String] {
+        local List[String] values;
+        return values;
+    }
+
+    function NEW_SESSION() : SESSION {
+        return SESSION(EMPTY_STRINGS(), EMPTY_STRINGS(), None());
+    }
+
+    function PROMPT(session : SESSION) : String {
+        if session.OK() {
+            return "klang[" + (len(session.history) as String) + "]> ";
+        }
+        return "klang![diagnostic]> ";
+    }
+
+    function PARSE_LINE(source : String) : Result[Parsable[Any], String] {
+        return Ok(Parsable(source, EMPTY_STRINGS()));
+    }
+
+    function SUBMIT(session : SESSION, source : String) : SESSION {
+        local mut List[String] history = clone (session.history as List[String]);
+        local mut List[String] diagnostics = clone (session.diagnostics as List[String]);
+        history[len(history)] = source;
+
+        local Result[Parsable[Any], String] parsed = PARSE_LINE(source);
+        if parsed == {
+            case Ok(value): return SESSION(history, diagnostics, Some(value));
+            case Err(error):
+                diagnostics[len(diagnostics)] = error;
+                return SESSION(history, diagnostics, session.last);
+        }
+
+        diagnostics[len(diagnostics)] = "unreachable repl parse state";
+        return SESSION(history, diagnostics, session.last);
+    }
+
+    function AST_OF(session : SESSION) : List[Table] {
+        if session.last == {
+            case Some(value): return parsable_ast(value);
+            case None(): return [];
+        }
+        return [];
+    }
+
+    function REQUEST_LAST_AST(session : SESSION) : Table {
+        if session.last == {
+            case Some(value):
+                local Parsable[Any] polled = parsable_begin_polling(value);
+                return parsable_poll_message(polled, {"kind": "REQUEST_AST", "payload": parsable_source(value)});
+            case None():
+                return {"intercepted": False, "diagnostics": ["no source submitted"]};
+        }
+        return {"intercepted": False, "diagnostics": ["unreachable repl state"]};
+    }
+
+    function HISTORY_JSON(session : SESSION) : String {
+        return json_stringify(session.history);
+    }
+}

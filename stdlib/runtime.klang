@@ -140,6 +140,68 @@ namespace runtime {
         return workspace_manifest(workspace);
     }
 
+    function TYPE_OF(value : Any) : String { return TypeOf(value); }
+
+    function DEBUG(value : T) : T { return Debug(value); }
+
+    function STACK() : List[String] { return Stack(); }
+
+    function BREAKPOINT(label : String = "breakpoint") : Int { return Breakpoint(label); }
+
+    function SPAWN(worker : Function[T, U], value : T) : Thread[U] {
+        return Spawn(worker, value);
+    }
+
+    function JOIN(worker : Thread[T]) : T { return Join(worker); }
+
+    function STATUS(worker : Thread[T]) : String { return Status(worker); }
+
+    function ATOMIC_VALUE(value : T) : Atomic[T] { return AtomicValue(value); }
+
+    function ATOMIC_LOAD_VALUE(value : Atomic[T]) : T { return AtomicLoadValue(value); }
+
+    function ATOMIC_STORE_VALUE(value : Atomic[T], next : T) : Atomic[T] {
+        return AtomicStoreValue(value, next);
+    }
+
+    function ATOMIC_ADD_INT(value : Atomic[Int], amount : Int) : Int {
+        return AtomicAddInt(value, amount);
+    }
+
+    function PROGRAM_DESCRIPTOR(modules : List[String]) : Program {
+        return ProgramDescriptor(modules);
+    }
+
+    function BUILD_DESCRIPTOR(name : String, files : List[String], backend : String = "Standalone") : BuildSystem {
+        return BuildDescriptor(name, files, backend);
+    }
+
+    function WORKSPACE(program : Program, build : BuildSystem) : WorkSpace {
+        return Workspace(program, build);
+    }
+
+    function WORKSPACE_BACKEND(workspace : WorkSpace) : String {
+        return WorkspaceBackend(workspace);
+    }
+
+    function WORKSPACE_FILES(workspace : WorkSpace) : List[String] {
+        return WorkspaceFiles(workspace);
+    }
+
+    function WORKSPACE_MANIFEST(workspace : WorkSpace) : String {
+        return WorkspaceManifest(workspace);
+    }
+
+    function DESCRIBE_WORKSPACE(workspace : WorkSpace) : Table {
+        local List[String] files = WorkspaceFiles(workspace);
+        return {
+            "backend": WorkspaceBackend(workspace),
+            "files": files,
+            "file_count": len(files),
+            "manifest": WorkspaceManifest(workspace)
+        };
+    }
+
     namespace debug {
         --- Signature: function __LOC__() : String
         --- Returns: String.
@@ -284,5 +346,23 @@ namespace runtime {
         function PosOf(value : T) : Table {
             return runtime_debug_pos_of(value);
         }
+
+        function LOC() : String { return Loc(); }
+
+        function FILE() : String { return File(); }
+
+        function LINE() : Int { return Line(); }
+
+        function MODULE() : String { return Module(); }
+
+        function POS() : Table { return Pos(); }
+
+        function FUNCTION_NAME() : String { return FunctionName(); }
+
+        function LOC_OF(value : T) : Table { return LocOf(value); }
+
+        function LINE_OF(value : T) : Table { return LineOf(value); }
+
+        function POS_OF(value : T) : Table { return PosOf(value); }
     }
 }

@@ -122,4 +122,56 @@ namespace interface {
     function Stat(path : String) : Result[Table, String] {
         return Err(Unsupported("stat " + path));
     }
+
+    function IS_AVAILABLE() : Bool { return IsAvailable(); }
+
+    function UNSUPPORTED(message : String) : String { return Unsupported(message); }
+
+    function OPERATION(name : String, args : List[String]) : Table {
+        return Operation(name, args);
+    }
+
+    function REQUEST(name : String, args : List[String]) : Result[Table, String] {
+        local Table operation = Operation(name, args);
+        if operation.available {
+            return Ok(operation);
+        }
+        return Err(Unsupported(name));
+    }
+
+    function ACCESS(path : String, mode : Int) : Result[Bool, String] {
+        return Access(path, mode);
+    }
+
+    function OPEN(path : String, mode : Int, perm : Int = 0) : Result[Table, String] {
+        return Open(path, mode, perm);
+    }
+
+    function CLOSE(fd : Int) : Result[Int, String] { return Close(fd); }
+
+    function READ(fd : Int, count : Int) : Result[String, String] {
+        return Read(fd, count);
+    }
+
+    function WRITE(fd : Int, data : String) : Result[Int, String] {
+        return Write(fd, data);
+    }
+
+    function GETENV(key : String) : Option[String] { return Getenv(key); }
+
+    function SETENV(key : String, value : String) : Result[Int, String] {
+        return Setenv(key, value);
+    }
+
+    function ENVIRON() : List[String] { return Environ(); }
+
+    function GETPID() : Int { return Getpid(); }
+
+    function EXIT(code : Int) : Result[Int, String] { return Exit(code); }
+
+    function SOCKET(domain : Int, typ : Int, proto : Int) : Result[Int, String] {
+        return Socket(domain, typ, proto);
+    }
+
+    function STAT(path : String) : Result[Table, String] { return Stat(path); }
 }

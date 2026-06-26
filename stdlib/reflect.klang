@@ -14,7 +14,12 @@ namespace reflect {
     --- Summary: Provides the stdlib value of operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function ValueOf(value : Any) : Table {
-        return {"type": debug_type(value), "value": value};
+        return {
+            "type": debug_type(value),
+            "value": value,
+            "present": value?,
+            "stack": debug_stack()
+        };
     }
 
     --- Signature: function Kind(value : Any) : String
@@ -90,7 +95,12 @@ namespace reflect {
     --- Summary: Provides the stdlib fields operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Fields(value : Table) : Table {
-        return value;
+        return {
+            "count": value.count,
+            "keys": table_keys(value),
+            "values": table_values(value),
+            "entries": table_entries(value)
+        };
     }
 
     --- Signature: function DeepEqual(left : Any, right : Any) : Bool
@@ -98,6 +108,47 @@ namespace reflect {
     --- Summary: Provides the stdlib deep equal operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function DeepEqual(left : Any, right : Any) : Bool {
-        return debug_type(left) == debug_type(right);
+        if debug_type(left) != debug_type(right) {
+            return False;
+        }
+        return json_stringify(left) == json_stringify(right);
+    }
+
+    function TYPE_OF(value : Any) : String { return TypeOf(value); }
+
+    function VALUE_OF(value : Any) : Table { return ValueOf(value); }
+
+    function KIND(value : Any) : String { return Kind(value); }
+
+    function IS_ZERO(value : Any) : Bool { return IsZero(value); }
+
+    function IS_TYPE(value : Any, typeName : String) : Bool { return IsType(value, typeName); }
+
+    function CAN_INT(value : Any) : Bool { return CanInt(value); }
+
+    function CAN_STRING(value : Any) : Bool { return CanString(value); }
+
+    function CAN_BOOL(value : Any) : Bool { return CanBool(value); }
+
+    function FIELD(value : Table, name : String) : Option[Any] { return Field(value, name); }
+
+    function SET_FIELD(value : Table, name : String, next : Any) : Table {
+        local mut Table result = clone value;
+        return Set(result, name, next);
+    }
+
+    function FIELDS(value : Table) : Table { return Fields(value); }
+
+    function FIELD_NAMES(value : Table) : List[String] { return table_keys(value); }
+
+    function DEEP_EQUAL(left : Any, right : Any) : Bool { return DeepEqual(left, right); }
+
+    function DESCRIBE(value : Any) : Table {
+        return {
+            "type": TypeOf(value),
+            "kind": Kind(value),
+            "zero": IsZero(value),
+            "json": json_stringify(value)
+        };
     }
 }

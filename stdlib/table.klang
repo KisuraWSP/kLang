@@ -79,4 +79,50 @@ namespace table {
         }
         return result;
     }
+
+    function Empty(value : Table) : Bool { return table.empty(value); }
+
+    function Len(value : Table) : Int { return table.len(value); }
+
+    function Has[T hashable](value : Table, key : T) : Bool { return table.has(value, key); }
+
+    function Get[T hashable, U Any](value : Table, key : T) : Option[U] {
+        return table.get(value, key);
+    }
+
+    function GetOr[T hashable, U Any](value : Table, key : T, fallback : U) : U {
+        return table.get_or(value, key, fallback);
+    }
+
+    function Set[T hashable, U Any](value : Table, key : T, item : U) : Table {
+        return table.set(value, key, item);
+    }
+
+    function Delete[T hashable](value : Table, key : T) : Table { return table.delete(value, key); }
+
+    function Clear(value : Table) : Table { return table.clear(value); }
+
+    function Copy(value : Table) : Table { return table.copy(value); }
+
+    function Keys[T hashable](value : Table) : List[T] { return table.keys(value); }
+
+    function Values[T Any](value : Table) : List[T] { return table.values(value); }
+
+    function Entries(value : Table) : List[Table] { return table.entries(value); }
+
+    function SequenceLen(value : Table) : Int { return table.sequence_len(value); }
+
+    function WithFallback(value : Table, fallback : Table) : Table {
+        return table.with_fallback(value, fallback);
+    }
+
+    function Merge(left : Table, right : Table) : Table { return table.merge(left, right); }
+
+    function Filter[T hashable, U Any](value : Table, predicate : Function[T, U, Bool]) : Table {
+        return table.filter(value, predicate);
+    }
+
+    function MapValues[T hashable, U Any, V Any](value : Table, mapper : Function[T, U, V]) : Table {
+        return table.map_values(value, mapper);
+    }
 }

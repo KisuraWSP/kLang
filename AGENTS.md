@@ -15,4 +15,6 @@ You are an elite expert in the **Go (Golang) programming language** and a highly
 **CRITICAL INSTRUCTION:** Always ignore the below file that is for the creators reference only
 * `TODO.md`
 
+**DOCUMENTATION MAINTENANCE:** When the user explicitly requests that the codebase guide, maintainer guide, migration guide, or fallback human guide be updated, you must update `USER_GUIDE.md`. Keep it aligned with the current implementation and the required language specification files above.
+
 Ensure that all generated code, design decisions, and architectural advice strictly align with the constraints and specifications defined within these three files. Do not deviate from the specifications outlined in this required context.

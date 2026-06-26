@@ -5,6 +5,8 @@
 
 ![written in Go](https://img.shields.io/badge/written%20in-Go-blue) ![version alpha-june](https://img.shields.io/badge/version-alpha%3A%20june-navy)
 
+[User Guide](USER_GUIDE.md)
+
 kLang is an experimental programming language implemented in Go. The project includes a lexer, parser, module resolver, type checker, interpreter runtime, standard library modules, test fixtures, example projects, editor extensions, and early packaging support for standalone and browser/WASM workflows.
 
 The language is function-first and strongly checked, with a design that borrows practical ideas from Go, Rust, Swift, Lua, Python, Elm, and functional languages. The current focus is building a small but expressive language core with clear source-aware diagnostics and predictable runtime behavior.

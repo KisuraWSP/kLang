@@ -1,3 +1,117 @@
--- this module will contain functions which will let u do operation with our builtin 
--- Args List 
--- basically for any sort of commandline operations
+-- Command-line argument helpers around the builtin immutable Args list.
+
+namespace args {
+    function ALL() : List[String] {
+        return clone Args;
+    }
+
+    function COUNT() : Int {
+        return len(Args);
+    }
+
+    function EMPTY() : Bool {
+        return COUNT() == 0;
+    }
+
+    function GET(index : Int) : Option[String] {
+        if index < 0 or index >= len(Args) {
+            return None();
+        }
+        return Some(Args[index]);
+    }
+
+    function FIRST() : Option[String] {
+        return GET(0);
+    }
+
+    function CONTAINS(value : String) : Bool {
+        local mut Int index = 0;
+        while index < len(Args) {
+            if Args[index] == value {
+                return True;
+            }
+            index += 1;
+        }
+        return False;
+    }
+
+    function HAS_FLAG(name : String) : Bool {
+        return CONTAINS("--" + name) or CONTAINS("-" + name);
+    }
+
+    function SPLIT_FLAG(value : String) : Table {
+        local mut Int index = 0;
+        local mut String key = "";
+        local mut String item = "";
+        local mut Bool seenEquals = False;
+
+        while index < len(value) {
+            if not seenEquals and value[index] == "=" {
+                seenEquals = True;
+            } else {
+                if seenEquals {
+                    item += value[index] as String;
+                } else {
+                    key += value[index] as String;
+                }
+            }
+            index += 1;
+        }
+
+        return {
+            "key": key,
+            "value": item,
+            "has_value": seenEquals
+        };
+    }
+
+    function FLAG_VALUE(name : String) : Option[String] {
+        local String longName = "--" + name;
+        local String shortName = "-" + name;
+        local mut Int index = 0;
+
+        while index < len(Args) {
+            local String current = Args[index];
+            if current == longName or current == shortName {
+                if index + 1 < len(Args) {
+                    return Some(Args[index + 1]);
+                }
+                return None();
+            }
+
+            local Table split = SPLIT_FLAG(current);
+            if split.has_value and split.key == longName {
+                return Some(split.value as String);
+            }
+
+            index += 1;
+        }
+
+        return None();
+    }
+
+    function POSITIONAL() : List[String] {
+        local mut List[String] result;
+        local mut Int index = 0;
+        while index < len(Args) {
+            if len(Args[index]) == 0 or Args[index][0] != "-" {
+                result[len(result)] = Args[index];
+            }
+            index += 1;
+        }
+        return result;
+    }
+
+    function TO_TABLE() : Table {
+        return {
+            "all": ALL(),
+            "count": COUNT(),
+            "empty": EMPTY(),
+            "positionals": POSITIONAL()
+        };
+    }
+
+    function TO_JSON() : String {
+        return json_stringify(TO_TABLE());
+    }
+}

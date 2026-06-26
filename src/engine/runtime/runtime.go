@@ -2859,12 +2859,20 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		}
 		items := runtime.parsableArgs[len(runtime.parsableArgs)-1]
 		return Value{Kind: ValueList, Data: append([]Value(nil), items...)}, nil
+	case "macro_context":
+		return runtime.macroContext(args)
+	case "macro_expand":
+		return runtime.macroExpand(args)
 	case "Parsable":
 		return runtime.newParsable(args)
 	case "parsable_source", "parsable_ast", "parsable_args", "parsable_runtime_info", "parsable_workspace":
 		return runtime.parsableField(name, args)
 	case "parsable_with_source", "parsable_replace", "parsable_append":
 		return runtime.transformParsable(name, args)
+	case "parsable_begin_polling":
+		return runtime.beginParsablePolling(args)
+	case "parsable_poll_message", "parsable_intercept_message":
+		return runtime.pollParsableMessage(name, args)
 	case "print":
 		values := make([]string, 0, len(args))
 		for _, arg := range args {
@@ -4460,7 +4468,7 @@ func isBuiltinFunction(name string) bool {
 		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",
 		"Program", "BuildSystem", "WorkSpace", "workspace_backend", "workspace_files", "workspace_manifest",
-		"parsable_source", "parsable_ast", "parsable_args", "parsable_runtime_info", "parsable_workspace", "parsable_with_source", "parsable_replace", "parsable_append", "get_args_from_parsable",
+		"parsable_source", "parsable_ast", "parsable_args", "parsable_runtime_info", "parsable_workspace", "parsable_with_source", "parsable_replace", "parsable_append", "parsable_begin_polling", "parsable_poll_message", "parsable_intercept_message", "get_args_from_parsable", "macro_context", "macro_expand",
 		"runtime_debug_loc", "runtime_debug_file", "runtime_debug_line", "runtime_debug_module", "runtime_debug_pos", "runtime_debug_function",
 		"runtime_debug_loc_of", "runtime_debug_line_of", "runtime_debug_pos_of",
 		"runtime.debug.__LOC__", "runtime.debug.__FILE__", "runtime.debug.__LINE__", "runtime.debug.__MODULE__", "runtime.debug.__POS__", "runtime.debug.__FUNCTION__",

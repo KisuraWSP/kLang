@@ -16,6 +16,12 @@ namespace path {
     function Join(left : String, right : String) : String {
         if len(left) == 0 { return right; }
         if len(right) == 0 { return left; }
+        if left[len(left) - 1] == "/" and right[0] == "/" {
+            return left + Slice(right, 1, len(right) - 1);
+        }
+        if left[len(left) - 1] == "/" or right[0] == "/" {
+            return left + right;
+        }
         return left + "/" + right;
     }
 
@@ -68,7 +74,42 @@ namespace path {
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Clean(name : String) : String {
         if len(name) == 0 { return "."; }
-        return name;
+        local Bool absolute = IsAbs(name);
+        local mut List[String] parts;
+        local mut String current = "";
+        local mut Int index = 0;
+
+        while index < len(name) {
+            if name[index] == "/" {
+                if len(current) > 0 and current != "." {
+                    if current == ".." and len(parts) > 0 and parts[len(parts) - 1] != ".." {
+                        parts = Pop(parts);
+                    } else {
+                        parts[len(parts)] = current;
+                    }
+                }
+                current = "";
+            } else {
+                current += name[index] as String;
+            }
+            index += 1;
+        }
+
+        if len(current) > 0 and current != "." {
+            if current == ".." and len(parts) > 0 and parts[len(parts) - 1] != ".." {
+                parts = Pop(parts);
+            } else {
+                parts[len(parts)] = current;
+            }
+        }
+
+        local String joined = JoinAll(parts);
+        if absolute {
+            if len(joined) == 0 { return "/"; }
+            return "/" + joined;
+        }
+        if len(joined) == 0 { return "."; }
+        return joined;
     }
 
     --- Signature: function Base(name : String) : String
@@ -76,7 +117,18 @@ namespace path {
     --- Summary: Provides the stdlib base operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Base(name : String) : String {
-        return name;
+        local String cleaned = Clean(name);
+        if cleaned == "/" or cleaned == "." { return cleaned; }
+        local mut Int index = len(cleaned) - 1;
+        local mut String result = "";
+        while index >= 0 {
+            if cleaned[index] == "/" {
+                return result;
+            }
+            result = cleaned[index] as String + result;
+            index -= 1;
+        }
+        return result;
     }
 
     --- Signature: function Dir(name : String) : String
@@ -84,7 +136,16 @@ namespace path {
     --- Summary: Provides the stdlib dir operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
     function Dir(name : String) : String {
-        if IsAbs(name) { return "/"; }
+        local String cleaned = Clean(name);
+        if cleaned == "/" { return "/"; }
+        local mut Int index = len(cleaned) - 1;
+        while index >= 0 {
+            if cleaned[index] == "/" {
+                if index == 0 { return "/"; }
+                return Slice(cleaned, 0, index);
+            }
+            index -= 1;
+        }
         return ".";
     }
 
@@ -95,6 +156,47 @@ namespace path {
     function Split(name : String) : Table {
         return {"dir": Dir(name), "file": Base(name)};
     }
+
+    function Slice(value : String, start : Int, count : Int) : String {
+        local mut String result = "";
+        if count <= 0 { return result; }
+        local mut Int index = start;
+        if index < 0 { index = 0; }
+        local Int stop = index + count;
+        while index < stop and index < len(value) {
+            result += value[index] as String;
+            index += 1;
+        }
+        return result;
+    }
+
+    function Pop(values : List[String]) : List[String] {
+        local mut List[String] result;
+        local mut Int index = 0;
+        while index < len(values) - 1 {
+            result[len(result)] = values[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    function SEPARATOR() : String { return Separator(); }
+
+    function JOIN(left : String, right : String) : String { return Join(left, right); }
+
+    function JOIN_ALL(parts : List[String]) : String { return JoinAll(parts); }
+
+    function EXT(name : String) : String { return Ext(name); }
+
+    function IS_ABS(name : String) : Bool { return IsAbs(name); }
+
+    function CLEAN(name : String) : String { return Clean(name); }
+
+    function BASE(name : String) : String { return Base(name); }
+
+    function DIR(name : String) : String { return Dir(name); }
+
+    function SPLIT(name : String) : Table { return Split(name); }
 
     namespace filepath {
         --- Signature: function Abs(name : String) : String
@@ -129,5 +231,13 @@ namespace path {
         function IsLocal(name : String) : Bool {
             return not path.IsAbs(name);
         }
+
+        function ABS(name : String) : String { return Abs(name); }
+
+        function TO_SLASH(name : String) : String { return ToSlash(name); }
+
+        function FROM_SLASH(name : String) : String { return FromSlash(name); }
+
+        function IS_LOCAL(name : String) : Bool { return IsLocal(name); }
     }
 }

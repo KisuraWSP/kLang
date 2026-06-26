@@ -1,389 +1,498 @@
-module(disabled : True);
-
-(*
-STRUCTS
-
-date()
--type date() :: {year(), month(), day()}.
-A date using the Gregorian calendar.
-
-All APIs expect this to be a valid date. If the source of the date is unknown, then verify that it is valid by calling valid_date/1 before using it.
-
-datetime1970()
--type datetime1970() :: {{year1970(), month(), day()}, time()}.
-datetime()
--type datetime() :: {date(), time()}.
-day()
-(not exported)
--type day() :: 1..31.
-daynum()
-(not exported)
--type daynum() :: 1..7.
-hour()
-(not exported)
--type hour() :: 0..23.
-ldom()
-(not exported)
--type ldom() :: 28 | 29 | 30 | 31.
-The last day of the month.
-
-minute()
-(not exported)
--type minute() :: 0..59.
-month()
-(not exported)
--type month() :: 1..12.
-offset()
-(not exported)
--type offset() :: [byte()] | (Time :: integer()).
-rfc3339_string()
-(not exported)
--type rfc3339_string() :: [byte(), ...] | binary().
-rfc3339_time_unit()
-(not exported)
--type rfc3339_time_unit() :: microsecond | millisecond | nanosecond | second | native.
-The time unit used by the rfc3339 conversion functions.
-
-Note
-
-The native time unit was added to rfc3339_time_unit/0 in OTP 25.0.
-second()
-(not exported)
--type second() :: 0..59.
-secs_per_day()
-(not exported)
--type secs_per_day() :: 0..86399.
-time()
--type time() :: {hour(), minute(), second()}.
-weeknum()
-(not exported)
--type weeknum() :: 1..53.
-year1970()
-(not exported)
--type year1970() :: 1970..10000.
-year()
-(not exported)
--type year() :: integer().
-The year using the Gregorian calendar.
-
-Year cannot be abbreviated. For example, 93 denotes year 93, not 1993. The valid range depends on the underlying operating system.
-
-yearweeknum()
-(not exported)
--type yearweeknum() :: {year(), weeknum()}.
-
-*)
-
-(*
-Functions
-
-date_to_gregorian_days(Date)
-Computes the number of gregorian days starting with year 0 and ending at the specified date.
-date_to_gregorian_days(Year, Month, Day)
-Equivalent to date_to_gregorian_days({Year, Month, Day}).
-datetime_to_gregorian_seconds(DateTime)
-Computes the number of gregorian seconds starting with year 0 and ending at the specified date and time.
-day_of_the_week(Date)
-Computes the day of the week from the specified Year, Month, and Day. Returns the day of the week as 1: Monday, 2: Tuesday, and so on.
-day_of_the_week(Year, Month, Day)
-Equivalent to day_of_the_week({Year, Month, Day}).
-gregorian_days_to_date(Days)
-Computes the date from the specified number of gregorian days.
-gregorian_seconds_to_datetime(Seconds)
-Computes the date and time from the specified number of gregorian seconds.
-is_leap_year(Year)
-Checks if the specified year is a leap year.
-iso_week_number()
-Returns tuple {Year, WeekNum} representing the ISO week number for the actual date. To determine the actual date, use function local_time/0.
-iso_week_number(Date)
-Returns tuple {Year, WeekNum} representing the ISO week number for the specified date.
-last_day_of_the_month(Year, Month)
-Computes the number of days in a month.
-local_time()
-Returns the local time reported by the underlying operating system.
-local_time_to_system_time(LocalTime)
-Equivalent to local_time_to_system_time(LocalTime, []).
-local_time_to_system_time(LocalTime, Options)
-Converts local time into system time. Error will occur if the local time is non existing or ambiguous due to DST, see calendar:local_time_to_universal_time_dst/1.
-local_time_to_universal_time(DateTime1) deprecated
-Converts from local time to Universal Coordinated Time (UTC). DateTime1 must refer to a local date after Jan 1, 1970.
-local_time_to_universal_time_dst(DateTime1)
-Converts from local time to Universal Coordinated Time (UTC). DateTime1 must refer to a local date after Jan 1, 1970.
-now_to_datetime(Now)
-Returns Universal Coordinated Time (UTC) converted from the return value from erlang:timestamp/0.
-now_to_local_time(Now)
-Returns local date and time converted from the return value from erlang:timestamp/0.
-now_to_universal_time(Now)
-Returns Universal Coordinated Time (UTC) converted from the return value from erlang:timestamp/0.
-rfc3339_to_system_time(DateTimeString)
-Equivalent to rfc3339_to_system_time(DateTimeString, []).
-rfc3339_to_system_time(DateTimeString, Options)
-Converts an RFC 3339 timestamp into system time. The data format of RFC 3339 timestamps is described by RFC 3339. Starting from OTP 25.1, the minutes part of the time zone is optional.
-seconds_to_daystime(Seconds)
-Converts a specified number of seconds into days, hours, minutes, and seconds. Time is always non-negative, but Days is negative if argument Seconds is.
-seconds_to_time(Seconds)
-Computes the time from the specified number of seconds. Seconds must be less than the number of seconds per day (86400).
-system_time_to_local_time(Time, TimeUnit)
-Converts a specified system time into local date and time.
-system_time_to_rfc3339(Time)
-Equivalent to system_time_to_rfc3339(Time, []).
-system_time_to_rfc3339(Time, Options)
-Converts a system time into an RFC 3339 timestamp.
-system_time_to_universal_time(Time, TimeUnit)
-Converts a specified system time into universal date and time.
-time_difference(T1, T2)
-Returns the difference between two {Date, Time} tuples. T2 is to refer to an epoch later than T1.
-time_to_seconds(Time)
-Returns the number of seconds since midnight up to the specified time.
-universal_time()
-Returns the Universal Coordinated Time (UTC) reported by the underlying operating system. Returns local time if universal time is unavailable.
-universal_time_to_local_time(DateTime)
-Converts from Universal Coordinated Time (UTC) to local time. DateTime must refer to a date after Jan 1, 1970.
-universal_time_to_system_time(UniversalTime)
-Equivalent to universal_time_to_system_time(LocalTime, []).
-universal_time_to_system_time(DateTime, Options)
-Converts universal time into system time.
-valid_date(Date)
-This function checks if a date is a valid.
-valid_date(Year, Month, Day)
-Equivalent to valid_date({Year, Month, Day}).
-
-*)
-
-(*
-Function Implementatiosn
-
-date_to_gregorian_days(Date)
--spec date_to_gregorian_days(Date) -> Days when Date :: date(), Days :: integer().
-Computes the number of gregorian days starting with year 0 and ending at the specified date.
-
-date_to_gregorian_days(Year, Month, Day)
--spec date_to_gregorian_days(Year, Month, Day) -> Days
-                                when Year :: year(), Month :: month(), Day :: day(), Days :: integer().
-Equivalent to date_to_gregorian_days({Year, Month, Day}).
-
-datetime_to_gregorian_seconds(DateTime)
--spec datetime_to_gregorian_seconds(DateTime) -> Seconds
-                                       when DateTime :: datetime(), Seconds :: integer().
-Computes the number of gregorian seconds starting with year 0 and ending at the specified date and time.
-
-day_of_the_week(Date)
--spec day_of_the_week(Date) -> daynum() when Date :: date().
-Computes the day of the week from the specified Year, Month, and Day. Returns the day of the week as 1: Monday, 2: Tuesday, and so on.
-
-day_of_the_week(Year, Month, Day)
--spec day_of_the_week(Year, Month, Day) -> daynum() when Year :: year(), Month :: month(), Day :: day().
-Equivalent to day_of_the_week({Year, Month, Day}).
-
-gregorian_days_to_date(Days)
--spec gregorian_days_to_date(Days) -> date() when Days :: integer().
-Computes the date from the specified number of gregorian days.
-
-gregorian_seconds_to_datetime(Seconds)
--spec gregorian_seconds_to_datetime(Seconds) -> datetime() when Seconds :: integer().
-Computes the date and time from the specified number of gregorian seconds.
-
-is_leap_year(Year)
--spec is_leap_year(Year) -> boolean() when Year :: year().
-Checks if the specified year is a leap year.
-
-iso_week_number()
-(since OTP R14B02)
--spec iso_week_number() -> yearweeknum().
-Returns tuple {Year, WeekNum} representing the ISO week number for the actual date. To determine the actual date, use function local_time/0.
-
-iso_week_number(Date)
-(since OTP R14B02)
--spec iso_week_number(Date) -> yearweeknum() when Date :: date().
-Returns tuple {Year, WeekNum} representing the ISO week number for the specified date.
-
-last_day_of_the_month(Year, Month)
--spec last_day_of_the_month(Year, Month) -> LastDay
-                               when Year :: year(), Month :: month(), LastDay :: ldom().
-Computes the number of days in a month.
-
-local_time()
--spec local_time() -> datetime().
-Returns the local time reported by the underlying operating system.
-
-local_time_to_system_time(LocalTime)
-(since OTP 28.0)
--spec local_time_to_system_time(datetime1970()) -> pos_integer().
-Equivalent to local_time_to_system_time(LocalTime, []).
-
-local_time_to_system_time(LocalTime, Options)
-(since OTP 28.0)
--spec local_time_to_system_time(datetime1970(), Options) -> pos_integer()
-                                   when Options :: [Option], Option :: {unit, erlang:time_unit()}.
-Converts local time into system time. Error will occur if the local time is non existing or ambiguous due to DST, see calendar:local_time_to_universal_time_dst/1.
-
-local_time_to_universal_time(DateTime1)
-This function is deprecated. calendar:local_time_to_universal_time/1 is deprecated; use calendar:local_time_to_universal_time_dst/1 instead.
--spec local_time_to_universal_time(DateTime1) -> DateTime2
-                                      when DateTime1 :: datetime1970(), DateTime2 :: datetime1970().
-Converts from local time to Universal Coordinated Time (UTC). DateTime1 must refer to a local date after Jan 1, 1970.
-
-Warning
-
-This function is deprecated. Use local_time_to_universal_time_dst/1 instead, as it gives a more correct and complete result. Especially for the period that does not exist, as it is skipped during the switch to daylight saving time, this function still returns a result.
-local_time_to_universal_time_dst(DateTime1)
--spec local_time_to_universal_time_dst(DateTime1) -> [DateTime]
-                                          when DateTime1 :: datetime1970(), DateTime :: datetime1970().
-Converts from local time to Universal Coordinated Time (UTC). DateTime1 must refer to a local date after Jan 1, 1970.
-
-The return value is a list of 0, 1, or 2 possible UTC times:
-
-[] - For a local {Date1, Time1} during the period that is skipped when switching to daylight saving time, there is no corresponding UTC, as the local time is illegal (it has never occured).
-
-[DstDateTimeUTC, DateTimeUTC] - For a local {Date1, Time1} during the period that is repeated when switching from daylight saving time, two corresponding UTCs exist; one for the first instance of the period when daylight saving time is still active, and one for the second instance.
-
-[DateTimeUTC] - For all other local times only one corresponding UTC exists.
-
-now_to_datetime(Now)
--spec now_to_datetime(Now) -> datetime1970() when Now :: erlang:timestamp().
-Returns Universal Coordinated Time (UTC) converted from the return value from erlang:timestamp/0.
-
-now_to_local_time(Now)
--spec now_to_local_time(Now) -> datetime1970() when Now :: erlang:timestamp().
-Returns local date and time converted from the return value from erlang:timestamp/0.
-
-now_to_universal_time(Now)
--spec now_to_universal_time(Now) -> datetime1970() when Now :: erlang:timestamp().
-Returns Universal Coordinated Time (UTC) converted from the return value from erlang:timestamp/0.
-
-rfc3339_to_system_time(DateTimeString)
-(since OTP 21.0)
--spec rfc3339_to_system_time(DateTimeString) -> integer() when DateTimeString :: rfc3339_string().
-Equivalent to rfc3339_to_system_time(DateTimeString, []).
-
-rfc3339_to_system_time(DateTimeString, Options)
-(since OTP 21.0)
--spec rfc3339_to_system_time(DateTimeString, Options) -> integer()
-                                when
-                                    DateTimeString :: rfc3339_string(),
-                                    Options :: [Option],
-                                    Option :: {unit, rfc3339_time_unit()}.
-Converts an RFC 3339 timestamp into system time. The data format of RFC 3339 timestamps is described by RFC 3339. Starting from OTP 25.1, the minutes part of the time zone is optional.
-
-Valid option:
-
-{unit, Unit} - The time unit of the return value. The default is second.
-calendar:rfc3339_to_system_time("2018-02-01T16:17:58+01:00").
-1517498278
-calendar:rfc3339_to_system_time("2018-02-01 15:18:02.088Z",
-   [{unit, nanosecond}]).
-1517498282088000000
-calendar:rfc3339_to_system_time(<<"2018-02-01 15:18:02.088Z">>,
-   [{unit, nanosecond}]).
-1517498282088000000
-
-seconds_to_daystime(Seconds)
--spec seconds_to_daystime(Seconds) -> {Days, Time}
-                             when Seconds :: integer(), Days :: integer(), Time :: time().
-Converts a specified number of seconds into days, hours, minutes, and seconds. Time is always non-negative, but Days is negative if argument Seconds is.
-
-seconds_to_time(Seconds)
--spec seconds_to_time(Seconds) -> time() when Seconds :: secs_per_day().
-Computes the time from the specified number of seconds. Seconds must be less than the number of seconds per day (86400).
-
-system_time_to_local_time(Time, TimeUnit)
-(since OTP 21.0)
--spec system_time_to_local_time(Time, TimeUnit) -> datetime()
-                                   when Time :: integer(), TimeUnit :: erlang:time_unit().
-Converts a specified system time into local date and time.
-
-system_time_to_rfc3339(Time)
-(since OTP 21.0)
--spec system_time_to_rfc3339(Time) -> DateTimeString
-                                when Time :: integer(), DateTimeString :: rfc3339_string().
-Equivalent to system_time_to_rfc3339(Time, []).
-
-system_time_to_rfc3339(Time, Options)
-(since OTP 21.0)
--spec system_time_to_rfc3339(Time, Options) -> DateTimeString
-                                when
-                                    Time :: integer(),
-                                    Options :: [Option],
-                                    Option ::
-                                        {offset, offset()} |
-                                        {time_designator, byte()} |
-                                        {unit, rfc3339_time_unit()} |
-                                        {return, string | binary},
-                                    DateTimeString :: rfc3339_string().
-Converts a system time into an RFC 3339 timestamp.
-
-The data format of RFC 3339 timestamps is described by RFC 3339. The data format of offsets is also described by RFC 3339.
-
-Valid options:
-
-{offset, Offset} - The offset, either a string or an integer, to be included in the formatted string. An empty string, which is the default, is interpreted as local time. A non-empty string is included as is. The time unit of the integer is the same as the one of Time.
-
-{time_designator, Character} - The character used as time designator, that is, the date and time separator. The default is $T.
-
-{unit, Unit} - The time unit of Time. The default is second. If some other unit is given (millisecond, microsecond, nanosecond, or native), the formatted string includes a fraction of a second. The number of fractional second digits is three, six, or nine depending on what time unit is chosen. For native three fractional digits are included. Notice that trailing zeros are not removed from the fraction.
-
-{return, Return} - The desired encoding type for the output, whether a string or a binary is desired. Defaults to string.
-
-calendar:system_time_to_rfc3339(erlang:system_time(second)).
-"2018-04-23T14:56:28+02:00"
-calendar:system_time_to_rfc3339(erlang:system_time(second),
-   [{offset, "-02:00"}]).
-"2018-04-23T10:56:52-02:00"
-calendar:system_time_to_rfc3339(erlang:system_time(second),
-   [{offset, -7200}]).
-"2018-04-23T10:57:05-02:00"
-calendar:system_time_to_rfc3339(erlang:system_time(millisecond),
-   [{unit, millisecond}, {time_designator, $\s}, {offset, "Z"}]).
-"2018-04-23 12:57:20.482Z"
-calendar:system_time_to_rfc3339(erlang:system_time(millisecond),
-   [{unit, millisecond}, {time_designator, $\s}, {offset, "Z"}, {return, binary}]).
-<<"2018-04-23 12:57:20.482Z">>
-
-system_time_to_universal_time(Time, TimeUnit)
-(since OTP 21.0)
--spec system_time_to_universal_time(Time, TimeUnit) -> datetime()
-                                       when Time :: integer(), TimeUnit :: erlang:time_unit().
-Converts a specified system time into universal date and time.
-
-time_difference(T1, T2)
--spec time_difference(T1, T2) -> {Days, Time}
-                         when T1 :: datetime(), T2 :: datetime(), Days :: integer(), Time :: time().
-Returns the difference between two {Date, Time} tuples. T2 is to refer to an epoch later than T1.
-
-Warning
-
-This function is obsolete. Use the conversion functions for gregorian days and seconds instead.
-time_to_seconds(Time)
--spec time_to_seconds(Time) -> secs_per_day() when Time :: time().
-Returns the number of seconds since midnight up to the specified time.
-
-universal_time()
--spec universal_time() -> datetime().
-Returns the Universal Coordinated Time (UTC) reported by the underlying operating system. Returns local time if universal time is unavailable.
-
-universal_time_to_local_time(DateTime)
--spec universal_time_to_local_time(DateTime) -> datetime() when DateTime :: datetime1970().
-Converts from Universal Coordinated Time (UTC) to local time. DateTime must refer to a date after Jan 1, 1970.
-
-universal_time_to_system_time(UniversalTime)
-(since OTP 28.0)
--spec universal_time_to_system_time(datetime()) -> integer().
-Equivalent to universal_time_to_system_time(LocalTime, []).
-
-universal_time_to_system_time(DateTime, Options)
-(since OTP 28.0)
--spec universal_time_to_system_time(datetime(), Options) -> integer()
-                                       when Options :: [Option], Option :: {unit, erlang:time_unit()}.
-Converts universal time into system time.
-
-valid_date(Date)
--spec valid_date(Date) -> boolean() when Date :: date().
-This function checks if a date is a valid.
-
-valid_date(Year, Month, Day)
--spec valid_date(Year, Month, Day) -> boolean()
-                    when Year :: integer(), Month :: integer(), Day :: integer().
-Equivalent to valid_date({Year, Month, Day}).
-
-
-*)
+-- Gregorian calendar helpers implemented in Klang.
+-- The filename is kept as calender.klang for compatibility with the existing
+-- stdlib tree, while the public namespace uses the correct `calendar` spelling.
+
+module(disabled : False);
+
+alias function DATE(year : Int, month : Int, day : Int) : type = struct {
+    this.year `json:"year"`;
+    this.month `json:"month"`;
+    this.day `json:"day"`;
+
+    #extend {
+        function VALID() : Bool {
+            return calendar.VALID_DATE(this);
+        }
+
+        function DAYS() : Int {
+            return calendar.DATE_TO_GREGORIAN_DAYS(this);
+        }
+
+        function DAY_OF_WEEK() : Int {
+            return calendar.DAY_OF_THE_WEEK(this);
+        }
+
+        function ISO_WEEK() : YEAR_WEEK {
+            return calendar.ISO_WEEK_NUMBER(this);
+        }
+
+        function TO_TABLE() : Table {
+            return {
+                "year": this.year,
+                "month": this.month,
+                "day": this.day,
+                "valid": this.VALID()
+            };
+        }
+
+        function TO_JSON() : String {
+            return json_stringify(this.TO_TABLE());
+        }
+    }
+}
+
+alias function TIME(hour : Int, minute : Int, second : Int) : type = struct {
+    this.hour `json:"hour"`;
+    this.minute `json:"minute"`;
+    this.second `json:"second"`;
+
+    #extend {
+        function VALID() : Bool {
+            return calendar.VALID_TIME(this);
+        }
+
+        function SECONDS() : Int {
+            return calendar.TIME_TO_SECONDS(this);
+        }
+
+        function TO_TABLE() : Table {
+            return {
+                "hour": this.hour,
+                "minute": this.minute,
+                "second": this.second,
+                "valid": this.VALID()
+            };
+        }
+
+        function TO_JSON() : String {
+            return json_stringify(this.TO_TABLE());
+        }
+    }
+}
+
+alias function DATETIME(date : DATE, time : TIME) : type = struct {
+    this.date `json:"date"`;
+    this.time `json:"time"`;
+
+    #extend {
+        function VALID() : Bool {
+            return this.date.VALID() and this.time.VALID();
+        }
+
+        function SECONDS() : Int {
+            return calendar.DATETIME_TO_GREGORIAN_SECONDS(this);
+        }
+
+        function TO_TABLE() : Table {
+            return {
+                "date": this.date.TO_TABLE(),
+                "time": this.time.TO_TABLE(),
+                "valid": this.VALID()
+            };
+        }
+
+        function TO_JSON() : String {
+            return json_stringify(this.TO_TABLE());
+        }
+    }
+}
+
+alias function YEAR_WEEK(year : Int, week : Int) : type = struct {
+    this.year `json:"year"`;
+    this.week `json:"week"`;
+
+    #extend {
+        function TO_TABLE() : Table {
+            return {
+                "year": this.year,
+                "week": this.week
+            };
+        }
+
+        function TO_JSON() : String {
+            return json_stringify(this.TO_TABLE());
+        }
+    }
+}
+
+namespace calendar {
+    --- SIGNATURE: FUNCTION DATE_VALUE(YEAR : INT, MONTH : INT, DAY : INT) : DATE
+    --- SUMMARY: BUILDS A STRUCTURED GREGORIAN DATE VALUE.
+    function DATE_VALUE(year : Int, month : Int, day : Int) : DATE {
+        return DATE(year, month, day);
+    }
+
+    --- SIGNATURE: FUNCTION TIME_VALUE(HOUR : INT, MINUTE : INT, SECOND : INT) : TIME
+    --- SUMMARY: BUILDS A STRUCTURED TIME VALUE.
+    function TIME_VALUE(hour : Int, minute : Int, second : Int) : TIME {
+        return TIME(hour, minute, second);
+    }
+
+    --- SIGNATURE: FUNCTION DATETIME_VALUE(DATE_VALUE : DATE, TIME_VALUE : TIME) : DATETIME
+    --- SUMMARY: BUILDS A STRUCTURED DATETIME VALUE.
+    function DATETIME_VALUE(date : DATE, time : TIME) : DATETIME {
+        return DATETIME(date, time);
+    }
+
+    --- SIGNATURE: FUNCTION IS_LEAP_YEAR(YEAR : INT) : BOOL
+    --- SUMMARY: RETURNS TRUE WHEN YEAR IS A GREGORIAN LEAP YEAR.
+    function IS_LEAP_YEAR(year : Int) : Bool {
+        if year % 400 == 0 { return True; }
+        if year % 100 == 0 { return False; }
+        return year % 4 == 0;
+    }
+
+    --- SIGNATURE: FUNCTION LAST_DAY_OF_THE_MONTH(YEAR : INT, MONTH : INT) : INT
+    --- SUMMARY: RETURNS THE LAST VALID DAY FOR MONTH IN YEAR.
+    function LAST_DAY_OF_THE_MONTH(year : Int, month : Int) : Int {
+        if month == 2 {
+            if IS_LEAP_YEAR(year) { return 29; }
+            return 28;
+        }
+        if month == 4 or month == 6 or month == 9 or month == 11 {
+            return 30;
+        }
+        if month >= 1 and month <= 12 {
+            return 31;
+        }
+        return 0;
+    }
+
+    --- SIGNATURE: FUNCTION VALID_DATE(DATE_VALUE : DATE) : BOOL
+    --- SUMMARY: CHECKS WHETHER A DATE STRUCT IS VALID.
+    function VALID_DATE(date : DATE) : Bool {
+        return VALID_DATE_PARTS(date.year, date.month, date.day);
+    }
+
+    --- SIGNATURE: FUNCTION VALID_DATE_PARTS(YEAR : INT, MONTH : INT, DAY : INT) : BOOL
+    --- SUMMARY: CHECKS WHETHER YEAR, MONTH, AND DAY FORM A VALID DATE.
+    function VALID_DATE_PARTS(year : Int, month : Int, day : Int) : Bool {
+        if month < 1 or month > 12 { return False; }
+        return day >= 1 and day <= LAST_DAY_OF_THE_MONTH(year, month);
+    }
+
+    --- SIGNATURE: FUNCTION VALID_TIME(TIME_VALUE : TIME) : BOOL
+    --- SUMMARY: CHECKS WHETHER A TIME STRUCT IS VALID.
+    function VALID_TIME(time : TIME) : Bool {
+        return VALID_TIME_PARTS(time.hour, time.minute, time.second);
+    }
+
+    --- SIGNATURE: FUNCTION VALID_TIME_PARTS(HOUR : INT, MINUTE : INT, SECOND : INT) : BOOL
+    --- SUMMARY: CHECKS WHETHER HOUR, MINUTE, AND SECOND FORM A VALID TIME.
+    function VALID_TIME_PARTS(hour : Int, minute : Int, second : Int) : Bool {
+        return hour >= 0 and hour < 24 and minute >= 0 and minute < 60 and second >= 0 and second < 60;
+    }
+
+    function DAYS_BEFORE_YEAR(year : Int) : Int {
+        return 365 * year + year / 4 - year / 100 + year / 400;
+    }
+
+    function DAYS_BEFORE_MONTH(year : Int, month : Int) : Int {
+        local mut Int total = 0;
+        local mut Int index = 1;
+        while index < month {
+            total += LAST_DAY_OF_THE_MONTH(year, index);
+            index += 1;
+        }
+        return total;
+    }
+
+    --- SIGNATURE: FUNCTION DATE_TO_GREGORIAN_DAYS(DATE_VALUE : DATE) : INT
+    --- SUMMARY: RETURNS THE GREGORIAN DAY NUMBER FOR A VALID DATE.
+    function DATE_TO_GREGORIAN_DAYS(date : DATE) : Int {
+        return DATE_PARTS_TO_GREGORIAN_DAYS(date.year, date.month, date.day);
+    }
+
+    --- SIGNATURE: FUNCTION DATE_PARTS_TO_GREGORIAN_DAYS(YEAR : INT, MONTH : INT, DAY : INT) : INT
+    --- SUMMARY: RETURNS THE GREGORIAN DAY NUMBER FOR YEAR, MONTH, AND DAY.
+    function DATE_PARTS_TO_GREGORIAN_DAYS(year : Int, month : Int, day : Int) : Int {
+        if not VALID_DATE_PARTS(year, month, day) {
+            return 0;
+        }
+        return DAYS_BEFORE_YEAR(year) + DAYS_BEFORE_MONTH(year, month) + day;
+    }
+
+    --- SIGNATURE: FUNCTION GREGORIAN_DAYS_TO_DATE(DAYS : INT) : DATE
+    --- SUMMARY: CONVERTS A GREGORIAN DAY NUMBER BACK INTO A DATE.
+    function GREGORIAN_DAYS_TO_DATE(days : Int) : DATE {
+        if days <= 0 {
+            return DATE(0, 1, 1);
+        }
+
+        local mut Int year = days / 366;
+        while DAYS_BEFORE_YEAR(year + 1) < days {
+            year += 1;
+        }
+        while DAYS_BEFORE_YEAR(year) >= days {
+            year -= 1;
+        }
+
+        local mut Int dayOfYear = days - DAYS_BEFORE_YEAR(year);
+        local mut Int month = 1;
+        while dayOfYear > LAST_DAY_OF_THE_MONTH(year, month) {
+            dayOfYear -= LAST_DAY_OF_THE_MONTH(year, month);
+            month += 1;
+        }
+
+        return DATE(year, month, dayOfYear);
+    }
+
+    --- SIGNATURE: FUNCTION DAY_OF_THE_WEEK(DATE_VALUE : DATE) : INT
+    --- SUMMARY: RETURNS MONDAY AS 1 THROUGH SUNDAY AS 7.
+    function DAY_OF_THE_WEEK(date : DATE) : Int {
+        return DAY_OF_THE_WEEK_PARTS(date.year, date.month, date.day);
+    }
+
+    --- SIGNATURE: FUNCTION DAY_OF_THE_WEEK_PARTS(YEAR : INT, MONTH : INT, DAY : INT) : INT
+    --- SUMMARY: RETURNS MONDAY AS 1 THROUGH SUNDAY AS 7 FOR DATE PARTS.
+    function DAY_OF_THE_WEEK_PARTS(year : Int, month : Int, day : Int) : Int {
+        local Int days = DATE_PARTS_TO_GREGORIAN_DAYS(year, month, day);
+        if days == 0 { return 0; }
+        return ((days + 5) % 7) + 1;
+    }
+
+    --- SIGNATURE: FUNCTION TIME_TO_SECONDS(TIME_VALUE : TIME) : INT
+    --- SUMMARY: RETURNS SECONDS SINCE MIDNIGHT.
+    function TIME_TO_SECONDS(time : TIME) : Int {
+        return TIME_PARTS_TO_SECONDS(time.hour, time.minute, time.second);
+    }
+
+    --- SIGNATURE: FUNCTION TIME_PARTS_TO_SECONDS(HOUR : INT, MINUTE : INT, SECOND : INT) : INT
+    --- SUMMARY: RETURNS SECONDS SINCE MIDNIGHT FOR TIME PARTS.
+    function TIME_PARTS_TO_SECONDS(hour : Int, minute : Int, second : Int) : Int {
+        if not VALID_TIME_PARTS(hour, minute, second) {
+            return 0;
+        }
+        return hour * 3600 + minute * 60 + second;
+    }
+
+    --- SIGNATURE: FUNCTION SECONDS_TO_TIME(SECONDS : INT) : TIME
+    --- SUMMARY: CONVERTS SECONDS WITHIN A DAY INTO TIME.
+    function SECONDS_TO_TIME(seconds : Int) : TIME {
+        local mut Int value = seconds % 86400;
+        if value < 0 { value += 86400; }
+        local Int hour = value / 3600;
+        value = value % 3600;
+        local Int minute = value / 60;
+        local Int second = value % 60;
+        return TIME(hour, minute, second);
+    }
+
+    --- SIGNATURE: FUNCTION SECONDS_TO_DAYSTIME(SECONDS : INT) : TABLE
+    --- SUMMARY: SPLITS SECONDS INTO DAYS AND A NON-NEGATIVE TIME.
+    function SECONDS_TO_DAYSTIME(seconds : Int) : Table {
+        local mut Int days = seconds / 86400;
+        local mut Int rest = seconds % 86400;
+        if rest < 0 {
+            days -= 1;
+            rest += 86400;
+        }
+        return {
+            "days": days,
+            "time": SECONDS_TO_TIME(rest).TO_TABLE()
+        };
+    }
+
+    --- SIGNATURE: FUNCTION DATETIME_TO_GREGORIAN_SECONDS(VALUE : DATETIME) : INT
+    --- SUMMARY: CONVERTS A DATETIME INTO GREGORIAN SECONDS.
+    function DATETIME_TO_GREGORIAN_SECONDS(value : DATETIME) : Int {
+        return DATE_TO_GREGORIAN_DAYS(value.date) * 86400 + TIME_TO_SECONDS(value.time);
+    }
+
+    --- SIGNATURE: FUNCTION GREGORIAN_SECONDS_TO_DATETIME(SECONDS : INT) : DATETIME
+    --- SUMMARY: CONVERTS GREGORIAN SECONDS BACK INTO A DATETIME.
+    function GREGORIAN_SECONDS_TO_DATETIME(seconds : Int) : DATETIME {
+        local Table split = SECONDS_TO_DAYSTIME(seconds);
+        local DATE date = GREGORIAN_DAYS_TO_DATE(split.days as Int);
+        local TIME time = SECONDS_TO_TIME((split.time.hour as Int) * 3600 + (split.time.minute as Int) * 60 + (split.time.second as Int));
+        return DATETIME(date, time);
+    }
+
+    --- SIGNATURE: FUNCTION TIME_DIFFERENCE(LEFT : DATETIME, RIGHT : DATETIME) : TABLE
+    --- SUMMARY: RETURNS THE DIFFERENCE BETWEEN TWO DATETIMES.
+    function TIME_DIFFERENCE(left : DATETIME, right : DATETIME) : Table {
+        return SECONDS_TO_DAYSTIME(DATETIME_TO_GREGORIAN_SECONDS(right) - DATETIME_TO_GREGORIAN_SECONDS(left));
+    }
+
+    function WEEKS_IN_ISO_YEAR(year : Int) : Int {
+        local Int jan1 = DAY_OF_THE_WEEK_PARTS(year, 1, 1);
+        if jan1 == 4 or (jan1 == 3 and IS_LEAP_YEAR(year)) {
+            return 53;
+        }
+        return 52;
+    }
+
+    --- SIGNATURE: FUNCTION ISO_WEEK_NUMBER(DATE_VALUE : DATE) : YEAR_WEEK
+    --- SUMMARY: RETURNS THE ISO WEEK-YEAR AND WEEK NUMBER.
+    function ISO_WEEK_NUMBER(date : DATE) : YEAR_WEEK {
+        local Int dayOfYear = DATE_TO_GREGORIAN_DAYS(date) - DAYS_BEFORE_YEAR(date.year);
+        local Int weekday = DAY_OF_THE_WEEK(date);
+        local mut Int week = (dayOfYear - weekday + 10) / 7;
+        local mut Int weekYear = date.year;
+
+        if week < 1 {
+            weekYear -= 1;
+            week = WEEKS_IN_ISO_YEAR(weekYear);
+        } else {
+            local Int weeks = WEEKS_IN_ISO_YEAR(weekYear);
+            if week > weeks {
+                weekYear += 1;
+                week = 1;
+            }
+        }
+
+        return YEAR_WEEK(weekYear, week);
+    }
+
+    --- SIGNATURE: FUNCTION FORMAT_DATE(DATE_VALUE : DATE) : STRING
+    --- SUMMARY: FORMATS DATE AS YEAR-MONTH-DAY WITHOUT HOST CLOCK ACCESS.
+    function FORMAT_DATE(date : DATE) : String {
+        return date.year as String + "-" + PAD2(date.month) + "-" + PAD2(date.day);
+    }
+
+    --- SIGNATURE: FUNCTION FORMAT_TIME(TIME_VALUE : TIME) : STRING
+    --- SUMMARY: FORMATS TIME AS HOUR:MINUTE:SECOND.
+    function FORMAT_TIME(time : TIME) : String {
+        return PAD2(time.hour) + ":" + PAD2(time.minute) + ":" + PAD2(time.second);
+    }
+
+    --- SIGNATURE: FUNCTION FORMAT_DATETIME(VALUE : DATETIME) : STRING
+    --- SUMMARY: FORMATS DATETIME USING A T DESIGNATOR.
+    function FORMAT_DATETIME(value : DATETIME) : String {
+        return FORMAT_DATE(value.date) + "T" + FORMAT_TIME(value.time);
+    }
+
+    function PAD2(value : Int) : String {
+        if value < 10 and value >= 0 {
+            return "0" + (value as String);
+        }
+        return value as String;
+    }
+
+    --- SIGNATURE: FUNCTION DESCRIBE_DATE(DATE_VALUE : DATE) : TABLE
+    --- SUMMARY: RETURNS A STRUCTURED DESCRIPTION OF A DATE.
+    function DESCRIBE_DATE(date : DATE) : Table {
+        local YEAR_WEEK iso = ISO_WEEK_NUMBER(date);
+        return {
+            "date": date.TO_TABLE(),
+            "valid": date.VALID(),
+            "gregorian_days": date.DAYS(),
+            "day_of_week": date.DAY_OF_WEEK(),
+            "iso_week": iso.TO_TABLE(),
+            "formatted": FORMAT_DATE(date)
+        };
+    }
+
+    --- SIGNATURE: FUNCTION DESCRIBE_DATE_JSON(DATE_VALUE : DATE) : STRING
+    --- SUMMARY: SERIALIZES DESCRIBE_DATE AS JSON.
+    function DESCRIBE_DATE_JSON(date : DATE) : String {
+        return json_stringify(DESCRIBE_DATE(date));
+    }
+
+    --- SIGNATURE: FUNCTION API_SOURCE() : STRING
+    --- SUMMARY: RETURNS A SMALL PARSEABLE CALENDAR API SAMPLE.
+    function API_SOURCE() : String {
+        return //
+load_as_script;
+import "calender";
+let new_year = calendar.DATE_VALUE(2026, 1, 1);
+print(calendar.DESCRIBE_DATE_JSON(new_year));
+//;
+    }
+
+    --- SIGNATURE: FUNCTION API_PARSABLE() : PARSABLE[ANY]
+    --- SUMMARY: PARSES THE CALENDAR API SAMPLE FOR METAPROGRAMMING TOOLS.
+    function API_PARSABLE() : Parsable[Any] {
+        return Parsable(API_SOURCE(), []);
+    }
+
+    --- SIGNATURE: FUNCTION API_AST() : LIST[TABLE]
+    --- SUMMARY: RETURNS THE AST FOR THE CALENDAR API SAMPLE.
+    function API_AST() : List[Table] {
+        return parsable_ast(API_PARSABLE());
+    }
+
+    --- SIGNATURE: FUNCTION LOCAL_TIME() : RESULT[DATETIME, STRING]
+    --- SUMMARY: RETURNS AN HONEST ERROR UNTIL THE RUNTIME EXPOSES HOST CLOCK ACCESS.
+    function LOCAL_TIME() : Result[DATETIME, String] {
+        return Err("calendar.LOCAL_TIME requires host clock runtime support");
+    }
+
+    --- SIGNATURE: FUNCTION UNIVERSAL_TIME() : RESULT[DATETIME, STRING]
+    --- SUMMARY: RETURNS AN HONEST ERROR UNTIL THE RUNTIME EXPOSES UTC CLOCK ACCESS.
+    function UNIVERSAL_TIME() : Result[DATETIME, String] {
+        return Err("calendar.UNIVERSAL_TIME requires host clock runtime support");
+    }
+}
+
+namespace calender {
+    function DATE_VALUE(year : Int, month : Int, day : Int) : DATE {
+        return calendar.DATE_VALUE(year, month, day);
+    }
+
+    function TIME_VALUE(hour : Int, minute : Int, second : Int) : TIME {
+        return calendar.TIME_VALUE(hour, minute, second);
+    }
+
+    function DATETIME_VALUE(date : DATE, time : TIME) : DATETIME {
+        return calendar.DATETIME_VALUE(date, time);
+    }
+
+    function VALID_DATE(date : DATE) : Bool { return calendar.VALID_DATE(date); }
+
+    function VALID_DATE_PARTS(year : Int, month : Int, day : Int) : Bool {
+        return calendar.VALID_DATE_PARTS(year, month, day);
+    }
+
+    function VALID_TIME(time : TIME) : Bool { return calendar.VALID_TIME(time); }
+
+    function IS_LEAP_YEAR(year : Int) : Bool { return calendar.IS_LEAP_YEAR(year); }
+
+    function LAST_DAY_OF_THE_MONTH(year : Int, month : Int) : Int {
+        return calendar.LAST_DAY_OF_THE_MONTH(year, month);
+    }
+
+    function DATE_TO_GREGORIAN_DAYS(date : DATE) : Int {
+        return calendar.DATE_TO_GREGORIAN_DAYS(date);
+    }
+
+    function GREGORIAN_DAYS_TO_DATE(days : Int) : DATE {
+        return calendar.GREGORIAN_DAYS_TO_DATE(days);
+    }
+
+    function DAY_OF_THE_WEEK(date : DATE) : Int { return calendar.DAY_OF_THE_WEEK(date); }
+
+    function TIME_TO_SECONDS(time : TIME) : Int { return calendar.TIME_TO_SECONDS(time); }
+
+    function SECONDS_TO_TIME(seconds : Int) : TIME { return calendar.SECONDS_TO_TIME(seconds); }
+
+    function SECONDS_TO_DAYSTIME(seconds : Int) : Table {
+        return calendar.SECONDS_TO_DAYSTIME(seconds);
+    }
+
+    function DATETIME_TO_GREGORIAN_SECONDS(value : DATETIME) : Int {
+        return calendar.DATETIME_TO_GREGORIAN_SECONDS(value);
+    }
+
+    function GREGORIAN_SECONDS_TO_DATETIME(seconds : Int) : DATETIME {
+        return calendar.GREGORIAN_SECONDS_TO_DATETIME(seconds);
+    }
+
+    function ISO_WEEK_NUMBER(date : DATE) : YEAR_WEEK {
+        return calendar.ISO_WEEK_NUMBER(date);
+    }
+
+    function FORMAT_DATE(date : DATE) : String { return calendar.FORMAT_DATE(date); }
+
+    function FORMAT_TIME(time : TIME) : String { return calendar.FORMAT_TIME(time); }
+
+    function FORMAT_DATETIME(value : DATETIME) : String {
+        return calendar.FORMAT_DATETIME(value);
+    }
+
+    function DESCRIBE_DATE(date : DATE) : Table { return calendar.DESCRIBE_DATE(date); }
+
+    function DESCRIBE_DATE_JSON(date : DATE) : String {
+        return calendar.DESCRIBE_DATE_JSON(date);
+    }
+}

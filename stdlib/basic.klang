@@ -8,7 +8,7 @@ namespace basic {
     --- Returns: Int.
     --- Summary: Performs the print control-flow or runtime I/O operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    private function Print(value : T) : Int {
+    function Print(value : T) : Int {
         print(value);
         return 0;
     }

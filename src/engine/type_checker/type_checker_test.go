@@ -54,6 +54,9 @@ function Parsed() : Int { return 1; }
 //;
     let parsed = Parsable(source, ["source"]);
     print(len(parsable_ast(parsed)), parsable_workspace(parsed));
+    let polling = parsable_begin_polling(parsed);
+    let response = parsable_poll_message(polling, {"kind": "REQUEST_AST"});
+    print(len(response["ast"] as List[T]), response["intercepted"] as Bool);
     printer "hallo";
     return 0;
 }
@@ -85,6 +88,30 @@ function Main() : Int {
 	}
 	if !strings.Contains(fmt.Sprint(report.Errors), "requires Printable") {
 		t.Fatalf("expected restriction diagnostic, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsKeywordMacroExpansionHelpers(t *testing.T) {
+	program := programFromSource(`
+alias answer = Parsable[T Any].keyword_macro {
+    local Table context = macro_context();
+    if context["arg_count"] as Int != 1 {
+        return macro_expand("return 0;");
+    }
+    return macro_expand(//
+local Int generated = 40 + 2;
+return generated;
+//);
+}
+
+function Main() : Int {
+    return answer("ignored");
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected keyword macro expansion helpers to pass, got: %v", report.Errors)
 	}
 }
 
@@ -1750,6 +1777,20 @@ function Main() : Int {
 `)
 
 	assertTypeError(t, CheckProgram(program), "cannot cast List[Int] to Int")
+}
+
+func TestCheckProgramRejectsCustomTypeCastTarget(t *testing.T) {
+	program := programFromSource(`
+alias function User(id : String) : type = struct {}
+
+function Main() : Int {
+    local T raw = User("42");
+    local User user = raw as User;
+    return len(user.id);
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "cast target User is not a builtin type")
 }
 
 func TestCheckProgramAcceptsNestedFunctionAsFirstClassValue(t *testing.T) {

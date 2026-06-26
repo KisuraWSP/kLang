@@ -244,4 +244,56 @@ namespace list {
         }
         return result;
     }
+
+    function Empty(values : List[T]) : Bool { return list.empty(values); }
+
+    function Len(values : List[T]) : Int { return list.len(values); }
+
+    function Get(values : List[T], position : Int) : Option[T] { return list.get(values, position); }
+
+    function First(values : List[T]) : Option[T] { return list.first(values); }
+
+    function Last(values : List[T]) : Option[T] { return list.last(values); }
+
+    function Append(values : List[T], value : T) : List[T] { return list.append(values, value); }
+
+    function Clear(values : List[T]) : List[T] { return list.clear(values); }
+
+    function Copy(values : List[T]) : List[T] { return list.copy(values); }
+
+    function Count(values : List[T], value : T) : Int { return list.count(values, value); }
+
+    function Contains(values : List[T], value : T) : Bool { return list.contains(values, value); }
+
+    function Extend(values : List[T], extra : List[T]) : List[T] { return list.extend(values, extra); }
+
+    function Index(values : List[T], value : T) : Int { return list.index(values, value); }
+
+    function Insert(values : List[T], position : Int, value : T) : List[T] {
+        return list.insert(values, position, value);
+    }
+
+    function Pop(values : List[T], position : Int) : List[T] { return list.pop(values, position); }
+
+    function Remove(values : List[T], value : T) : List[T] { return list.remove(values, value); }
+
+    function Reverse(values : List[T]) : List[T] { return list.reverse(values); }
+
+    function Slice(values : List[T], start : Int, stop : Int) : List[T] {
+        return list.slice(values, start, stop);
+    }
+
+    function Map[T Any, U Any](values : List[T], mapper : Function[T, U]) : List[U] {
+        return list.map(values, mapper);
+    }
+
+    function Filter[T Any](values : List[T], predicate : Function[T, Bool]) : List[T] {
+        return list.filter(values, predicate);
+    }
+
+    function Fold[T Any, U Any](values : List[T], initial : U, reducer : Function[U, T, U]) : U {
+        return list.fold(values, initial, reducer);
+    }
+
+    function Sort[T comparable](values : List[T]) : List[T] { return list.sort(values); }
 }

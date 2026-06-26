@@ -201,6 +201,30 @@ namespace metasystem {
         function manifest(workspace : WorkSpace) : String {
             return workspace_manifest(workspace);
         }
+
+        function CreateWorkspace(name : String, workspace := DefaultWorkspace()) : WorkSpace {
+            return create_workspace(name, workspace);
+        }
+
+        function BuildWorkspace(name : String, workspace := DefaultWorkspace()) : String {
+            return build_workspace(name, workspace);
+        }
+
+        function EditWorkspace(name : String, workspace : Option[WorkSpace]) : Option[WorkSpace] {
+            return edit_workspace(name, workspace);
+        }
+
+        function Backend(workspace : WorkSpace) : String {
+            return backend(workspace);
+        }
+
+        function Files(workspace : WorkSpace) : List[String] {
+            return files(workspace);
+        }
+
+        function Manifest(workspace : WorkSpace) : String {
+            return manifest(workspace);
+        }
     }
 
     namespace build {
@@ -354,6 +378,42 @@ namespace metasystem {
                 "count": len(workspaceSet),
                 "overridden": True
             };
+        }
+
+        function BeginIntercept(workspace : WorkSpace, flags : List[String]) : Table {
+            return begin_intercept(workspace, flags);
+        }
+
+        function EndIntercept(workspace : WorkSpace) : Table {
+            return end_intercept(workspace);
+        }
+
+        function MessageLoop(workspace : WorkSpace, messages : List[Table]) : Table {
+            return message_loop(workspace, messages);
+        }
+
+        function PollMessageAndReturnAstOfSaidItem(message : Table) : Table {
+            return poll_message_and_return_ast_of_said_item(message);
+        }
+
+        function InterceptMessageByRuntime(message : Table) : Table {
+            return intercept_message_by_runtime(message);
+        }
+
+        function ProvideAPIToSystemOfUserDefinedProgram(system : Table, apiName : String, api : Any) : Table {
+            return provide_api_to_system_of_user_defined_program(system, apiName, api);
+        }
+
+        function GetSystemAPIOfUserDefinedProgram(workspace : WorkSpace) : Table {
+            return get_system_api_of_user_defined_program(workspace);
+        }
+
+        function GetSystemAPIOfDefaultProgram() : Table {
+            return get_system_api_of_default_program();
+        }
+
+        function OverrideDefaultProgram(system : Table, workspaceSet : List[WorkSpace]) : Table {
+            return override_default_program(system, workspaceSet);
         }
 
         --- Signature: function BuildPlan(workspace : WorkSpace, flags : List[String]) : Table

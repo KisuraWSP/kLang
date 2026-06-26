@@ -73,6 +73,29 @@ function Parsed() : Int {
 	}
 }
 
+func TestRuntimePollsParsableMessagesAndReturnsInterceptedAST(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    let parsed = Parsable(//
+function Parsed() : Int {
+    return 1;
+}
+//);
+    let polling = parsable_begin_polling(parsed);
+    let response = parsable_poll_message(polling, {"kind": "REQUEST_AST", "payload": "Parsed"});
+    local List[T] ast = response["ast"] as List[T];
+    if not response["intercepted"] as Bool {
+        return 0;
+    }
+    return len(ast);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected intercepted AST count 1, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesParsableKeywordMacro(t *testing.T) {
 	result := runParsedSource(t, `
 alias printer = Parsable[T Printable].keyword_macro {
@@ -86,6 +109,29 @@ function Main() : Int {
 `)
 	if strings.Join(result.Output, ",") != "hallo" {
 		t.Fatalf("unexpected keyword macro output: %#v", result.Output)
+	}
+}
+
+func TestRuntimeExecutesParsableKeywordMacroExpansion(t *testing.T) {
+	result := runSource(t, `
+alias answer = Parsable[T Any].keyword_macro {
+    local Table context = macro_context();
+    if context["arg_count"] as Int != 1 {
+        return macro_expand("return 0;");
+    }
+    return macro_expand(//
+local Int generated = 40 + 2;
+return generated;
+//);
+}
+
+function Main() : Int {
+    return answer("ignored");
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 42 {
+		t.Fatalf("expected macro expansion to return 42, got %#v", result.Value)
 	}
 }
 
@@ -873,6 +919,20 @@ function Main() : Int {
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 44 {
 		t.Fatalf("expected cast program to return 44, got %#v", result.Value)
 	}
+}
+
+func TestRuntimeRejectsCustomTypeCastTarget(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+alias function User(id : String) : type = struct {}
+
+function Main() : Int {
+    local T raw = User("42");
+    local User user = raw as User;
+    return len(user.id);
+}
+`)
+
+	assertRuntimeErrorContains(t, err, "cast target User is not a builtin type")
 }
 
 func TestRuntimeExecutesNullSafetyOperator(t *testing.T) {

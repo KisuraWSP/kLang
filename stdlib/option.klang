@@ -41,4 +41,36 @@ namespace option {
         }
         return None();
     }
+
+    function Some[T Any](value : T) : Option[T] { return option.some(value); }
+
+    function None[T Any]() : Option[T] { return option.none(); }
+
+    function IsSome[T Any](value : Option[T]) : Bool { return option.is_some(value); }
+
+    function IsNone[T Any](value : Option[T]) : Bool { return option.is_none(value); }
+
+    function Map[T Any, U Any](value : Option[T], mapper : Function[T, U]) : Option[U] {
+        return option.map(value, mapper);
+    }
+
+    function AndThen[T Any, U Any](value : Option[T], mapper : Function[T, Option[U]]) : Option[U] {
+        return option.and_then(value, mapper);
+    }
+
+    function UnwrapOr[T Any](value : Option[T], fallback : T) : T {
+        return option.unwrap_or(value, fallback);
+    }
+
+    function Expect[T Any](value : Option[T], message : String) : T {
+        return option.expect(value, message);
+    }
+
+    function OkOr[T Any, E Any](value : Option[T], error : E) : Result[T, E] {
+        return option.ok_or(value, error);
+    }
+
+    function Flatten[T Any](value : Option[Option[T]]) : Option[T] {
+        return option.flatten(value);
+    }
 }

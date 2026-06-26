@@ -44,4 +44,38 @@ namespace test {
         if value.ok { throw message; }
         return True;
     }
+
+    function Fail(message : String) : Bool { return test.fail(message); }
+
+    function AssertTrue(condition : Bool, message : String = "expected condition to be true") : Bool {
+        return test.assert_true(condition, message);
+    }
+
+    function AssertFalse(condition : Bool, message : String = "expected condition to be false") : Bool {
+        return test.assert_false(condition, message);
+    }
+
+    function Equal[T comparable](left : T, right : T, message : String = "expected values to be equal") : Bool {
+        return test.equal(left, right, message);
+    }
+
+    function NotEqual[T comparable](left : T, right : T, message : String = "expected values to differ") : Bool {
+        return test.not_equal(left, right, message);
+    }
+
+    function Some[T Any](value : Option[T], message : String = "expected Some") : Bool {
+        return test.some(value, message);
+    }
+
+    function None[T Any](value : Option[T], message : String = "expected None") : Bool {
+        return test.none(value, message);
+    }
+
+    function Ok[T Any, E Any](value : Result[T, E], message : String = "expected Ok") : Bool {
+        return test.ok(value, message);
+    }
+
+    function Err[T Any, E Any](value : Result[T, E], message : String = "expected Err") : Bool {
+        return test.err(value, message);
+    }
 }

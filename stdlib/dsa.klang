@@ -10,6 +10,14 @@ alias function Stack[T](items : List[T]) : type = struct {
         function empty() : Bool {
             return len(this.items) == 0;
         }
+
+        function Count() : Int {
+            return this.count();
+        }
+
+        function Empty() : Bool {
+            return this.empty();
+        }
     }
 }
 
@@ -22,6 +30,14 @@ alias function Queue[T](items : List[T]) : type = struct {
         function empty() : Bool {
             return len(this.items) == 0;
         }
+
+        function Count() : Int {
+            return this.count();
+        }
+
+        function Empty() : Bool {
+            return this.empty();
+        }
     }
 }
 
@@ -33,6 +49,14 @@ alias function OrderedMap[T hashable](keys : List[T], values : List[T]) : type =
 
         function empty() : Bool {
             return len(this.keys) == 0;
+        }
+
+        function Count() : Int {
+            return this.count();
+        }
+
+        function Empty() : Bool {
+            return this.empty();
         }
     }
 }

@@ -1,1 +1,109 @@
--- this is going to be an implementation of the raylib game framework but for the web only
+-- Web-oriented Raylib-style command descriptors.
+-- These helpers do not open a native graphics window. They build deterministic
+-- Tables that JS/WASM tooling can serialize and interpret later.
+
+namespace raylib {
+    alias function COLOR(r : Int, g : Int, b : Int, a : Int = 255) : type = struct {
+        #extend {
+            function TO_TABLE() : Table {
+                return {
+                    "r": this.r,
+                    "g": this.g,
+                    "b": this.b,
+                    "a": this.a
+                };
+            }
+
+            function TO_JSON() : String {
+                return json_stringify(this.TO_TABLE());
+            }
+        }
+    }
+
+    alias function COMMAND(kind : String, payload : Table) : type = struct {
+        #extend {
+            function TO_TABLE() : Table {
+                return {
+                    "kind": this.kind,
+                    "payload": this.payload
+                };
+            }
+
+            function TO_JSON() : String {
+                return json_stringify(this.TO_TABLE());
+            }
+        }
+    }
+
+    function RGB(r : Int, g : Int, b : Int) : COLOR {
+        return COLOR(r, g, b, 255);
+    }
+
+    function RGBA(r : Int, g : Int, b : Int, a : Int) : COLOR {
+        return COLOR(r, g, b, a);
+    }
+
+    function INIT_WINDOW(width : Int, height : Int, title : String) : COMMAND {
+        return COMMAND("INIT_WINDOW", {
+            "width": width,
+            "height": height,
+            "title": title
+        });
+    }
+
+    function CLEAR_BACKGROUND(color : COLOR) : COMMAND {
+        return COMMAND("CLEAR_BACKGROUND", color.TO_TABLE());
+    }
+
+    function DRAW_TEXT(text : String, x : Int, y : Int, size : Int, color : COLOR) : COMMAND {
+        return COMMAND("DRAW_TEXT", {
+            "text": text,
+            "x": x,
+            "y": y,
+            "size": size,
+            "color": color.TO_TABLE()
+        });
+    }
+
+    function DRAW_RECTANGLE(x : Int, y : Int, width : Int, height : Int, color : COLOR) : COMMAND {
+        return COMMAND("DRAW_RECTANGLE", {
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height,
+            "color": color.TO_TABLE()
+        });
+    }
+
+    function DRAW_CIRCLE(x : Int, y : Int, radius : Int, color : COLOR) : COMMAND {
+        return COMMAND("DRAW_CIRCLE", {
+            "x": x,
+            "y": y,
+            "radius": radius,
+            "color": color.TO_TABLE()
+        });
+    }
+
+    function SCENE(commands : List[COMMAND]) : Table {
+        local mut List[Table] encoded;
+        local mut Int index = 0;
+        while index < len(commands) {
+            encoded[len(encoded)] = commands[index].TO_TABLE();
+            index += 1;
+        }
+        return {
+            "backend": "web",
+            "library": "raylib",
+            "commands": encoded,
+            "command_count": len(encoded)
+        };
+    }
+
+    function SCENE_JSON(commands : List[COMMAND]) : String {
+        return json_stringify(SCENE(commands));
+    }
+
+    function UNSUPPORTED_NATIVE_REASON() : String {
+        return "raylib stdlib currently emits web command descriptors; native graphics bindings are not implemented";
+    }
+}

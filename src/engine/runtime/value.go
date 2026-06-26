@@ -5,6 +5,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"kLang/src/lexer"
 	"kLang/src/parser"
@@ -574,6 +575,9 @@ func castValue(value Value, typeName string) (Value, error) {
 	if typeName == "" || typeName == "T" {
 		return value, nil
 	}
+	if !isRuntimeBuiltinCastTarget(typeName) {
+		return NullValue(), Error{Message: fmt.Sprintf("cast target %s is not a builtin type", typeName)}
+	}
 	if valueMatchesType(value, typeName) {
 		return value, nil
 	}
@@ -623,6 +627,48 @@ func castValue(value Value, typeName string) (Value, error) {
 		}
 		return NullValue(), Error{Message: fmt.Sprintf("unknown cast target type %q", typeName)}
 	}
+}
+
+func isRuntimeBuiltinCastTarget(typeName string) bool {
+	typeName = normalizeRuntimeType(typeName)
+	if typeName == "" {
+		return false
+	}
+	if _, ok := runtimeChildType(typeName); ok {
+		return true
+	}
+	if _, _, ok := restrictedGenericRuntimeType(typeName); ok {
+		return true
+	}
+	if isRuntimeGenericCastTargetVariable(typeName) {
+		return true
+	}
+	switch typeName {
+	case "T", "Any",
+		"Int", "UInt", "String", "JSON", "Parsable",
+		"Float", "Bool", "Char", "Complex", "Type",
+		"Table", "Program", "BuildSystem", "WorkSpace",
+		"JSModule", "JSCall", "Context", "ErrorContext",
+		"Box", "Ref", "RefMut", "RefCell", "HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator":
+		return true
+	}
+	name, _, ok := splitRuntimeGenericType(typeName)
+	if !ok {
+		return false
+	}
+	switch name {
+	case "List", "Set", "Map", "Option", "Result", "SIMD",
+		"Awaitable", "Iterator", "Coroutine", "Thread", "Atomic",
+		"Parsable", "Function":
+		return true
+	default:
+		return false
+	}
+}
+
+func isRuntimeGenericCastTargetVariable(typeName string) bool {
+	runes := []rune(typeName)
+	return len(runes) == 1 && unicode.IsUpper(runes[0])
 }
 
 func castToInt(value Value, typeName string) (Value, error) {

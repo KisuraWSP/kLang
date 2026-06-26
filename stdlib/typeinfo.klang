@@ -1,0 +1,66 @@
+-- Opt-in type descriptor helpers.
+-- The global `types` module stays alias-only so every package does not inherit
+-- extra runtime functions. Import `typeinfo` when descriptor tables are needed.
+
+namespace typeinfo {
+    function INFO(typeName : String, typeSize : Int) : Table {
+        return {
+            "name": typeName,
+            "size": typeSize
+        };
+    }
+
+    function INT_INFO() : Table {
+        return INFO("Int", Int.sizeof);
+    }
+
+    function UINT_INFO() : Table {
+        return INFO("UInt", UInt.sizeof);
+    }
+
+    function FLOAT_INFO() : Table {
+        return INFO("Float", Float.sizeof);
+    }
+
+    function BOOL_INFO() : Table {
+        return INFO("Bool", Bool.sizeof);
+    }
+
+    function STRING_INFO() : Table {
+        return INFO("String", String.sizeof);
+    }
+
+    function JSON_INFO() : Table {
+        return INFO("JSON", JSON.sizeof);
+    }
+
+    function TABLE_INFO() : Table {
+        return INFO("Table", Table.sizeof);
+    }
+
+    function NUMERIC_CHILDREN() : Table {
+        return {
+            "int": [INFO("i8", types.i8.sizeof), INFO("i16", types.i16.sizeof), INFO("i32", types.i32.sizeof), INFO("i64", types.i64.sizeof)],
+            "uint": [INFO("u8", types.u8.sizeof), INFO("u16", types.u16.sizeof), INFO("u32", types.u32.sizeof), INFO("u64", types.u64.sizeof)],
+            "float": [INFO("float32", types.float32.sizeof), INFO("float64", types.float64.sizeof)],
+            "complex": [INFO("complex64", types.complex64.sizeof), INFO("complex128", types.complex128.sizeof)]
+        };
+    }
+
+    function TYPE_TABLE() : Table {
+        return {
+            "Int": INT_INFO(),
+            "UInt": UINT_INFO(),
+            "Float": FLOAT_INFO(),
+            "Bool": BOOL_INFO(),
+            "String": STRING_INFO(),
+            "JSON": JSON_INFO(),
+            "Table": TABLE_INFO(),
+            "children": NUMERIC_CHILDREN()
+        };
+    }
+
+    function TYPE_TABLE_JSON() : String {
+        return json_stringify(TYPE_TABLE());
+    }
+}

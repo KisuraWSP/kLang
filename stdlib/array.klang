@@ -211,6 +211,52 @@ alias function Array[T](items : List[T], length : Int, capacity : Int, allocator
             }
             return total;
         }
+
+        function Count() : Int { return this.count(); }
+
+        function Len() : Int { return this.len(); }
+
+        function CapacityValue() : Int { return this.capacity_value(); }
+
+        function Empty() : Bool { return this.empty(); }
+
+        function Values() : List[T] { return this.values(); }
+
+        function Get(index : Int) : T { return this.get(index); }
+
+        function Fetch(index : Int) : Option[T] { return this.fetch(index); }
+
+        function Front() : Option[T] { return this.front(); }
+
+        function Back() : Option[T] { return this.back(); }
+
+        function Clear() : Array { return this.clear(); }
+
+        function Set(index : Int, value : T) : Array { return this.set(index, value); }
+
+        function Push(value : T) : Array { return this.push(value); }
+
+        function Append(value : T) : Array { return this.append(value); }
+
+        function Extend(extra : List[T]) : Array { return this.extend(extra); }
+
+        function Insert(index : Int, value : T) : Array { return this.insert(index, value); }
+
+        function RemoveAt(index : Int) : Array { return this.remove_at(index); }
+
+        function Remove(value : T) : Array { return this.remove(value); }
+
+        function Pop() : Array { return this.pop(); }
+
+        function Slice(start : Int, stop : Int) : Array { return this.slice(start, stop); }
+
+        function Reverse() : Array { return this.reverse(); }
+
+        function IndexOf(value : T) : Int { return this.index_of(value); }
+
+        function Contains(value : T) : Bool { return this.contains(value); }
+
+        function Occurrences(value : T) : Int { return this.occurrences(value); }
     }
 }
 
@@ -517,5 +563,69 @@ namespace array {
             index += 1;
         }
         return result;
+    }
+
+    function Empty(values : List[T]) : Bool { return array.empty(values); }
+
+    function Len(values : List[T]) : Int { return array.len(values); }
+
+    function Capacity(values : List[T]) : Int { return array.capacity(values); }
+
+    function Copy(values : List[T]) : List[T] { return array.copy(values); }
+
+    function Clear(values : List[T]) : List[T] { return array.clear(values); }
+
+    function Get(values : List[T], index : Int) : T { return array.get(values, index); }
+
+    function Fetch(values : List[T], index : Int) : Option[T] { return array.fetch(values, index); }
+
+    function Front(values : List[T]) : Option[T] { return array.front(values); }
+
+    function Back(values : List[T]) : Option[T] { return array.back(values); }
+
+    function Set(values : List[T], index : Int, value : T) : List[T] {
+        return array.set(values, index, value);
+    }
+
+    function Push(values : List[T], value : T) : List[T] { return array.push(values, value); }
+
+    function Append(values : List[T], value : T) : List[T] { return array.append(values, value); }
+
+    function Extend(values : List[T], extra : List[T]) : List[T] { return array.extend(values, extra); }
+
+    function Insert(values : List[T], index : Int, value : T) : List[T] {
+        return array.insert(values, index, value);
+    }
+
+    function RemoveAt(values : List[T], index : Int) : List[T] {
+        return array.remove_at(values, index);
+    }
+
+    function Remove(values : List[T], value : T) : List[T] { return array.remove(values, value); }
+
+    function Pop(values : List[T]) : List[T] { return array.pop(values); }
+
+    function Slice(values : List[T], start : Int, stop : Int) : List[T] {
+        return array.slice(values, start, stop);
+    }
+
+    function Reverse(values : List[T]) : List[T] { return array.reverse(values); }
+
+    function IndexOf(values : List[T], value : T) : Int { return array.index_of(values, value); }
+
+    function Contains(values : List[T], value : T) : Bool { return array.contains(values, value); }
+
+    function Count(values : List[T], value : T) : Int { return array.count(values, value); }
+
+    function Map[T Any, U Any](values : List[T], mapper : Function[T, U]) : List[U] {
+        return array.map(values, mapper);
+    }
+
+    function Filter[T Any](values : List[T], predicate : Function[T, Bool]) : List[T] {
+        return array.filter(values, predicate);
+    }
+
+    function Fold[T Any, U Any](values : List[T], initial : U, reducer : Function[U, T, U]) : U {
+        return array.fold(values, initial, reducer);
     }
 }
