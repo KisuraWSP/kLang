@@ -52,7 +52,7 @@
 52. `assert expression;` is a builtin statement keyword. The expression must be `Bool`; runtime execution fails with an assertion error when it is false.
 53. CLI `doc --sourcefile=[...]` generates a static HTML documentation UI for one or more Klang source files or folder projects, including declaration cards and source-code chapters for each file.
 54. `report expression;` is a builtin runtime reporting statement. It evaluates the expression, prints the expression text, value, runtime type, and current stack trace, then continues execution.
-55. CLI `check` and `run` persist a source-fingerprint program cache in `.klang-cache` so repeated startups can skip module resolution and type checking when the full resolved source set is unchanged.
+55. CLI `check` and `run` persist a source-fingerprint program cache in `.klang-cache` so repeated startups can skip module resolution and type checking when the full resolved source set is unchanged. A source file can opt the whole workspace out with `no_cache;`.
 56. `Set[T]` is a builtin deterministic hash set for unique primitive values, constructed with `Set(list)`, counted with `.count` or `len`, iterated with `iter`, and queried with `set_has(set, value)`.
 57. `format(pattern : String, values : List[T])` and `printf(pattern : String, values : List[T])` are runtime-backed string formatting builtins. `%` consumes the next value, `%%` emits a literal percent sign, and the number of non-escaped placeholders must match `len(values)`. The stdlib `fmt` module exposes `fmt.Format` and `fmt.Printf` wrappers.
 58. Generic type parameters support named constraints beyond `restrict[...]`: `numeric`, `comparable`, `hashable`, `iterable`, `allocator_like`, and trait-bound names such as `T Printable`.
@@ -67,6 +67,8 @@
 67. `Parsable[T]` is a builtin metaprogramming type that parses one source program, retains AST/runtime/argument metadata, integrates with `Program`, `BuildSystem`, and `WorkSpace`, supports reparsed immutable source transforms, and can define trait-restricted keyword macros.
 68. `type name = ExistingType;` declares a workspace-scoped compile-time type alias that is recursively expanded in declarations, signatures, generic arguments, and casts.
 69. The core stdlib is depth-oriented: `array`, `list`, `table`, `json`, `strings`, `mathg`, `io`, `test`, `result`, and `option` expose composable operations over existing builtin semantics rather than introducing parallel runtime types.
+70. `scope Name { ... }` declares a user-defined lexical scope. It executes as a named block, can read outer bindings, permits inner shadowing, and keeps ordinary local declarations from leaking outside the block.
+71. `for_each value in iterable { ... }` loops directly over iterable values. The loop binding is scoped to the loop body, immutable by default, and supports the same iterable surface as `iter`: List, String, Table, Set, Iterator, and range-compatible Int values.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -102,6 +104,8 @@ Rules
 - Named return values are zero-initialized in the function body.
 - Function arguments are pass-by-value by default, so mutating a `mut` parameter changes only the callee's local copy. A `ref name : Type` parameter aliases the caller's mutable variable; calls to `ref` parameters must pass a direct mutable variable, not a literal or temporary expression.
 - `private { ... }` creates a private lexical block.
+- `scope Name { ... }` creates a named lexical block. The name is documentation and metadata, not a namespace qualifier; use `namespace` when functions should be called as `Name.Function(...)`.
+- `for_each item in values { ... }` iterates over values directly. Use `for index := range(len(values)) { ... }` when the index is needed instead of the value.
 - Extension methods declared inside an alias function use `this` as their receiver.
 - Alias functions may declare members, traits, impls, allocation hooks, deallocation hooks, side-effect hooks, and extension methods in the same block.
 - Struct-style alias functions are first-class static object types: constructor parameters become readable fields on `this`, `#extend` methods are type checked with the receiver in scope, generic arguments inferred from constructor calls flow into fields and methods, and methods may return either the bare alias name or a specialized alias type from the same alias family.
@@ -135,6 +139,7 @@ Rules
 - Stdlib imports are selectively collected by default. For example, `import "html";` plus `html.Document(...)` collects `html.Document` and its same-module helper dependencies, not every function in `stdlib/html.klang`.
 - Place `module_caller(call_entire_module : True);` in a source file to make its stdlib imports load complete modules.
 - Place `module(disabled : True);` in a module source to make the resolver reject imports of that module.
+- Place `no_cache;` in a source file to prevent the program cache from loading or storing `.klang-cache` entries for that workspace.
 - Place `global namespace Name { ... }` in a stdlib module to expose the namespace's functions as unqualified calls through the language's internal symbol table. The symbol table is not accessible from Klang source.
 - Use `run { ... }` or `run FunctionName();` to execute initialization code before ordinary statements in the same runtime block. A `run` action cannot return, break, or continue.
 - Use `(* ... *)` for multiline comments. Multiline comments are ignored by the lexer before parsing.

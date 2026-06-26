@@ -671,6 +671,28 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesForEachLoop(t *testing.T) {
+	result := runSource(t, `
+function Main() : Int {
+    local mut Int total = 0;
+    for_each value in [1, 2, 3] {
+        total += value;
+    }
+    for_each letter in "ab" {
+        print(letter);
+    }
+    for_each index in 3 {
+        total += index;
+    }
+    return total;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 9 {
+		t.Fatalf("expected for_each total 9, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesPatternMatchWithDefaultBreak(t *testing.T) {
 	result := runParsedSource(t, `
 function Main() : Int {
@@ -1528,6 +1550,26 @@ function Main() : Int {
 	}
 	if len(result.Output) != 1 || result.Output[0] != "20" {
 		t.Fatalf("expected inner shadow output 20, got %#v", result.Output)
+	}
+}
+
+func TestRuntimeExecutesUserDefinedScopeWithoutLeaking(t *testing.T) {
+	result := runParsedSource(t, `
+function Main() : Int {
+    local Int value = 1;
+    scope Calculation {
+        local Int value = 20;
+        print(value);
+    }
+    return value;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected user-defined scope to preserve outer value 1, got %#v", result.Value)
+	}
+	if len(result.Output) != 1 || result.Output[0] != "20" {
+		t.Fatalf("expected scoped shadow output 20, got %#v", result.Output)
 	}
 }
 

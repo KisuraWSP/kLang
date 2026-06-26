@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"kLang/src/engine/file"
+	"kLang/src/lexer"
 )
 
 const Version = "klang-program-cache-v1"
@@ -41,6 +42,9 @@ type CachedSource struct {
 }
 
 func Load(program file.Program, rawLang bool) (file.Program, Entry, bool) {
+	if HasNoCache(program) {
+		return file.Program{}, Entry{}, false
+	}
 	entryPath, key, ok := cachePath(program, rawLang)
 	if !ok {
 		return file.Program{}, Entry{}, false
@@ -55,6 +59,9 @@ func Load(program file.Program, rawLang bool) (file.Program, Entry, bool) {
 		return file.Program{}, Entry{}, false
 	}
 	if entry.Version != Version || entry.Key != key || entry.RawLang != rawLang {
+		return file.Program{}, Entry{}, false
+	}
+	if cachedEntryHasNoCache(entry) {
 		return file.Program{}, Entry{}, false
 	}
 
@@ -95,6 +102,9 @@ func Load(program file.Program, rawLang bool) (file.Program, Entry, bool) {
 }
 
 func Store(program file.Program, rawLang bool, warnings []Warning) error {
+	if HasNoCache(program) {
+		return nil
+	}
 	entryPath, key, ok := cachePath(program, rawLang)
 	if !ok {
 		return nil
@@ -144,6 +154,37 @@ func Store(program file.Program, rawLang bool, warnings []Warning) error {
 func Path(program file.Program, rawLang bool) (string, bool) {
 	path, _, ok := cachePath(program, rawLang)
 	return path, ok
+}
+
+func HasNoCache(program file.Program) bool {
+	for _, source := range program.Files {
+		if sourceHasNoCache(source.Lines) {
+			return true
+		}
+	}
+	return false
+}
+
+func cachedEntryHasNoCache(entry Entry) bool {
+	for _, source := range entry.Files {
+		if sourceHasNoCache(source.Lines) {
+			return true
+		}
+	}
+	return false
+}
+
+func sourceHasNoCache(lines []string) bool {
+	tokens := lexer.New(strings.Join(lines, "\n")).Tokenize()
+	for index, token := range tokens {
+		if token.Type != lexer.TokenIdentifier || token.Literal != "no_cache" {
+			continue
+		}
+		if index+1 >= len(tokens) || tokens[index+1].Type == lexer.TokenSemicolon || tokens[index+1].Type == lexer.TokenEOFDescriptor {
+			return true
+		}
+	}
+	return false
 }
 
 func cachePath(program file.Program, rawLang bool) (string, string, bool) {

@@ -790,6 +790,12 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 				return err
 			}
 		}
+	case parser.ScopeStatement:
+		for _, nested := range current.Body {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
+				return err
+			}
+		}
 	case parser.DeferStatement:
 		if current.Stmt != nil {
 			if err := runtime.collectFunctions(current.Stmt, namespace, filter, sourcePath, globalNamespace); err != nil {
@@ -1112,6 +1118,8 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		return signal{kind: signalNone}, nil
 	case parser.PrivateBlockStatement:
 		return runtime.executeBlock(current.Body, NewEnvironment(env), inLoop)
+	case parser.ScopeStatement:
+		return runtime.executeBlock(current.Body, NewEnvironment(env), inLoop)
 	case parser.ThrowStatement:
 		value, err := runtime.evalExpression(current.Expression.Node, env)
 		if err != nil {
@@ -1301,6 +1309,41 @@ func (runtime *Runtime) tailCallSignal(expr parser.ExpressionNode, env *Environm
 }
 
 func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment) (signal, error) {
+	if stmt.Kind == "for_each" {
+		iterator, iterable, ok := parseForEachHeader(stmt.Header)
+		if !ok {
+			return signal{}, errorAt(stmt.Pos, "for_each expects 'name in iterable'")
+		}
+		iterableValue, err := runtime.evalExpression(iterable.Node, env)
+		if err != nil {
+			return signal{}, err
+		}
+		values, err := iterableValues(iterableValue)
+		if err != nil {
+			return signal{}, errorAt(stmt.Pos, err.Error())
+		}
+		for _, value := range values {
+			loopEnv := NewEnvironment(env)
+			if err := runtime.defineValue(loopEnv, iterator, false, runtimeTypeName(value), value); err != nil {
+				return signal{}, errorAt(stmt.Pos, err.Error())
+			}
+			currentSignal, err := runtime.executeBlock(stmt.Body, loopEnv, true)
+			if err != nil {
+				return signal{}, err
+			}
+			if currentSignal.kind == signalBreak {
+				return signal{kind: signalNone}, nil
+			}
+			if currentSignal.kind == signalContinue {
+				continue
+			}
+			if currentSignal.kind == signalReturn || currentSignal.kind == signalTailCall || currentSignal.kind == signalThrow {
+				return currentSignal, nil
+			}
+		}
+		return signal{kind: signalNone}, nil
+	}
+
 	if init, condition, post, ok := parseCStyleForHeader(stmt.Header); ok {
 		loopEnv := NewEnvironment(env)
 		if len(init.Tokens) != 0 {

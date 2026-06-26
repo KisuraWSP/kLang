@@ -36,6 +36,11 @@ local Result[String, String] serialized = json.serialize({"name": "kLang"});
 local Result[T, String] deserialized = json.deserialize(serialized.value);
 ```
 
+Disable the program cache for a workspace when fresh module resolution and type checking are required:
+```lua
+no_cache;
+```
+
 Struct-style aliases can rename constructor fields during JSON serialization:
 ```lua
 alias function User(id : String, displayName : String) : type = struct {
@@ -224,6 +229,12 @@ function RememberIndex(index : Int) : Int {
 
 local Int lastIndex = 5.times(RememberIndex);
 
+-- for_each loops over iterable values directly.
+local mut Int directTotal = 0;
+for_each value in [1, 2, 3] {
+    directTotal += value;
+}
+
 -- lvalues and rvalues
 -- Only variables and indexed mutable variables can be assigned to.
 -- Computed expressions, literals, function calls, and string indexes are rvalues.
@@ -257,6 +268,15 @@ local String firstArg = Args[0];
 -- exported variable
 -- export makes the variable accessible through the global scope even when declared inside a block or function.
 export local Int sharedValue = 10;
+
+-- user-defined lexical scope
+-- scope creates a named block for grouping setup/workflow code without creating
+-- a namespace. Locals declared inside do not leak outside, while export/global
+-- declarations still intentionally escape.
+scope Setup {
+    local Int value = 10;
+    print(value);
+}
 
 -- global declarations are valid in any scope.
 global mut Int sharedCounter = 0;

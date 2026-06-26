@@ -371,6 +371,49 @@ private {
 	}
 }
 
+func TestParseUserDefinedScope(t *testing.T) {
+	program, errors := Parse(`
+scope Setup {
+    local Int value = 1;
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	scope, ok := program.Statements[0].(ScopeStatement)
+	if !ok {
+		t.Fatalf("expected scope statement, got %T", program.Statements[0])
+	}
+	if scope.Name != "Setup" || len(scope.Body) != 1 {
+		t.Fatalf("unexpected scope statement: %#v", scope)
+	}
+	if _, ok := scope.Body[0].(VariableStatement); !ok {
+		t.Fatalf("expected scope body declaration, got %T", scope.Body[0])
+	}
+}
+
+func TestParseForEachLoop(t *testing.T) {
+	program, errors := Parse(`
+function Main() {
+    for_each value in [1, 2, 3] {
+        print(value);
+    }
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn := program.Statements[0].(FunctionStatement)
+	loop, ok := fn.Body[0].(LoopStatement)
+	if !ok {
+		t.Fatalf("expected loop statement, got %T", fn.Body[0])
+	}
+	if loop.Kind != "for_each" {
+		t.Fatalf("expected for_each loop kind, got %q", loop.Kind)
+	}
+	if len(loop.Header.Tokens) < 3 || loop.Header.Tokens[0].Literal != "value" || loop.Header.Tokens[1].Literal != "in" {
+		t.Fatalf("unexpected for_each header: %#v", loop.Header.Tokens)
+	}
+}
+
 func TestParseMultiVariableDeclarationFromMultipleReturn(t *testing.T) {
 	program, errors := Parse(`
 function Main() : Int {
@@ -863,11 +906,12 @@ func TestParseModuleDirectives(t *testing.T) {
 	program, errors := Parse(`
 module(disabled : True);
 module_caller(call_entire_module : True);
+no_cache;
 `)
 	assertNoParseErrors(t, errors)
 
-	if len(program.Statements) != 2 {
-		t.Fatalf("expected 2 module directive statements, got %d", len(program.Statements))
+	if len(program.Statements) != 3 {
+		t.Fatalf("expected 3 module directive statements, got %d", len(program.Statements))
 	}
 	module, ok := program.Statements[0].(ModuleDirectiveStatement)
 	if !ok || module.Name != "module" || !module.Options["disabled"] {
@@ -876,6 +920,10 @@ module_caller(call_entire_module : True);
 	caller, ok := program.Statements[1].(ModuleDirectiveStatement)
 	if !ok || caller.Name != "module_caller" || !caller.Options["call_entire_module"] {
 		t.Fatalf("unexpected module caller directive: %#v", program.Statements[1])
+	}
+	noCache, ok := program.Statements[2].(ModuleDirectiveStatement)
+	if !ok || noCache.Name != "no_cache" || len(noCache.Options) != 0 {
+		t.Fatalf("unexpected no_cache directive: %#v", program.Statements[2])
 	}
 }
 

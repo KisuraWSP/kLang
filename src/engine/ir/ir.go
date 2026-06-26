@@ -65,10 +65,12 @@ const (
 	StatementIf         StatementKind = "if"
 	StatementWhile      StatementKind = "while"
 	StatementRange      StatementKind = "range"
+	StatementForEach    StatementKind = "for_each"
 	StatementBreak      StatementKind = "break"
 	StatementContinue   StatementKind = "continue"
 	StatementThrow      StatementKind = "throw"
 	StatementAssert     StatementKind = "assert"
+	StatementBlock      StatementKind = "block"
 )
 
 type Statement struct {

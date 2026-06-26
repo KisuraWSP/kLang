@@ -89,6 +89,11 @@ func entryPointFromStatements(statements []Statement, namespace string) string {
 				return entry
 			}
 			armed = false
+		case ScopeStatement:
+			if entry := entryPointFromStatements(current.Body, namespace); entry != "" {
+				return entry
+			}
+			armed = false
 		default:
 			armed = false
 		}

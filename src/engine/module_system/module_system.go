@@ -610,6 +610,10 @@ func collectSourceMetadataInto(statements []parser.Statement, namespace string, 
 				collectSourceMetadataInto([]parser.Statement{current.Stmt}, namespace, global, metadata, imports)
 			}
 			collectSourceMetadataInto(current.Body, namespace, global, metadata, imports)
+		case parser.PrivateBlockStatement:
+			collectSourceMetadataInto(current.Body, namespace, global, metadata, imports)
+		case parser.ScopeStatement:
+			collectSourceMetadataInto(current.Body, namespace, global, metadata, imports)
 		}
 	}
 }
@@ -763,6 +767,8 @@ func collectNamespaceAliases(statements []parser.Statement) map[string]string {
 				collect(current.Body)
 			case parser.PrivateBlockStatement:
 				collect(current.Body)
+			case parser.ScopeStatement:
+				collect(current.Body)
 			}
 		}
 	}
@@ -809,6 +815,10 @@ func collectFunctionDefinitions(statements []parser.Statement, namespace string,
 		switch current := stmt.(type) {
 		case parser.NamespaceStatement:
 			collectFunctionDefinitions(current.Body, namespace+current.Name+".", definitions)
+		case parser.PrivateBlockStatement:
+			collectFunctionDefinitions(current.Body, namespace, definitions)
+		case parser.ScopeStatement:
+			collectFunctionDefinitions(current.Body, namespace, definitions)
 		case parser.FunctionStatement:
 			definitions[namespace+current.Name] = current
 		}
@@ -885,6 +895,8 @@ func collectStatementCalls(statements []parser.Statement, add func(string)) {
 			}
 			collectStatementCalls(current.Body, add)
 		case parser.PrivateBlockStatement:
+			collectStatementCalls(current.Body, add)
+		case parser.ScopeStatement:
 			collectStatementCalls(current.Body, add)
 		case parser.NamespaceStatement:
 			collectStatementCalls(current.Body, add)

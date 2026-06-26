@@ -1678,6 +1678,15 @@ func parseRangeHeader(expr parser.Expression) (string, parser.Expression, bool) 
 	return tokens[0].Literal, parser.Expression{Tokens: valueTokens, Node: parser.ParseExpressionTokens(valueTokens)}, true
 }
 
+func parseForEachHeader(expr parser.Expression) (string, parser.Expression, bool) {
+	tokens := expr.Tokens
+	if len(tokens) < 3 || tokens[0].Type != lexer.TokenIdentifier || tokens[1].Type != lexer.TokenIn {
+		return "", parser.Expression{}, false
+	}
+	valueTokens := tokens[2:]
+	return tokens[0].Literal, parser.Expression{Tokens: valueTokens, Node: parser.ParseExpressionTokens(valueTokens)}, true
+}
+
 func parseCStyleForHeader(expr parser.Expression) (parser.Expression, parser.Expression, parser.Expression, bool) {
 	parts := splitTopLevel(expr.Tokens, lexer.TokenSemicolon)
 	if len(parts) != 3 {

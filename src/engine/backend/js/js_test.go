@@ -386,8 +386,12 @@ function Main() : Int {
     for index := range(len(values)) {
         values[index] += index;
     }
+    local mut Int sum = 0;
+    for_each value in values {
+        sum += value;
+    }
     local List[Int] doubled = DoubleLarge(values);
-    print(saved, values, doubled, values.count);
+    print(saved, values, doubled, values.count, sum);
     return doubled[3] + len(values);
 }
 `)
@@ -400,7 +404,7 @@ function Main() : Int {
 		t.Fatalf("emit List operations: %v", err)
 	}
 	source := string(output.Artifacts[0].Content)
-	for _, expected := range []string{"__klang_copy", "__klang_list_assign", "__klang_list_iter", "for (let k_index", "__klang_index", "__klang_len"} {
+	for _, expected := range []string{"__klang_copy", "__klang_list_assign", "__klang_list_iter", "__klang_iter", "for (let k_index", "for (const k_value", "__klang_index", "__klang_len"} {
 		if !strings.Contains(source, expected) {
 			t.Fatalf("generated List JS missing %q:\n%s", expected, source)
 		}
@@ -412,7 +416,7 @@ function Main() : Int {
 		}
 		command := exec.Command(node, filepath.Join(bundle, "program.js"))
 		printed, runErr := command.CombinedOutput()
-		if runErr != nil || strings.TrimSpace(string(printed)) != "[1, 2, 3] [9, 3, 5, 7] [18, 6, 10, 14] 4" {
+		if runErr != nil || strings.TrimSpace(string(printed)) != "[1, 2, 3] [9, 3, 5, 7] [18, 6, 10, 14] 4 24" {
 			t.Fatalf("generated List program failed: %v\n%s", runErr, printed)
 		}
 	}

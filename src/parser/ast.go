@@ -329,6 +329,12 @@ type PrivateBlockStatement struct {
 	Body []Statement
 }
 
+type ScopeStatement struct {
+	Pos  Position
+	Name string
+	Body []Statement
+}
+
 type Expression struct {
 	Tokens []lexer.Token
 	Node   ExpressionNode
@@ -465,6 +471,7 @@ func (stmt DeferStatement) statementNode()      {}
 func (stmt RunStatement) statementNode()        {}
 func (stmt PrivateBlockStatement) statementNode() {
 }
+func (stmt ScopeStatement) statementNode() {}
 
 func (stmt ImportStatement) Position() Position { return stmt.Pos }
 func (stmt ModuleDirectiveStatement) Position() Position {
@@ -509,6 +516,7 @@ func (stmt RunStatement) Position() Position        { return stmt.Pos }
 func (stmt PrivateBlockStatement) Position() Position {
 	return stmt.Pos
 }
+func (stmt ScopeStatement) Position() Position { return stmt.Pos }
 
 func (expr IdentifierExpression) expressionNode()  {}
 func (expr LiteralExpression) expressionNode()     {}

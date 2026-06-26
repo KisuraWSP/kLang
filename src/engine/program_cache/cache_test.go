@@ -116,6 +116,60 @@ func TestRawLangUsesSeparateCacheEntry(t *testing.T) {
 	}
 }
 
+func TestNoCacheDirectiveSkipsStoreAndLoad(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "main.klang")
+	writeSource(t, sourcePath, "no_cache;\nfunction Main() : Int { return 1; }\n")
+	program := file.Program{
+		Name:       "main",
+		Root:       root,
+		EntryPoint: sourcePath,
+		Files: []file.SourceFile{{
+			Path:  sourcePath,
+			Lines: []string{"no_cache;", "function Main() : Int { return 1; }"},
+		}},
+	}
+
+	if !HasNoCache(program) {
+		t.Fatal("expected no_cache directive to be detected")
+	}
+	if err := Store(program, false, nil); err != nil {
+		t.Fatalf("store with no_cache failed: %v", err)
+	}
+	if cachePath, ok := Path(program, false); ok {
+		if _, err := os.Stat(cachePath); !os.IsNotExist(err) {
+			t.Fatalf("expected no cache file at %s, stat err=%v", cachePath, err)
+		}
+	}
+	if _, _, ok := Load(program, false); ok {
+		t.Fatal("expected no_cache program to miss cache")
+	}
+}
+
+func TestCachedNoCacheEntryIsRejected(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "main.klang")
+	writeSource(t, sourcePath, "function Main() : Int { return 1; }\n")
+	program := file.Program{
+		Name:       "main",
+		Root:       root,
+		EntryPoint: sourcePath,
+		Files: []file.SourceFile{{
+			Path:  sourcePath,
+			Lines: []string{"function Main() : Int { return 1; }"},
+		}},
+	}
+	if err := Store(program, false, nil); err != nil {
+		t.Fatalf("store cache failed: %v", err)
+	}
+
+	writeSource(t, sourcePath, "no_cache;\nfunction Main() : Int { return 1; }\n")
+	program.Files[0].Lines = []string{"no_cache;", "function Main() : Int { return 1; }"}
+	if _, _, ok := Load(program, false); ok {
+		t.Fatal("expected cache miss after no_cache directive is added")
+	}
+}
+
 func writeSource(t *testing.T, path string, source string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(source), 0644); err != nil {

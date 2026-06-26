@@ -80,6 +80,7 @@ const (
 	TokenRegion     // region
 	TokenUnless     // unless
 	TokenFor        // for
+	TokenForEach    // for_each
 	TokenWhile      // while
 	TokenDo         // do
 	TokenIs         // is
@@ -95,6 +96,7 @@ const (
 	TokenPrivate    // private
 	TokenDefer      // defer
 	TokenRun        // run
+	TokenScope      // scope
 	TokenAssert     // assert
 	TokenReport     // report
 	TokenInner      // inner
@@ -149,6 +151,7 @@ var Keywords = map[string]TokenType{
 	"region":         TokenRegion,
 	"unless":         TokenUnless,
 	"for":            TokenFor,
+	"for_each":       TokenForEach,
 	"while":          TokenWhile,
 	"do":             TokenDo,
 	"is":             TokenIs,
@@ -164,6 +167,7 @@ var Keywords = map[string]TokenType{
 	"private":        TokenPrivate,
 	"defer":          TokenDefer,
 	"run":            TokenRun,
+	"scope":          TokenScope,
 	"assert":         TokenAssert,
 	"report":         TokenReport,
 	"inner":          TokenInner,

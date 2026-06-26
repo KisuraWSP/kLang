@@ -142,6 +142,8 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseDefer()
 	case lexer.TokenRun:
 		return parser.parseRun()
+	case lexer.TokenScope:
+		return parser.parseScope()
 	case lexer.TokenBreak:
 		return parser.parseBreak()
 	case lexer.TokenContinue:
@@ -156,11 +158,16 @@ func (parser *Parser) parseStatement() Statement {
 		return parser.parseCondition("unless")
 	case lexer.TokenWhile:
 		return parser.parseLoop("while")
+	case lexer.TokenForEach:
+		return parser.parseLoop("for_each")
 	case lexer.TokenFor:
 		return parser.parseLoop("for")
 	case lexer.TokenDoWhile, lexer.TokenDo:
 		return parser.parseLoop(token.Literal)
 	default:
+		if token.Type == lexer.TokenIdentifier && token.Literal == "no_cache" {
+			return parser.parseNoCacheDirective()
+		}
 		if token.Type == lexer.TokenIdentifier && token.Literal == "module_caller" {
 			return parser.parseModuleDirective()
 		}
@@ -217,6 +224,16 @@ func (parser *Parser) parseModuleDirective() Statement {
 		Pos:     positionFromToken(start),
 		Name:    name,
 		Options: options,
+	}
+}
+
+func (parser *Parser) parseNoCacheDirective() Statement {
+	start := parser.consume(lexer.TokenIdentifier, "expected no_cache")
+	parser.consumeOptionalSemicolon()
+	return ModuleDirectiveStatement{
+		Pos:     positionFromToken(start),
+		Name:    "no_cache",
+		Options: map[string]bool{},
 	}
 }
 
@@ -730,6 +747,13 @@ func (parser *Parser) parseGlobalNamespace() Statement {
 		Global:  true,
 		Body:    body,
 	}
+}
+
+func (parser *Parser) parseScope() Statement {
+	start := parser.consume(lexer.TokenScope, "expected scope")
+	name := parser.consume(lexer.TokenIdentifier, "expected scope name")
+	body := parser.parseBlock()
+	return ScopeStatement{Pos: positionFromToken(start), Name: name.Literal, Body: body}
 }
 
 func (parser *Parser) parseInline() Statement {
@@ -1787,7 +1811,7 @@ func inlineStatementStart(tokens []lexer.Token) int {
 		switch token.Type {
 		case lexer.TokenBreak, lexer.TokenContinue, lexer.TokenReturn, lexer.TokenLocal, lexer.TokenGlobal, lexer.TokenExport,
 			lexer.TokenThrow, lexer.TokenReport, lexer.TokenTry, lexer.TokenCall, lexer.TokenAt, lexer.TokenAlias, lexer.TokenLazy, lexer.TokenTemp, lexer.TokenAsync, lexer.TokenInline,
-			lexer.TokenPrivate, lexer.TokenDefer, lexer.TokenRun, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
+			lexer.TokenPrivate, lexer.TokenDefer, lexer.TokenRun, lexer.TokenForEach, lexer.TokenInner, lexer.TokenTrait, lexer.TokenImpl:
 			return index
 		}
 	}

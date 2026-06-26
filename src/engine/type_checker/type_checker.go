@@ -216,6 +216,8 @@ func (checker *TypeChecker) collectTypeAliases(parsed parser.ParsedProgram) {
 				collect(current.Body, source)
 			case parser.PrivateBlockStatement:
 				collect(current.Body, source)
+			case parser.ScopeStatement:
+				collect(current.Body, source)
 			}
 		}
 	}
@@ -281,6 +283,10 @@ func (checker *TypeChecker) collectAliasFunctionStatements(statements []parser.S
 			checker.collectAliasFunctionStatements(current.Body, source)
 		case parser.NamespaceStatement:
 			checker.collectAliasFunctionStatements(current.Body, source)
+		case parser.PrivateBlockStatement:
+			checker.collectAliasFunctionStatements(current.Body, source)
+		case parser.ScopeStatement:
+			checker.collectAliasFunctionStatements(current.Body, source)
 		}
 	}
 }
@@ -330,6 +336,10 @@ func (checker *TypeChecker) collectFunctionGroupStatements(statements []parser.S
 			checker.groups[name] = append([]string(nil), current.Functions...)
 		case parser.NamespaceStatement:
 			checker.collectFunctionGroupStatements(current.Body, namespace+current.Name+".", source)
+		case parser.PrivateBlockStatement:
+			checker.collectFunctionGroupStatements(current.Body, namespace, source)
+		case parser.ScopeStatement:
+			checker.collectFunctionGroupStatements(current.Body, namespace, source)
 		case parser.AliasFunctionStatement:
 			checker.collectFunctionGroupStatements(current.Body, namespace, source)
 		}
@@ -479,6 +489,8 @@ func (checker *TypeChecker) collectEnumStatements(statements []parser.Statement,
 			checker.collectEnumStatements(current.Body, source)
 		case parser.PrivateBlockStatement:
 			checker.collectEnumStatements(current.Body, source)
+		case parser.ScopeStatement:
+			checker.collectEnumStatements(current.Body, source)
 		case parser.AliasFunctionStatement:
 			checker.collectEnumStatements(current.Body, source)
 		}
@@ -515,6 +527,10 @@ func (checker *TypeChecker) collectTraitStatements(statements []parser.Statement
 			}
 			checker.traits[current.Name] = traitSymbol{Name: current.Name, Methods: methods, File: source, Line: current.Pos.Line}
 		case parser.NamespaceStatement:
+			checker.collectTraitStatements(current.Body, source)
+		case parser.PrivateBlockStatement:
+			checker.collectTraitStatements(current.Body, source)
+		case parser.ScopeStatement:
 			checker.collectTraitStatements(current.Body, source)
 		case parser.AliasFunctionStatement:
 			checker.collectTraitStatements(current.Body, source)
@@ -556,6 +572,10 @@ func (checker *TypeChecker) checkImplStatements(statements []parser.Statement, s
 				}
 			}
 		case parser.NamespaceStatement:
+			checker.checkImplStatements(current.Body, source)
+		case parser.PrivateBlockStatement:
+			checker.checkImplStatements(current.Body, source)
+		case parser.ScopeStatement:
 			checker.checkImplStatements(current.Body, source)
 		case parser.AliasFunctionStatement:
 			checker.checkImplStatements(current.Body, source)
@@ -615,6 +635,10 @@ func (checker *TypeChecker) collectAliasStatements(statements []parser.Statement
 			}
 			checker.aliases[current.Name] = resolvedTarget
 		case parser.NamespaceStatement:
+			checker.collectAliasStatements(current.Body, source)
+		case parser.PrivateBlockStatement:
+			checker.collectAliasStatements(current.Body, source)
+		case parser.ScopeStatement:
 			checker.collectAliasStatements(current.Body, source)
 		case parser.AliasFunctionStatement:
 			checker.collectAliasStatements(current.Body, source)
@@ -824,6 +848,8 @@ func (checker *TypeChecker) checkAliasFunctionMethods(statements []parser.Statem
 		case parser.NamespaceStatement:
 			checker.checkAliasFunctionMethods(current.Body, source)
 		case parser.PrivateBlockStatement:
+			checker.checkAliasFunctionMethods(current.Body, source)
+		case parser.ScopeStatement:
 			checker.checkAliasFunctionMethods(current.Body, source)
 		}
 	}
@@ -1059,6 +1085,8 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		checker.checkSemanticChildBlock(fn, current.Body, locals)
 	case parser.PrivateBlockStatement:
 		checker.checkSemanticChildBlock(fn, current.Body, locals)
+	case parser.ScopeStatement:
+		checker.checkSemanticChildBlock(fn, current.Body, locals)
 	case parser.FunctionStatement:
 		return
 	}
@@ -1154,6 +1182,23 @@ func callCalleeName(node parser.ExpressionNode) (string, bool) {
 func (checker *TypeChecker) checkSemanticLoop(fn functionSymbol, stmt parser.LoopStatement, locals map[string]variableSymbol, line int) {
 	loopLocals := copyLocals(locals)
 	declared := map[string]bool{}
+	if stmt.Kind == "for_each" {
+		iterator, iterable, ok := parseForEachScopeHeader(stmt.Header)
+		if !ok {
+			checker.checkSemanticExpression(fn, stmt.Header, locals, line)
+			checker.checkSemanticChildBlockWithLocals(fn, stmt.Body, locals, loopLocals, declared)
+			return
+		}
+		checker.checkSemanticExpression(fn, iterable, locals, line)
+		itemType := anyType
+		if inferred, ok := iterableItemType(checker.inferParsedExpression(iterable, locals, fn.File, line)); ok {
+			itemType = inferred
+		}
+		loopLocals[iterator] = variableSymbol{Name: iterator, Type: itemType, File: fn.File, Line: line}
+		declared[iterator] = true
+		checker.checkSemanticChildBlockWithLocals(fn, stmt.Body, locals, loopLocals, declared)
+		return
+	}
 	if init, condition, post, ok := parseCStyleScopeHeader(stmt.Header); ok {
 		checker.checkSemanticLoopHeaderPart(fn, init, loopLocals, declared, line)
 		checker.checkSemanticExpression(fn, condition, loopLocals, line)
@@ -1536,6 +1581,8 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 				checker.checkNullSafetyStatements([]parser.Statement{current.Stmt}, copyNullSafetyEnv(env), source, baseLine)
 			}
 		case parser.PrivateBlockStatement:
+			checker.checkNullSafetyStatements(current.Body, copyNullSafetyEnv(env), source, baseLine)
+		case parser.ScopeStatement:
 			checker.checkNullSafetyStatements(current.Body, copyNullSafetyEnv(env), source, baseLine)
 		case parser.MatchStatement:
 			checker.checkNullSafetyExpression(current.Value.Node, env, source, baseLine)

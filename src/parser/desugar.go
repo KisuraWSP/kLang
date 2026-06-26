@@ -92,6 +92,9 @@ func (lowerer *destructuringLowerer) lowerStatement(stmt Statement) []Statement 
 	case PrivateBlockStatement:
 		current.Body = lowerer.lowerStatements(current.Body)
 		return []Statement{current}
+	case ScopeStatement:
+		current.Body = lowerer.lowerStatements(current.Body)
+		return []Statement{current}
 	default:
 		return []Statement{stmt}
 	}

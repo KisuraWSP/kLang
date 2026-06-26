@@ -213,6 +213,9 @@ func resolveStatementTypeAliases(statements []Statement, aliases map[string]stri
 		case PrivateBlockStatement:
 			current.Body = resolveStatementTypeAliases(current.Body, aliases)
 			statements[index] = current
+		case ScopeStatement:
+			current.Body = resolveStatementTypeAliases(current.Body, aliases)
+			statements[index] = current
 		}
 	}
 	return statements

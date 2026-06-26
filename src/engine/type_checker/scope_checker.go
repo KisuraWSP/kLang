@@ -48,6 +48,8 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		case parser.PrivateBlockStatement:
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
+		case parser.ScopeStatement:
+			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		case parser.RegionStatement:
 			continue
 		case parser.AliasFunctionStatement:
@@ -314,6 +316,8 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 			checker.checkScopeStatements(current.Body, newLexicalScope(scope), namespace, source, inLoop, false)
 		}
 	case parser.PrivateBlockStatement:
+		checker.checkScopeStatements(current.Body, newLexicalScope(scope), namespace, source, inLoop, false)
+	case parser.ScopeStatement:
 		checker.checkScopeStatements(current.Body, newLexicalScope(scope), namespace, source, inLoop, false)
 	}
 }
@@ -637,6 +641,26 @@ func (checker *TypeChecker) checkLoopScope(stmt parser.LoopStatement, parent *le
 	loopScope := newLexicalScope(parent)
 	header := stmt.Header
 
+	if stmt.Kind == "for_each" {
+		iterator, iterable, ok := parseForEachScopeHeader(header)
+		if !ok {
+			checker.addError(source, stmt.Pos.Line, "for_each expects 'name in iterable'")
+			checker.checkScopeExpression(header.Node, parent, namespace, source, stmt.Pos.Line)
+			checker.checkScopeStatements(stmt.Body, newLexicalScope(loopScope), namespace, source, true, false)
+			return
+		}
+		checker.checkScopeExpression(iterable.Node, parent, namespace, source, stmt.Pos.Line)
+		itemType := anyType
+		if inferred, ok := iterableItemType(checker.inferMatchExpressionType(iterable, scopeVariables(parent), source, stmt.Pos.Line)); ok {
+			itemType = inferred
+		} else {
+			checker.addError(source, stmt.Pos.Line, "for_each expects List, String, Table, Set, Iterator, or Int")
+		}
+		loopScope.define(variableSymbol{Name: iterator, Type: itemType, File: source, Line: stmt.Pos.Line})
+		checker.checkScopeStatements(stmt.Body, newLexicalScope(loopScope), namespace, source, true, false)
+		return
+	}
+
 	if init, condition, post, ok := parseCStyleScopeHeader(header); ok {
 		checker.checkLoopHeaderPart(init, loopScope, parent, namespace, source, stmt.Pos.Line)
 		checker.checkScopeExpression(condition.Node, loopScope, namespace, source, stmt.Pos.Line)
@@ -946,6 +970,15 @@ func isBuiltinFunctionName(name string) bool {
 	default:
 		return false
 	}
+}
+
+func parseForEachScopeHeader(expr parser.Expression) (string, parser.Expression, bool) {
+	tokens := expr.Tokens
+	if len(tokens) < 3 || tokens[0].Type != lexer.TokenIdentifier || tokens[1].Type != lexer.TokenIn {
+		return "", parser.Expression{}, false
+	}
+	valueTokens := tokens[2:]
+	return tokens[0].Literal, parser.Expression{Tokens: valueTokens, Node: parser.ParseExpressionTokens(valueTokens)}, true
 }
 
 func parseRangeScopeHeader(expr parser.Expression) (string, parser.Expression, bool) {

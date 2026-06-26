@@ -1381,6 +1381,37 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), `unknown identifier "hidden"`)
 }
 
+func TestCheckProgramAcceptsUserDefinedScopeShadowing(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Int value = 1;
+    scope Calculation {
+        local Int value = 2;
+        print(value);
+    }
+    return value;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected user-defined scope shadowing to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsUserDefinedScopeLeak(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    scope Calculation {
+        local Int hidden = 1;
+    }
+    return hidden;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `unknown identifier "hidden"`)
+}
+
 func TestCheckProgramRejectsLoopVariableLeak(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {
@@ -1415,6 +1446,47 @@ function Main() : Int {
 	if !report.Passed() {
 		t.Fatalf("expected loop header scope to pass, got: %v", report.Errors)
 	}
+}
+
+func TestCheckProgramAcceptsForEachLoopAndRejectsLeak(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut Int total = 0;
+    for_each value in [1, 2, 3] {
+        total += value;
+    }
+    return total;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected for_each loop to pass, got: %v", report.Errors)
+	}
+
+	program = programFromSource(`
+function Main() : Int {
+    for_each value in [1, 2, 3] {
+        print(value);
+    }
+    return value;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), `unknown identifier "value"`)
+}
+
+func TestCheckProgramRejectsForEachOverNonIterable(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    for_each value in True {
+        print(value);
+    }
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "for_each expects List, String, Table, Set, Iterator, or Int")
 }
 
 func TestCheckProgramRejectsDuplicateLocalInSameScope(t *testing.T) {

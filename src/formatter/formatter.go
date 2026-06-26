@@ -249,6 +249,9 @@ func needsSpace(previous lexer.Token, current lexer.Token) bool {
 		current.Type == lexer.TokenDot || current.Type == lexer.TokenQuestion || current.Type == lexer.TokenBang {
 		return false
 	}
+	if current.Type == lexer.TokenLeftSquareBrace && previous.Type == lexer.TokenIn {
+		return true
+	}
 	if current.Type == lexer.TokenLeftBrace || current.Type == lexer.TokenLeftSquareBrace {
 		return false
 	}

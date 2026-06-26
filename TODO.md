@@ -36,12 +36,7 @@
 - ENTIRE LANGUAGE SPEED UP
    - add optimizations
    - add optimization passes
-- in code if user doesnt want cache we do the below code
-```lua
-no_cache;
-```
-- add support for user defined scopes
-- add "for_each" loop to klang
+
 - add grua file support as a simple subset of klang actually
    - its supports the klang runtime but it is ristricted to the following rules if users find klang programs complicated and grua files can run via the same toolchain as klang
       - uses the builtin Table data type for everything in a grua file which was implemented in klang

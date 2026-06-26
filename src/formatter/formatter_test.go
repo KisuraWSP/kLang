@@ -61,6 +61,54 @@ printer "hallo";
 	}
 }
 
+func TestFormatUserDefinedScope(t *testing.T) {
+	input := `scope Setup{
+local Int value=1;
+scope Inner{
+print(value);
+}
+}
+`
+	expected := `scope Setup {
+    local Int value = 1;
+    scope Inner {
+        print(value);
+    }
+}
+`
+
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	if formatted != expected {
+		t.Fatalf("unexpected formatting:\n%s", formatted)
+	}
+}
+
+func TestFormatForEachLoop(t *testing.T) {
+	input := `function Main(){
+for_each value in [1,2,3]{
+print(value);
+}
+}
+`
+	expected := `function Main() {
+    for_each value in [1, 2, 3] {
+        print(value);
+    }
+}
+`
+
+	formatted, err := Format(input)
+	if err != nil {
+		t.Fatalf("format failed: %v", err)
+	}
+	if formatted != expected {
+		t.Fatalf("unexpected formatting:\n%s", formatted)
+	}
+}
+
 func TestFormatPreservesBlockComments(t *testing.T) {
 	input := `function Main() : Int {
 (* keep this

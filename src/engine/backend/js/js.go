@@ -115,6 +115,8 @@ func (lower *lowerer) collectSymbols(statements []parser.Statement, namespace st
 		switch current := statement.(type) {
 		case parser.NamespaceStatement:
 			lower.collectSymbols(current.Body, namespace+current.Name+".", filter, globalNamespace || current.Global)
+		case parser.ScopeStatement:
+			lower.collectSymbols(current.Body, namespace, filter, globalNamespace)
 		case parser.FunctionStatement:
 			name := namespace + current.Name
 			if filter != nil && !filter[name] {
@@ -145,6 +147,8 @@ func (lower *lowerer) lowerTopLevel(statements []parser.Statement, namespace str
 			continue
 		case parser.NamespaceStatement:
 			lower.lowerTopLevel(current.Body, namespace+current.Name+".", filter, program)
+		case parser.ScopeStatement:
+			lower.lowerTopLevel(current.Body, namespace, filter, program)
 		case parser.FunctionStatement:
 			name := namespace + current.Name
 			if filter != nil && !filter[name] {
@@ -319,6 +323,16 @@ func (lower *lowerer) lowerStatement(statement parser.Statement, inLoop bool) (i
 		}
 		return ir.Statement{Pos: position, Kind: ir.StatementIf, Condition: condition, Body: body, Else: alternative}, conditionOK && bodyOK && alternativeOK
 	case parser.LoopStatement:
+		if current.Kind == "for_each" {
+			iterator, iterableNode, ok := parseForEachLoopHeader(current.Header)
+			if !ok {
+				lower.unsupported(current.Pos, "for_each loops without 'name in iterable'")
+				return ir.Statement{}, false
+			}
+			iterable, iterableOK := lower.lowerExpression(iterableNode, current.Pos)
+			body, bodyOK := lower.lowerStatements(current.Body, true)
+			return ir.Statement{Pos: position, Kind: ir.StatementForEach, Binding: ir.Binding{Name: iterator, Type: "T"}, Value: iterable, Body: body}, iterableOK && bodyOK
+		}
 		if current.Kind == "for" {
 			iterator, countNode, ok := parseRangeLoopHeader(current.Header)
 			if !ok {
@@ -354,6 +368,12 @@ func (lower *lowerer) lowerStatement(statement parser.Statement, inLoop bool) (i
 	case parser.AssertStatement:
 		value, ok := lower.lowerExpression(current.Expression.Node, current.Pos)
 		return ir.Statement{Pos: position, Kind: ir.StatementAssert, Value: value}, ok
+	case parser.ScopeStatement:
+		body, ok := lower.lowerStatements(current.Body, inLoop)
+		return ir.Statement{Pos: position, Kind: ir.StatementBlock, Body: body}, ok
+	case parser.PrivateBlockStatement:
+		body, ok := lower.lowerStatements(current.Body, inLoop)
+		return ir.Statement{Pos: position, Kind: ir.StatementBlock, Body: body}, ok
 	case parser.TypeAliasStatement:
 		return ir.Statement{}, true
 	default:
@@ -709,6 +729,14 @@ func parseRangeLoopHeader(expression parser.Expression) (string, parser.Expressi
 	return tokens[0].Literal, call.Arguments[0], true
 }
 
+func parseForEachLoopHeader(expression parser.Expression) (string, parser.ExpressionNode, bool) {
+	tokens := expression.Tokens
+	if len(tokens) < 3 || tokens[0].Type != lexer.TokenIdentifier || tokens[1].Type != lexer.TokenIn {
+		return "", nil, false
+	}
+	return tokens[0].Literal, parser.ParseExpressionTokens(tokens[2:]), true
+}
+
 func supportedBinaryOperator(operator string) bool {
 	switch operator {
 	case "+", "-", "*", "/", "//", "%", "**", "==", "!=", ">", "<", ">=", "<=", "and", "or":
@@ -769,6 +797,7 @@ func emitProgram(program ir.Program) (string, []byte) {
 	output.WriteString("const __klang_index = (value, index) => { if (__klang_is_collection(value)) return __klang_collection_get(value, index); if (!Number.isInteger(index)) throw new TypeError(\"index must be an Int\"); const items = typeof value === \"string\" ? Array.from(value) : value; const kind = typeof value === \"string\" ? \"string\" : \"list\"; if (!Array.isArray(items)) throw new TypeError(\"indexing expects String, List, Map, or Table\"); if (index < 0 || index >= items.length) throw new RangeError(`${kind} index ${index} is out of bounds`); return typeof value === \"string\" ? __klang_char(items[index]) : __klang_copy(items[index]); };\n")
 	output.WriteString("const __klang_list_assign = (list, index, operator, value) => { if (!Array.isArray(list)) throw new TypeError(\"indexed mutation expects List\"); if (!Number.isInteger(index)) throw new TypeError(\"list index must be an Int\"); if (index < 0) throw new RangeError(`list index ${index} is out of bounds`); if (operator !== \"=\" && index >= list.length) throw new RangeError(`compound assignment requires existing list index ${index}`); while (list.length <= index) list.push(null); const right = __klang_copy(value); if (operator === \"=\") list[index] = right; else if (operator === \"+=\") list[index] = __klang_add(list[index], right); else if (operator === \"-=\") list[index] -= right; else if (operator === \"*=\") list[index] *= right; else if (operator === \"/=\") list[index] /= right; else throw new TypeError(`unsupported assignment operator ${operator}`); };\n")
 	output.WriteString("const __klang_assign_index = (target, index, operator, value) => { if (__klang_is_collection(target)) return __klang_collection_put(target, index, value, operator); return __klang_list_assign(target, index, operator, value); };\n")
+	output.WriteString("const __klang_iter = (value) => { if (Array.isArray(value)) return value.map(__klang_copy); if (typeof value === \"string\") return Array.from(value).map(__klang_char); if (typeof value === \"number\") { if (value < 0) throw new TypeError(\"for_each count cannot be negative\"); return Array.from({ length: value }, (_, index) => index); } if (__klang_is_table(value)) return value.__entries.map((entry) => ({ key: __klang_copy(entry.key), value: __klang_copy(entry.value) })); throw new TypeError(\"for_each expects List, String, Table, or Int\"); };\n")
 	output.WriteString("const __klang_list_iter = (value) => { if (!Array.isArray(value)) throw new TypeError(\"list comprehension expects List\"); return value.map(__klang_copy); };\n")
 	output.WriteString("const __klang_range_count = (value) => { if (!Number.isInteger(value)) throw new TypeError(\"range expects an Int count\"); if (value < 0) throw new RangeError(\"range count cannot be negative\"); return value; };\n")
 	output.WriteString("const __klang_string_uppercase = (value) => __klang_is_char(value) ? __klang_char(value.__klang_char.toUpperCase()) : value.toUpperCase();\n")
@@ -982,6 +1011,17 @@ func emitStatement(output *strings.Builder, statement ir.Statement, indent int, 
 		}
 		writeIndent(output, indent)
 		output.WriteString("}\n")
+	case ir.StatementForEach:
+		output.WriteString("for (const ")
+		output.WriteString(jsIdentifier(statement.Binding.Name))
+		output.WriteString(" of __klang_iter(")
+		emitExpression(output, statement.Value)
+		output.WriteString(")) {\n")
+		for _, child := range statement.Body {
+			emitStatement(output, child, indent+1, sourceMap)
+		}
+		writeIndent(output, indent)
+		output.WriteString("}\n")
 	case ir.StatementBreak:
 		output.WriteString("break;\n")
 	case ir.StatementContinue:
@@ -994,6 +1034,13 @@ func emitStatement(output *strings.Builder, statement ir.Statement, indent int, 
 		output.WriteString("if (!(")
 		emitExpression(output, statement.Value)
 		output.WriteString(")) throw new Error(\"assertion failed\");\n")
+	case ir.StatementBlock:
+		output.WriteString("{\n")
+		for _, child := range statement.Body {
+			emitStatement(output, child, indent+1, sourceMap)
+		}
+		writeIndent(output, indent)
+		output.WriteString("}\n")
 	}
 }
 

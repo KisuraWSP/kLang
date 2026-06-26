@@ -99,6 +99,8 @@ func parsableStatementValue(statement parser.Statement) Value {
 		fields["type"] = StringValue(current.Type)
 	case parser.NamespaceStatement:
 		fields["name"] = StringValue(current.Name)
+	case parser.ScopeStatement:
+		fields["name"] = StringValue(current.Name)
 	case parser.EnumStatement:
 		fields["name"] = StringValue(current.Name)
 	}
