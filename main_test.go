@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	langcontext "kLang/src/engine/context"
 	"kLang/src/engine/file"
@@ -72,6 +73,25 @@ func TestCreateProjectIgnoresCustomEntryPoint(t *testing.T) {
 	entryText := string(entrySource)
 	if !strings.Contains(entryText, "function Main() : Int") || !strings.Contains(entryText, "return App.Start();") {
 		t.Fatalf("expected fixed Main wrapper, got:\n%s", entryText)
+	}
+}
+
+func TestProgramLineThroughputMetrics(t *testing.T) {
+	program := file.Program{
+		Files: []file.SourceFile{
+			{Path: "first.klang", Lines: []string{"function Main() : Int {", "    return App.Start();", "}"}},
+			{Path: "app.klang", Lines: []string{"namespace App {", "    function Start() : Int { return 0; }", "}"}},
+		},
+	}
+
+	if got := countSourceLines(program); got != 6 {
+		t.Fatalf("expected 6 source lines, got %d", got)
+	}
+	if got := linesPerSecond(6, 2*time.Second); got != 3 {
+		t.Fatalf("expected 3 lines per second, got %f", got)
+	}
+	if got := linesPerSecond(6, 0); got != 0 {
+		t.Fatalf("expected zero elapsed throughput to be 0, got %f", got)
 	}
 }
 

@@ -70,6 +70,7 @@
 70. `scope Name { ... }` declares a user-defined lexical scope. It executes as a named block, can read outer bindings, permits inner shadowing, and keeps ordinary local declarations from leaking outside the block.
 71. `for_each value in iterable { ... }` loops directly over iterable values. The loop binding is scoped to the loop body, immutable by default, and supports the same iterable surface as `iter`: List, String, Table, Set, Iterator, and range-compatible Int values.
 72. Cast expressions with `as` can target builtin types, builtin generic families, builtin child-width types, and generic type variables. User-defined alias structs and enums cannot be cast targets.
+73. CLI `run` prints runtime completion metrics after program output: returned value, elapsed runtime, resolved source lines processed, and source lines processed per second.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -145,6 +146,7 @@ Rules
 - Place `module(disabled : True);` in a module source to make the resolver reject imports of that module.
 - Place `no_cache;` in a source file to prevent the program cache from loading or storing `.klang-cache` entries for that workspace.
 - A folder project must contain `klang.project`, a TOML manifest with `name`, `entry`, and optional `sources`. If `sources` is omitted, all `.klang` files under the project root except `dist` are loaded. New CLI-created projects use `first.klang` as the manifest entry and keep the public program entry as `Main() : Int`, which delegates to `App.Start()`. The deprecated `new --entry` flag is accepted as a no-op for compatibility. A loose `.klang` file or legacy `first.klang` folder must opt in with `load_as_script;`.
+- After a successful `run`, the CLI reports elapsed runtime and line throughput using the resolved source set, so project, script, local import, and stdlib import lines are counted consistently with the program that was checked and executed.
 - Place `global namespace Name { ... }` in a stdlib module to expose the namespace's functions as unqualified calls through the language's internal symbol table. The symbol table is not accessible from Klang source.
 - Use `run { ... }` or `run FunctionName();` to execute initialization code before ordinary statements in the same runtime block. A `run` action cannot return, break, or continue.
 - Use `(* ... *)` for multiline comments. Multiline comments are ignored by the lexer before parsing.

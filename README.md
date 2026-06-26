@@ -194,6 +194,10 @@ Pass program arguments. They are available inside kLang as `Args`:
 go run . run examples/commandlinearena demo 100
 ```
 
+After a successful run, the CLI prints the returned value, elapsed runtime, the
+number of resolved source lines processed, and source lines processed per
+second.
+
 Show import cache/details:
 
 ```sh

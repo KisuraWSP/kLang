@@ -11,6 +11,9 @@
 .klang-cache/
 **/.klang-cache/
 
+# this is an experimental project to showcase the power of this language
+# the game will be revealed when we know the langauge features are stable and powerful and contain some standard library functions we can use
+/game
 # Test binary, built with `go test -c`
 *.test
 

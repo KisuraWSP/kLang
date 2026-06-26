@@ -1150,14 +1150,31 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 	for _, line := range result.Output {
 		fmt.Println(line)
 	}
+	sourceLines := countSourceLines(resolvedProgram)
 	fmt.Printf("  runtime: returned %s\n", describeValue(result.Value))
 	fmt.Printf("  time: %s\n", elapsed.Round(time.Microsecond))
+	fmt.Printf("  lines: %d processed (%.2f line/s)\n", sourceLines, linesPerSecond(sourceLines, elapsed))
 	if options.Verbose {
 		fmt.Printf("  memory: stack=%d object(s)/%d byte(s), heap=%d object(s)/%d byte(s)\n",
 			result.Memory.StackObjects, result.Memory.StackBytes,
 			result.Memory.HeapObjects, result.Memory.HeapBytes)
 	}
 	return nil
+}
+
+func countSourceLines(program file.Program) int {
+	total := 0
+	for _, source := range program.Files {
+		total += len(source.Lines)
+	}
+	return total
+}
+
+func linesPerSecond(lines int, elapsed time.Duration) float64 {
+	if lines <= 0 || elapsed <= 0 {
+		return 0
+	}
+	return float64(lines) / elapsed.Seconds()
 }
 
 func executeTestProgram(resolver *modulesystem.Resolver, program file.Program, options commandOptions) error {

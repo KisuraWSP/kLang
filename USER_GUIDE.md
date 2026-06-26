@@ -864,6 +864,10 @@ go run . check tests/test21 --verbose
 go run . package examples/helloworld --backend=JS --verbose
 ```
 
+Successful `run` output ends with CLI-owned runtime metrics. `time` measures the
+entrypoint runtime execution, and `lines` counts the resolved source lines used
+by that run before deriving source lines per second.
+
 Temporarily use `report value;` in Klang source to print runtime type, value,
 and stack frames.
 
