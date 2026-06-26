@@ -16,6 +16,7 @@
 - for structs we do the .cast_as() method for if we want to convert a struct to a specific types we want
 - remove any unnecessary features that we dont need
 - Add USER_GUIDE.md for anyone wanting to be able to traverse the codebase and understand how it works
+   - and also this is going to be a fallback inorder to migrate or implement any sort of fix/feature in the codebase incase llms dont work anymore
 
 - once language is more powerful u should be able to do powerful commands via default program like the below
    - this will only work when the language is powerful enough to understand and execute itself
