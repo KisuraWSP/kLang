@@ -5,8 +5,12 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- add new keyword called "foreign" if its a ffi based function for any backend or language interop
+- add when you print at the end of the program like we print the time taken for the program
+   - we will add the amount of lines of code proccessed per second for either a project/program/script in the language
 - add atoms to the programming language these behave like erlang atoms but are reserved for users to design there own custom error codes and can be used with try catch or throw
 - make parsable and keyword macro powerful
+   - in keyword macro we should make a macro system similar to rust
 
 - make cast operations allowed for the builtin types
 - for structs we do the .cast_as() method for if we want to convert a struct to a specific types we want
@@ -14,6 +18,8 @@
 - Add USER_GUIDE.md for anyone wanting to be able to traverse the codebase and understand how it works
 
 - once language is more powerful u should be able to do powerful commands via default program like the below
+   - this will only work when the language is powerful enough to understand and execute itself
+   - like the default_program.klang should be able to like lets say if we do a change in this code file the go source file should be able to get the update and show it on the screen
 ```shell
  go run . run default_program.klang check stdlib/args.klang
 ```
