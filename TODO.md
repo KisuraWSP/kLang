@@ -5,6 +5,11 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- make cast operations allowed for the builtin types
+- for structs we do the .cast_as() method for if we want to convert a struct to a specific types we want
+- remove any unnecessary features that we dont need
+- Add USER_GUIDE.md for anyone wanting to be able to traverse the codebase and understand how it works
+
 - once language is more powerful u should be able to do powerful commands via default program like the below
 ```shell
  go run . run default_program.klang check stdlib/args.klang
