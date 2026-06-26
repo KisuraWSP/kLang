@@ -68,6 +68,15 @@ func (lexer *Lexer) NextToken() Token {
 		})
 	}
 
+	if lexer.ch == ':' && lexer.peekChar() != ':' && isLetter(lexer.peekChar()) && lexer.canStartAtom() {
+		return lexer.emit(Token{
+			Type:    TokenAtom,
+			Literal: lexer.readAtom(),
+			Line:    line,
+			Column:  column,
+		})
+	}
+
 	switch lexer.ch {
 	case '"':
 		literal, ok := lexer.readString()
@@ -194,6 +203,30 @@ func (lexer *Lexer) readIdentifier() string {
 		lexer.readChar()
 	}
 	return lexer.input[position:lexer.position]
+}
+
+func (lexer *Lexer) readAtom() string {
+	position := lexer.position
+	lexer.readChar()
+	for isLetter(lexer.ch) || isDigit(lexer.ch) {
+		lexer.readChar()
+	}
+	return lexer.input[position:lexer.position]
+}
+
+func (lexer *Lexer) canStartAtom() bool {
+	switch lexer.lastSignificant {
+	case 0, TokenAssign, TokenEvaluationAssign, TokenReturn, TokenThrow, TokenCase,
+		TokenComma, TokenLeftBrace, TokenLeftSquareBrace, TokenScopeBegin,
+		TokenStrictEquality, TokenNotEqual, TokenGreaterThan, TokenLessThan,
+		TokenGreaterThanOrEqualTo, TokenLessThanOrEqualTo,
+		TokenPlus, TokenMinus, TokenMultiplication, TokenDivision, TokenModulus,
+		TokenAnd, TokenOr, TokenXor, TokenNot, TokenIf, TokenThen, TokenUnless, TokenWhile,
+		TokenAssert, TokenReport, TokenQuestion, TokenInferReturn:
+		return true
+	default:
+		return false
+	}
 }
 
 func (lexer *Lexer) readNumber() (string, TokenType) {

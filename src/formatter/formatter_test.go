@@ -226,3 +226,17 @@ func TestFormatRejectsParseErrors(t *testing.T) {
 		t.Fatalf("expected source location in error, got %v", err)
 	}
 }
+
+func TestFormatPreservesCanonicalAtomLiterals(t *testing.T) {
+	formatted, err := Format(`function Main():Atom{
+local Atom code=:not_found;
+return code;
+}`)
+	if err != nil {
+		t.Fatalf("format Atom source: %v", err)
+	}
+	expected := "function Main() : Atom {\n    local Atom code = :not_found;\n    return code;\n}\n"
+	if formatted != expected {
+		t.Fatalf("unexpected Atom formatting:\n%s", formatted)
+	}
+}

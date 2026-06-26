@@ -29,6 +29,185 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeExecutesNativeFileOperations(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "notes.txt")
+	result := runSource(t, fmt.Sprintf(`
+function Main() : Int {
+    local File target = File(%q);
+    assert target.name == "notes.txt";
+    assert target.extension == ".txt";
+    local File castTarget = target.path as File;
+    assert castTarget as String == target.path;
+
+    local Result[File, String] created = target.create();
+    assert created.ok;
+    local String initial = //
+hello
+world
+//;
+    local Result[Int, String] written = target.write(initial);
+    assert written.ok;
+    assert result_unwrap_or(written, 0 - 1) == 11;
+    local Result[Int, String] appended = file_append(target, "!");
+    assert appended.ok;
+
+    local Result[String, String] content = target.read();
+    assert content.ok;
+    assert result_unwrap_or(content, "") == initial + "!";
+    local Result[List[String], String] lines = target.read_lines();
+    assert lines.ok;
+    local List[String] fallbackLines;
+    local List[String] actualLines = result_unwrap_or(lines, fallbackLines);
+    assert len(actualLines) == 2;
+    assert actualLines[1] == "world!";
+
+    local Result[Int, String] size = target.size();
+    assert size.ok;
+    local Int actualSize = result_unwrap_or(size, 0);
+    assert actualSize == 12;
+    local Result[Bool, String] exists = file_exists(target);
+    assert exists.ok and result_unwrap_or(exists, False);
+    local Result[Bool, String] removed = target.remove();
+    assert removed.ok and result_unwrap_or(removed, False);
+    local Result[Bool, String] missing = target.exists();
+    assert missing.ok and not result_unwrap_or(missing, True);
+    return actualSize;
+}
+`, path))
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 12 {
+		t.Fatalf("expected File program to return 12, got %#v", result.Value)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected File.remove to delete %s, stat error: %v", path, err)
+	}
+}
+
+func TestRuntimeReturnsFileErrorsAsResults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "missing.txt")
+	result := runSource(t, fmt.Sprintf(`
+function Main() : Int {
+    local File target = File(%q);
+    local Result[String, String] content = target.read();
+    assert not content.ok;
+    local Result[Int, String] size = file_size(target);
+    assert not size.ok;
+    local Result[Bool, String] removed = file_remove(target);
+    assert not removed.ok;
+    return 0;
+}
+`, path))
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 0 {
+		t.Fatalf("expected handled File errors to return 0, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesNativeOSOperations(t *testing.T) {
+	originalDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get current directory: %v", err)
+	}
+	defer func() {
+		if restoreErr := os.Chdir(originalDirectory); restoreErr != nil {
+			t.Errorf("restore current directory: %v", restoreErr)
+		}
+	}()
+
+	tempDirectory := t.TempDir()
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatalf("find test executable: %v", err)
+	}
+	const environmentKey = "KLANG_NATIVE_OS_TEST"
+	originalEnvironment, hadEnvironment := os.LookupEnv(environmentKey)
+	defer func() {
+		if hadEnvironment {
+			_ = os.Setenv(environmentKey, originalEnvironment)
+		} else {
+			_ = os.Unsetenv(environmentKey)
+		}
+	}()
+
+	result := runSource(t, fmt.Sprintf(`
+function Main() : Int {
+    local OS host = OS();
+    assert len(host.name) > 0;
+    assert len(host.arch) > 0;
+    assert host.cpu_count > 0;
+    assert len(host.path_separator) == 1;
+    assert host.process_id() > 0;
+    assert len(host.temp_dir()) > 0;
+
+    local Result[String, String] home = host.home_dir();
+    assert home.ok;
+    local Result[String, String] hostname = os_hostname(host);
+    assert hostname.ok;
+
+    local Result[Bool, String] set = host.set_env(%q, "enabled");
+    assert set.ok;
+    local Option[String] environmentValue = os_get_env(host, %q);
+    assert environmentValue.some;
+    if environmentValue.some {
+        assert environmentValue.value == "enabled";
+    }
+    local Map[String, String] environment = host.environment();
+    assert len(environment) > 0;
+
+    local Result[Bool, String] changed = host.change_dir(%q);
+    assert changed.ok;
+    local Result[String, String] current = os_current_dir(host);
+    assert current.ok;
+    assert len(result_unwrap_or(current, "")) > 0;
+
+    local Result[Table, String] execution = host.execute(%q, ["-test.run=^$"]);
+    assert execution.ok;
+    local Table fallback;
+    local Table process = result_unwrap_or(execution, fallback);
+    assert process["success"] as Bool;
+    assert process["exit_code"] as Int == 0;
+
+    local Result[Bool, String] unset = os_unset_env(host, %q);
+    assert unset.ok;
+    assert not host.get_env(%q).some;
+    return host.cpu_count;
+}
+`, environmentKey, environmentKey, tempDirectory, executable, environmentKey, environmentKey))
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) <= 0 {
+		t.Fatalf("expected OS program to return a positive CPU count, got %#v", result.Value)
+	}
+	actualDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get changed directory: %v", err)
+	}
+	expectedDirectory, err := filepath.EvalSymlinks(tempDirectory)
+	if err != nil {
+		t.Fatalf("resolve expected directory: %v", err)
+	}
+	actualDirectory, err = filepath.EvalSymlinks(actualDirectory)
+	if err != nil {
+		t.Fatalf("resolve changed directory: %v", err)
+	}
+	if actualDirectory != expectedDirectory {
+		t.Fatalf("expected OS.change_dir to select %s, got %s", expectedDirectory, actualDirectory)
+	}
+}
+
+func TestRuntimeReturnsOSExecutionStartupErrorAsResult(t *testing.T) {
+	result := runSource(t, `
+function Main() : Int {
+    local OS host = OS();
+    local Result[Table, String] execution = os_execute(host, "__klang_missing_executable__", []);
+    assert not execution.ok;
+    return 0;
+}
+`)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 0 {
+		t.Fatalf("expected handled OS execution error to return 0, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeBuildsParsableMetadataAndPreservesArgumentChannels(t *testing.T) {
 	parsedProgram, errors := parser.Parse(`
 function Main() : Parsable[T] {
@@ -3365,5 +3544,132 @@ func assertRuntimeErrorContains(t *testing.T, err error, expected string) {
 	}
 	if !strings.Contains(err.Error(), expected) {
 		t.Fatalf("expected runtime error containing %q, got %v", expected, err)
+	}
+}
+
+func TestRuntimeUsesAtomsForThrownErrorCodes(t *testing.T) {
+	result := runSource(t, `
+function Fail() {
+    throw :not_found;
+}
+
+function Main() : Int {
+    local Atom missing = :not_found;
+    local Atom dynamic = Atom("permission_denied");
+    assert dynamic.name == "permission_denied";
+    assert dynamic as String == "permission_denied";
+    assert "not_found" as Atom == missing;
+
+    local Table codes = {:not_found: 404, :permission_denied: 403};
+    local Set[Atom] known = Set([missing, dynamic, :not_found]);
+    assert len(known) == 2;
+    assert codes[missing] == 404;
+    local mut Int matched = 0;
+    if missing == {
+        case :not_found:
+            matched = 1;
+        case:
+            matched = 2;
+    }
+    assert matched == 1;
+
+    try {
+        Fail();
+    } catch error {
+        assert error == missing;
+        print(error);
+        return codes[error];
+    }
+    return 0;
+}
+`)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 404 {
+		t.Fatalf("expected caught Atom code to return 404, got %#v", result.Value)
+	}
+	if strings.Join(result.Output, ",") != ":not_found" {
+		t.Fatalf("expected Atom display output, got %v", result.Output)
+	}
+}
+
+func TestRuntimeRejectsInvalidDynamicAtomNames(t *testing.T) {
+	_, err := runSourceWithError(`
+function Main() : Int {
+    local Atom invalid = Atom("not found");
+    return 0;
+}
+`)
+	assertRuntimeErrorContains(t, err, `invalid Atom name "not found"`)
+}
+
+func TestRuntimeExecutesOSStdlibFacade(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if restoreErr := os.Chdir(cwd); restoreErr != nil {
+			t.Errorf("restore cwd failed: %v", restoreErr)
+		}
+	}()
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatalf("find test executable: %v", err)
+	}
+	const environmentKey = "KLANG_OS_STDLIB_TEST"
+	originalEnvironment, hadEnvironment := os.LookupEnv(environmentKey)
+	defer func() {
+		if hadEnvironment {
+			_ = os.Setenv(environmentKey, originalEnvironment)
+		} else {
+			_ = os.Unsetenv(environmentKey)
+		}
+	}()
+
+	result := runSource(t, fmt.Sprintf(`
+import "os";
+
+function Main() : Int {
+    local Table platform = os.PLATFORM();
+    assert len(platform["name"] as String) > 0;
+    assert len(platform["arch"] as String) > 0;
+    assert platform["cpu_count"] as Int > 0;
+    assert os.PROCESS_ID() > 0;
+    assert len(os.TEMP_DIR()) > 0;
+
+    local Result[String, String] current = os.CURRENT_DIR();
+    local Result[String, String] home = os.HOME_DIR();
+    local Result[String, String] hostname = os.HOSTNAME();
+    assert current.ok and home.ok and hostname.ok;
+
+    local Result[Bool, String] set = os.SET_ENV(%q, "facade");
+    assert set.ok;
+    assert os.HAS_ENV(%q);
+    assert os.GET_ENV_OR(%q, "missing") == "facade";
+    local Map[String, String] environment = os.ENVIRONMENT();
+    assert len(environment) > 0;
+
+    local Result[Table, String] execution = os.EXECUTE(%q, ["-test.run=^$"]);
+    assert execution.ok;
+    local Table fallback;
+    local Table process = result_unwrap_or(execution, fallback);
+    assert os.SUCCEEDED(process);
+    assert os.EXIT_CODE(process) == 0;
+    _ = os.STDOUT(process);
+    _ = os.STDERR(process);
+
+    local Result[Bool, String] unset = os.UNSET_ENV(%q);
+    assert unset.ok;
+    assert not os.HAS_ENV(%q);
+    return platform["cpu_count"] as Int;
+}
+`, environmentKey, environmentKey, environmentKey, executable, environmentKey, environmentKey))
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) <= 0 {
+		t.Fatalf("expected os stdlib facade to return a positive CPU count, got %#v", result.Value)
 	}
 }

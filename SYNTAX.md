@@ -1071,9 +1071,10 @@ function ParseNumber(value : String) : Int {
 5. Error Handling
 - Errors can be handled as values with `Result[T, E]`, or as exceptions with `throw` and `try/catch`.
 - `Result!` propagates `Err(value)` through the exception path and unwraps `Ok(value)`.
+- Atom values are recommended for stable user-defined error codes.
 ```lua
-function Fallible() : Result[Int, String] {
-    return Err("not ready");
+function Fallible() : Result[Int, Atom] {
+    return Err(:not_ready);
 }
 
 function Main() : Int {
@@ -1081,13 +1082,15 @@ function Main() : Int {
         local Int value = Fallible()!;
         return value;
     } catch err {
-        print("handled", err);
+        if err == :not_ready {
+            print("handled", err.name);
+        }
         return 0;
     }
 }
 
 function FailFast() {
-    throw "boom";
+    throw :boom;
 }
 ```
 
@@ -1115,7 +1118,7 @@ if maybeCount and parsedCount {
 
 -- pattern matching switch statement
 -- Matches are strict and type safe. Bool, String, Int, Float, Enum, Option,
--- Result, List, and Table values are allowed. Each case breaks by default.
+-- Atom, Result, List, and Table values are allowed. Each case breaks by default.
 -- Use continue inside a case to fall through to the next case.
 -- Non-partial matches must be exhaustive for Bool, enum, Option, and Result
 -- values, or include a default case.
@@ -1335,4 +1338,94 @@ return generated;
 print(answer("ignored"));
 
 let changed = parsable_replace(parsed, "return 1", "return 2");
+```
+
+12. Native file I/O
+- `File(path)` creates an immutable path descriptor. The Go runtime performs all filesystem work; no kLang stdlib implementation opens files.
+- Native operations return `Result` values so missing files, permissions, existing paths, and other OS failures must be handled explicitly.
+```lua
+local File notes = File("data/notes.txt");
+print(notes.path, notes.name, notes.extension);
+
+local Result[File, String] created = notes.create();
+local String text = //
+first line
+second line
+//;
+local Result[Int, String] written = notes.write(text);
+local Result[Int, String] appended = file_append(notes, "!");
+
+local Result[String, String] content = notes.read();
+local Result[List[String], String] lines = notes.read_lines();
+local Result[Int, String] bytes = notes.size();
+local Result[Bool, String] exists = notes.exists();
+
+if content.ok {
+    print(content.value);
+}
+
+local Result[Bool, String] removed = file_remove(notes);
+```
+
+13. Native OS operations
+- `OS()` creates an immutable host descriptor backed by Go. No kLang stdlib implementation performs the underlying OS calls.
+- Environment and working-directory mutations are process-global. Subprocess commands execute directly and do not pass through a shell.
+- Prefer `import "os";` and the upper snake case stdlib API for application code.
+```lua
+import "os";
+
+local OS host = OS();
+print(host.name, host.arch, host.cpu_count);
+print(host.path_separator, host.path_list_separator);
+
+local Table platform = os.PLATFORM();
+local Result[String, String] stdlibCurrent = os.CURRENT_DIR();
+local Option[String] stdlibPath = os.GET_ENV("PATH");
+
+local Result[String, String] current = host.current_dir();
+local String temporary = host.temp_dir();
+local Result[String, String] home = host.home_dir();
+local Result[String, String] hostname = host.hostname();
+local Int pid = host.process_id();
+
+local Option[String] path = host.get_env("PATH");
+local Result[Bool, String] set = host.set_env("APP_MODE", "development");
+local Map[String, String] environment = host.environment();
+local Result[Bool, String] unset = os_unset_env(host, "APP_MODE");
+
+local Result[Bool, String] changed = host.change_dir("workspace");
+local Result[Table, String] process = host.execute("git", ["status", "--short"]);
+if process.ok {
+    print(process.value["stdout"]);
+    print(process.value["exit_code"]);
+}
+```
+
+14. Atoms
+- `:name` creates an immutable Atom literal. The colon and name must be adjacent.
+- `Atom(string)` constructs a dynamic Atom and rejects names that are not valid identifiers.
+- Atoms compare by name, expose `.name`, and can be used as error values, Table keys, Set items, and pattern cases.
+```lua
+const NOT_FOUND = :not_found;
+local Atom denied = Atom("permission_denied");
+local String codeName = denied.name;
+
+local Table statusCodes = {
+    :not_found: 404,
+    :permission_denied: 403
+};
+local Set[Atom] retryable = Set([:busy, :timeout]);
+
+if NOT_FOUND == {
+    case :not_found:
+        print(statusCodes[:not_found]);
+    case:
+        print("unknown");
+}
+
+try {
+    throw NOT_FOUND;
+} catch error {
+    assert error == :not_found;
+}
 ```

@@ -14,6 +14,7 @@ const (
 	TokenString     // "hallo"
 	TokenBool       // True False
 	TokenChar       // 'C'
+	TokenAtom       // :not_found
 	TokenStructTag  // `json:"name"`
 
 	TokenWhiteSpace

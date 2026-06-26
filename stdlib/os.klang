@@ -1,0 +1,165 @@
+module(disabled : False);
+
+-- NATIVE OPERATING SYSTEM FACADE.
+-- ALL HOST INTERACTIONS DELEGATE TO THE GO-BACKED OS BUILTIN.
+
+namespace os {
+    --- SIGNATURE: FUNCTION HOST() : OS
+    --- RETURNS: A FRESH IMMUTABLE DESCRIPTOR FOR THE CURRENT HOST.
+    function HOST() : OS {
+        return OS();
+    }
+
+    --- SIGNATURE: FUNCTION NAME() : STRING
+    --- RETURNS: THE HOST OPERATING SYSTEM NAME, SUCH AS DARWIN, LINUX, OR WINDOWS.
+    function NAME() : String {
+        return HOST().name;
+    }
+
+    --- SIGNATURE: FUNCTION ARCH() : STRING
+    --- RETURNS: THE HOST CPU ARCHITECTURE.
+    function ARCH() : String {
+        return HOST().arch;
+    }
+
+    --- SIGNATURE: FUNCTION CPU_COUNT() : INT
+    --- RETURNS: THE NUMBER OF LOGICAL CPUS AVAILABLE TO THE PROCESS.
+    function CPU_COUNT() : Int {
+        return HOST().cpu_count;
+    }
+
+    --- SIGNATURE: FUNCTION PATH_SEPARATOR() : STRING
+    --- RETURNS: THE HOST FILESYSTEM PATH SEPARATOR.
+    function PATH_SEPARATOR() : String {
+        return HOST().path_separator;
+    }
+
+    --- SIGNATURE: FUNCTION PATH_LIST_SEPARATOR() : STRING
+    --- RETURNS: THE HOST PATH-LIST SEPARATOR USED BY VARIABLES SUCH AS PATH.
+    function PATH_LIST_SEPARATOR() : String {
+        return HOST().path_list_separator;
+    }
+
+    --- SIGNATURE: FUNCTION LINE_SEPARATOR() : STRING
+    --- RETURNS: THE NATIVE HOST LINE SEPARATOR.
+    function LINE_SEPARATOR() : String {
+        return HOST().line_separator;
+    }
+
+    --- SIGNATURE: FUNCTION CURRENT_DIR() : RESULT[STRING, STRING]
+    --- RETURNS: THE LIVE PROCESS WORKING DIRECTORY OR AN OS ERROR.
+    function CURRENT_DIR() : Result[String, String] {
+        return os_current_dir(HOST());
+    }
+
+    --- SIGNATURE: FUNCTION CHANGE_DIR(PATH : STRING) : RESULT[BOOL, STRING]
+    --- EFFECT: CHANGES THE PROCESS-GLOBAL WORKING DIRECTORY.
+    function CHANGE_DIR(path : String) : Result[Bool, String] {
+        return os_change_dir(HOST(), path);
+    }
+
+    --- SIGNATURE: FUNCTION TEMP_DIR() : STRING
+    --- RETURNS: THE HOST TEMPORARY DIRECTORY.
+    function TEMP_DIR() : String {
+        return os_temp_dir(HOST());
+    }
+
+    --- SIGNATURE: FUNCTION HOME_DIR() : RESULT[STRING, STRING]
+    --- RETURNS: THE CURRENT USER HOME DIRECTORY OR AN OS ERROR.
+    function HOME_DIR() : Result[String, String] {
+        return os_home_dir(HOST());
+    }
+
+    --- SIGNATURE: FUNCTION HOSTNAME() : RESULT[STRING, STRING]
+    --- RETURNS: THE CURRENT HOSTNAME OR AN OS ERROR.
+    function HOSTNAME() : Result[String, String] {
+        return os_hostname(HOST());
+    }
+
+    --- SIGNATURE: FUNCTION PROCESS_ID() : INT
+    --- RETURNS: THE CURRENT KLANG PROCESS IDENTIFIER.
+    function PROCESS_ID() : Int {
+        return os_process_id(HOST());
+    }
+
+    --- SIGNATURE: FUNCTION GET_ENV(NAME : STRING) : OPTION[STRING]
+    --- RETURNS: SOME(VALUE) WHEN THE VARIABLE EXISTS, INCLUDING EMPTY VALUES.
+    function GET_ENV(name : String) : Option[String] {
+        return os_get_env(HOST(), name);
+    }
+
+    --- SIGNATURE: FUNCTION GET_ENV_OR(NAME : STRING, FALLBACK : STRING) : STRING
+    --- RETURNS: THE VARIABLE VALUE OR THE PROVIDED FALLBACK.
+    function GET_ENV_OR(name : String, fallback : String) : String {
+        return option_unwrap_or(GET_ENV(name), fallback);
+    }
+
+    --- SIGNATURE: FUNCTION HAS_ENV(NAME : STRING) : BOOL
+    --- RETURNS: TRUE WHEN THE ENVIRONMENT VARIABLE EXISTS.
+    function HAS_ENV(name : String) : Bool {
+        return GET_ENV(name).some;
+    }
+
+    --- SIGNATURE: FUNCTION SET_ENV(NAME : STRING, VALUE : STRING) : RESULT[BOOL, STRING]
+    --- EFFECT: SETS A PROCESS-GLOBAL ENVIRONMENT VARIABLE.
+    function SET_ENV(name : String, value : String) : Result[Bool, String] {
+        return os_set_env(HOST(), name, value);
+    }
+
+    --- SIGNATURE: FUNCTION UNSET_ENV(NAME : STRING) : RESULT[BOOL, STRING]
+    --- EFFECT: REMOVES A PROCESS-GLOBAL ENVIRONMENT VARIABLE.
+    function UNSET_ENV(name : String) : Result[Bool, String] {
+        return os_unset_env(HOST(), name);
+    }
+
+    --- SIGNATURE: FUNCTION ENVIRONMENT() : MAP[STRING, STRING]
+    --- RETURNS: A SNAPSHOT OF THE COMPLETE PROCESS ENVIRONMENT.
+    function ENVIRONMENT() : Map[String, String] {
+        return os_environment(HOST());
+    }
+
+    --- SIGNATURE: FUNCTION EXECUTE(COMMAND : STRING, ARGUMENTS : LIST[STRING]) : RESULT[TABLE, STRING]
+    --- RETURNS: STDOUT, STDERR, EXIT_CODE, SUCCESS, AND COMMAND WITHOUT USING A SHELL.
+    function EXECUTE(command : String, arguments : List[String]) : Result[Table, String] {
+        return os_execute(HOST(), command, arguments);
+    }
+
+    --- SIGNATURE: FUNCTION MUST_EXECUTE(COMMAND : STRING, ARGUMENTS : LIST[STRING]) : TABLE
+    --- THROWS: THE STARTUP ERROR WHEN THE EXECUTABLE CANNOT BE STARTED.
+    function MUST_EXECUTE(command : String, arguments : List[String]) : Table {
+        return EXECUTE(command, arguments)!;
+    }
+
+    --- SIGNATURE: FUNCTION SUCCEEDED(PROCESS : TABLE) : BOOL
+    function SUCCEEDED(process : Table) : Bool {
+        return process["success"] as Bool;
+    }
+
+    --- SIGNATURE: FUNCTION EXIT_CODE(PROCESS : TABLE) : INT
+    function EXIT_CODE(process : Table) : Int {
+        return process["exit_code"] as Int;
+    }
+
+    --- SIGNATURE: FUNCTION STDOUT(PROCESS : TABLE) : STRING
+    function STDOUT(process : Table) : String {
+        return process["stdout"] as String;
+    }
+
+    --- SIGNATURE: FUNCTION STDERR(PROCESS : TABLE) : STRING
+    function STDERR(process : Table) : String {
+        return process["stderr"] as String;
+    }
+
+    --- SIGNATURE: FUNCTION PLATFORM() : TABLE
+    --- RETURNS: A SERIALIZABLE SNAPSHOT OF STABLE HOST METADATA.
+    function PLATFORM() : Table {
+        return {
+            "name" : NAME(),
+            "arch" : ARCH(),
+            "cpu_count" : CPU_COUNT(),
+            "path_separator" : PATH_SEPARATOR(),
+            "path_list_separator" : PATH_LIST_SEPARATOR(),
+            "line_separator" : LINE_SEPARATOR()
+        };
+    }
+}

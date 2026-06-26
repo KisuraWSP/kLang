@@ -31,6 +31,95 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsNativeFileOperations(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local File target = File("notes.txt");
+    local Result[File, String] created = target.create();
+    local Result[Int, String] written = target.write("hello");
+    local Result[Int, String] appended = file_append(target, " world");
+    local Result[String, String] content = target.read();
+    local Result[List[String], String] lines = file_read_lines(target);
+    local Result[Bool, String] exists = target.exists();
+    local Result[Int, String] size = file_size(target);
+    local Result[Bool, String] removed = target.remove();
+    local File castTarget = "cast.txt" as File;
+    local String castPath = castTarget as String;
+    print(target.path, target.name, target.extension);
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected File program to type check, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsInvalidNativeFileOperations(t *testing.T) {
+	badConstructor := CheckProgram(programFromSource(`
+function Main() : Int {
+    local File target = File(42);
+    return 0;
+}
+`))
+	assertTypeError(t, badConstructor, "File path expects String, got Int")
+
+	badWrite := CheckProgram(programFromSource(`
+function Main() : Int {
+    local File target = File("notes.txt");
+    local Result[Int, String] written = target.write(42);
+    return 0;
+}
+	`))
+	assertTypeError(t, badWrite, "expects String, got Int")
+}
+
+func TestCheckProgramAcceptsNativeOSOperations(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local OS host = OS();
+    local Result[String, String] current = host.current_dir();
+    local Result[Bool, String] changed = os_change_dir(host, ".");
+    local String temporary = host.temp_dir();
+    local Result[String, String] home = os_home_dir(host);
+    local Result[String, String] hostname = host.hostname();
+    local Int pid = os_process_id(host);
+    local Option[String] path = host.get_env("PATH");
+    local Result[Bool, String] set = os_set_env(host, "KLANG_TEST", "yes");
+    local Result[Bool, String] unset = host.unset_env("KLANG_TEST");
+    local Map[String, String] environment = host.environment();
+    local Result[Table, String] execution = host.execute("command", ["argument"]);
+    print(host.name, host.arch, host.cpu_count, host.path_separator);
+    return pid;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected OS program to type check, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsInvalidNativeOSOperations(t *testing.T) {
+	badConstructor := CheckProgram(programFromSource(`
+function Main() : Int {
+    local OS host = OS(1);
+    return 0;
+}
+`))
+	assertTypeError(t, badConstructor, "OS expects 0 arguments")
+
+	badExecute := CheckProgram(programFromSource(`
+function Main() : Int {
+    local OS host = OS();
+    local Result[Table, String] execution = host.execute("command", "argument");
+    return 0;
+}
+`))
+	assertTypeError(t, badExecute, "expects List[String], got String")
+}
+
 func TestCheckProgramAcceptsParsableMetadataAndRestrictedKeywordMacro(t *testing.T) {
 	program := programFromSource(`
 trait Printable {
@@ -2720,7 +2809,7 @@ function Main() : Int {
 }
 `)
 
-	assertTypeError(t, CheckProgram(program), "pattern match value must be Bool, String, Int, Float, Enum, Option, Result, List, or Table, got Set[String]")
+	assertTypeError(t, CheckProgram(program), "pattern match value must be Bool, String, Int, Float, Atom, Enum, Option, Result, List, or Table, got Set[String]")
 }
 
 func TestCheckProgramAcceptsOptionResultListAndTablePatterns(t *testing.T) {
@@ -2901,4 +2990,43 @@ func assertState(t *testing.T, states []State, kind string, name string, typeNam
 	}
 
 	t.Fatalf("expected state kind=%q name=%q type=%q, got %#v", kind, name, typeName, states)
+}
+
+func TestCheckProgramAcceptsAtomsAsErrorCodesAndHashKeys(t *testing.T) {
+	program := programFromSource(`
+function Fail() {
+    throw :not_found;
+}
+
+function Main() : Int {
+    const missing = :not_found;
+    local Atom dynamic = Atom("permission_denied");
+    local Atom cast = "timeout" as Atom;
+    local String name = dynamic.name;
+    local Table codes = {:not_found: 404, :permission_denied: 403};
+    local Set[Atom] retryable = Set([cast, :busy]);
+    assert codes[missing] == 404;
+    assert set_has(retryable, :busy);
+    try {
+        Fail();
+    } catch error {
+        assert error == missing;
+    }
+    return len(name);
+}
+`)
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected Atom program to type check, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsInvalidAtomConstructorType(t *testing.T) {
+	report := CheckProgram(programFromSource(`
+function Main() : Int {
+    local Atom code = Atom(404);
+    return 0;
+}
+`))
+	assertTypeError(t, report, "Atom name expects String, got Int")
 }

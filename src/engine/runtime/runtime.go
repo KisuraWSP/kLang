@@ -26,6 +26,7 @@ const (
 	ValueString      ValueKind = "String"
 	ValueBool        ValueKind = "Bool"
 	ValueChar        ValueKind = "Char"
+	ValueAtom        ValueKind = "Atom"
 	ValueList        ValueKind = "List"
 	ValueSet         ValueKind = "Set"
 	ValueMap         ValueKind = "Map"
@@ -335,6 +336,9 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 
 	value, err := runtime.callFunction(mainName, nil)
 	if err != nil {
+		if thrown, ok := thrownValue(err); ok {
+			return Result{}, Error{Message: "uncaught exception: " + valueString(thrown)}
+		}
 		return Result{}, err
 	}
 	return Result{Value: value, Output: runtime.outputLines(), Memory: runtime.memory.Stats()}, nil
@@ -356,6 +360,9 @@ func (runtime *Runtime) RunTests(program parser.ParsedProgram, names []string) (
 		outputStart := len(runtime.outputLines())
 		value, err := runtime.callFunction(resolvedName, nil)
 		if err != nil {
+			if thrown, ok := thrownValue(err); ok {
+				return nil, Error{Message: "uncaught exception: " + valueString(thrown)}
+			}
 			return nil, err
 		}
 		output := runtime.outputLines()[outputStart:]
@@ -558,6 +565,9 @@ func (runtime *Runtime) reportValue(label string, value Value, pos parser.Positi
 func (runtime *Runtime) errorWithStack(err error) error {
 	if err == nil {
 		return nil
+	}
+	if _, ok := thrownValue(err); ok {
+		return err
 	}
 	message := err.Error()
 	if strings.Contains(message, "Stack trace:") {
@@ -1188,7 +1198,7 @@ func (runtime *Runtime) executeMatch(stmt parser.MatchStatement, env *Environmen
 		return signal{}, err
 	}
 	if !isRuntimePatternMatchValue(value) {
-		return signal{}, errorAt(stmt.Pos, fmt.Sprintf("pattern match value must be Bool, String, Int, Float, Enum, Option, Result, List, or Table, got %s", value.Kind))
+		return signal{}, errorAt(stmt.Pos, fmt.Sprintf("pattern match value must be Bool, String, Int, Float, Atom, Enum, Option, Result, List, or Table, got %s", value.Kind))
 	}
 
 	matched := false
@@ -1468,7 +1478,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 
 func isRuntimePatternMatchValue(value Value) bool {
 	switch value.Kind {
-	case ValueBool, ValueString, ValueInt, ValueFloat, ValueEnum, ValueOption, ValueResult, ValueList, ValueTable:
+	case ValueBool, ValueString, ValueInt, ValueFloat, ValueAtom, ValueEnum, ValueOption, ValueResult, ValueList, ValueTable:
 		return true
 	default:
 		return false
@@ -1507,7 +1517,7 @@ func (runtime *Runtime) matchPattern(value Value, pattern parser.ExpressionNode,
 			return false, err
 		}
 		if !isRuntimePatternMatchValue(patternValue) {
-			return false, Error{Message: fmt.Sprintf("case pattern must be Bool, String, Int, Float, Enum, Option, Result, List, or Table, got %s", patternValue.Kind)}
+			return false, Error{Message: fmt.Sprintf("case pattern must be Bool, String, Int, Float, Atom, Enum, Option, Result, List, or Table, got %s", patternValue.Kind)}
 		}
 		if value.Kind != patternValue.Kind {
 			return false, nil
@@ -1619,6 +1629,8 @@ func valuesEqual(left Value, right Value) bool {
 		return left.Data.(bool) == right.Data.(bool)
 	case ValueString:
 		return left.Data.(string) == right.Data.(string)
+	case ValueAtom:
+		return left.Data.(string) == right.Data.(string)
 	case ValueInt:
 		return left.Data.(int) == right.Data.(int)
 	case ValueFloat:
@@ -1687,7 +1699,7 @@ func typeSizeof(typeName string) (int, bool) {
 		return 8, true
 	case "Complex":
 		return 16, true
-	case "String", "List", "Map", "Table", "JSON", "Parsable", "T", "Type", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic", "Context", "ErrorContext":
+	case "String", "Atom", "List", "Map", "Table", "JSON", "File", "OS", "Parsable", "T", "Type", "Function", "Option", "Result", "SIMD", "Awaitable", "Iterator", "Coroutine", "Thread", "Atomic", "Context", "ErrorContext":
 		return 16, true
 	default:
 		return 0, false
@@ -2865,6 +2877,16 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		return runtime.macroExpand(args)
 	case "Parsable":
 		return runtime.newParsable(args)
+	case "Atom":
+		if len(args) != 1 || args[0].Kind != ValueString {
+			return NullValue(), Error{Message: "Atom expects one String name"}
+		}
+		return AtomValue(args[0].Data.(string))
+	case "File", "file_read", "file_read_lines", "file_write", "file_append", "file_exists", "file_size", "file_create", "file_remove":
+		return runtime.callFileBuiltin(name, args)
+	case "OS", "os_current_dir", "os_change_dir", "os_temp_dir", "os_home_dir", "os_hostname", "os_process_id",
+		"os_get_env", "os_set_env", "os_unset_env", "os_environment", "os_execute":
+		return runtime.callOSBuiltin(name, args)
 	case "parsable_source", "parsable_ast", "parsable_args", "parsable_runtime_info", "parsable_workspace":
 		return runtime.parsableField(name, args)
 	case "parsable_with_source", "parsable_replace", "parsable_append":
@@ -3780,7 +3802,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			continue
 		}
 		if currentSignal.kind == signalThrow {
-			return NullValue(), Error{Message: "uncaught exception: " + valueString(currentSignal.value)}
+			return NullValue(), thrownError{Value: currentSignal.value}
 		}
 		if currentSignal.kind == signalReturn {
 			if !valueMatchesType(currentSignal.value, function.ReturnType) {
@@ -4230,6 +4252,9 @@ func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parse
 }
 
 func builtinProtocolField(value Value, field string) (Value, bool) {
+	if value.Kind == ValueAtom && field == "name" {
+		return StringValue(value.Data.(string)), true
+	}
 	switch field {
 	case "count":
 		length, err := valueLen(value)
@@ -4257,12 +4282,33 @@ func builtinProtocolMethodExists(value Value, method string) bool {
 		return method == "uppercase" || method == "lowercase"
 	case ValueInt:
 		return method == "times"
+	case ValueObject:
+		switch value.Data.(ObjectData).Type {
+		case "File":
+			switch method {
+			case "read", "read_lines", "write", "append", "exists", "size", "create", "remove":
+				return true
+			}
+		case "OS":
+			switch method {
+			case "current_dir", "change_dir", "temp_dir", "home_dir", "hostname", "process_id",
+				"get_env", "set_env", "unset_env", "environment", "execute":
+				return true
+			}
+		}
 	default:
 		return false
 	}
+	return false
 }
 
 func (runtime *Runtime) callBuiltinProtocolMethod(method BoundMethodData, args []Value) (Value, error) {
+	if isObjectType(method.Receiver, "File") {
+		return runtime.callFileBuiltin("file_"+method.Name, append([]Value{method.Receiver}, args...))
+	}
+	if isObjectType(method.Receiver, "OS") {
+		return runtime.callOSBuiltin("os_"+method.Name, append([]Value{method.Receiver}, args...))
+	}
 	switch method.Name {
 	case "uppercase":
 		if len(args) != 0 {
@@ -4462,8 +4508,11 @@ func isBuiltinFunction(name string) bool {
 	case "print", "format", "printf", "input", "len", "range",
 		"option_map", "option_unwrap_or", "option_and_then",
 		"result_map", "result_map_err", "result_unwrap_or", "result_and_then",
-		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON", "Parsable",
+		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON", "Parsable", "File", "OS", "Atom",
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
+		"file_read", "file_read_lines", "file_write", "file_append", "file_exists", "file_size", "file_create", "file_remove",
+		"os_current_dir", "os_change_dir", "os_temp_dir", "os_home_dir", "os_hostname", "os_process_id",
+		"os_get_env", "os_set_env", "os_unset_env", "os_environment", "os_execute",
 		"json_parse", "json_decode", "json_encode", "json_stringify", "json_get", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null",
 		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",

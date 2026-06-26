@@ -132,6 +132,8 @@ func (parser *expressionParser) parsePrefix() ExpressionNode {
 		return LiteralExpression{Kind: "String", Value: token.Literal}
 	case lexer.TokenChar:
 		return LiteralExpression{Kind: "Char", Value: token.Literal}
+	case lexer.TokenAtom:
+		return LiteralExpression{Kind: "Atom", Value: token.Literal[1:]}
 	case lexer.TokenBool:
 		return LiteralExpression{Kind: "Bool", Value: token.Literal}
 	case lexer.TokenMinus, lexer.TokenNot, lexer.TokenCall, lexer.TokenMove, lexer.TokenCopy, lexer.TokenClone, lexer.TokenAwait:

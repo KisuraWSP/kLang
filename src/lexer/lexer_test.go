@@ -846,3 +846,23 @@ func assertTokens(t *testing.T, input string, expected []Token) {
 		}
 	}
 }
+
+func TestLexerTokenizesAtomLiteralsWithoutConfusingTypeColons(t *testing.T) {
+	tokens := New(`local Atom code=:not_found; function Read(value:String):Atom { return :ok; }`).Tokenize()
+	var atoms []string
+	var colons int
+	for _, token := range tokens {
+		switch token.Type {
+		case TokenAtom:
+			atoms = append(atoms, token.Literal)
+		case TokenInferReturn:
+			colons++
+		}
+	}
+	if strings.Join(atoms, ",") != ":not_found,:ok" {
+		t.Fatalf("expected atom literals, got %#v", atoms)
+	}
+	if colons != 2 {
+		t.Fatalf("expected compact parameter and return type colons to remain type separators, got %d", colons)
+	}
+}

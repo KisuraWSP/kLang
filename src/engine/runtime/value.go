@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"kLang/src/lexer"
 	"kLang/src/parser"
@@ -33,6 +34,37 @@ func BoolValue(value bool) Value {
 
 func CharValue(value string) Value {
 	return Value{Kind: ValueChar, Data: value}
+}
+
+func AtomValue(name string) (Value, error) {
+	if !isValidAtomName(name) {
+		return NullValue(), Error{Message: fmt.Sprintf("invalid Atom name %q: expected an identifier", name)}
+	}
+	return Value{Kind: ValueAtom, Data: name}, nil
+}
+
+func mustAtomValue(name string) Value {
+	value, _ := AtomValue(name)
+	return value
+}
+
+func isValidAtomName(name string) bool {
+	if name == "" || !utf8.ValidString(name) {
+		return false
+	}
+	for index, current := range []rune(name) {
+		if index == 0 {
+			if current != '_' && !unicode.IsLetter(current) && !unicode.IsSymbol(current) {
+				return false
+			}
+			continue
+		}
+		if current != '_' && !unicode.IsLetter(current) && !unicode.IsMark(current) &&
+			!unicode.IsDigit(current) && !unicode.IsSymbol(current) {
+			return false
+		}
+	}
+	return true
 }
 
 func FunctionValue(name string) Value {
@@ -241,6 +273,8 @@ func tableKeyValue(key TableKey) Value {
 		return BoolValue(key.Repr == "true")
 	case ValueChar:
 		return CharValue(key.Repr)
+	case ValueAtom:
+		return mustAtomValue(key.Repr)
 	default:
 		return StringValue(key.Repr)
 	}
@@ -353,6 +387,8 @@ func zeroValue(typeName string) Value {
 		return BoolValue(false)
 	case "Char":
 		return CharValue("")
+	case "Atom":
+		return mustAtomValue("undefined")
 	case "Complex":
 		return ComplexValue(0, 0)
 	case "T":
@@ -360,6 +396,12 @@ func zeroValue(typeName string) Value {
 	}
 	if typeName == "Parsable" || strings.HasPrefix(typeName, "Parsable[") {
 		return objectValue("Parsable", map[string]Value{})
+	}
+	if typeName == "File" {
+		return fileValue("")
+	}
+	if typeName == "OS" {
+		return osValue()
 	}
 	if strings.HasPrefix(typeName, "Function[") {
 		return NullValue()
@@ -498,6 +540,8 @@ func runtimeTypeName(value Value) string {
 		return "Bool"
 	case ValueChar:
 		return "Char"
+	case ValueAtom:
+		return "Atom"
 	case ValueList:
 		return "List[T]"
 	case ValueSet:
@@ -561,6 +605,8 @@ func literalValue(expr parser.LiteralExpression) (Value, error) {
 		return BoolValue(expr.Value == "True"), nil
 	case "Char":
 		return CharValue(expr.Value), nil
+	case "Atom":
+		return AtomValue(expr.Value)
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported literal kind %q", expr.Kind)}
 	}
@@ -609,7 +655,27 @@ func castValue(value Value, typeName string) (Value, error) {
 	case "Float":
 		return castToFloat(value)
 	case "String":
+		if value.Kind == ValueAtom {
+			return StringValue(value.Data.(string)), nil
+		}
+		if isObjectType(value, "File") {
+			path, err := filePath(value, "File to String cast")
+			if err != nil {
+				return NullValue(), err
+			}
+			return StringValue(path), nil
+		}
 		return StringValue(valueString(value)), nil
+	case "Atom":
+		if value.Kind != ValueString {
+			return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to Atom", value.Kind)}
+		}
+		return AtomValue(value.Data.(string))
+	case "File":
+		if value.Kind != ValueString {
+			return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to File", value.Kind)}
+		}
+		return fileValue(value.Data.(string)), nil
 	case "JSON":
 		if value.Kind != ValueString {
 			return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to JSON", value.Kind)}
@@ -645,7 +711,7 @@ func isRuntimeBuiltinCastTarget(typeName string) bool {
 	}
 	switch typeName {
 	case "T", "Any",
-		"Int", "UInt", "String", "JSON", "Parsable",
+		"Int", "UInt", "String", "Atom", "JSON", "File", "OS", "Parsable",
 		"Float", "Bool", "Char", "Complex", "Type",
 		"Table", "Program", "BuildSystem", "WorkSpace",
 		"JSModule", "JSCall", "Context", "ErrorContext",
@@ -1056,6 +1122,8 @@ func valueString(value Value) string {
 		return strconv.FormatFloat(value.Data.(float64), 'f', -1, 64)
 	case ValueString, ValueChar:
 		return value.Data.(string)
+	case ValueAtom:
+		return ":" + value.Data.(string)
 	case ValueBool:
 		if value.Data.(bool) {
 			return "True"
@@ -1164,6 +1232,8 @@ func valueSize(value Value) int {
 		return 0
 	case ValueInt, ValueFloat, ValueBool, ValueChar, ValueFunction, ValueBoundMethod:
 		return 8
+	case ValueAtom:
+		return 16 + len(value.Data.(string))
 	case ValueEnum:
 		return 16 + len(value.Data.(EnumData).Type) + len(value.Data.(EnumData).Variant)
 	case ValueString:
@@ -1269,7 +1339,7 @@ func valueLen(value Value) (int, error) {
 
 func mapKey(value Value) (string, error) {
 	switch value.Kind {
-	case ValueInt, ValueFloat, ValueString, ValueBool, ValueChar:
+	case ValueInt, ValueFloat, ValueString, ValueBool, ValueChar, ValueAtom:
 		return valueString(value), nil
 	default:
 		return "", Error{Message: fmt.Sprintf("%s cannot be used as a map key", value.Kind)}
@@ -1291,6 +1361,8 @@ func tableKey(value Value) (TableKey, error) {
 		return TableKey{Kind: ValueBool, Repr: "false"}, nil
 	case ValueChar:
 		return TableKey{Kind: ValueChar, Repr: value.Data.(string)}, nil
+	case ValueAtom:
+		return TableKey{Kind: ValueAtom, Repr: value.Data.(string)}, nil
 	default:
 		return TableKey{}, Error{Message: fmt.Sprintf("%s cannot be used as a table key", value.Kind)}
 	}
@@ -1345,6 +1417,8 @@ func valueMatchesType(value Value, typeName string) bool {
 		return value.Kind == ValueFloat || value.Kind == ValueInt
 	case typeName == "String":
 		return value.Kind == ValueString
+	case typeName == "Atom":
+		return value.Kind == ValueAtom
 	case typeName == "JSON":
 		return value.Kind == ValueJSON
 	case typeName == "Parsable" || strings.HasPrefix(typeName, "Parsable["):

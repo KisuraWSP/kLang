@@ -2453,6 +2453,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	if strings.HasPrefix(expr, "\"") && strings.HasSuffix(expr, "\"") {
 		return "String"
 	}
+	if isAtomLiteral(expr) {
+		return "Atom"
+	}
 	if strings.HasPrefix(expr, "'") && strings.HasSuffix(expr, "'") {
 		return "Char"
 	}
@@ -2843,6 +2846,23 @@ func (checker *TypeChecker) selectorFieldType(targetType string, fieldName strin
 			return "JSON", true
 		}
 	}
+	if targetType == "File" {
+		switch fieldName {
+		case "path", "name", "extension":
+			return "String", true
+		}
+	}
+	if targetType == "Atom" && fieldName == "name" {
+		return "String", true
+	}
+	if targetType == "OS" {
+		switch fieldName {
+		case "name", "arch", "path_separator", "path_list_separator", "line_separator":
+			return "String", true
+		case "cpu_count":
+			return "Int", true
+		}
+	}
 	if targetType == "Type" {
 		switch fieldName {
 		case "name", "type_name", "category", "kind":
@@ -2923,6 +2943,70 @@ func builtinProtocolMethodType(targetType string, methodName string) (string, bo
 	case "times":
 		if targetType == "Int" || targetType == "UInt" {
 			return "Function[Function[Int,T],T]", true
+		}
+	case "read":
+		if targetType == "File" {
+			return "Function[Result[String,String]]", true
+		}
+	case "read_lines":
+		if targetType == "File" {
+			return "Function[Result[List[String],String]]", true
+		}
+	case "write", "append":
+		if targetType == "File" {
+			return "Function[String,Result[Int,String]]", true
+		}
+	case "exists":
+		if targetType == "File" {
+			return "Function[Result[Bool,String]]", true
+		}
+	case "size":
+		if targetType == "File" {
+			return "Function[Result[Int,String]]", true
+		}
+	case "create":
+		if targetType == "File" {
+			return "Function[Result[File,String]]", true
+		}
+	case "remove":
+		if targetType == "File" {
+			return "Function[Result[Bool,String]]", true
+		}
+	case "current_dir", "home_dir", "hostname":
+		if targetType == "OS" {
+			return "Function[Result[String,String]]", true
+		}
+	case "change_dir":
+		if targetType == "OS" {
+			return "Function[String,Result[Bool,String]]", true
+		}
+	case "temp_dir":
+		if targetType == "OS" {
+			return "Function[String]", true
+		}
+	case "process_id":
+		if targetType == "OS" {
+			return "Function[Int]", true
+		}
+	case "get_env":
+		if targetType == "OS" {
+			return "Function[String,Option[String]]", true
+		}
+	case "set_env":
+		if targetType == "OS" {
+			return "Function[String,String,Result[Bool,String]]", true
+		}
+	case "unset_env":
+		if targetType == "OS" {
+			return "Function[String,Result[Bool,String]]", true
+		}
+	case "environment":
+		if targetType == "OS" {
+			return "Function[Map[String,String]]", true
+		}
+	case "execute":
+		if targetType == "OS" {
+			return "Function[String,List[String],Result[Table,String]]", true
 		}
 	}
 	return "", false
@@ -3180,6 +3264,95 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			}
 		}
 		return "Parsable[T]"
+	case "File":
+		if len(args) != 1 {
+			checker.addError(source, line, "File expects 1 argument")
+			return "File"
+		}
+		argType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("String", argType) {
+			checker.addError(source, line, fmt.Sprintf("File path expects String, got %s", argType))
+		}
+		return "File"
+	case "file_read", "file_read_lines", "file_exists", "file_size", "file_create", "file_remove":
+		if len(args) != 1 {
+			checker.addError(source, line, name+" expects 1 argument")
+		} else {
+			argType := checker.inferExpression(args[0], locals, source, line)
+			if !isAssignable("File", argType) {
+				checker.addError(source, line, fmt.Sprintf("%s expects File, got %s", name, argType))
+			}
+		}
+		switch name {
+		case "file_read":
+			return "Result[String,String]"
+		case "file_read_lines":
+			return "Result[List[String],String]"
+		case "file_exists":
+			return "Result[Bool,String]"
+		case "file_size":
+			return "Result[Int,String]"
+		case "file_create":
+			return "Result[File,String]"
+		default:
+			return "Result[Bool,String]"
+		}
+	case "file_write", "file_append":
+		if len(args) != 2 {
+			checker.addError(source, line, name+" expects 2 arguments")
+		} else {
+			fileType := checker.inferExpression(args[0], locals, source, line)
+			contentType := checker.inferExpression(args[1], locals, source, line)
+			if !isAssignable("File", fileType) {
+				checker.addError(source, line, fmt.Sprintf("%s expects File as first argument, got %s", name, fileType))
+			}
+			if !isAssignable("String", contentType) {
+				checker.addError(source, line, fmt.Sprintf("%s content expects String, got %s", name, contentType))
+			}
+		}
+		return "Result[Int,String]"
+	case "Atom":
+		if len(args) != 1 {
+			checker.addError(source, line, "Atom expects 1 argument")
+			return "Atom"
+		}
+		argType := checker.inferExpression(args[0], locals, source, line)
+		if !isAssignable("String", argType) {
+			checker.addError(source, line, fmt.Sprintf("Atom name expects String, got %s", argType))
+		}
+		return "Atom"
+	case "OS":
+		if len(args) != 0 {
+			checker.addError(source, line, "OS expects 0 arguments")
+		}
+		return "OS"
+	case "os_current_dir", "os_home_dir", "os_hostname":
+		checker.checkOSArguments(name, args, []string{"OS"}, locals, source, line)
+		return "Result[String,String]"
+	case "os_change_dir":
+		checker.checkOSArguments(name, args, []string{"OS", "String"}, locals, source, line)
+		return "Result[Bool,String]"
+	case "os_temp_dir":
+		checker.checkOSArguments(name, args, []string{"OS"}, locals, source, line)
+		return "String"
+	case "os_process_id":
+		checker.checkOSArguments(name, args, []string{"OS"}, locals, source, line)
+		return "Int"
+	case "os_get_env":
+		checker.checkOSArguments(name, args, []string{"OS", "String"}, locals, source, line)
+		return "Option[String]"
+	case "os_set_env":
+		checker.checkOSArguments(name, args, []string{"OS", "String", "String"}, locals, source, line)
+		return "Result[Bool,String]"
+	case "os_unset_env":
+		checker.checkOSArguments(name, args, []string{"OS", "String"}, locals, source, line)
+		return "Result[Bool,String]"
+	case "os_environment":
+		checker.checkOSArguments(name, args, []string{"OS"}, locals, source, line)
+		return "Map[String,String]"
+	case "os_execute":
+		checker.checkOSArguments(name, args, []string{"OS", "String", "List[String]"}, locals, source, line)
+		return "Result[Table,String]"
 	case "parsable_source":
 		checker.checkParsableArguments(name, args, 1, locals, source, line)
 		return "String"
@@ -4061,6 +4234,19 @@ func (checker *TypeChecker) checkParsableArguments(name string, args []string, e
 		argumentType := checker.inferExpression(argument, locals, source, line)
 		if !isAssignable("String", argumentType) {
 			checker.addError(source, line, fmt.Sprintf("%s source arguments expect String, got %s", name, argumentType))
+		}
+	}
+}
+
+func (checker *TypeChecker) checkOSArguments(name string, args []string, expected []string, locals map[string]variableSymbol, source string, line int) {
+	if len(args) != len(expected) {
+		checker.addError(source, line, fmt.Sprintf("%s expects %d argument(s), got %d", name, len(expected), len(args)))
+		return
+	}
+	for index, expectedType := range expected {
+		actualType := checker.inferExpression(args[index], locals, source, line)
+		if !isAssignable(expectedType, actualType) {
+			checker.addError(source, line, fmt.Sprintf("%s argument %d expects %s, got %s", name, index+1, expectedType, actualType))
 		}
 	}
 }
@@ -5005,7 +5191,7 @@ func isKnownType(typeName string) bool {
 	if _, ok := childType(typeName); ok {
 		return true
 	}
-	if typeName == anyType || typeName == dynamicAnyType || typeName == "Int" || typeName == "UInt" || typeName == "String" || typeName == "JSON" || typeName == "Parsable" ||
+	if typeName == anyType || typeName == dynamicAnyType || typeName == "Int" || typeName == "UInt" || typeName == "String" || typeName == "Atom" || typeName == "JSON" || typeName == "File" || typeName == "OS" || typeName == "Parsable" ||
 		typeName == "Float" || typeName == "Bool" || typeName == "Char" || typeName == "Complex" || typeName == "Type" ||
 		typeName == "Table" || typeName == "Program" || typeName == "BuildSystem" || typeName == "WorkSpace" ||
 		typeName == "JSModule" || typeName == "JSCall" || typeName == "Context" || typeName == "ErrorContext" {
@@ -5231,6 +5417,11 @@ func quotedStringLiteral(expr string) (string, bool) {
 	return strings.Trim(expr, `"`), true
 }
 
+func isAtomLiteral(expr string) bool {
+	tokens := lexer.New(strings.TrimSpace(expr)).Tokenize()
+	return len(tokens) == 2 && tokens[0].Type == lexer.TokenAtom && tokens[1].Type == lexer.TokenEOFDescriptor
+}
+
 func isBuildBackendName(value string) bool {
 	switch value {
 	case "WASM", "JS", "Standalone":
@@ -5274,7 +5465,7 @@ func isTableKeyType(typeName string) bool {
 		}
 		return true
 	}
-	return typeName == anyType || typeName == "String" || typeName == "Int" || typeName == "UInt" ||
+	return typeName == anyType || typeName == "String" || typeName == "Atom" || typeName == "Int" || typeName == "UInt" ||
 		typeName == "Float" || typeName == "Bool" || typeName == "Char" ||
 		strings.HasPrefix(typeName, "Int.child(") || strings.HasPrefix(typeName, "UInt.child(") ||
 		strings.HasPrefix(typeName, "Float.child(")
@@ -5737,6 +5928,12 @@ func canCast(source string, target string) bool {
 	if source == "String" && target == "JSON" || source == "JSON" && target == "String" {
 		return true
 	}
+	if source == "String" && target == "File" || source == "File" && target == "String" {
+		return true
+	}
+	if source == "String" && target == "Atom" || source == "Atom" && target == "String" {
+		return true
+	}
 	if _, allowed, ok := restrictedGenericType(source); ok {
 		for _, option := range allowed {
 			if !canCast(option, target) {
@@ -5785,7 +5982,7 @@ func isBuiltinCastTarget(typeName string) bool {
 	}
 	switch typeName {
 	case anyType, dynamicAnyType,
-		"Int", "UInt", "String", "JSON", "Parsable",
+		"Int", "UInt", "String", "Atom", "JSON", "File", "OS", "Parsable",
 		"Float", "Bool", "Char", "Complex", "Type",
 		"Table", "Program", "BuildSystem", "WorkSpace",
 		"JSModule", "JSCall", "Context", "ErrorContext":

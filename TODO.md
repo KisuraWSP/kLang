@@ -4,10 +4,6 @@
 # TODO
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
-- Add File as a builtin data type to do file io operations
-   - this system is baked into the language via the go source code not via klang code, klang only relies on the go code to do File io operations
-- Add OS as a builtin data type to do OS level operations
-   - this system is baked into the language via the go source code not via klang code, klang only relies on the go code to do OS level operations
 - make the lines per second metric actually accurate based on codebase/project/program/script
 - whenever a language is updating or changing its hard to keep up with new features and change it so we will add a new command called "update" to existing klang projects so they are up to date with the latest features and will report to the user if there is any sort of breaking changes in there codebase
 - make the main function as the only way to do entry point in a program/project unless user defines a custom main function with the "#set_entry_point_to_here" otherwise its the below
@@ -19,7 +15,6 @@ function Main() : Int {
    - this should be strict behaviour and must be enforced throughout the project
 
 - add new keyword called "foreign" if its a ffi based function for any backend or language interop
-- add atoms to the programming language these behave like erlang atoms but are reserved for users to design there own custom error codes and can be used with try catch or throw
 
 - for structs we do the .cast_as() method for if we want to convert a struct to a specific types we want
 - remove any unnecessary features that we dont need

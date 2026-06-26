@@ -328,7 +328,7 @@ func (checker *TypeChecker) checkMatchScope(stmt parser.MatchStatement, scope *l
 	valueType := checker.inferMatchExpressionType(stmt.Value, locals, source, stmt.Pos.Line)
 	valueType = normalizeType(valueType)
 	if !checker.isPatternMatchType(valueType) {
-		checker.addError(source, stmt.Pos.Line, fmt.Sprintf("pattern match value must be Bool, String, Int, Float, Enum, Option, Result, List, or Table, got %s", valueType))
+		checker.addError(source, stmt.Pos.Line, fmt.Sprintf("pattern match value must be Bool, String, Int, Float, Atom, Enum, Option, Result, List, or Table, got %s", valueType))
 	}
 
 	hasDefault := false
@@ -428,7 +428,7 @@ func (checker *TypeChecker) checkPatternScope(pattern parser.ExpressionNode, val
 		expr := parser.Expression{Node: pattern}
 		patternType := normalizeType(checker.inferMatchExpressionType(expr, scopeVariables(scope), source, line))
 		if !checker.isPatternMatchType(patternType) {
-			checker.addError(source, line, fmt.Sprintf("case pattern must be Bool, String, Int, Float, Enum, Option, Result, List, or Table, got %s", patternType))
+			checker.addError(source, line, fmt.Sprintf("case pattern must be Bool, String, Int, Float, Atom, Enum, Option, Result, List, or Table, got %s", patternType))
 			return matchPatternInfo{}
 		}
 		if valueType != anyType && patternType != anyType && valueType != patternType {
@@ -590,7 +590,7 @@ func scopeVariables(scope *lexicalScope) map[string]variableSymbol {
 func (checker *TypeChecker) isPatternMatchType(typeName string) bool {
 	typeName = normalizeType(typeName)
 	switch typeName {
-	case anyType, "Bool", "String", "Int", "Float", "Table":
+	case anyType, "Bool", "String", "Int", "Float", "Atom", "Table":
 		return true
 	default:
 		return checker.enumExists(typeName) ||
@@ -953,8 +953,11 @@ func isBuiltinFunctionName(name string) bool {
 	case "print", "format", "printf", "input", "len", "range",
 		"option_map", "option_unwrap_or", "option_and_then",
 		"result_map", "result_map_err", "result_unwrap_or", "result_and_then",
-		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON", "Parsable",
+		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON", "Parsable", "File", "OS", "Atom",
 		"Table", "iter", "next", "coroutine", "resume", "spawn", "join", "thread_status",
+		"file_read", "file_read_lines", "file_write", "file_append", "file_exists", "file_size", "file_create", "file_remove",
+		"os_current_dir", "os_change_dir", "os_temp_dir", "os_home_dir", "os_hostname", "os_process_id",
+		"os_get_env", "os_set_env", "os_unset_env", "os_environment", "os_execute",
 		"json_parse", "json_decode", "json_encode", "json_stringify", "json_get", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null",
 		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",

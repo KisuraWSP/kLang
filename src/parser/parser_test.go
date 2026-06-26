@@ -1676,3 +1676,19 @@ func assertNoParseErrors(t *testing.T, errors []Error) {
 		t.Fatalf("expected no parse errors, got %#v", errors)
 	}
 }
+
+func TestParserBuildsAtomLiteralExpressions(t *testing.T) {
+	program, errors := Parse(`local Atom code = :not_found;`)
+	assertNoParseErrors(t, errors)
+	if len(program.Statements) != 1 {
+		t.Fatalf("expected one statement, got %d", len(program.Statements))
+	}
+	declaration, ok := program.Statements[0].(VariableStatement)
+	if !ok {
+		t.Fatalf("expected variable declaration, got %T", program.Statements[0])
+	}
+	literal, ok := declaration.Expression.Node.(LiteralExpression)
+	if !ok || literal.Kind != "Atom" || literal.Value != "not_found" {
+		t.Fatalf("expected Atom literal, got %#v", declaration.Expression.Node)
+	}
+}
