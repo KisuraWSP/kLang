@@ -5,6 +5,9 @@
 - add a message polling system in the languages system to be able to do metaprogramming like things to the system
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- add atoms to the programming language these behave like erlang atoms but are reserved for users to design there own custom error codes and can be used with try catch or throw
+- make parsable and keyword macro powerful
+
 - add a project management system similar to like go.mod
    - except its klang.project
    - it should use the toml data format
