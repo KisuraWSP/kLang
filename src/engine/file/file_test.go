@@ -7,7 +7,7 @@ import (
 )
 
 func TestCheckForExistingFile(t *testing.T) {
-	path := writeTestFile(t, t.TempDir(), "example.klang", "function Main() : Int { return 0; }")
+	path := writeTestFile(t, t.TempDir(), "example.klang", "load_as_script;\nfunction Main() : Int { return 0; }")
 
 	if !FileExists(path) {
 		t.Error("This file exists")
@@ -22,7 +22,7 @@ func TestCheckForNonExistingFile(t *testing.T) {
 
 func TestLoadProgramReadsStandaloneScript(t *testing.T) {
 	root := t.TempDir()
-	path := writeTestFile(t, root, "script.klang", "function One() : Int { return 1; }")
+	path := writeTestFile(t, root, "script.klang", "load_as_script;\nfunction One() : Int { return 1; }")
 
 	program, err := LoadProgram(path)
 	if err != nil {
@@ -43,9 +43,22 @@ func TestLoadProgramReadsStandaloneScript(t *testing.T) {
 	}
 }
 
-func TestLoadProgramReadsFolderWithFirstEntryPoint(t *testing.T) {
+func TestLoadProgramRejectsStandaloneScriptWithoutLoadAsScript(t *testing.T) {
+	root := t.TempDir()
+	path := writeTestFile(t, root, "script.klang", "function One() : Int { return 1; }")
+
+	if _, err := LoadProgram(path); err == nil {
+		t.Fatal("expected standalone script without load_as_script to fail")
+	}
+}
+
+func TestLoadProgramReadsProjectManifest(t *testing.T) {
 	root := t.TempDir()
 	programDir := filepath.Join(root, "test3")
+	writeTestFile(t, programDir, KlangProjectFile, `name = "custom"
+entry = "first.klang"
+sources = ["first.klang", "math.klang"]
+`)
 	writeTestFile(t, programDir, "first.klang", "function Main() : Int { return 0; }")
 	writeTestFile(t, programDir, "math.klang", "namespace math {}")
 
@@ -54,8 +67,8 @@ func TestLoadProgramReadsFolderWithFirstEntryPoint(t *testing.T) {
 		t.Fatalf("LoadProgram returned an error: %v", err)
 	}
 
-	if program.Name != "test3" {
-		t.Fatalf("expected directory program name, got %q", program.Name)
+	if program.Name != "custom" {
+		t.Fatalf("expected manifest program name, got %q", program.Name)
 	}
 	if program.Root != programDir {
 		t.Fatalf("expected directory root %q, got %q", programDir, program.Root)
@@ -74,6 +87,9 @@ func TestLoadProgramReadsFolderWithFirstEntryPoint(t *testing.T) {
 func TestLoadProgramIgnoresGeneratedDistFolder(t *testing.T) {
 	root := t.TempDir()
 	programDir := filepath.Join(root, "web")
+	writeTestFile(t, programDir, KlangProjectFile, `name = "web"
+entry = "first.klang"
+`)
 	writeTestFile(t, programDir, "first.klang", "function Main() : Int { return 0; }")
 	writeTestFile(t, programDir, "app.klang", "namespace App {}")
 	writeTestFile(t, programDir, filepath.Join("dist", "web-wasm", "src", "first.klang"), "function Main() : Int { return 1; }")
@@ -88,20 +104,24 @@ func TestLoadProgramIgnoresGeneratedDistFolder(t *testing.T) {
 	}
 }
 
-func TestLoadProgramRejectsFolderWithoutFirstEntryPoint(t *testing.T) {
+func TestLoadProgramRejectsFolderWithoutProjectManifest(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, filepath.Join("not-a-program", "helper.klang"), "function Helper() : Int { return 0; }")
 
 	_, err := LoadProgram(filepath.Join(root, "not-a-program"))
 	if err == nil {
-		t.Fatal("expected LoadProgram to reject a folder without first.klang")
+		t.Fatal("expected LoadProgram to reject a folder without klang.project")
 	}
 }
 
 func TestDiscoverProgramsReadsExactFileAndFolderStructure(t *testing.T) {
 	testsDir := t.TempDir()
-	writeTestFile(t, testsDir, "test1.klang", "function One() : Int { return 1; }")
-	writeTestFile(t, testsDir, "test2.klang", "function Two() : Int { return 2; }")
+	writeTestFile(t, testsDir, "test1.klang", "load_as_script;\nfunction One() : Int { return 1; }")
+	writeTestFile(t, testsDir, "test2.klang", "load_as_script;\nfunction Two() : Int { return 2; }")
+	writeTestFile(t, testsDir, filepath.Join("test3", KlangProjectFile), `name = "test3"
+entry = "first.klang"
+sources = ["first.klang", "math.klang"]
+`)
 	writeTestFile(t, testsDir, filepath.Join("test3", "first.klang"), "function Main() : Int { return 0; }")
 	writeTestFile(t, testsDir, filepath.Join("test3", "math.klang"), "namespace math {}")
 	writeTestFile(t, testsDir, filepath.Join("not-a-program", "helper.klang"), "function Helper() : Int { return 0; }")

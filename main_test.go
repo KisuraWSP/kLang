@@ -94,7 +94,9 @@ func TestRunCLIPackagesRealJavaScriptBackend(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "main.klang")
 	outPath := filepath.Join(root, "out")
-	source := `function Sum(limit : Int) : Int {
+	source := `load_as_script;
+
+function Sum(limit : Int) : Int {
     local mut Int total = 0;
     local mut Int index = 0;
     while index < limit {
@@ -146,7 +148,9 @@ function Main() : Int {
 func TestRunCLIRejectsUnsupportedJavaScriptBackendFeature(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "unsupported.klang")
-	source := `function Main() : Int {
+	source := `load_as_script;
+
+function Main() : Int {
     local Set[String] values;
     return 0;
 }
@@ -166,6 +170,12 @@ func TestRunCLIPackagesJavaScriptWithImportedNamespaceModule(t *testing.T) {
 	outPath := filepath.Join(root, "out")
 	if err := os.MkdirAll(project, 0755); err != nil {
 		t.Fatalf("create project: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(project, file.KlangProjectFile), []byte(`name = "modules"
+entry = "first.klang"
+sources = ["first.klang", "math.klang"]
+`), 0644); err != nil {
+		t.Fatalf("write project manifest: %v", err)
 	}
 	mainSource := `import "math";
 
@@ -211,7 +221,9 @@ func TestRunCLIPackagesJavaScriptStringOperations(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "strings.klang")
 	outPath := filepath.Join(root, "out")
-	source := `function Main() : Int {
+	source := `load_as_script;
+
+function Main() : Int {
     local String value = "h😀llo";
     local String message = "len=" + len(value);
     print(message, value.uppercase(), value[1], value.count);
@@ -327,7 +339,8 @@ func TestRunCLIGeneratesDocumentationHTML(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "api.klang")
 	outPath := filepath.Join(root, "docs.html")
-	source := `
+	source := `load_as_script;
+
 import "math";
 
 global Int Version = 1;
@@ -366,6 +379,12 @@ func TestRunCLIDocumentationExpandsProjectIntoSourceChapters(t *testing.T) {
 	outPath := filepath.Join(root, "project-docs.html")
 	if err := os.MkdirAll(projectPath, 0755); err != nil {
 		t.Fatalf("create project dir failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(projectPath, file.KlangProjectFile), []byte(`name = "project"
+entry = "first.klang"
+sources = ["first.klang", "app.klang"]
+`), 0644); err != nil {
+		t.Fatalf("write project manifest failed: %v", err)
 	}
 	first := `import "app";
 
@@ -408,7 +427,8 @@ function Main() : Int {
 func TestRunCLIRunsKlangTestFunctions(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "math_test.klang")
-	source := `
+	source := `load_as_script;
+
 function TestAssertionStyle() {
     assert 1 + 1 == 2;
 }
@@ -433,7 +453,8 @@ function TestStatusStyle() : Int {
 func TestRunCLIRunsKlangTestFolderAndGoldenOutput(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "output_test.klang")
-	source := `
+	source := `load_as_script;
+
 function TestOutput() {
     print("golden hello");
 }
@@ -453,7 +474,8 @@ function TestOutput() {
 func TestRunCLIFailsKlangBoolTest(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "failing_test.klang")
-	source := `
+	source := `load_as_script;
+
 function TestFailure() : Bool {
     return False;
 }

@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -907,11 +908,12 @@ func TestParseModuleDirectives(t *testing.T) {
 module(disabled : True);
 module_caller(call_entire_module : True);
 no_cache;
+load_as_script;
 `)
 	assertNoParseErrors(t, errors)
 
-	if len(program.Statements) != 3 {
-		t.Fatalf("expected 3 module directive statements, got %d", len(program.Statements))
+	if len(program.Statements) != 4 {
+		t.Fatalf("expected 4 module directive statements, got %d", len(program.Statements))
 	}
 	module, ok := program.Statements[0].(ModuleDirectiveStatement)
 	if !ok || module.Name != "module" || !module.Options["disabled"] {
@@ -924,6 +926,10 @@ no_cache;
 	noCache, ok := program.Statements[2].(ModuleDirectiveStatement)
 	if !ok || noCache.Name != "no_cache" || len(noCache.Options) != 0 {
 		t.Fatalf("unexpected no_cache directive: %#v", program.Statements[2])
+	}
+	loadAsScript, ok := program.Statements[3].(ModuleDirectiveStatement)
+	if !ok || loadAsScript.Name != "load_as_script" || len(loadAsScript.Options) != 0 {
+		t.Fatalf("unexpected load_as_script directive: %#v", program.Statements[3])
 	}
 }
 
@@ -1620,17 +1626,28 @@ func TestParseEnumDeclaration(t *testing.T) {
 }
 
 func TestParseFixturePrograms(t *testing.T) {
-	programs, err := file.DiscoverPrograms(filepath.Join("..", "..", "tests"))
+	var paths []string
+	err := filepath.WalkDir(filepath.Join("..", "..", "tests"), func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && filepath.Ext(path) == file.KlangExtension {
+			paths = append(paths, path)
+		}
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("failed to discover fixture programs: %v", err)
+		t.Fatalf("failed to discover fixture sources: %v", err)
 	}
 
-	for _, program := range programs {
-		for _, source := range program.Files {
-			_, errors := Parse(strings.Join(source.Lines, "\n"))
-			if len(errors) != 0 {
-				t.Fatalf("%s parse errors: %#v", source.Path, errors)
-			}
+	for _, path := range paths {
+		lines, err := file.ReadLines(path)
+		if err != nil {
+			t.Fatalf("failed to read fixture source %s: %v", path, err)
+		}
+		_, errors := Parse(strings.Join(lines, "\n"))
+		if len(errors) != 0 {
+			t.Fatalf("%s parse errors: %#v", path, errors)
 		}
 	}
 }

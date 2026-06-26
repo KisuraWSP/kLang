@@ -1,3 +1,4 @@
+load_as_script;
 import "dsa";
 
 type score = Int;

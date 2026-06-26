@@ -8,9 +8,6 @@
 - add atoms to the programming language these behave like erlang atoms but are reserved for users to design there own custom error codes and can be used with try catch or throw
 - make parsable and keyword macro powerful
 
-- add a project management system similar to like go.mod
-   - except its klang.project
-   - it should use the toml data format
 - make cast operations allowed for the builtin types
 - for structs we do the .cast_as() method for if we want to convert a struct to a specific types we want
 - remove any unnecessary features that we dont need

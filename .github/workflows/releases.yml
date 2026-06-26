@@ -2,8 +2,9 @@ name: Draft native releases
 
 on:
   schedule:
-    # 23:00 in Sri Lanka (UTC+05:30).
-    - cron: "30 17 * * *"
+    # 23:00 in Sri Lanka (UTC+05:30) on the 2nd day every two months.
+    # Releases are intentionally delayed while the language is under construction.
+    - cron: "30 17 2 */2 *"
   workflow_dispatch:
     inputs:
       release_kind:

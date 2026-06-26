@@ -626,6 +626,9 @@ func writeModuleTestFile(t *testing.T, root string, name string, content string)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("failed to create test directory: %v", err)
 	}
+	if filepath.Ext(name) == file.KlangExtension && !strings.Contains(content, "load_as_script;") {
+		content = "load_as_script;\n" + content
+	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write test file: %v", err)
 	}

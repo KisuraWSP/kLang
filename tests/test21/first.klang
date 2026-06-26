@@ -1,4 +1,5 @@
 -- file: klang_dungeon_engine.klang
+load_as_script;
 -- =========================================================================
 -- KLANG DUNGEON CRAWLER ENGINE
 -- A comprehensive 300+ line stress test for the Klang Compiler.

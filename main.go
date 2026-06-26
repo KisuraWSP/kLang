@@ -260,8 +260,9 @@ func createProject(projectPath string, entry entrySpec) error {
 	}
 
 	files := map[string]string{
-		file.KlangEntryPoint: newProjectEntrySource(),
-		"app.klang":          newProjectModuleSource(projectNameFromPath(cleanPath), entry),
+		file.KlangProjectFile: newProjectManifest(projectNameFromPath(cleanPath)),
+		file.KlangEntryPoint:  newProjectEntrySource(),
+		"app.klang":           newProjectModuleSource(projectNameFromPath(cleanPath), entry),
 	}
 	for name, contents := range files {
 		path := filepath.Join(cleanPath, name)
@@ -271,6 +272,7 @@ func createProject(projectPath string, entry entrySpec) error {
 	}
 
 	fmt.Printf("created Klang project %s\n", cleanPath)
+	fmt.Printf("  %s\n", filepath.Join(cleanPath, file.KlangProjectFile))
 	fmt.Printf("  %s\n", filepath.Join(cleanPath, file.KlangEntryPoint))
 	fmt.Printf("  %s\n", filepath.Join(cleanPath, "app.klang"))
 	fmt.Printf("\nnext steps:\n")
@@ -1461,6 +1463,18 @@ function Main() : Int {
     return App.Start();
 }
 `
+}
+
+func newProjectManifest(projectName string) string {
+	return fmt.Sprintf(`name = "%s"
+entry = "%s"
+sources = ["%s", "app.klang"]
+`, escapeTomlString(projectName), file.KlangEntryPoint, file.KlangEntryPoint)
+}
+
+func escapeTomlString(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	return strings.ReplaceAll(value, `"`, `\"`)
 }
 
 func newProjectModuleSource(projectName string, entry entrySpec) string {

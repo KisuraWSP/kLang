@@ -2628,6 +2628,7 @@ namespace hidden {
 	}
 	programPath := filepath.Join(appRoot, "main.klang")
 	if err := os.WriteFile(programPath, []byte(`
+load_as_script;
 function Main() : Int {
     return Add(New(), 5);
 }

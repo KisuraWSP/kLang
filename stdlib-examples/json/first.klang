@@ -1,3 +1,4 @@
+load_as_script;
 module_caller(call_entire_module : True);
 import "json";
 

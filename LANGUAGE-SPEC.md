@@ -3,7 +3,7 @@
 3. Has small standard library containing important modules
 4. Simple Module System
 5. All Important Data Types are built into the language
-6. Language Operates as file-based system (Meaning each file can execute as a script unless defined as a entry point to a project via the first.klang file)
+6. Language operates through `klang.project` TOML manifests by default. A loose `.klang` file must declare `load_as_script;` to run as an intentional script.
 7. Alias functions can define constructor-like custom data types and extension methods. Struct-style alias functions expose their parameters as statically checked fields, and generic constructor calls infer returned alias types.
 8. Arrays and slices can be attached to user-defined memory regions, including temporary regions, and always index from 0.
 9. Builtin allocator/value wrappers include Box, Ref, RefMut, RefCell, HeapAllocator, RegionAllocator, BumpAllocator, and ArenaAllocator.
@@ -133,13 +133,14 @@ Rules
 - `resume(coroutine)` returns Option[T], with None after the coroutine has completed.
 - `spawn(functionValue, [args...])` starts a child interpreter worker and returns `Thread[T]`; `join(thread)` waits and returns `T`.
 - Threaded workers share loaded functions, globals, memory tracking, and output. Use `Atomic[T]` for shared mutable values that need safe read-modify-write behavior.
-- Each standalone script or project is resolved as its own workspace. Resolver caches speed repeated imports without sharing visited-state between workspaces. Successful CLI checks/runs also write a `.klang-cache` entry keyed by entry point, raw-lang mode, and source fingerprints; valid hits may reuse the resolved and checked source set.
+- Each `klang.project` project or explicit `load_as_script;` script is resolved as its own workspace. Resolver caches speed repeated imports without sharing visited-state between workspaces. Successful CLI checks/runs also write a `.klang-cache` entry keyed by entry point, raw-lang mode, and source fingerprints; valid hits may reuse the resolved and checked source set.
 - `import` statements may appear anywhere in a source file. Qualified module calls such as `math.Add(...)` also infer an import when `math` resolves to a local or stdlib module.
 - Imported modules may contain their own `import` statements. The resolver loads these recursively, reports cycles, and treats sibling imports under the stdlib root as stdlib modules so function lookup filters continue to apply.
 - Stdlib imports are selectively collected by default. For example, `import "html";` plus `html.Document(...)` collects `html.Document` and its same-module helper dependencies, not every function in `stdlib/html.klang`.
 - Place `module_caller(call_entire_module : True);` in a source file to make its stdlib imports load complete modules.
 - Place `module(disabled : True);` in a module source to make the resolver reject imports of that module.
 - Place `no_cache;` in a source file to prevent the program cache from loading or storing `.klang-cache` entries for that workspace.
+- A folder project must contain `klang.project`, a TOML manifest with `name`, `entry`, and optional `sources`. If `sources` is omitted, all `.klang` files under the project root except `dist` are loaded. A loose `.klang` file or legacy `first.klang` folder must opt in with `load_as_script;`.
 - Place `global namespace Name { ... }` in a stdlib module to expose the namespace's functions as unqualified calls through the language's internal symbol table. The symbol table is not accessible from Klang source.
 - Use `run { ... }` or `run FunctionName();` to execute initialization code before ordinary statements in the same runtime block. A `run` action cannot return, break, or continue.
 - Use `(* ... *)` for multiline comments. Multiline comments are ignored by the lexer before parsing.

@@ -1,3 +1,5 @@
+load_as_script;
+
 import "metasystem";
 
 function Main() : Int {

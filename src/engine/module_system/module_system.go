@@ -537,7 +537,7 @@ func (resolver *Resolver) loadProgram(path string) (file.Program, error) {
 		return program, nil
 	}
 
-	program, err := file.LoadProgram(path)
+	program, err := file.LoadModuleProgram(path)
 	if err != nil {
 		return file.Program{}, err
 	}

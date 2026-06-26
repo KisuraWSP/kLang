@@ -1,3 +1,4 @@
+load_as_script;
 import "array";
 
 function PrintDivider(title : String) : Int {

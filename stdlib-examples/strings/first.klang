@@ -1,3 +1,4 @@
+load_as_script;
 import "strings";
 
 function Divider(title : String) : Int {

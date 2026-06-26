@@ -1,11 +1,11 @@
 package lexer
 
 import (
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"kLang/src/engine/file"
 )
 
 func TestLexerTokenizesVariableDeclaration(t *testing.T) {
@@ -803,18 +803,29 @@ func TestLexerSkipsCRLFWhitespace(t *testing.T) {
 }
 
 func TestLexerTokenizesFixtureProgramsWithoutIllegalTokens(t *testing.T) {
-	programs, err := file.DiscoverPrograms(filepath.Join("..", "..", "tests"))
+	var paths []string
+	err := filepath.WalkDir(filepath.Join("..", "..", "tests"), func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && filepath.Ext(path) == ".klang" {
+			paths = append(paths, path)
+		}
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("failed to discover fixture programs: %v", err)
+		t.Fatalf("failed to discover fixture sources: %v", err)
 	}
 
-	for _, program := range programs {
-		for _, source := range program.Files {
-			tokens := New(strings.Join(source.Lines, "\n")).Tokenize()
-			for _, token := range tokens {
-				if token.Type == TokenIllegal {
-					t.Fatalf("%s:%d:%d illegal token %q", source.Path, token.Line, token.Column, token.Literal)
-				}
+	for _, path := range paths {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("failed to read fixture source %s: %v", path, err)
+		}
+		tokens := New(string(content)).Tokenize()
+		for _, token := range tokens {
+			if token.Type == TokenIllegal {
+				t.Fatalf("%s:%d:%d illegal token %q", path, token.Line, token.Column, token.Literal)
 			}
 		}
 	}

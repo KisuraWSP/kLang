@@ -1,3 +1,5 @@
+load_as_script;
+
 function ShowSignedTypes() : Int {
     local i8 tiny = 127;
     local i16 wider = tiny;

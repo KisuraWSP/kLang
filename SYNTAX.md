@@ -41,6 +41,18 @@ Disable the program cache for a workspace when fresh module resolution and type 
 no_cache;
 ```
 
+Folder projects are loaded through `klang.project`, a TOML manifest:
+```toml
+name = "demo"
+entry = "first.klang"
+sources = ["first.klang", "app.klang"]
+```
+
+Loose `.klang` files and legacy `first.klang` folders must opt in explicitly:
+```lua
+load_as_script;
+```
+
 Struct-style aliases can rename constructor fields during JSON serialization:
 ```lua
 alias function User(id : String, displayName : String) : type = struct {

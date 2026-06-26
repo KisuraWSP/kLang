@@ -165,8 +165,8 @@ func (parser *Parser) parseStatement() Statement {
 	case lexer.TokenDoWhile, lexer.TokenDo:
 		return parser.parseLoop(token.Literal)
 	default:
-		if token.Type == lexer.TokenIdentifier && token.Literal == "no_cache" {
-			return parser.parseNoCacheDirective()
+		if token.Type == lexer.TokenIdentifier && (token.Literal == "no_cache" || token.Literal == "load_as_script") {
+			return parser.parseBareDirective()
 		}
 		if token.Type == lexer.TokenIdentifier && token.Literal == "module_caller" {
 			return parser.parseModuleDirective()
@@ -227,12 +227,12 @@ func (parser *Parser) parseModuleDirective() Statement {
 	}
 }
 
-func (parser *Parser) parseNoCacheDirective() Statement {
-	start := parser.consume(lexer.TokenIdentifier, "expected no_cache")
+func (parser *Parser) parseBareDirective() Statement {
+	start := parser.consume(lexer.TokenIdentifier, "expected directive")
 	parser.consumeOptionalSemicolon()
 	return ModuleDirectiveStatement{
 		Pos:     positionFromToken(start),
-		Name:    "no_cache",
+		Name:    start.Literal,
 		Options: map[string]bool{},
 	}
 }

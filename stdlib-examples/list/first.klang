@@ -1,3 +1,4 @@
+load_as_script;
 import "list";
 
 function Main() : Int {

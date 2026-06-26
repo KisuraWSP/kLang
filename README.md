@@ -8,7 +8,11 @@ kLang is an experimental programming language implemented in Go. The project inc
 
 The language is function-first and strongly checked, with a design that borrows practical ideas from Go, Rust, Swift, Lua, Python, Elm, and functional languages. The current focus is building a small but expressive language core with clear source-aware diagnostics and predictable runtime behavior.
 
+> language is currently under construction be prepared to face breaking changes
+
 > Temporary note: the examples in examples folder are incomplete and experimental as langauges api and features will change
+
+> Breaking change: kLang projects now require a `klang.project` TOML manifest. Existing `.klang` scripts or legacy `first.klang` folder projects will not run unless their entry source explicitly opts into script loading with `load_as_script;`. This prepares the executable to run `default_program.klang` by default in the future while keeping intentional scripts explicit.
 
 ## Language Snapshot
 
@@ -71,13 +75,13 @@ Create a new project:
 go run . new examples/myproject
 ```
 
-Check a script or project without running it:
+Check a project without running it:
 
 ```sh
 go run . check examples/helloworld
 ```
 
-Run a script or project:
+Run a project:
 
 ```sh
 go run . run examples/helloworld
@@ -99,7 +103,19 @@ go build -o kLang .
 
 ## A Small Program
 
-kLang files use the `.klang` extension. Folder projects use `first.klang` as the entry file.
+kLang files use the `.klang` extension. Projects are described by `klang.project`, a TOML manifest:
+
+```toml
+name = "demo"
+entry = "first.klang"
+sources = ["first.klang", "app.klang"]
+```
+
+Loose `.klang` files are treated as scripts only when they opt in:
+
+```lua
+load_as_script;
+```
 
 ```lua
 val appName = "demo";
