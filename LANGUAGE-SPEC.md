@@ -24,7 +24,7 @@
 24. `defer` schedules statements or blocks to run at the end of the current runtime block.
 25. `inline` marks functions and alias functions as eager inline candidates for compiler/runtime optimization.
 26. Alias functions use block syntax with `: type`, hook blocks such as `[new] { ... }`, and `#extend { ... }`.
-27. `#set_entry_point_to_here` marks the following function as the runtime entry point.
+27. New projects always scaffold `first.klang` with `function Main() : Int { return App.Start(); }`. The CLI `new --entry` flag is deprecated and ignored; source code can still use `#set_entry_point_to_here` to mark the following function as the runtime entry point.
 28. `Atomic[T]` plus `Atomic`, `atomic_load`, `atomic_store`, and `atomic_add` provide race-safe runtime cells.
 29. `Program`, `BuildSystem`, and `WorkSpace` are builtin meta-programming values for describing custom workspaces and compact build plans.
 30. `debug`, `debug_type`, `debug_stack`, and `breakpoint` are builtin debugger helpers.
@@ -144,7 +144,7 @@ Rules
 - Place `module_caller(call_entire_module : True);` in a source file to make its stdlib imports load complete modules.
 - Place `module(disabled : True);` in a module source to make the resolver reject imports of that module.
 - Place `no_cache;` in a source file to prevent the program cache from loading or storing `.klang-cache` entries for that workspace.
-- A folder project must contain `klang.project`, a TOML manifest with `name`, `entry`, and optional `sources`. If `sources` is omitted, all `.klang` files under the project root except `dist` are loaded. A loose `.klang` file or legacy `first.klang` folder must opt in with `load_as_script;`.
+- A folder project must contain `klang.project`, a TOML manifest with `name`, `entry`, and optional `sources`. If `sources` is omitted, all `.klang` files under the project root except `dist` are loaded. New CLI-created projects use `first.klang` as the manifest entry and keep the public program entry as `Main() : Int`, which delegates to `App.Start()`. The deprecated `new --entry` flag is accepted as a no-op for compatibility. A loose `.klang` file or legacy `first.klang` folder must opt in with `load_as_script;`.
 - Place `global namespace Name { ... }` in a stdlib module to expose the namespace's functions as unqualified calls through the language's internal symbol table. The symbol table is not accessible from Klang source.
 - Use `run { ... }` or `run FunctionName();` to execute initialization code before ordinary statements in the same runtime block. A `run` action cannot return, break, or continue.
 - Use `(* ... *)` for multiline comments. Multiline comments are ignored by the lexer before parsing.

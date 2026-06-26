@@ -115,6 +115,9 @@ func runCLI(args []string) error {
 		if err != nil {
 			return err
 		}
+		if hasDeprecatedEntryFlag(rest) {
+			fmt.Fprintf(os.Stderr, "warning: --entry is deprecated and ignored; new projects always use Main() in first.klang. Use #set_entry_point_to_here in source when a workspace needs a custom runtime entry point.\n")
+		}
 		return createProject(values[0], entry)
 	case "run":
 		if len(values) < 1 {
@@ -235,6 +238,7 @@ func runLegacyFlags(args []string) (bool, error) {
 }
 
 func createProject(projectPath string, entry entrySpec) error {
+	_ = entry
 	cleanPath := filepath.Clean(projectPath)
 	if cleanPath == "." || cleanPath == string(filepath.Separator) {
 		return fmt.Errorf("refusing to create project at %q", projectPath)
@@ -262,7 +266,7 @@ func createProject(projectPath string, entry entrySpec) error {
 	files := map[string]string{
 		file.KlangProjectFile: newProjectManifest(projectNameFromPath(cleanPath)),
 		file.KlangEntryPoint:  newProjectEntrySource(),
-		"app.klang":           newProjectModuleSource(projectNameFromPath(cleanPath), entry),
+		"app.klang":           newProjectModuleSource(projectNameFromPath(cleanPath)),
 	}
 	for name, contents := range files {
 		path := filepath.Join(cleanPath, name)
@@ -1477,81 +1481,38 @@ func escapeTomlString(value string) string {
 	return strings.ReplaceAll(value, `"`, `\"`)
 }
 
-func newProjectModuleSource(projectName string, entry entrySpec) string {
-	if entry.Name == "" {
-		entry.Name = "Start"
-		entry.Type = "Int"
-	}
-	if entry.Type == "" {
-		return fmt.Sprintf(`namespace App {
-    #set_entry_point_to_here
-    function %s() {
-        print("Welcome to %s");
-    }
-}
-`, entry.Name, escapeKlangString(projectName))
-	}
+func newProjectModuleSource(projectName string) string {
 	return fmt.Sprintf(`namespace App {
-    #set_entry_point_to_here
-    function %s() : %s {
+    function Start() : Int {
         print("Welcome to %s");
-        return %s;
+        return 0;
     }
 }
-`, entry.Name, entry.Type, escapeKlangString(projectName), entryReturnValue(entry.Type))
-}
-
-func entryReturnValue(typeName string) string {
-	switch strings.ToLower(strings.TrimSpace(typeName)) {
-	case "bool":
-		return "False"
-	case "float":
-		return "0.0"
-	case "string":
-		return `""`
-	case "char":
-		return `" "[0]`
-	default:
-		return "0"
-	}
+`, escapeKlangString(projectName))
 }
 
 func parseEntryFlag(args []string) (entrySpec, error) {
 	for index := 0; index < len(args); index++ {
 		arg := args[index]
-		value := ""
 		switch {
 		case strings.HasPrefix(arg, "--entry="):
-			value = strings.TrimSpace(strings.TrimPrefix(arg, "--entry="))
+			return entrySpec{}, nil
 		case arg == "--entry" && index+1 < len(args):
-			value = strings.TrimSpace(args[index+1])
+			return entrySpec{}, nil
 		default:
 			continue
 		}
-		return parseEntrySpec(value)
 	}
 	return entrySpec{}, nil
 }
 
-func parseEntrySpec(value string) (entrySpec, error) {
-	value = strings.TrimSpace(value)
-	value = strings.Trim(value, "[]")
-	value = strings.ReplaceAll(value, `"`, "")
-	value = strings.ReplaceAll(value, `'`, "")
-	if value == "" {
-		return entrySpec{}, nil
+func hasDeprecatedEntryFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "--entry" || strings.HasPrefix(arg, "--entry=") {
+			return true
+		}
 	}
-	parts := strings.Split(value, ",")
-	for index := range parts {
-		parts[index] = strings.TrimSpace(parts[index])
-	}
-	if len(parts) == 1 {
-		return entrySpec{Name: parts[0]}, nil
-	}
-	if len(parts) >= 2 {
-		return entrySpec{Name: parts[0], Type: parts[1]}, nil
-	}
-	return entrySpec{}, fmt.Errorf("--entry expects a function name or [name,type]")
+	return false
 }
 
 func parsePackageOptions(args []string) (packageOptions, error) {
@@ -1830,7 +1791,6 @@ func usageText() string {
 
 Usage:
   kLang new <project-path>                    Create a folder-based Klang project
-  kLang new <project-path> --entry=[Name,Int] Create a project with a custom entry point
   kLang run <file-or-folder>                  Check, parse, and execute a Klang program
   kLang check <file-or-folder>                Resolve modules, type check, and parse
   kLang package <file-or-folder>              Package checked source into a compact bundle
@@ -1845,7 +1805,7 @@ Usage:
 
 Options:
   --run                           Run programs after checks when test mode finds no Test... functions
-  --entry=[Name,Type]              Set generated project entry point for new projects
+  --entry=[Name,Type]              Deprecated no-op for new projects; Main() is generated in first.klang
   --backend=Standalone|JS|WASM      Select runtime packaging or native JS code generation
   --out=<folder>                    Select package output folder
   --sourcefile=[file.klang,...]      Select one or more source files for docs

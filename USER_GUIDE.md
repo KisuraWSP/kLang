@@ -739,7 +739,12 @@ check:
 
 ## Entry Point Notes
 
-`#set_entry_point_to_here` arms the next function as the entry point.
+CLI project creation now always scaffolds `first.klang` with a stable
+`Main() : Int` wrapper that returns `App.Start()`. The old `new --entry` flag is
+deprecated, accepted for compatibility, and ignored.
+
+`#set_entry_point_to_here` still arms the next function as the runtime entry
+point when a source file intentionally needs a custom entry.
 
 Entry discovery happens in `parser/program.go` by scanning parsed statements and
 namespace bodies. If no entry is found, runtime defaults to `Main`.

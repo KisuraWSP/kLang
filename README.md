@@ -177,11 +177,16 @@ Common rules:
 
 ## CLI Commands
 
-Create a project with a custom entry point:
+Create a project with the default `Main()` entry wrapper:
 
 ```sh
-go run . new examples/myproject --entry=["Process","Int"]
+go run . new examples/myproject
 ```
+
+New projects always generate `first.klang` with a stable `Main() : Int` entry
+function that calls `App.Start()`. The old `--entry` flag is deprecated and
+ignored. Existing source code can still choose a custom runtime entry point with
+`#set_entry_point_to_here` when needed.
 
 Pass program arguments. They are available inside kLang as `Args`:
 

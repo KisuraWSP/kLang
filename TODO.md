@@ -4,6 +4,14 @@
 # TODO
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- make the main function as the only way to do entry point in a program/project unless user defines a custom main function with the "#set_entry_point_to_here" otherwise its the below
+```lua
+function Main() : Int {
+   return 0;
+}
+```
+   - this should be strict behaviour and must be enforced throughout the project
+
 - add new keyword called "foreign" if its a ffi based function for any backend or language interop
 - add when you print at the end of the program like we print the time taken for the program
    - we will add the amount of lines of code proccessed per second for either a project/program/script in the language

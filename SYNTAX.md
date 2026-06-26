@@ -48,6 +48,10 @@ entry = "first.klang"
 sources = ["first.klang", "app.klang"]
 ```
 
+Projects created with `kLang new` always use `first.klang` as the manifest
+entry and generate a stable `Main() : Int` wrapper that calls `App.Start()`.
+The old `new --entry` flag is deprecated and ignored.
+
 Loose `.klang` files and legacy `first.klang` folders must opt in explicitly:
 ```lua
 load_as_script;
@@ -675,7 +679,8 @@ function create_workspace(name : String, workspace := UserDefinedWorkspace()) : 
 }
 
 -- entry point directive
--- The following function becomes the runtime entry point for this workspace.
+-- New projects default to Main() in first.klang.
+-- Use this only when a source file intentionally chooses another runtime entry.
 namespace App {
     #set_entry_point_to_here
     function Process() {
