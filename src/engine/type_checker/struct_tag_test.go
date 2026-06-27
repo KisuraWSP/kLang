@@ -11,10 +11,13 @@ func TestCheckProgramAcceptsJSONTaggedAliasStruct(t *testing.T) {
 		"alias function User(id : String, name : String) : type = struct {\n" +
 		"    this.id `json:\"user_id\"`;\n" +
 		"}\n" +
-		"function Main() : String {\n" +
+		"function Render() : String {\n" +
 		"    let user = User(\"42\", \"Ada\");\n" +
 		"    local JSON document = JSON(user);\n" +
 		"    return json_stringify(user) + json_stringify(document);\n" +
+		"}\n" +
+		"function Main() : Int {\n" +
+		"    return len(Render());\n" +
 		"}\n")
 	report := CheckProgram(program)
 	if !report.Passed() {

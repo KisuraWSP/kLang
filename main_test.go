@@ -74,6 +74,52 @@ func TestCreateProjectIgnoresCustomEntryPoint(t *testing.T) {
 	if !strings.Contains(entryText, "function Main() : Int") || !strings.Contains(entryText, "return App.Start();") {
 		t.Fatalf("expected fixed Main wrapper, got:\n%s", entryText)
 	}
+
+	manifest, err := os.ReadFile(filepath.Join(projectPath, file.KlangProjectFile))
+	if err != nil {
+		t.Fatalf("read generated manifest failed: %v", err)
+	}
+	if !strings.Contains(string(manifest), "language_version = 1") {
+		t.Fatalf("expected generated project language version, got:\n%s", manifest)
+	}
+}
+
+func TestRunCLIUpdatesAndChecksLegacyProject(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(root, file.KlangEntryPoint),
+		[]byte("function Main() : Int { return 0; }\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runCLI([]string{"update", root}); err != nil {
+		t.Fatalf("update command failed: %v", err)
+	}
+	manifest, err := os.ReadFile(filepath.Join(root, file.KlangProjectFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(manifest), "language_version = 1") {
+		t.Fatalf("expected migrated language version:\n%s", manifest)
+	}
+}
+
+func TestRunCLIUpdateReportsBreakingEntrypoint(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(root, file.KlangEntryPoint),
+		[]byte("function Start() : Int { return 0; }\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runCLI([]string{"update", root})
+	if err == nil || !strings.Contains(err.Error(), "breaking changes remain") {
+		t.Fatalf("expected breaking-change report, got %v", err)
+	}
 }
 
 func TestProgramLineThroughputMetrics(t *testing.T) {
@@ -92,6 +138,17 @@ func TestProgramLineThroughputMetrics(t *testing.T) {
 	}
 	if got := linesPerSecond(6, 0); got != 0 {
 		t.Fatalf("expected zero elapsed throughput to be 0, got %f", got)
+	}
+
+	metrics := sourceProcessingMetrics{
+		Load:      10 * time.Millisecond,
+		Cache:     5 * time.Millisecond,
+		Resolve:   20 * time.Millisecond,
+		TypeCheck: 30 * time.Millisecond,
+		Parse:     15 * time.Millisecond,
+	}
+	if got := metrics.Elapsed(); got != 80*time.Millisecond {
+		t.Fatalf("expected measured source phases to total 80ms, got %s", got)
 	}
 }
 
@@ -471,6 +528,10 @@ function TestBoolStyle() : Bool {
 function TestStatusStyle() : Int {
     return 0;
 }
+
+function Main() : Int {
+    return 0;
+}
 `
 	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {
 		t.Fatalf("write test source failed: %v", err)
@@ -488,6 +549,10 @@ func TestRunCLIRunsKlangTestFolderAndGoldenOutput(t *testing.T) {
 
 function TestOutput() {
     print("golden hello");
+}
+
+function Main() : Int {
+    return 0;
 }
 `
 	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {
@@ -509,6 +574,10 @@ func TestRunCLIFailsKlangBoolTest(t *testing.T) {
 
 function TestFailure() : Bool {
     return False;
+}
+
+function Main() : Int {
+    return 0;
 }
 `
 	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {

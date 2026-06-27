@@ -14,7 +14,7 @@ import (
 	"kLang/src/lexer"
 )
 
-const Version = "klang-program-cache-v1"
+const Version = "klang-program-cache-v3-language-version"
 
 type Warning struct {
 	File    string `json:"file"`
@@ -23,14 +23,15 @@ type Warning struct {
 }
 
 type Entry struct {
-	Version    string         `json:"version"`
-	Key        string         `json:"key"`
-	RawLang    bool           `json:"raw_lang"`
-	Name       string         `json:"name"`
-	Root       string         `json:"root"`
-	EntryPoint string         `json:"entry_point"`
-	Files      []CachedSource `json:"files"`
-	Warnings   []Warning      `json:"warnings,omitempty"`
+	Version         string         `json:"version"`
+	Key             string         `json:"key"`
+	RawLang         bool           `json:"raw_lang"`
+	Name            string         `json:"name"`
+	Root            string         `json:"root"`
+	EntryPoint      string         `json:"entry_point"`
+	LanguageVersion int            `json:"language_version"`
+	Files           []CachedSource `json:"files"`
+	Warnings        []Warning      `json:"warnings,omitempty"`
 }
 
 type CachedSource struct {
@@ -94,10 +95,11 @@ func Load(program file.Program, rawLang bool) (file.Program, Entry, bool) {
 	}
 
 	return file.Program{
-		Name:       entry.Name,
-		Root:       entry.Root,
-		EntryPoint: entry.EntryPoint,
-		Files:      files,
+		Name:            entry.Name,
+		Root:            entry.Root,
+		EntryPoint:      entry.EntryPoint,
+		LanguageVersion: entry.LanguageVersion,
+		Files:           files,
 	}, entry, true
 }
 
@@ -126,14 +128,15 @@ func Store(program file.Program, rawLang bool, warnings []Warning) error {
 	}
 
 	entry := Entry{
-		Version:    Version,
-		Key:        key,
-		RawLang:    rawLang,
-		Name:       program.Name,
-		Root:       program.Root,
-		EntryPoint: program.EntryPoint,
-		Files:      files,
-		Warnings:   append([]Warning(nil), warnings...),
+		Version:         Version,
+		Key:             key,
+		RawLang:         rawLang,
+		Name:            program.Name,
+		Root:            program.Root,
+		EntryPoint:      program.EntryPoint,
+		LanguageVersion: program.LanguageVersion,
+		Files:           files,
+		Warnings:        append([]Warning(nil), warnings...),
 	}
 	content, err := json.MarshalIndent(entry, "", "  ")
 	if err != nil {
@@ -205,15 +208,16 @@ func cachePath(program file.Program, rawLang bool) (string, string, bool) {
 		return "", "", false
 	}
 
-	key := cacheKey(absRoot, absEntry, rawLang)
+	key := cacheKey(absRoot, absEntry, program.LanguageVersion, rawLang)
 	return filepath.Join(absRoot, ".klang-cache", key+".json"), key, true
 }
 
-func cacheKey(root string, entry string, rawLang bool) string {
+func cacheKey(root string, entry string, languageVersion int, rawLang bool) string {
 	sum := sha256.Sum256([]byte(strings.Join([]string{
 		Version,
 		filepath.Clean(root),
 		filepath.Clean(entry),
+		strconv.Itoa(languageVersion),
 		strconv.FormatBool(rawLang),
 	}, "\x00")))
 	return hex.EncodeToString(sum[:])

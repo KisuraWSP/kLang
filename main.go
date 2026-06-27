@@ -23,6 +23,7 @@ import (
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
 	programcache "kLang/src/engine/program_cache"
+	projectupdate "kLang/src/engine/project_update"
 	"kLang/src/engine/runtime"
 	typechecker "kLang/src/engine/type_checker"
 	"kLang/src/formatter"
@@ -32,10 +33,24 @@ import (
 const cliName = "kLang"
 
 type commandOptions struct {
-	Run         bool
-	Verbose     bool
-	RawLang     bool
-	ProgramArgs []string
+	Run                bool
+	Verbose            bool
+	RawLang            bool
+	ProgramArgs        []string
+	SourceLoadDuration time.Duration
+}
+
+type sourceProcessingMetrics struct {
+	Load      time.Duration
+	Cache     time.Duration
+	Resolve   time.Duration
+	TypeCheck time.Duration
+	Parse     time.Duration
+	CacheHit  bool
+}
+
+func (metrics sourceProcessingMetrics) Elapsed() time.Duration {
+	return metrics.Load + metrics.Cache + metrics.Resolve + metrics.TypeCheck + metrics.Parse
 }
 
 type entrySpec struct {
@@ -123,7 +138,9 @@ func runCLI(args []string) error {
 		if len(values) < 1 {
 			return fmt.Errorf("%s run expects a .klang file or project folder", cliName)
 		}
+		loadStarted := time.Now()
 		program, err := file.LoadProgram(values[0])
+		options.SourceLoadDuration = time.Since(loadStarted)
 		if err != nil {
 			return err
 		}
@@ -139,6 +156,11 @@ func runCLI(args []string) error {
 			return err
 		}
 		return executePrograms([]file.Program{program}, commandOptions{Run: false, Verbose: options.Verbose, RawLang: options.RawLang})
+	case "update":
+		if len(values) != 1 {
+			return fmt.Errorf("%s update expects a project folder or %s", cliName, file.KlangProjectFile)
+		}
+		return updateProject(values[0], options)
 	case "package", "build":
 		if len(values) != 1 {
 			return fmt.Errorf("%s %s expects a .klang file or project folder", cliName, command)
@@ -221,11 +243,18 @@ func runLegacyFlags(args []string) (bool, error) {
 
 	programPath := file.GetProgramPath(args)
 	if programPath != "" {
+		loadStarted := time.Now()
 		program, err := file.LoadProgram(programPath)
+		loadDuration := time.Since(loadStarted)
 		if err != nil {
 			return true, fmt.Errorf("failed to read program: %w", err)
 		}
-		return true, executePrograms([]file.Program{program}, commandOptions{Run: file.HasRunFlag(args), Verbose: true, RawLang: hasFlag(args, "--raw-lang")})
+		return true, executePrograms([]file.Program{program}, commandOptions{
+			Run:                file.HasRunFlag(args),
+			Verbose:            true,
+			RawLang:            hasFlag(args, "--raw-lang"),
+			SourceLoadDuration: loadDuration,
+		})
 	}
 
 	filePath := file.GetFilePath(args)
@@ -282,6 +311,44 @@ func createProject(projectPath string, entry entrySpec) error {
 	fmt.Printf("\nnext steps:\n")
 	fmt.Printf("  go run . run %s\n", cleanPath)
 	fmt.Printf("  go run . check %s\n", cleanPath)
+	return nil
+}
+
+func updateProject(projectPath string, options commandOptions) error {
+	report, err := projectupdate.Update(projectPath)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Klang project update\n")
+	fmt.Printf("  project: %s\n", report.Root)
+	fmt.Printf("  language: %d -> %d\n", report.FromVersion, report.ToVersion)
+	if report.Created {
+		fmt.Printf("  manifest: created %s\n", report.Manifest)
+	} else if report.Changed {
+		fmt.Printf("  manifest: updated %s\n", report.Manifest)
+	} else {
+		fmt.Printf("  manifest: already current\n")
+	}
+	if report.Backup != "" {
+		fmt.Printf("  backup: %s\n", report.Backup)
+	}
+	for _, migration := range report.Migrations {
+		fmt.Printf("  migration: %s\n", migration)
+	}
+
+	program, err := file.LoadProgram(report.Root)
+	if err != nil {
+		return fmt.Errorf("project metadata updated, but compatibility validation failed: %w", err)
+	}
+	fmt.Printf("  compatibility: checking source and dependencies\n")
+	if err := executePrograms(
+		[]file.Program{program},
+		commandOptions{Verbose: options.Verbose, RawLang: options.RawLang},
+	); err != nil {
+		return fmt.Errorf("project metadata updated, but breaking changes remain: %w", err)
+	}
+	fmt.Printf("project is up to date with language_version %d\n", report.ToVersion)
 	return nil
 }
 
@@ -1077,7 +1144,11 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 	fmt.Printf("  entry: %s\n", program.EntryPoint)
 	fmt.Printf("  files: %d\n", len(program.Files))
 
+	metrics := sourceProcessingMetrics{Load: options.SourceLoadDuration}
+	phaseStarted := time.Now()
 	resolvedProgram, cacheEntry, cacheHit := programcache.Load(program, options.RawLang)
+	metrics.Cache = time.Since(phaseStarted)
+	metrics.CacheHit = cacheHit
 	typeReport := typechecker.Report{}
 	if cacheHit {
 		typeReport.Warnings = warningsFromCache(cacheEntry.Warnings)
@@ -1096,7 +1167,9 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 			}
 		}
 		var moduleReport modulesystem.Report
+		phaseStarted = time.Now()
 		resolvedProgram, moduleReport = resolver.ResolveProgram(program)
+		metrics.Resolve = time.Since(phaseStarted)
 		if !moduleReport.Passed() {
 			printModuleErrors(resolvedProgram, moduleReport)
 			return fmt.Errorf("module resolution failed")
@@ -1116,7 +1189,9 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 			fmt.Printf("  resolver cache: paths=%d program(s)=%d import-set(s)=%d\n", stats.ExistsEntries, stats.ProgramEntries, stats.ImportEntries)
 		}
 
+		phaseStarted = time.Now()
 		typeReport = typechecker.CheckProgram(resolvedProgram)
+		metrics.TypeCheck = time.Since(phaseStarted)
 		if !typeReport.Passed() {
 			printTypeErrors(resolvedProgram, typeReport)
 			return fmt.Errorf("type check failed")
@@ -1125,10 +1200,15 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 		printTypeWarnings(typeReport)
 	}
 
+	phaseStarted = time.Now()
 	parsedProgram := parser.ParseLoadedProgram(resolvedProgram)
+	metrics.Parse = time.Since(phaseStarted)
 	if !parsedProgram.Passed() {
 		printContextErrors(langcontext.ParseErrors(resolvedProgram, parsedProgram))
 		return fmt.Errorf("parse failed")
+	}
+	if err := validateParsedEntryPoint(resolvedProgram, parsedProgram); err != nil {
+		return err
 	}
 	fmt.Printf("  parse: ok\n")
 	if !cacheHit {
@@ -1139,10 +1219,10 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 		return nil
 	}
 
-	started := time.Now()
 	fmt.Printf("  system: os=%s arch=%s cpus=%d go=%s\n", stdruntime.GOOS, stdruntime.GOARCH, stdruntime.NumCPU(), stdruntime.Version())
+	started := time.Now()
 	result, err := runtime.NewWithArgs(options.ProgramArgs).Run(parsedProgram)
-	elapsed := time.Since(started)
+	executionElapsed := time.Since(started)
 	if err != nil {
 		printContextErrors([]langcontext.ErrorContext{langcontext.RuntimeError(resolvedProgram, err)})
 		return fmt.Errorf("runtime failed: %w", err)
@@ -1151,10 +1231,31 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 		fmt.Println(line)
 	}
 	sourceLines := countSourceLines(resolvedProgram)
+	processingElapsed := metrics.Elapsed()
+	totalElapsed := processingElapsed + executionElapsed
+	cacheState := "miss"
+	if metrics.CacheHit {
+		cacheState = "hit"
+	}
 	fmt.Printf("  runtime: returned %s\n", describeValue(result.Value))
-	fmt.Printf("  time: %s\n", elapsed.Round(time.Microsecond))
-	fmt.Printf("  lines: %d processed (%.2f line/s)\n", sourceLines, linesPerSecond(sourceLines, elapsed))
+	fmt.Printf("  source: %d line(s) across %d file(s)\n", sourceLines, len(resolvedProgram.Files))
+	fmt.Printf(
+		"  source processing: %s (%.2f line/s, cache %s)\n",
+		processingElapsed.Round(time.Microsecond),
+		linesPerSecond(sourceLines, processingElapsed),
+		cacheState,
+	)
+	fmt.Printf("  execution: %s\n", executionElapsed.Round(time.Microsecond))
+	fmt.Printf("  total engine time: %s\n", totalElapsed.Round(time.Microsecond))
 	if options.Verbose {
+		fmt.Printf(
+			"  processing phases: load=%s cache=%s resolve=%s type-check=%s parse=%s\n",
+			metrics.Load.Round(time.Microsecond),
+			metrics.Cache.Round(time.Microsecond),
+			metrics.Resolve.Round(time.Microsecond),
+			metrics.TypeCheck.Round(time.Microsecond),
+			metrics.Parse.Round(time.Microsecond),
+		)
 		fmt.Printf("  memory: stack=%d object(s)/%d byte(s), heap=%d object(s)/%d byte(s)\n",
 			result.Memory.StackObjects, result.Memory.StackBytes,
 			result.Memory.HeapObjects, result.Memory.HeapBytes)
@@ -1283,11 +1384,29 @@ func prepareCheckedProgram(resolver *modulesystem.Resolver, program file.Program
 		printContextErrors(langcontext.ParseErrors(resolvedProgram, parsedProgram))
 		return resolvedProgram, parsedProgram, typeReport, cacheHit, fmt.Errorf("parse failed")
 	}
+	if err := validateParsedEntryPoint(resolvedProgram, parsedProgram); err != nil {
+		return resolvedProgram, parsedProgram, typeReport, cacheHit, err
+	}
 	fmt.Printf("  parse: ok\n")
 	if !cacheHit {
 		_ = programcache.Store(resolvedProgram, options.RawLang, warningsToCache(typeReport.Warnings))
 	}
 	return resolvedProgram, parsedProgram, typeReport, cacheHit, nil
+}
+
+func validateParsedEntryPoint(program file.Program, parsed parser.ParsedProgram) error {
+	_, diagnostics := parser.ResolveEntryPoint(parsed)
+	if len(diagnostics) == 0 {
+		return nil
+	}
+	report := typechecker.Report{}
+	for _, diagnostic := range diagnostics {
+		report.Errors = append(report.Errors, typechecker.Error{
+			File: diagnostic.File, Line: diagnostic.Line, Message: diagnostic.Message,
+		})
+	}
+	printTypeErrors(program, report)
+	return fmt.Errorf("entry point check failed")
 }
 
 func discoverKlangTests(program parser.ParsedProgram) []klangTestCase {
@@ -1489,8 +1608,9 @@ function Main() : Int {
 func newProjectManifest(projectName string) string {
 	return fmt.Sprintf(`name = "%s"
 entry = "%s"
+language_version = %d
 sources = ["%s", "app.klang"]
-`, escapeTomlString(projectName), file.KlangEntryPoint, file.KlangEntryPoint)
+`, escapeTomlString(projectName), file.KlangEntryPoint, file.CurrentLanguageVersion, file.KlangEntryPoint)
 }
 
 func escapeTomlString(value string) string {
@@ -1810,6 +1930,7 @@ Usage:
   kLang new <project-path>                    Create a folder-based Klang project
   kLang run <file-or-folder>                  Check, parse, and execute a Klang program
   kLang check <file-or-folder>                Resolve modules, type check, and parse
+  kLang update <project-folder>               Migrate and compatibility-check an existing project
   kLang package <file-or-folder>              Package checked source into a compact bundle
   kLang serve <file-or-folder>                Package and serve a browser WASM runtime bundle
   kLang doc --sourcefile=[file.klang,...]     Generate static HTML source documentation

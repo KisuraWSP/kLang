@@ -32,7 +32,10 @@ function Main() : Int {
 
 func TestCheckProgramResolvesTypeAliasesAcrossWorkspaceFiles(t *testing.T) {
 	program := file.Program{Name: "aliases", Files: []file.SourceFile{
-		{Path: "main.klang", Lines: strings.Split(`function Names(value : string_list) : string_list { return value; }`, "\n")},
+		{Path: "main.klang", Lines: strings.Split(`
+function Names(value : string_list) : string_list { return value; }
+function Main() : Int { return len(Names(["Ada"])); }
+`, "\n")},
 		{Path: "types.klang", Lines: []string{`type string_list = List[String];`}},
 	}}
 	report := CheckProgram(program)
@@ -42,7 +45,10 @@ func TestCheckProgramResolvesTypeAliasesAcrossWorkspaceFiles(t *testing.T) {
 }
 
 func TestCheckProgramRejectsUnknownTypeAliasTarget(t *testing.T) {
-	report := CheckProgram(programFromSource(`type broken = missing_type;`))
+	report := CheckProgram(programFromSource(`
+type broken = missing_type;
+function Main() : Int { return 0; }
+`))
 	if report.Passed() {
 		t.Fatal("expected unknown type alias target failure")
 	}

@@ -212,6 +212,10 @@ function Add(left : Int, mut right : Int) : Int {
     local Int total = left + right;
     return total;
 }
+
+function Main() : Int {
+    return Add(counter, 1);
+}
 `)
 
 	report := CheckProgram(program)
@@ -1893,6 +1897,10 @@ function NumberFactory(multiplier : Int) : Function[Int, Int] {
 
 global Function[Int, Int] timesTen = NumberFactory(10);
 global Int quickMath = NumberFactory(5)(10);
+
+function Main() : Int {
+    return timesTen(1) + quickMath;
+}
 `)
 
 	report := CheckProgram(program)
@@ -1993,6 +2001,10 @@ func TestCheckProgramAcceptsMutableParameterMutation(t *testing.T) {
 function Mutate(mut value : Int) : Int {
     value += 1;
     return value;
+}
+
+function Main() : Int {
+    return Mutate(1);
 }
 `)
 

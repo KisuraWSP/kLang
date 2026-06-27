@@ -164,6 +164,11 @@ func CheckProgram(program file.Program) Report {
 		})
 	}
 	parsed := parser.ParseLoadedProgram(program)
+	entryPoint, entryDiagnostics := parser.ResolveEntryPoint(parsed)
+	parsed.EntryPoint = entryPoint
+	for _, diagnostic := range entryDiagnostics {
+		checker.addError(diagnostic.File, diagnostic.Line, diagnostic.Message)
+	}
 	checker.collectTypeAliases(parsed)
 
 	for _, unit := range units {

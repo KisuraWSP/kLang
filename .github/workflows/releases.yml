@@ -2,9 +2,9 @@ name: Draft native releases
 
 on:
   schedule:
-    # 23:00 in Sri Lanka (UTC+05:30) on the 2nd day every two months.
-    # Releases are intentionally delayed while the language is under construction.
-    - cron: "30 17 2 */2 *"
+    # 23:00 daily in Sri Lanka (UTC+05:30). The planner below prevents all
+    # releases before September 2026 and emits monthly drafts only on day 2.
+    - cron: "30 17 * * *"
   workflow_dispatch:
     inputs:
       release_kind:
@@ -42,6 +42,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REQUESTED_KIND: ${{ inputs.release_kind || 'all' }}
+          RELEASES_START_ON: "2026-09-01"
         shell: bash
         run: |
           set -euo pipefail
@@ -53,6 +54,13 @@ jobs:
           local_date="$(date +%F)"
           head_sha="$(git rev-parse HEAD)"
           releases='[]'
+
+          if [[ "$local_date" < "$RELEASES_START_ON" ]]; then
+            echo "Automated releases are paused until $RELEASES_START_ON."
+            echo "releases=$releases" >> "$GITHUB_OUTPUT"
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           add_release() {
             local kind="$1"

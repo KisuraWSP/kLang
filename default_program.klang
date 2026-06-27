@@ -20,6 +20,7 @@ enum CommandKind {
     New,
     Run,
     Check,
+    Update,
     Package,
     Serve,
     Doc,
@@ -28,72 +29,72 @@ enum CommandKind {
     Unknown
 }
 
-function CommandOptions(shouldRun : Bool = False, verbose : Bool = False, rawLang : Bool = False, programArgs : List[String] = []) : Table {
+function CommandOptions(shouldRun : Bool = False, verbose : Bool = False, rawLang : Bool = False, programArgs : List[String] =[]) : Table {
     return {
-        "run": shouldRun,
-        "verbose": verbose,
-        "raw_lang": rawLang,
-        "program_args": programArgs
+        "run" : shouldRun,
+        "verbose" : verbose,
+        "raw_lang" : rawLang,
+        "program_args" : programArgs
     };
 }
 
 function EntrySpec(name : String = "", returnType : String = "") : Table {
     return {
-        "name": name,
-        "type": returnType
+        "name" : name,
+        "type" : returnType
     };
 }
 
 function PackageOptions(backend : String = "Standalone", out : String = "", serve : Bool = False, host : String = "127.0.0.1", port : Int = 8080, portSet : Bool = False) : Table {
     return {
-        "backend": backend,
-        "out": out,
-        "serve": serve,
-        "host": host,
-        "port": port,
-        "port_set": portSet
+        "backend" : backend,
+        "out" : out,
+        "serve" : serve,
+        "host" : host,
+        "port" : port,
+        "port_set" : portSet
     };
 }
 
-function DocOptions(sourceFiles : List[String] = [], out : String = "klang-docs.html") : Table {
+function DocOptions(sourceFiles : List[String] =[], out : String = "klang-docs.html") : Table {
     return {
-        "source_files": sourceFiles,
-        "out": out
+        "source_files" : sourceFiles,
+        "out" : out
     };
 }
 
 function BrowserError(stage : String, message : String, file : String = "", line : Int = 0, column : Int = 0) : Table {
     return {
-        "stage": stage,
-        "file": file,
-        "line": line,
-        "column": column,
-        "message": message
+        "stage" : stage,
+        "file" : file,
+        "line" : line,
+        "column" : column,
+        "message" : message
     };
 }
 
 function Response(ok : Bool, value : Any, output : List[String], errors : List[Table], meta : Table) : Table {
     return {
-        "ok": ok,
-        "value": value,
-        "output": output,
-        "errors": errors,
-        "meta": meta
+        "ok" : ok,
+        "value" : value,
+        "output" : output,
+        "errors" : errors,
+        "meta" : meta
     };
 }
 
 function HostAction(actionName : String, payload : Table) : Table {
     return {
-        "kind": "host_action",
-        "name": actionName,
-        "payload": payload
+        "kind" : "host_action",
+        "name" : actionName,
+        "payload" : payload
     };
 }
 
 function ErrorPlan(message : String) : Table {
     return {
-        "ok": False,
-        "error": message
+        "ok" : False,
+        "error" : message
     };
 }
 
@@ -161,7 +162,7 @@ function CommandName(args : List[String]) : String {
 }
 
 function RestArgs(args : List[String]) : List[String] {
-    local mut List[String] rest = [];
+    local mut List[String] rest =[];
     local mut Int index = 1;
     while index < args.count {
         rest[index - 1] = args[index];
@@ -171,7 +172,7 @@ function RestArgs(args : List[String]) : List[String] {
 }
 
 function PositionalArgs(args : List[String]) : List[String] {
-    local mut List[String] values = [];
+    local mut List[String] values =[];
     local mut Int index = 0;
     local mut Int count = 0;
     while index < args.count {
@@ -199,9 +200,9 @@ Klang CLI
 
 Usage:
   kLang new <project-path>                    Create a folder-based Klang project
-  kLang new <project-path> --entry=[Name,Int] Create a project with a custom entry point
   kLang run <file-or-folder>                  Check, parse, and execute a Klang program
   kLang check <file-or-folder>                Resolve modules, type check, and parse
+  kLang update <project-folder>               Migrate and compatibility-check an existing project
   kLang package <file-or-folder>              Package checked source into a compact bundle
   kLang serve <file-or-folder>                Package and serve a browser WASM runtime bundle
   kLang doc --sourcefile=[file.klang,...]     Generate static HTML source documentation
@@ -211,7 +212,7 @@ Usage:
 
 Options:
   --run                                      Run programs after checks when no Test... functions exist
-  --entry=[Name,Type]                        Set generated project entry point for new projects
+  --entry=[Name,Type]                        Deprecated no-op; new projects use Main() : Int
   --backend=Standalone|JS|WASM               Select package backend metadata
   --out=<folder>                             Select package output folder
   --sourcefile=[file.klang,...]              Select one or more source files for docs
@@ -292,13 +293,13 @@ function ParsePackageOptions(args : List[String]) : Table {
         index += 1;
     }
     if IsBuildBackend(options.backend) == False {
-        return {"error": "backend must be one of WASM, JS, Standalone"};
+        return { "error" : "backend must be one of WASM, JS, Standalone" };
     }
     return options;
 }
 
 function ParseDocOptions(args : List[String]) : Table {
-    local mut List[String] files = [];
+    local mut List[String] files =[];
     local mut String out = "klang-docs.html";
     local mut Int index = 0;
     while index < args.count {
@@ -332,7 +333,7 @@ function ParseDocOptions(args : List[String]) : Table {
 
 function RunCLI(args : List[String]) : Table {
     if args.count == 0 or HasFlag(args, "--help") or HasFlag(args, "-h") {
-        local Table payload = {"text": UsageText()};
+        local Table payload = { "text" : UsageText() };
         return HostAction("print_usage", payload);
     }
 
@@ -366,6 +367,17 @@ function RunCLI(args : List[String]) : Table {
             return ErrorPlan(cliName + " check expects a .klang file or project folder");
         }
         return ExecutePrograms([LoadProgramPlan(values[0])], options);
+    }
+    if kind == CommandKind.Update {
+        if values.count != 1 {
+            return ErrorPlan(cliName + " update expects a project folder");
+        }
+        local Table payload = {
+            "path" : values[0],
+            "language_version" : 1,
+            "validate_breaking_changes" : True
+        };
+        return HostAction("update_project", payload);
     }
     if kind == CommandKind.Package {
         if values.count != 1 {
@@ -409,8 +421,8 @@ function RunCLI(args : List[String]) : Table {
             return ErrorPlan(cliName + " test expects a .klang test file or folder");
         }
         local Table payload = {
-            "path": values[0],
-            "options": options
+            "path" : values[0],
+            "options" : options
         };
         return HostAction("discover_and_execute_tests", payload);
     }
@@ -418,7 +430,7 @@ function RunCLI(args : List[String]) : Table {
         if values.count != 1 {
             return ErrorPlan(cliName + " " + command + " expects a .klang file path");
         }
-        local Table payload = {"path": values[0]};
+        local Table payload = { "path" : values[0] };
         return HostAction("print_file", payload);
     }
     return ErrorPlan("unknown command " + command);
@@ -428,6 +440,7 @@ function CommandKindOf(command : String) : CommandKind {
     if command == "new" or command == "init" { return CommandKind.New; }
     if command == "run" { return CommandKind.Run; }
     if command == "check" { return CommandKind.Check; }
+    if command == "update" { return CommandKind.Update; }
     if command == "package" or command == "build" { return CommandKind.Package; }
     if command == "serve" or command == "web" { return CommandKind.Serve; }
     if command == "doc" or command == "docs" { return CommandKind.Doc; }
@@ -440,46 +453,46 @@ function RunLegacyFlags(args : List[String]) : Table {
     if HasFlag(args, "--tests") {
         local String path = FlagValue(args, "--tests", "");
         if path == "" {
-            return {"handled": True, "ok": False, "error": "failed to read tests: --tests expects a folder"};
+            return { "handled" : True, "ok" : False, "error" : "failed to read tests: --tests expects a folder" };
         }
         return {
-            "handled": True,
-            "kind": "host_action",
-            "name": "discover_and_execute_tests",
-            "payload": {
-                "path": path,
-                "options": CommandOptions(HasFlag(args, "--run"), True, HasFlag(args, "--raw-lang"), [])
+            "handled" : True,
+            "kind" : "host_action",
+            "name" : "discover_and_execute_tests",
+            "payload" : {
+                "path" : path,
+                "options" : CommandOptions(HasFlag(args, "--run"), True, HasFlag(args, "--raw-lang"), [])
             }
         };
     }
     if HasFlag(args, "--program") {
         local String path = FlagValue(args, "--program", "");
         if path == "" {
-            return {"handled": True, "ok": False, "error": "failed to read program: --program expects a file or folder"};
+            return { "handled" : True, "ok" : False, "error" : "failed to read program: --program expects a file or folder" };
         }
         return {
-            "handled": True,
-            "kind": "host_action",
-            "name": "execute_programs",
-            "payload": {
-                "programs": [LoadProgramPlan(path)],
-                "options": CommandOptions(HasFlag(args, "--run"), True, HasFlag(args, "--raw-lang"), [])
+            "handled" : True,
+            "kind" : "host_action",
+            "name" : "execute_programs",
+            "payload" : {
+                "programs" :[LoadProgramPlan(path)],
+                "options" : CommandOptions(HasFlag(args, "--run"), True, HasFlag(args, "--raw-lang"), [])
             }
         };
     }
     if HasFlag(args, "--file") {
         local String path = FlagValue(args, "--file", "");
         if path == "" {
-            return {"handled": True, "ok": False, "error": "failed to read file: --file expects a .klang path"};
+            return { "handled" : True, "ok" : False, "error" : "failed to read file: --file expects a .klang path" };
         }
         return {
-            "handled": True,
-            "kind": "host_action",
-            "name": "print_file",
-            "payload": {"path": path}
+            "handled" : True,
+            "kind" : "host_action",
+            "name" : "print_file",
+            "payload" : { "path" : path }
         };
     }
-    return {"handled": False};
+    return { "handled" : False };
 }
 
 function FlagValue(args : List[String], flag : String, fallback : String) : String {
@@ -498,20 +511,20 @@ function FlagValue(args : List[String], flag : String, fallback : String) : Stri
 }
 
 function LoadProgramPlan(path : String) : Table {
-    local Table payload = {"path": path};
+    local Table payload = { "path" : path };
     return HostAction("load_program", payload);
 }
 
 function CreateProject(projectPath : String, entry : Table) : Table {
     local Table payload = {
-        "project_path": projectPath,
-        "entry": entry,
-        "files": ["first.klang", "app.klang"],
-        "templates": {
-            "first.klang": NewProjectEntrySource(),
-            "app.klang": NewProjectModuleSource(entry)
+        "project_path" : projectPath,
+        "entry" : entry,
+        "files" :["first.klang", "app.klang"],
+        "templates" : {
+            "first.klang" : NewProjectEntrySource(),
+            "app.klang" : NewProjectModuleSource(entry)
         },
-        "next_steps": ["go run . run " + projectPath, "go run . check " + projectPath]
+        "next_steps" :["go run . run " + projectPath, "go run . check " + projectPath]
     };
     return HostAction("create_project", payload);
 }
@@ -536,27 +549,27 @@ function NewProjectModuleSource(entry : Table) : String {
         returnType = entry.type;
     }
     local Table payload = {
-        "function": functionName,
-        "return_type": returnType,
-        "body": "print welcome and return zero value"
+        "function" : functionName,
+        "return_type" : returnType,
+        "body" : "print welcome and return zero value"
     };
     return fmt.Format("namespace App { function %() : % { /* generated by host from % */ } }", [functionName, returnType, payload]);
 }
 
 function ExecutePrograms(programs : List[Table], options : Table) : Table {
     local Table payload = {
-        "programs": programs,
-        "options": options,
-        "phases": ["program_cache", "resolve_modules", "type_check", "parse", "optional_run"],
-        "diagnostics": "Context/ErrorContext",
-        "runtime_args": options.program_args
+        "programs" : programs,
+        "options" : options,
+        "phases" :["program_cache", "resolve_modules", "type_check", "parse", "optional_run"],
+        "diagnostics" : "Context/ErrorContext",
+        "runtime_args" : options.program_args
     };
     return HostAction("execute_programs", payload);
 }
 
 function PackageProgram(program : Table, packageOptions : Table, options : Table) : Table {
     local mut String backend = packageOptions.backend;
-    local mut List[String] outputs = ["klang-build.json", "src"];
+    local mut List[String] outputs =["klang-build.json", "src"];
     if packageOptions.serve {
         backend = "WASM";
     }
@@ -568,31 +581,31 @@ function PackageProgram(program : Table, packageOptions : Table, options : Table
         outputs = list.append(outputs, "README.md");
     }
     local Table payload = {
-        "program": program,
-        "package_options": packageOptions,
-        "command_options": options,
-        "backend": backend,
-        "outputs": outputs,
-        "manifest": {
-            "project_name": "resolved_program.name",
-            "backend": backend,
-            "entry": "resolved_entry",
-            "number_of_files": "resolved_program.files.count",
-            "files": "resolved_source_paths",
-            "raw_lang": options.raw_lang
+        "program" : program,
+        "package_options" : packageOptions,
+        "command_options" : options,
+        "backend" : backend,
+        "outputs" : outputs,
+        "manifest" : {
+            "project_name" : "resolved_program.name",
+            "backend" : backend,
+            "entry" : "resolved_entry",
+            "number_of_files" : "resolved_program.files.count",
+            "files" : "resolved_source_paths",
+            "raw_lang" : options.raw_lang
         },
-        "phases": ["resolve_modules", "type_check", "parse", "write_manifest", "write_sources", "optional_wasm_browser_bundle", "optional_serve"]
+        "phases" :["resolve_modules", "type_check", "parse", "write_manifest", "write_sources", "optional_wasm_browser_bundle", "optional_serve"]
     };
     return HostAction("package_program", payload);
 }
 
 function GenerateDocumentation(options : Table) : Table {
     local Table payload = {
-        "source_files": options.source_files,
-        "out": options.out,
-        "format": "standalone_html",
-        "chapters": "source_code_for_each_file",
-        "items": ["imports", "modules", "namespaces", "functions", "aliases", "enums", "globals", "parse_diagnostics"]
+        "source_files" : options.source_files,
+        "out" : options.out,
+        "format" : "standalone_html",
+        "chapters" : "source_code_for_each_file",
+        "items" :["imports", "modules", "namespaces", "functions", "aliases", "enums", "globals", "parse_diagnostics"]
     };
     return HostAction("generate_documentation", payload);
 }
@@ -603,36 +616,36 @@ function ServeBundle(bundleDir : String, options : Table) : Table {
         host = defaultHost;
     }
     local Table payload = {
-        "bundle": bundleDir,
-        "host": host,
-        "port": options.port,
-        "url": "http://" + host + ":" + options.port as String
+        "bundle" : bundleDir,
+        "host" : host,
+        "port" : options.port,
+        "url" : "http://" + host + ":" + options.port as String
     };
     return HostAction("serve_bundle", payload);
 }
 
 function BrowserMemory(stackObjects : Int, heapObjects : Int, stackBytes : Int, heapBytes : Int) : Table {
     return {
-        "stack_objects": stackObjects,
-        "heap_objects": heapObjects,
-        "stack_bytes": stackBytes,
-        "heap_bytes": heapBytes,
-        "total_objects": stackObjects + heapObjects,
-        "total_bytes": stackBytes + heapBytes
+        "stack_objects" : stackObjects,
+        "heap_objects" : heapObjects,
+        "stack_bytes" : stackBytes,
+        "heap_bytes" : heapBytes,
+        "total_objects" : stackObjects + heapObjects,
+        "total_bytes" : stackBytes + heapBytes
     };
 }
 
 namespace wasm {
     function RegisterBridge() : Table {
-        local List[String] functions = ["klangRun", "klangCheck", "klangRunProject", "klangCheckProject"];
-        local Table payload = {"functions": functions};
+        local List[String] functions =["klangRun", "klangCheck", "klangRunProject", "klangCheckProject"];
+        local Table payload = { "functions" : functions };
         return HostAction("js_register", payload);
     }
 
-    function RunSource(source : String, args : List[String] = []) : Table {
+    function RunSource(source : String, args : List[String] =[]) : Table {
         if source == "" {
-            local List[Table] errors = [BrowserError("input", "klangRun expects source text")];
-            local Table response = Response(False, None(), [], errors, {});
+            local List[Table] errors =[BrowserError("input", "klangRun expects source text")];
+            local Table response = Response(False, None(), [], errors, { });
             return JsonResponse(response);
         }
         local Table program = SingleSourceProgram(source);
@@ -641,17 +654,17 @@ namespace wasm {
 
     function CheckSource(source : String) : Table {
         if source == "" {
-            local List[Table] errors = [BrowserError("input", "klangCheck expects source text")];
-            local Table response = Response(False, None(), [], errors, {});
+            local List[Table] errors =[BrowserError("input", "klangCheck expects source text")];
+            local Table response = Response(False, None(), [], errors, { });
             return JsonResponse(response);
         }
         return JsonResponse(Check(SingleSourceProgram(source)));
     }
 
-    function RunProject(project : Table, args : List[String] = []) : Table {
+    function RunProject(project : Table, args : List[String] =[]) : Table {
         if project? == False {
-            local List[Table] errors = [BrowserError("input", "klangRunProject expects a project object")];
-            local Table response = Response(False, None(), [], errors, {});
+            local List[Table] errors =[BrowserError("input", "klangRunProject expects a project object")];
+            local Table response = Response(False, None(), [], errors, { });
             return JsonResponse(response);
         }
         local Table program = ProgramFromJSProject(project);
@@ -660,8 +673,8 @@ namespace wasm {
 
     function CheckProject(project : Table) : Table {
         if project? == False {
-            local List[Table] errors = [BrowserError("input", "klangCheckProject expects a project object")];
-            local Table response = Response(False, None(), [], errors, {});
+            local List[Table] errors =[BrowserError("input", "klangCheckProject expects a project object")];
+            local Table response = Response(False, None(), [], errors, { });
             return JsonResponse(response);
         }
         return JsonResponse(Check(ProgramFromJSProject(project)));
@@ -672,13 +685,13 @@ namespace wasm {
         if checked.ok == False {
             return checked;
         }
-        local Table value = EncodeValue({"kind": "runtime_value"});
+        local Table value = EncodeValue({ "kind" : "runtime_value" });
         local Table memory = BrowserMemory(0, 0, 0, 0);
         local Table meta = {
-            "project": program.name,
-            "entry": program.entry,
-            "args": args,
-            "phases": ["type", "parse", "runtime"]
+            "project" : program.name,
+            "entry" : program.entry,
+            "args" : args,
+            "phases" :["type", "parse", "runtime"]
         };
         local mut Table response = Response(True, value, [], [], meta);
         response["memory"] = memory;
@@ -687,23 +700,23 @@ namespace wasm {
 
     function Check(program : Table) : Table {
         if program.files? == False {
-            local List[Table] errors = [BrowserError("input", "project.files is required")];
-            return Response(False, None(), [], errors, {});
+            local List[Table] errors =[BrowserError("input", "project.files is required")];
+            return Response(False, None(), [], errors, { });
         }
         local Table meta = {
-            "project": program.name,
-            "entry": program.entry,
-            "phases": ["type", "parse"]
+            "project" : program.name,
+            "entry" : program.entry,
+            "phases" :["type", "parse"]
         };
         return Response(True, None(), [], [], meta);
     }
 
     function SingleSourceProgram(source : String) : Table {
         return {
-            "name": "browser",
-            "root": ".",
-            "entry": "browser.klang",
-            "files": {"browser.klang": source}
+            "name" : "browser",
+            "root" : ".",
+            "entry" : "browser.klang",
+            "files" : { "browser.klang" : source }
         };
     }
 
@@ -720,44 +733,44 @@ namespace wasm {
             entry = "first file supplied by browser host";
         }
         return {
-            "name": name,
-            "root": ".",
-            "entry": entry,
-            "files": project.files
+            "name" : name,
+            "root" : ".",
+            "entry" : entry,
+            "files" : project.files
         };
     }
 
     function JsonResponse(value : Table) : Table {
-        local Table payload = {"value": value};
+        local Table payload = { "value" : value };
         return HostAction("json_response", payload);
     }
 
     function EncodeValue(value : Any) : Table {
         return {
-            "kind": debug_type(value),
-            "value": value
+            "kind" : debug_type(value),
+            "value" : value
         };
     }
 }
 
-#set_entry_point_to_here
-function Main() : Table {
+function Main() : Int {
     defer {
         _ = "default_program shutdown";
     }
-    return RunCLI(Args);
+    _ = RunCLI(Args);
+    return 0;
 }
 
 run {
-    local Set[String] commandSet = Set(["new", "run", "check", "package", "serve", "doc", "test", "file"]);
+    local Set[String] commandSet = Set(["new", "run", "check", "update", "package", "serve", "doc", "test", "file"]);
     local Table cliInfo = {
-        "entrypoint": "RunCLI",
-        "commands": ["new", "run", "check", "package", "serve", "doc", "test", "file"],
-        "legacy_flags": ["--program", "--tests", "--file"],
-        "args_count": Args.count
+        "entrypoint" : "RunCLI",
+        "commands" :["new", "run", "check", "update", "package", "serve", "doc", "test", "file"],
+        "legacy_flags" :["--program", "--tests", "--file"],
+        "args_count" : Args.count
     };
     local Table wasmInfo = wasm.RegisterBridge();
-    assert cliInfo.commands.count == 8;
-    assert commandSet.count == 8;
+    assert cliInfo.commands.count == 9;
+    assert commandSet.count == 9;
     assert wasmInfo.name == "js_register";
 }

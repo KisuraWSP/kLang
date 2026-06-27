@@ -17,6 +17,8 @@ The language is function-first and strongly checked, with a design that borrows 
 
 > Breaking change: kLang projects now require a `klang.project` TOML manifest. Existing `.klang` scripts or legacy `first.klang` folder projects will not run unless their entry source explicitly opts into script loading with `load_as_script;`. This prepares the executable to run `default_program.klang` by default in the future while keeping intentional scripts explicit.
 
+> Breaking change: every runnable script or project must define exactly one top-level `function Main() : Int`, unless exactly one alternate `function Name() : Int` is immediately preceded by `#set_entry_point_to_here`. Entry functions cannot accept parameters, use generics, be async, or return another type.
+
 ## Language Snapshot
 
 kLang currently experiments with:
@@ -111,8 +113,13 @@ kLang files use the `.klang` extension. Projects are described by `klang.project
 ```toml
 name = "demo"
 entry = "first.klang"
+language_version = 1
 sources = ["first.klang", "app.klang"]
 ```
+
+Run `kLang update <project-folder>` after upgrading kLang. It applies deterministic
+manifest migrations, keeps a backup of an existing manifest, and reports source
+changes that need manual attention through the normal compiler diagnostics.
 
 Loose `.klang` files are treated as scripts only when they opt in:
 
@@ -184,9 +191,10 @@ go run . new examples/myproject
 ```
 
 New projects always generate `first.klang` with a stable `Main() : Int` entry
-function that calls `App.Start()`. The old `--entry` flag is deprecated and
-ignored. Existing source code can still choose a custom runtime entry point with
-`#set_entry_point_to_here` when needed.
+function that calls `App.Start()`. This exact zero-argument `Int` signature is
+mandatory. The old `--entry` flag is deprecated and ignored. A program may
+instead choose exactly one custom zero-argument `Int` entry function by placing
+`#set_entry_point_to_here` immediately before it.
 
 Pass program arguments. They are available inside kLang as `Args`:
 

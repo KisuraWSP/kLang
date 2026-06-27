@@ -63,42 +63,12 @@ func ParseLoadedProgram(program sourcefile.Program) ParsedProgram {
 		}(index, source)
 	}
 	wait.Wait()
-	for _, source := range parsed.Sources {
-		if entry := entryPointFromStatements(source.Program.Statements, ""); entry != "" {
-			parsed.EntryPoint = entry
-			break
-		}
+	entryPoint, diagnostics := ResolveEntryPoint(parsed)
+	if len(diagnostics) == 0 {
+		parsed.EntryPoint = entryPoint
 	}
 
 	return parsed
-}
-
-func entryPointFromStatements(statements []Statement, namespace string) string {
-	armed := false
-	for _, stmt := range statements {
-		switch current := stmt.(type) {
-		case EntryPointStatement:
-			armed = true
-		case FunctionStatement:
-			if armed {
-				return namespace + current.Name
-			}
-			armed = false
-		case NamespaceStatement:
-			if entry := entryPointFromStatements(current.Body, namespace+current.Name+"."); entry != "" {
-				return entry
-			}
-			armed = false
-		case ScopeStatement:
-			if entry := entryPointFromStatements(current.Body, namespace); entry != "" {
-				return entry
-			}
-			armed = false
-		default:
-			armed = false
-		}
-	}
-	return ""
 }
 
 func (program ParsedProgram) Errors() []Error {

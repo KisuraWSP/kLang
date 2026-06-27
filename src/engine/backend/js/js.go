@@ -78,15 +78,21 @@ type lowerer struct {
 }
 
 func lowerProgram(request backend.Request) (ir.Program, []backend.Diagnostic) {
-	entry := request.Parsed.EntryPoint
-	if entry == "" {
-		entry = "Main"
-	}
+	entry, entryDiagnostics := parser.ResolveEntryPoint(request.Parsed)
 	lower := &lowerer{
 		functions:       map[string]bool{},
 		globalFunctions: map[string][]string{},
 		structs:         map[string]parser.AliasFunctionStatement{},
 		aliases:         map[string]string{},
+	}
+	for _, diagnostic := range entryDiagnostics {
+		lower.diagnostics = append(lower.diagnostics, backend.Diagnostic{
+			File: diagnostic.File, Line: diagnostic.Line, Column: diagnostic.Column,
+			EndColumn: diagnostic.Column + 1,
+			Rule:      "JS_ENTRY_POINT",
+			Message:   diagnostic.Message,
+			Hint:      "Define function Main() : Int or mark one () : Int function with #set_entry_point_to_here.",
+		})
 	}
 	for _, source := range request.Parsed.Sources {
 		lower.collectSymbols(source.Program.Statements, "", source.ModuleFunctionFilter, false)

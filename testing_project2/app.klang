@@ -1,6 +1,0 @@
-namespace App {
-    function Start() : Int {
-        print("Welcome to testing_project2");
-        return 0;
-    }
-}

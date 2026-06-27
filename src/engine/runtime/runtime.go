@@ -318,20 +318,24 @@ func RunProgramWithArgs(program file.Program, args []string) (Result, error) {
 }
 
 func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
+	entryName, entryDiagnostics := parser.ResolveEntryPoint(program)
+	if len(entryDiagnostics) != 0 {
+		diagnostic := entryDiagnostics[0]
+		return Result{}, Error{
+			Line:    diagnostic.Line,
+			Column:  diagnostic.Column,
+			Message: fmt.Sprintf("%s: %s", diagnostic.File, diagnostic.Message),
+		}
+	}
 	if err := runtime.prepareProgram(program); err != nil {
 		return Result{}, err
-	}
-
-	entryName := program.EntryPoint
-	if entryName == "" {
-		entryName = "Main"
 	}
 	mainName, err := runtime.resolveFunctionName(entryName)
 	if err != nil {
 		return Result{}, err
 	}
 	if mainName == "" {
-		return Result{Value: NullValue(), Output: runtime.outputLines(), Memory: runtime.memory.Stats()}, nil
+		return Result{}, Error{Message: fmt.Sprintf("entry point %q is not defined", entryName)}
 	}
 
 	value, err := runtime.callFunction(mainName, nil)

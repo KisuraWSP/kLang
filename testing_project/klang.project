@@ -1,3 +1,0 @@
-name = "testing_project"
-entry = "first.klang"
-sources = ["first.klang", "app.klang"]

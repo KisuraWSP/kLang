@@ -11,7 +11,7 @@ alias function User(id : String, name : String) : type = struct {
     this.name TAGjson:"display_name"TAG;
 }
 
-function Main() : String {
+function Main() : Int {
     local Table source = {
         "name": "Ada",
         "items": [1, 2],
@@ -35,24 +35,30 @@ function Main() : String {
     assert keys[0] == "active";
 
     let user = User("7", "Ada");
-    return text + "|" + json_stringify(user);
+    local String expected = //
+{"active":true,"items":[1,2],"missing":null,"name":"Ada"}|{"display_name":"Ada","id":"7"}
+//;
+    assert text + "|" + json_stringify(user) == expected;
+    return 0;
 }
 `, "TAG", "`"))
-	expected := "{\"active\":true,\"items\":[1,2],\"missing\":null,\"name\":\"Ada\"}|{\"display_name\":\"Ada\",\"id\":\"7\"}"
-	if result.Value.Kind != ValueString || result.Value.Data.(string) != expected {
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 0 {
 		t.Fatalf("unexpected native JSON round trip: %#v", result.Value)
 	}
 }
 
 func TestRuntimeJSONEncodeReturnsErrorForUnsafeTableKey(t *testing.T) {
 	result := runParsedSource(t, `
-function Main() : Bool {
+function Main() : Int {
     local Table source = {1: "not an object key"};
     local Result[String, String] encoded = json_encode(source);
-    return not encoded.ok;
+    if not encoded.ok {
+        return 0;
+    }
+    return 1;
 }
 `)
-	if result.Value.Kind != ValueBool || !result.Value.Data.(bool) {
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 0 {
 		t.Fatalf("expected safe JSON encoder error, got %#v", result.Value)
 	}
 }

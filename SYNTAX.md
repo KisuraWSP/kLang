@@ -45,12 +45,28 @@ Folder projects are loaded through `klang.project`, a TOML manifest:
 ```toml
 name = "demo"
 entry = "first.klang"
+language_version = 1
 sources = ["first.klang", "app.klang"]
 ```
 
 Projects created with `kLang new` always use `first.klang` as the manifest
 entry and generate a stable `Main() : Int` wrapper that calls `App.Start()`.
 The old `new --entry` flag is deprecated and ignored.
+
+Existing projects can migrate their manifest and check for source-level breaking
+changes in one command:
+```text
+kLang update path/to/project
+```
+
+The updater creates a manifest backup before changing an existing project.
+Deterministic manifest migrations are applied automatically; entrypoint, module,
+type, and parse incompatibilities are reported with normal source diagnostics.
+
+After `kLang run`, source line throughput measures the actual loading, cache,
+resolution, type-checking, and parsing phases for the complete resolved workspace.
+Execution time is reported separately because runtime work does not correspond
+one-to-one with source lines.
 
 Loose `.klang` files and legacy `first.klang` folders must opt in explicitly:
 ```lua
@@ -679,12 +695,18 @@ function create_workspace(name : String, workspace := UserDefinedWorkspace()) : 
 }
 
 -- entry point directive
--- New projects default to Main() in first.klang.
--- Use this only when a source file intentionally chooses another runtime entry.
+-- The default and only implicit entry is exactly:
+function Main() : Int {
+    return 0;
+}
+
+-- Use this only when a source file intentionally chooses one alternate entry.
+-- The custom function must keep the same () : Int ABI.
 namespace App {
     #set_entry_point_to_here
-    function Process() {
+    function Process() : Int {
         print("custom entry");
+        return 0;
     }
 }
 

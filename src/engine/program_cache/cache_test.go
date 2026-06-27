@@ -116,6 +116,30 @@ func TestRawLangUsesSeparateCacheEntry(t *testing.T) {
 	}
 }
 
+func TestLanguageVersionUsesSeparateCacheEntry(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "main.klang")
+	writeSource(t, sourcePath, "function Main() : Int { return 1; }\n")
+	program := file.Program{
+		Name:            "main",
+		Root:            root,
+		EntryPoint:      sourcePath,
+		LanguageVersion: 0,
+		Files: []file.SourceFile{{
+			Path:  sourcePath,
+			Lines: []string{"function Main() : Int { return 1; }"},
+		}},
+	}
+	if err := Store(program, false, nil); err != nil {
+		t.Fatalf("store cache failed: %v", err)
+	}
+
+	program.LanguageVersion = 1
+	if _, _, ok := Load(program, false); ok {
+		t.Fatal("expected language-version cache lookup to miss older semantic results")
+	}
+}
+
 func TestNoCacheDirectiveSkipsStoreAndLoad(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "main.klang")

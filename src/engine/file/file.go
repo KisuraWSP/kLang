@@ -16,6 +16,7 @@ const KlangExtension = ".klang"
 const KlangEntryPoint = "first.klang"
 const KlangProjectFile = "klang.project"
 const KlangDistDir = "dist"
+const CurrentLanguageVersion = 1
 
 type SourceFile struct {
 	Path                 string
@@ -24,16 +25,18 @@ type SourceFile struct {
 }
 
 type Program struct {
-	Name       string
-	Root       string
-	EntryPoint string
-	Files      []SourceFile
+	Name            string
+	Root            string
+	EntryPoint      string
+	LanguageVersion int
+	Files           []SourceFile
 }
 
 type ProjectManifest struct {
-	Name    string
-	Entry   string
-	Sources []string
+	Name            string
+	Entry           string
+	Sources         []string
+	LanguageVersion int
 }
 
 func FileExists(file string) bool {
@@ -247,6 +250,14 @@ func readManifestProgram(manifestPath string) (Program, error) {
 	if err != nil {
 		return Program{}, err
 	}
+	if manifest.LanguageVersion > CurrentLanguageVersion {
+		return Program{}, fmt.Errorf(
+			"%s requires language_version %d, but this kLang supports up to %d",
+			manifestPath,
+			manifest.LanguageVersion,
+			CurrentLanguageVersion,
+		)
+	}
 	programDir := filepath.Dir(manifestPath)
 	if manifest.Entry == "" {
 		manifest.Entry = KlangEntryPoint
@@ -295,7 +306,13 @@ func readManifestProgram(manifestPath string) (Program, error) {
 	if name == "" {
 		name = filepath.Base(programDir)
 	}
-	return Program{Name: name, Root: programDir, EntryPoint: entryPoint, Files: files}, nil
+	return Program{
+		Name:            name,
+		Root:            programDir,
+		EntryPoint:      entryPoint,
+		LanguageVersion: manifest.LanguageVersion,
+		Files:           files,
+	}, nil
 }
 
 func discoverProjectSourcePaths(programDir string) ([]string, error) {
@@ -366,6 +383,8 @@ func readProjectManifest(path string) (ProjectManifest, error) {
 			manifest.Entry, err = parseTomlString(value)
 		case "sources":
 			manifest.Sources, err = parseTomlStringArray(value)
+		case "language_version":
+			manifest.LanguageVersion, err = parseTomlInt(value)
 		default:
 			err = fmt.Errorf("unknown key %q", key)
 		}
@@ -374,6 +393,10 @@ func readProjectManifest(path string) (ProjectManifest, error) {
 		}
 	}
 	return manifest, nil
+}
+
+func ReadProjectManifest(path string) (ProjectManifest, error) {
+	return readProjectManifest(path)
 }
 
 func stripTomlComment(line string) string {
@@ -405,6 +428,21 @@ func parseTomlString(value string) (string, error) {
 		return "", fmt.Errorf("expected TOML string")
 	}
 	return strings.ReplaceAll(value[1:len(value)-1], `\"`, `"`), nil
+}
+
+func parseTomlInt(value string) (int, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, fmt.Errorf("expected TOML integer")
+	}
+	number := 0
+	for _, character := range value {
+		if character < '0' || character > '9' {
+			return 0, fmt.Errorf("expected non-negative TOML integer")
+		}
+		number = number*10 + int(character-'0')
+	}
+	return number, nil
 }
 
 func parseTomlStringArray(value string) ([]string, error) {

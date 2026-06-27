@@ -3,6 +3,7 @@ package file
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -57,6 +58,7 @@ func TestLoadProgramReadsProjectManifest(t *testing.T) {
 	programDir := filepath.Join(root, "test3")
 	writeTestFile(t, programDir, KlangProjectFile, `name = "custom"
 entry = "first.klang"
+language_version = 1
 sources = ["first.klang", "math.klang"]
 `)
 	writeTestFile(t, programDir, "first.klang", "function Main() : Int { return 0; }")
@@ -81,6 +83,20 @@ sources = ["first.klang", "math.klang"]
 	}
 	if filepath.Base(program.Files[0].Path) != KlangEntryPoint {
 		t.Fatalf("expected entry point to be read first, got %q", program.Files[0].Path)
+	}
+}
+
+func TestLoadProgramRejectsFutureLanguageVersion(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, KlangProjectFile, `name = "future"
+entry = "first.klang"
+language_version = 99
+`)
+	writeTestFile(t, root, KlangEntryPoint, "function Main() : Int { return 0; }")
+
+	_, err := LoadProgram(root)
+	if err == nil || !strings.Contains(err.Error(), "supports up to") {
+		t.Fatalf("expected unsupported language version error, got %v", err)
 	}
 }
 

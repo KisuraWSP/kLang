@@ -17,12 +17,13 @@ impl Printable for String {
 alias function[T Printable] PrintableBox(value : T) : type = struct {
 }
 
-function Main() : String {
+function Main() : Int {
     let box = PrintableBox("hello");
-    return box.value;
+    assert box.value == "hello";
+    return 0;
 }
 `)
-	if result.Value.Kind != ValueString || result.Value.Data.(string) != "hello" {
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 0 {
 		t.Fatalf("expected constrained alias field value, got %#v", result.Value)
 	}
 }

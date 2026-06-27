@@ -1,6 +1,0 @@
-namespace App {
-    #set_entry_point_to_here
-    function Program() {
-        print("Welcome to testing_project");
-    }
-}

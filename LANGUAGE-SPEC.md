@@ -24,7 +24,7 @@
 24. `defer` schedules statements or blocks to run at the end of the current runtime block.
 25. `inline` marks functions and alias functions as eager inline candidates for compiler/runtime optimization.
 26. Alias functions use block syntax with `: type`, hook blocks such as `[new] { ... }`, and `#extend { ... }`.
-27. New projects always scaffold `first.klang` with `function Main() : Int { return App.Start(); }`. The CLI `new --entry` flag is deprecated and ignored; source code can still use `#set_entry_point_to_here` to mark the following function as the runtime entry point.
+27. New projects always scaffold `first.klang` with `function Main() : Int { return App.Start(); }`. This exact zero-argument, non-generic, synchronous `Int` entry ABI is mandatory unless `#set_entry_point_to_here` immediately designates one alternate function with the same ABI. The CLI `new --entry` flag is deprecated and ignored.
 28. `Atomic[T]` plus `Atomic`, `atomic_load`, `atomic_store`, and `atomic_add` provide race-safe runtime cells.
 29. `Program`, `BuildSystem`, and `WorkSpace` are builtin meta-programming values for describing custom workspaces and compact build plans.
 30. `debug`, `debug_type`, `debug_stack`, and `breakpoint` are builtin debugger helpers.
@@ -70,13 +70,19 @@
 70. `scope Name { ... }` declares a user-defined lexical scope. It executes as a named block, can read outer bindings, permits inner shadowing, and keeps ordinary local declarations from leaking outside the block.
 71. `for_each value in iterable { ... }` loops directly over iterable values. The loop binding is scoped to the loop body, immutable by default, and supports the same iterable surface as `iter`: List, String, Table, Set, Iterator, and range-compatible Int values.
 72. Cast expressions with `as` can target builtin types, builtin generic families, builtin child-width types, and generic type variables. User-defined alias structs and enums cannot be cast targets.
-73. CLI `run` prints runtime completion metrics after program output: returned value, elapsed runtime, resolved source lines processed, and source lines processed per second.
+73. CLI `run` reports source-processing throughput from measured loading, cache lookup, module resolution, type checking, and parsing time. Runtime execution is timed separately, and total engine time is their sum.
 74. `File` is a builtin immutable path descriptor backed by native Go filesystem operations. Construction does not open a file, and every filesystem operation reports success or failure through `Result`.
 75. `OS` is a builtin immutable host descriptor backed by native Go operating-system and process operations. It exposes platform metadata and typed APIs for directories, environment variables, host/process information, and subprocess execution.
 76. `Atom` is a builtin immutable symbolic type for user-defined error codes and protocol states. Adjacent `:name` syntax creates a literal atom, and atoms preserve their identity through Result, pattern matching, throw, and catch paths.
+77. Entry-point resolution is strict and shared by checking, interpretation, and compiler backends. Programs cannot omit an entry, define multiple top-level `Main` functions, use multiple entry directives, or provide an entry with parameters, generic parameters, async behavior, named/multiple returns, or a return type other than `Int`.
+78. `kLang update <project>` migrates an existing project manifest to the current language version and then runs compatibility checks that report source-level breaking changes.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
+- Without an entry directive, a runnable workspace must contain exactly one top-level `function Main() : Int`. A namespaced `Main` is not the default entry.
+- Project manifests may declare `language_version` as a non-negative integer. New projects use the current version, missing versions are treated as legacy version 0, and manifests newer than the running compiler are rejected.
+- `kLang update` preserves existing manifest content, creates a `.bak` copy before changing an existing manifest, creates `klang.project` for a legacy folder containing `first.klang`, and is idempotent after the current version is reached. Automatic migrations only perform deterministic changes; module, type, parse, and entrypoint incompatibilities are reported for the developer to resolve.
+- `#set_entry_point_to_here` must immediately precede a function and may appear only once in the resolved workspace. The designated function may be namespaced or differently named, but must still be synchronous, non-generic, parameterless, and return exactly one unnamed `Int`.
 - Type aliases are exact synonyms rather than nominal types. They may be chained and forward-referenced across loaded workspace files, emit no runtime binding, and must resolve to a known non-cyclic target type.
 - A cast target must be a builtin type form. Type aliases are allowed in casts only after they resolve to builtin types; custom alias structs and enum types must be constructed, pattern matched, or accessed through their normal static APIs instead of cast into existence.
 - Variables are immutable by default unless specified mutable via (mut keyword)
@@ -157,8 +163,8 @@ Rules
 - Place `module_caller(call_entire_module : True);` in a source file to make its stdlib imports load complete modules.
 - Place `module(disabled : True);` in a module source to make the resolver reject imports of that module.
 - Place `no_cache;` in a source file to prevent the program cache from loading or storing `.klang-cache` entries for that workspace.
-- A folder project must contain `klang.project`, a TOML manifest with `name`, `entry`, and optional `sources`. If `sources` is omitted, all `.klang` files under the project root except `dist` are loaded. New CLI-created projects use `first.klang` as the manifest entry and keep the public program entry as `Main() : Int`, which delegates to `App.Start()`. The deprecated `new --entry` flag is accepted as a no-op for compatibility. A loose `.klang` file or legacy `first.klang` folder must opt in with `load_as_script;`.
-- After a successful `run`, the CLI reports elapsed runtime and line throughput using the resolved source set, so project, script, local import, and stdlib import lines are counted consistently with the program that was checked and executed.
+- A folder project must contain `klang.project`, a TOML manifest with `name`, `entry`, `language_version`, and optional `sources`. If `sources` is omitted, all `.klang` files under the project root except `dist` are loaded. New CLI-created projects use `first.klang` as the manifest entry and keep the public program entry as `Main() : Int`, which delegates to `App.Start()`. The deprecated `new --entry` flag is accepted as a no-op for compatibility. A loose `.klang` file or legacy `first.klang` folder must opt in with `load_as_script;`, or the folder can be migrated with `kLang update`.
+- After a successful `run`, the CLI reports physical source lines across the complete resolved source set, measured source-processing time and throughput, runtime execution time, and total engine time. Project, script, local import, and stdlib import lines are counted consistently. Runtime duration is never used as the denominator for source line throughput.
 - Place `global namespace Name { ... }` in a stdlib module to expose the namespace's functions as unqualified calls through the language's internal symbol table. The symbol table is not accessible from Klang source.
 - Use `run { ... }` or `run FunctionName();` to execute initialization code before ordinary statements in the same runtime block. A `run` action cannot return, break, or continue.
 - Use `(* ... *)` for multiline comments. Multiline comments are ignored by the lexer before parsing.

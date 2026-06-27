@@ -864,9 +864,11 @@ go run . check tests/test21 --verbose
 go run . package examples/helloworld --backend=JS --verbose
 ```
 
-Successful `run` output ends with CLI-owned runtime metrics. `time` measures the
-entrypoint runtime execution, and `lines` counts the resolved source lines used
-by that run before deriving source lines per second.
+Successful `run` output ends with CLI-owned engine metrics. `source processing`
+measures loading, cache lookup, module resolution, type checking, and parsing
+for all resolved source files. `execution` measures only entrypoint runtime,
+while `total engine time` is their sum. Source lines per second always uses the
+source-processing duration rather than the unrelated runtime duration.
 
 Temporarily use `report value;` in Klang source to print runtime type, value,
 and stack frames.

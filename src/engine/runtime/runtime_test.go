@@ -210,12 +210,15 @@ function Main() : Int {
 
 func TestRuntimeBuildsParsableMetadataAndPreservesArgumentChannels(t *testing.T) {
 	parsedProgram, errors := parser.Parse(`
-function Main() : Parsable[T] {
-    return Parsable(//
+function Main() : Int {
+    local Parsable[T] parsed = Parsable(//
 function Parsed() : Int {
     return 1;
 }
 //, ["source"]);
+    assert parsed.statement_count == 1;
+    assert len(parsed.args) == 2;
+    return parsed.statement_count;
 }
 `)
 	if len(errors) != 0 {
@@ -228,10 +231,19 @@ function Parsed() : Int {
 	if err != nil {
 		t.Fatalf("runtime failed: %v", err)
 	}
-	if !isObjectType(result.Value, "Parsable") {
-		t.Fatalf("expected Parsable, got %#v", result.Value)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 1 {
+		t.Fatalf("expected Parsable-backed Main result 1, got %#v", result.Value)
 	}
-	fields := result.Value.Data.(ObjectData).Fields
+
+	metadataRuntime := NewWithArgs([]string{"cli"})
+	parsable, err := metadataRuntime.newParsable([]Value{
+		StringValue("function Parsed() : Int { return 1; }"),
+		listFromStrings([]string{"source"}),
+	})
+	if err != nil {
+		t.Fatalf("construct Parsable metadata: %v", err)
+	}
+	fields := parsable.Data.(ObjectData).Fields
 	if fields["statement_count"].Data.(int) != 1 || len(fields["ast"].Data.([]Value)) != 1 {
 		t.Fatalf("unexpected AST metadata: %#v", fields)
 	}
@@ -242,7 +254,7 @@ function Parsed() : Int {
 	if !isObjectType(fields["workspace"], "WorkSpace") {
 		t.Fatalf("expected workspace metadata, got %#v", fields["workspace"])
 	}
-	transformed, err := New().transformParsable("parsable_replace", []Value{result.Value, StringValue("return 1"), StringValue("return 2")})
+	transformed, err := New().transformParsable("parsable_replace", []Value{parsable, StringValue("return 1"), StringValue("return 2")})
 	if err != nil {
 		t.Fatalf("source transform failed: %v", err)
 	}
@@ -315,25 +327,26 @@ function Main() : Int {
 }
 
 func TestRuntimeTracksExecutionState(t *testing.T) {
-	result := runParsedSource(t, `
+	engine := New()
+	result := runParsedSourceOnRuntime(t, engine, `
 function Add(left : Int, mut right : Int) : Int {
     local mut Int total = left + right;
     total += 1;
     return total;
 }
 
-function Main() : List[Table] {
+function Main() : Int {
     local Int value = Add(1, 2);
     local String owned = "state";
     local String moved = move owned;
-    return debug_state();
+    return value;
 }
 `)
 
-	if result.Value.Kind != ValueList {
-		t.Fatalf("expected debug_state to return a list, got %#v", result.Value)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 4 {
+		t.Fatalf("expected state program to return 4, got %#v", result.Value)
 	}
-	states := result.Value.Data.([]Value)
+	states := engine.stateRecordsValue().Data.([]Value)
 	assertRuntimeState(t, states, "parameter", "left", "bind")
 	assertRuntimeState(t, states, "parameter", "right", "bind")
 	assertRuntimeState(t, states, "variable", "total", "assign")
@@ -343,19 +356,20 @@ function Main() : List[Table] {
 }
 
 func TestRuntimeTracksTemporaryVariables(t *testing.T) {
-	result := runParsedSource(t, `
-function Main() : List[Table] {
+	engine := New()
+	result := runParsedSourceOnRuntime(t, engine, `
+function Main() : Int {
     temp local mut Int scratch = 40;
     scratch += 2;
     temp let answer = scratch;
-    return debug_state();
+    return answer;
 }
 `)
 
-	if result.Value.Kind != ValueList {
-		t.Fatalf("expected debug_state to return a list, got %#v", result.Value)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 42 {
+		t.Fatalf("expected temporary state program to return 42, got %#v", result.Value)
 	}
-	states := result.Value.Data.([]Value)
+	states := engine.stateRecordsValue().Data.([]Value)
 	assertRuntimeState(t, states, "temporary", "scratch", "define")
 	assertRuntimeState(t, states, "temporary", "scratch", "assign")
 	assertRuntimeState(t, states, "temporary", "answer", "define")
@@ -2060,15 +2074,16 @@ function Main() : Int {
 
 func TestRuntimeMovesLazyVariableInitializerWhenForced(t *testing.T) {
 	result := runParsedSource(t, `
-function Main() : String {
+function Main() : Int {
     local String value = "ready";
     lazy local String moved = move value;
     local String before = value;
-    return before + moved;
+    assert before + moved == "readyready";
+    return 0;
 }
 `)
 
-	if result.Value.Kind != ValueString || result.Value.Data.(string) != "readyready" {
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 0 {
 		t.Fatalf("expected lazy move program to return readyready, got %#v", result.Value)
 	}
 }
@@ -2157,7 +2172,7 @@ function Main() : Int {
     return 2;
 }
 `)
-	assertRuntimeErrorContains(t, err, `function "Main" is already defined`)
+	assertRuntimeErrorContains(t, err, "program can define only one top-level Main entry function")
 
 	_, err = runParsedSourceWithError(`
 namespace A {
@@ -2331,6 +2346,14 @@ function Main() : Int {
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 7 {
 		t.Fatalf("expected entry point to return 7, got %#v", result.Value)
 	}
+}
+
+func TestRuntimeRejectsMissingAndInvalidEntryPoints(t *testing.T) {
+	_, missingErr := runParsedSourceWithError(`function Helper() : Int { return 0; }`)
+	assertRuntimeErrorContains(t, missingErr, "program must define function Main() : Int")
+
+	_, invalidErr := runParsedSourceWithError(`function Main() : String { return ""; }`)
+	assertRuntimeErrorContains(t, invalidErr, "entry point Main must have signature function Main() : Int")
 }
 
 func TestRuntimeExecutesAtomicBuiltins(t *testing.T) {
@@ -3260,21 +3283,22 @@ function Main() : Int {
 }
 
 func TestRuntimeExecutesTemporaryRegionArraySyntax(t *testing.T) {
-	result := runParsedSource(t, `
+	engine := New()
+	result := runParsedSourceOnRuntime(t, engine, `
 temp region Scratch(T, sizeof(T) * 16, 4);
 
-function Main() : List[Table] {
+function Main() : Int {
     local mut T[Scratch] values;
     values[0] = "value";
     values[1] = "next";
-    return debug_state();
+    return len(values);
 }
 `)
 
-	if result.Value.Kind != ValueList {
-		t.Fatalf("expected debug_state to return a list, got %#v", result.Value)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 2 {
+		t.Fatalf("expected temporary region program to return 2, got %#v", result.Value)
 	}
-	assertRuntimeState(t, result.Value.Data.([]Value), "temporary_region", "Scratch", "define")
+	assertRuntimeState(t, engine.stateRecordsValue().Data.([]Value), "temporary_region", "Scratch", "define")
 	if result.Memory.TempObjects == 0 {
 		t.Fatalf("expected temporary region allocation to use temporary memory bucket, got %#v", result.Memory)
 	}
@@ -3477,7 +3501,22 @@ func runSource(t *testing.T, source string) Result {
 func runParsedSource(t *testing.T, source string) Result {
 	t.Helper()
 
-	result, err := runParsedSourceWithError(source)
+	return runParsedSourceOnRuntime(t, New(), source)
+}
+
+func runParsedSourceOnRuntime(t *testing.T, runtime *Runtime, source string) Result {
+	t.Helper()
+
+	parsedProgram, errors := parser.Parse(source)
+	if len(errors) != 0 {
+		t.Fatalf("parse failed: %#v", errors)
+	}
+	result, err := runtime.Run(parser.ParsedProgram{
+		Name: "parsed",
+		Sources: []parser.ParsedSource{
+			{Path: "parsed.klang", Program: parsedProgram},
+		},
+	})
 	if err != nil {
 		t.Fatalf("runtime failed: %v", err)
 	}

@@ -149,7 +149,7 @@ function Main() : Int {
 
 func TestJavaScriptBackendRoundTripsNativeJSONValues(t *testing.T) {
 	request := requestFromSource(`
-function Main() : String {
+function Main() : Int {
     local Table source = {"name": "Ada", "items": [1, 2], "active": True};
     local Result[String, String] encoded = json_encode(source);
     assert encoded.ok;
@@ -161,7 +161,7 @@ function Main() : String {
     assert object.active;
     assert items[1] == 2;
     print(encoded.value, json_stringify("native"), json_stringify(42));
-    return encoded.value;
+    return 0;
 }
 `)
 	compiler := New()
@@ -183,6 +183,15 @@ function Main() : String {
 		if runErr != nil || strings.TrimSpace(string(printed)) != expected {
 			t.Fatalf("generated native JSON program failed: %v\n%s", runErr, printed)
 		}
+	}
+}
+
+func TestJavaScriptBackendEnforcesStrictEntryPoint(t *testing.T) {
+	request := requestFromSource(`function Main() : String { return "invalid"; }`)
+	diagnostics := New().Check(request)
+	if len(diagnostics) == 0 || diagnostics[0].Rule != "JS_ENTRY_POINT" ||
+		!strings.Contains(diagnostics[0].Message, "function Main() : Int") {
+		t.Fatalf("expected strict JS entry-point diagnostic, got %#v", diagnostics)
 	}
 }
 
@@ -439,14 +448,14 @@ alias function User(id : String, name : String, roles : List[String], active : B
     }
 }
 
-function Main() : String {
+function Main() : Int {
     let user = User("42", "Ada", ["admin"]);
     let saved = user;
     let renamed = user.renamed("Grace");
     local JSON document = JSON(renamed);
     local String encoded = json_stringify(user);
     print(user.label("user="), encoded, json_stringify(document), saved.name);
-    return json_stringify(renamed);
+    return 0;
 }
 `, "TAG", "`"))
 	compiler := New()
