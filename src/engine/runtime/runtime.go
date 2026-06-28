@@ -2062,7 +2062,18 @@ func (runtime *Runtime) executeAssignment(stmt parser.AssignmentStatement, env *
 			return Error{Message: fmt.Sprintf("cannot mutate immutable variable %q", identifier.Name)}
 		}
 
-		next, err := applyAssignmentOperator(binding.Value, stmt.Operator, value)
+		var next Value
+		var err error
+		if stmt.Operator != "=" {
+			operator := strings.TrimSuffix(stmt.Operator, "=")
+			if overloaded, ok, overloadErr := runtime.evalOverloadedBinaryOperator(binding.Value, operator, value, env); ok {
+				next, err = overloaded, overloadErr
+			} else {
+				next, err = applyAssignmentOperator(binding.Value, stmt.Operator, value)
+			}
+		} else {
+			next, err = applyAssignmentOperator(binding.Value, stmt.Operator, value)
+		}
 		if err != nil {
 			return err
 		}
@@ -2700,6 +2711,9 @@ func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environmen
 	if err != nil {
 		return NullValue(), err
 	}
+	if overloaded, ok, overloadErr := runtime.evalOverloadedBinaryOperator(left, expr.Operator, right, env); ok {
+		return overloaded, overloadErr
+	}
 
 	switch expr.Operator {
 	case "+":
@@ -2737,6 +2751,24 @@ func (runtime *Runtime) evalBinary(expr parser.BinaryExpression, env *Environmen
 	default:
 		return NullValue(), Error{Message: fmt.Sprintf("unsupported binary operator %q", expr.Operator)}
 	}
+}
+
+func (runtime *Runtime) evalOverloadedBinaryOperator(left Value, operator string, right Value, env *Environment) (Value, bool, error) {
+	if left.Kind != ValueObject {
+		return NullValue(), false, nil
+	}
+	methodName, ok := parser.OperatorMethodName(operator)
+	if !ok {
+		return NullValue(), false, nil
+	}
+	typeName := left.Data.(ObjectData).Type
+	if !runtime.aliasMethodExists(typeName, methodName) {
+		return NullValue(), false, nil
+	}
+	value, err := runtime.callAliasMethodValues(BoundMethodData{
+		Type: typeName, Name: methodName, Receiver: left,
+	}, []Value{right}, env)
+	return value, true, err
 }
 
 func (runtime *Runtime) evalPipe(value Value, target parser.ExpressionNode, env *Environment) (Value, error) {
@@ -4274,18 +4306,21 @@ func (runtime *Runtime) extensionMethodExists(typeName string, methodName string
 }
 
 func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parser.ExpressionNode, env *Environment) (Value, error) {
-	if builtinProtocolMethodExists(method.Receiver, method.Name) {
-		args := make([]Value, 0, len(argNodes))
-		for _, arg := range argNodes {
-			value, err := runtime.evalExpression(arg, env)
-			if err != nil {
-				return NullValue(), err
-			}
-			args = append(args, value)
+	args := make([]Value, 0, len(argNodes))
+	for _, arg := range argNodes {
+		value, err := runtime.evalExpression(arg, env)
+		if err != nil {
+			return NullValue(), err
 		}
+		args = append(args, value)
+	}
+	if builtinProtocolMethodExists(method.Receiver, method.Name) {
 		return runtime.callBuiltinProtocolMethod(method, args)
 	}
+	return runtime.callAliasMethodValues(method, args, env)
+}
 
+func (runtime *Runtime) callAliasMethodValues(method BoundMethodData, args []Value, env *Environment) (Value, error) {
 	alias := runtime.aliasFunctions[method.Type]
 	methods := alias.Methods
 	if extension, ok := runtime.extensionMethod(method.Type, method.Name); ok {
@@ -4296,16 +4331,8 @@ func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parse
 			continue
 		}
 		required := requiredRuntimeParamCount(fn.Params)
-		if len(argNodes) < required || len(argNodes) > len(fn.Params) {
-			return NullValue(), Error{Message: fmt.Sprintf("method %s.%s expects %d to %d argument(s), got %d", method.Type, method.Name, required, len(fn.Params), len(argNodes))}
-		}
-		args := make([]Value, 0, len(argNodes))
-		for _, arg := range argNodes {
-			value, err := runtime.evalExpression(arg, env)
-			if err != nil {
-				return NullValue(), err
-			}
-			args = append(args, value)
+		if len(args) < required || len(args) > len(fn.Params) {
+			return NullValue(), Error{Message: fmt.Sprintf("method %s.%s expects %d to %d argument(s), got %d", method.Type, method.Name, required, len(fn.Params), len(args))}
 		}
 		methodEnv := NewEnvironment(env)
 		if err := runtime.defineValue(methodEnv, "this", false, method.Type, method.Receiver); err != nil {

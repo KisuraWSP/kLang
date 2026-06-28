@@ -26,7 +26,7 @@
 (defconst klang--keywords
   '("if" "then" "else" "unless" "for" "while" "do" "do_while" "end"
     "return" "break" "continue" "try" "catch" "throw" "case" "partial"
-    "import" "namespace" "region" "alias" "call" "function_group"
+    "import" "namespace" "region" "alias" "call" "function_group" "operator"
     "await" "defer" "private" "inline" "lazy" "async" "inner"))
 
 (defconst klang--operators

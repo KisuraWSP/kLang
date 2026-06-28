@@ -884,7 +884,24 @@ func (checker *TypeChecker) checkAliasFunctionMethods(statements []parser.Statem
 		switch current := stmt.(type) {
 		case parser.AliasFunctionStatement:
 			receiverType := checker.aliasConstructedType(current, nil)
+			seenMethods := map[string]bool{}
 			for _, method := range current.Methods {
+				if seenMethods[method.Name] {
+					checker.addError(source, method.Pos.Line, fmt.Sprintf("method %s.%s is already defined", current.Name, method.Name))
+					continue
+				}
+				seenMethods[method.Name] = true
+				if symbol, operator := parser.OperatorMethodSymbol(method.Name); operator {
+					if len(method.Params) != 1 {
+						checker.addError(source, method.Pos.Line, fmt.Sprintf("operator %s expects exactly one right-hand parameter", symbol))
+					}
+					if len(method.Params) == 1 && method.Params[0].Default.Node != nil {
+						checker.addError(source, method.Pos.Line, fmt.Sprintf("operator %s cannot use a default parameter", symbol))
+					}
+					if parser.IsComparisonOperator(symbol) && normalizeType(method.ReturnType) != "Bool" {
+						checker.addError(source, method.Pos.Line, fmt.Sprintf("comparison operator %s must return Bool", symbol))
+					}
+				}
 				locals := map[string]variableSymbol{
 					"this": {Name: "this", Type: receiverType, File: source, Line: method.Pos.Line},
 				}
@@ -1253,7 +1270,7 @@ func (checker *TypeChecker) inferStandaloneExtensionCall(call parser.CallExpress
 	if !ok {
 		return "", false
 	}
-	return checker.checkExtensionNodeArguments(selector.Field, method, call.Arguments, locals, source, line), true
+	return checker.checkExtensionNodeArguments(selector.Field, targetType, method, call.Arguments, locals, source, line), true
 }
 
 func (checker *TypeChecker) extensionReceiverType(node parser.ExpressionNode, locals map[string]variableSymbol, source string, line int) (string, bool) {
@@ -1284,23 +1301,24 @@ func (checker *TypeChecker) extensionReceiverType(node parser.ExpressionNode, lo
 	return "", false
 }
 
-func (checker *TypeChecker) checkExtensionNodeArguments(name string, symbol extensionMethodSymbol, args []parser.ExpressionNode, locals map[string]variableSymbol, source string, line int) string {
+func (checker *TypeChecker) checkExtensionNodeArguments(name string, receiverType string, symbol extensionMethodSymbol, args []parser.ExpressionNode, locals map[string]variableSymbol, source string, line int) string {
+	paramTypes, returnType := extensionMethodSignature(receiverType, symbol)
 	required := requiredAliasParamCount(symbol.Method.Params)
 	if len(args) < required || len(args) > len(symbol.Method.Params) {
 		checker.addError(source, line, fmt.Sprintf("method %s expects %d to %d argument(s), got %d", name, required, len(symbol.Method.Params), len(args)))
-		return normalizeType(symbol.Method.ReturnType)
+		return returnType
 	}
 	for index, arg := range args {
 		argType, ok := checker.extensionReceiverType(arg, locals, source, line)
 		if !ok {
 			argType = anyType
 		}
-		paramType := normalizeType(symbol.Method.Params[index].Type)
+		paramType := paramTypes[index]
 		if !checker.isAssignable(paramType, argType) {
 			checker.addError(source, line, fmt.Sprintf("method %s argument %d expects %s, got %s", name, index+1, paramType, argType))
 		}
 	}
-	return normalizeType(symbol.Method.ReturnType)
+	return returnType
 }
 
 func (checker *TypeChecker) checkTupleReturnExpressions(fn functionSymbol, values []parser.Expression, locals map[string]variableSymbol, line int) {
@@ -2563,9 +2581,18 @@ func (checker *TypeChecker) checkAssignment(assignment assignmentStatement, loca
 	}
 
 	exprType := checker.inferExpression(assignment.Expr, locals, source, line)
-	if assignment.Op != "=" && !isNumeric(targetType) && targetType != "String" {
-		checker.addError(source, line, fmt.Sprintf("operator %s cannot be used with %s", assignment.Op, targetType))
-		return
+	if assignment.Op != "=" {
+		operator := strings.TrimSuffix(assignment.Op, "=")
+		if resultType, overloaded := checker.checkOverloadedBinaryOperator(targetType, operator, exprType, source, line); overloaded {
+			if !checker.isAssignable(targetType, resultType) {
+				checker.addError(source, line, fmt.Sprintf("operator %s returns %s, which cannot be assigned to %s", operator, resultType, targetType))
+			}
+			return
+		}
+		if !isNumeric(targetType) && targetType != "String" {
+			checker.addError(source, line, fmt.Sprintf("operator %s cannot be used with %s", assignment.Op, targetType))
+			return
+		}
 	}
 	if !checker.isAssignable(targetType, exprType) {
 		checker.addError(source, line, fmt.Sprintf("cannot assign %s to %s", exprType, targetType))
@@ -2708,21 +2735,39 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		return "Bool"
 	}
 	if index, operator := findTopLevelOperatorWithMatch(expr, []string{"==", "!=", ">=", "<=", ">", "<"}); index != -1 {
-		checker.inferExpression(expr[:index], locals, source, line)
-		checker.inferExpression(expr[index+len(operator):], locals, source, line)
+		left := checker.inferExpression(expr[:index], locals, source, line)
+		right := checker.inferExpression(expr[index+len(operator):], locals, source, line)
+		if returnType, ok := checker.checkOverloadedBinaryOperator(left, operator, right, source, line); ok {
+			return returnType
+		}
 		return "Bool"
 	}
 	if index := findTopLevelOperator(expr, []string{"+", "-"}); index != -1 && index > 0 {
 		left := checker.inferExpression(expr[:index], locals, source, line)
 		right := checker.inferExpression(expr[index+1:], locals, source, line)
+		operator := expr[index : index+1]
+		if returnType, ok := checker.checkOverloadedBinaryOperator(left, operator, right, source, line); ok {
+			return returnType
+		}
 		if left == "String" || right == "String" {
 			return "String"
+		}
+		return numericResult(left, right)
+	}
+	if index := findTopLevelOperator(expr, []string{"**"}); index != -1 && index > 0 {
+		left := checker.inferExpression(expr[:index], locals, source, line)
+		right := checker.inferExpression(expr[index+len("**"):], locals, source, line)
+		if returnType, ok := checker.checkOverloadedBinaryOperator(left, "**", right, source, line); ok {
+			return returnType
 		}
 		return numericResult(left, right)
 	}
 	if index, operator := findTopLevelOperatorWithMatch(expr, []string{"*", "//", "/", "%"}); index != -1 && index > 0 {
 		left := checker.inferExpression(expr[:index], locals, source, line)
 		right := checker.inferExpression(expr[index+len(operator):], locals, source, line)
+		if returnType, ok := checker.checkOverloadedBinaryOperator(left, operator, right, source, line); ok {
+			return returnType
+		}
 		return numericResult(left, right)
 	}
 	if index := findTopLevelOperator(expr, []string{" as "}); index != -1 && index > 0 {
@@ -2740,11 +2785,6 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 			checker.addError(source, line, fmt.Sprintf("cannot cast %s to %s", sourceType, targetType))
 		}
 		return targetType
-	}
-	if index := findTopLevelOperator(expr, []string{"**"}); index != -1 && index > 0 {
-		left := checker.inferExpression(expr[:index], locals, source, line)
-		right := checker.inferExpression(expr[index+len("**"):], locals, source, line)
-		return numericResult(left, right)
 	}
 	if inner, ok := splitPostfixNullCheckExpression(expr); ok {
 		checker.inferExpression(inner, locals, source, line)
@@ -2862,16 +2902,32 @@ func (checker *TypeChecker) aliasMethodType(typeName string, methodName string) 
 	return "", false
 }
 
+func (checker *TypeChecker) checkOverloadedBinaryOperator(leftType string, operator string, rightType string, source string, line int) (string, bool) {
+	methodName, ok := parser.OperatorMethodName(operator)
+	if !ok {
+		return "", false
+	}
+	methodType, ok := checker.aliasMethodType(leftType, methodName)
+	if !ok {
+		return "", false
+	}
+	paramTypes, returnType, ok := functionValueType(methodType)
+	if !ok || len(paramTypes) != 1 {
+		return returnType, true
+	}
+	if !checker.isAssignable(paramTypes[0], rightType) {
+		checker.addError(source, line, fmt.Sprintf("operator %s on %s expects %s, got %s", operator, leftType, paramTypes[0], rightType))
+	}
+	return returnType, true
+}
+
 func (checker *TypeChecker) extensionMethodType(typeName string, methodName string) (string, bool) {
 	symbol, ok := checker.lookupExtensionMethod(typeName, methodName)
 	if !ok {
 		return "", false
 	}
-	parts := make([]string, 0, len(symbol.Method.Params)+1)
-	for _, param := range symbol.Method.Params {
-		parts = append(parts, normalizeType(param.Type))
-	}
-	parts = append(parts, normalizeType(symbol.Method.ReturnType))
+	paramTypes, returnType := extensionMethodSignature(typeName, symbol)
+	parts := append(paramTypes, returnType)
 	return "Function[" + strings.Join(parts, ",") + "]", true
 }
 
@@ -2884,10 +2940,38 @@ func (checker *TypeChecker) lookupExtensionMethod(typeName string, methodName st
 	if methods == nil {
 		if base, _, ok := splitGenericType(typeName); ok {
 			methods = checker.extensions[base]
+			if methods == nil {
+				for declaredType, candidate := range checker.extensions {
+					declaredBase, _, generic := splitGenericType(declaredType)
+					if generic && declaredBase == base {
+						methods = candidate
+						break
+					}
+				}
+			}
 		}
 	}
 	symbol, ok := methods[methodName]
 	return symbol, ok
+}
+
+func extensionMethodSignature(receiverType string, symbol extensionMethodSymbol) ([]string, string) {
+	substitutions := map[string]string{}
+	declaredBase, declaredArgs, declaredGeneric := splitGenericType(normalizeType(symbol.Target))
+	actualBase, actualArgs, actualGeneric := splitGenericType(normalizeType(receiverType))
+	if declaredGeneric && actualGeneric && declaredBase == actualBase {
+		for index, declared := range declaredArgs {
+			if index < len(actualArgs) {
+				substitutions[normalizeType(declared)] = normalizeType(actualArgs[index])
+			}
+		}
+	}
+	paramTypes := make([]string, 0, len(symbol.Method.Params))
+	for _, param := range symbol.Method.Params {
+		paramTypes = append(paramTypes, applyAliasTypeSubstitutions(normalizeType(param.Type), substitutions))
+	}
+	returnType := applyAliasTypeSubstitutions(normalizeType(symbol.Method.ReturnType), substitutions)
+	return paramTypes, returnType
 }
 
 func (checker *TypeChecker) aliasFieldType(typeName string, fieldName string) (string, bool) {
@@ -4328,7 +4412,7 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			if !targetOK {
 				if targetExpr == "True" || targetExpr == "False" {
 					if method, methodOK := checker.lookupExtensionMethod("Bool", methodName); methodOK {
-						return checker.checkExtensionCall(name, method, args, locals, source, line)
+						return checker.checkExtensionCall(name, "Bool", method, args, locals, source, line)
 					}
 				}
 				checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
@@ -4343,7 +4427,7 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 				return checker.checkCallbackCall(name, paramTypes, returnType, args, locals, source, line)
 			}
 			if method, methodOK := checker.lookupExtensionMethod(targetType, methodName); methodOK {
-				return checker.checkExtensionCall(name, method, args, locals, source, line)
+				return checker.checkExtensionCall(name, targetType, method, args, locals, source, line)
 			}
 			if methodType, methodOK := builtinProtocolMethodType(targetType, methodName); methodOK {
 				paramTypes, returnType, _ := functionValueType(methodType)
@@ -4555,20 +4639,21 @@ func (checker *TypeChecker) checkCallbackCall(name string, paramTypes []string, 
 	return returnType
 }
 
-func (checker *TypeChecker) checkExtensionCall(name string, symbol extensionMethodSymbol, args []string, locals map[string]variableSymbol, source string, line int) string {
+func (checker *TypeChecker) checkExtensionCall(name string, receiverType string, symbol extensionMethodSymbol, args []string, locals map[string]variableSymbol, source string, line int) string {
+	paramTypes, returnType := extensionMethodSignature(receiverType, symbol)
 	required := requiredAliasParamCount(symbol.Method.Params)
 	if len(args) < required || len(args) > len(symbol.Method.Params) {
 		checker.addError(source, line, fmt.Sprintf("method %s expects %d to %d argument(s), got %d", name, required, len(symbol.Method.Params), len(args)))
-		return normalizeType(symbol.Method.ReturnType)
+		return returnType
 	}
 	for index, arg := range args {
 		argType := checker.inferExpression(arg, locals, source, line)
-		paramType := normalizeType(symbol.Method.Params[index].Type)
+		paramType := paramTypes[index]
 		if !checker.isAssignable(paramType, argType) {
 			checker.addError(source, line, fmt.Sprintf("method %s argument %d expects %s, got %s", name, index+1, paramType, argType))
 		}
 	}
-	return normalizeType(symbol.Method.ReturnType)
+	return returnType
 }
 
 func requiredParamCount(params []variableSymbol) int {

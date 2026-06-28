@@ -218,7 +218,7 @@
       "patterns": [
         {
           "name": "keyword.control.klang",
-          "match": "\\b(if|then|else|unless|for|while|do|do_while|end|return|break|continue|try|catch|throw|case|partial|await|import|namespace|region|alias|call|inner|function_group)\\b"
+          "match": "\\b(if|then|else|unless|for|while|do|do_while|end|return|break|continue|try|catch|throw|case|partial|await|import|namespace|region|alias|call|inner|function_group|operator)\\b"
         },
         {
           "name": "storage.modifier.klang",

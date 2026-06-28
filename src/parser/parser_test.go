@@ -1430,6 +1430,35 @@ func TestParseStandaloneExtensionMethods(t *testing.T) {
 	}
 }
 
+func TestParseAliasOperatorOverloads(t *testing.T) {
+	program, errors := Parse(`
+alias function Vector(x : Int, y : Int) : type = struct {
+    operator +(other : Vector) : Vector {
+        return Vector(this.x + other.x, this.y + other.y);
+    }
+
+    operator ==(other : Vector) : Bool {
+        return this.x == other.x and this.y == other.y;
+    }
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	alias, ok := program.Statements[0].(AliasFunctionStatement)
+	if !ok {
+		t.Fatalf("expected alias function, got %#v", program.Statements[0])
+	}
+	if len(alias.Methods) != 2 {
+		t.Fatalf("expected two operator methods, got %#v", alias.Methods)
+	}
+	if symbol, ok := OperatorMethodSymbol(alias.Methods[0].Name); !ok || symbol != "+" {
+		t.Fatalf("expected + operator method, got %#v", alias.Methods[0])
+	}
+	if symbol, ok := OperatorMethodSymbol(alias.Methods[1].Name); !ok || symbol != "==" {
+		t.Fatalf("expected == operator method, got %#v", alias.Methods[1])
+	}
+}
+
 func TestParseTemporaryRegion(t *testing.T) {
 	program, errors := Parse(`
 temp region Scratch(T, sizeof(T) * 16, 4);

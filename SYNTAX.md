@@ -1038,11 +1038,12 @@ local String label = "release".surrounded("[", "]");
 -- already belongs to the builtin protocol, the alias itself, or another
 -- extension for the same target.
 -- The stdlib types module uses this feature directly:
--- Int: absolute, clamp, between, is_even, is_odd, sign
--- Float: absolute, clamp, between
--- Bool: to_int
--- String: is_empty, or_else, surrounded
--- Char: to_string
+-- Int: absolute, coercion, comparison, predicates, until, down_to
+-- Float: absolute, coercion, comparison, predicates, to_int
+-- Bool: conversion, inverse, choose_string
+-- String: fallback, composition, slicing, search, reverse, padding
+-- Char: conversion, ASCII classification, repetition, digit conversion
+-- List[T]: fallback access, contains/index, take/drop, reverse
 import "types";
 local Int safe_percent = 140.clamp(0, 100);
 local String display_name = "".or_else("anonymous");
@@ -1081,6 +1082,27 @@ alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator 
         }
     }
 }
+
+-- Binary operator overloading is declared directly inside an alias function.
+-- The alias value is `this`; the declaration has one required right operand.
+alias function Vector(x : Int, y : Int) : type = struct {
+    operator +(other : Vector) : Vector {
+        return Vector(this.x + other.x, this.y + other.y);
+    }
+
+    operator *(factor : Int) : Vector {
+        return Vector(this.x * factor, this.y * factor);
+    }
+
+    operator ==(other : Vector) : Bool {
+        return this.x == other.x and this.y == other.y;
+    }
+}
+
+local mut Vector position = Vector(1, 2) + Vector(3, 4);
+position += Vector(1, 1);
+local Vector doubled = position * 2;
+local Bool same = doubled == Vector(10, 14);
 
 local T arrayList = ArrayList("value", 1, 100);
 local Int arrayListLength = arrayList.get_length();

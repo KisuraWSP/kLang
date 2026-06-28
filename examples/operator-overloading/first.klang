@@ -1,0 +1,25 @@
+load_as_script;
+
+-- Alias structs can overload these binary operators:
+-- +, -, *, /, //, %, **, ==, !=, >, >=, <, <=
+-- Compound +=, -=, *=, and /= reuse the matching overload.
+alias function Vector(x : Int, y : Int) : type = struct {
+    operator +(other : Vector) : Vector {
+        return Vector(this.x + other.x, this.y + other.y);
+    }
+
+    operator ==(other : Vector) : Bool {
+        return this.x == other.x and this.y == other.y;
+    }
+}
+
+function Main() : Int {
+    local Vector left = Vector(2, 3);
+    local Vector right = Vector(4, 5);
+    local Vector total = left + right;
+
+    print("sum", total.x, total.y);
+    print("VECTOR: ", total);
+    print("matches expected", total == Vector(6, 8));
+    return 0;
+}

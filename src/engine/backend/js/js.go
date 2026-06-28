@@ -837,6 +837,8 @@ func emitProgram(program ir.Program) (string, []byte) {
 	output.WriteString("const __klang_select = (value, field) => { if (__klang_is_result(value) && (field === \"ok\" || field === \"value\")) return __klang_copy(value[field]); if (__klang_is_struct(value)) { if (!Object.prototype.hasOwnProperty.call(value, field)) throw new TypeError(`unknown field ${value.__klang_struct}.${field}`); return __klang_copy(value[field]); } if (field === \"count\") return __klang_len(value); if (__klang_is_collection(value) && value.__klang_collection === \"Table\") return __klang_collection_get(value, field); throw new TypeError(`selector .${field} is not supported for this value`); };\n")
 	output.WriteString("const __klang_runtime_type = (value) => __klang_is_struct(value) ? value.__klang_struct : __klang_is_char(value) ? \"Char\" : Array.isArray(value) ? \"List[T]\" : __klang_is_collection(value) ? value.__klang_collection + (value.__klang_collection === \"Table\" ? \"\" : \"[T,T]\") : typeof value === \"string\" ? \"String\" : typeof value === \"boolean\" ? \"Bool\" : typeof value === \"number\" ? (Number.isInteger(value) ? \"Int\" : \"Float\") : \"T\";\n")
 	output.WriteString("const __klang_call_method = (value, name, args) => { const type = __klang_runtime_type(value); const method = __klang_struct_methods[type]?.[name]; if (typeof method !== \"function\") throw new TypeError(`unknown method ${type}.${name}`); return method(__klang_copy(value), ...args.map(__klang_copy)); };\n")
+	output.WriteString("const __klang_operator_methods = { \"+\": \"__operator_add\", \"-\": \"__operator_subtract\", \"*\": \"__operator_multiply\", \"/\": \"__operator_divide\", \"//\": \"__operator_floor_divide\", \"%\": \"__operator_modulo\", \"**\": \"__operator_power\", \"==\": \"__operator_equal\", \"!=\": \"__operator_not_equal\", \">\": \"__operator_greater\", \">=\": \"__operator_greater_equal\", \"<\": \"__operator_less\", \"<=\": \"__operator_less_equal\" };\n")
+	output.WriteString("const __klang_binary = (left, operator, right) => { const type = __klang_runtime_type(left); const methodName = __klang_operator_methods[operator]; const method = methodName === undefined ? undefined : __klang_struct_methods[type]?.[methodName]; if (typeof method === \"function\") return method(__klang_copy(left), __klang_copy(right)); if (operator === \"+\") return __klang_add(left, right); if (operator === \"-\") return left - right; if (operator === \"*\") return left * right; if (operator === \"/\") return left / right; if (operator === \"//\") return Math.floor(left / right); if (operator === \"%\") return left % right; if (operator === \"**\") return left ** right; if (operator === \"==\") return __klang_equal(left, right); if (operator === \"!=\") return !__klang_equal(left, right); if (operator === \">\") return left > right; if (operator === \">=\") return left >= right; if (operator === \"<\") return left < right; if (operator === \"<=\") return left <= right; throw new TypeError(`unsupported binary operator ${operator}`); };\n")
 	output.WriteString("const __klang_to_json = (value) => { if (__klang_is_char(value)) return value.__klang_char; if (value === null || typeof value === \"string\" || typeof value === \"number\" || typeof value === \"boolean\") return value; if (Array.isArray(value)) return value.map(__klang_to_json); if (__klang_is_collection(value)) return __klang_collection_json(value); if (typeof value === \"object\") { const tags = __klang_is_struct(value) ? (__klang_struct_tags[value.__klang_struct] || {}) : {}; const entries = Object.keys(value).filter((field) => !field.startsWith(\"__\")).map((field) => [tags[field] || field, __klang_to_json(value[field])]).sort((left, right) => left[0].localeCompare(right[0])); return Object.fromEntries(entries); } throw new TypeError(\"cannot serialize value as JSON\"); };\n")
 	output.WriteString("const __klang_json = (value) => typeof value === \"string\" ? JSON.parse(value) : __klang_to_json(value);\n")
 	output.WriteString("const __klang_json_stringify = (value) => JSON.stringify(__klang_to_json(value));\n\n")
@@ -971,23 +973,19 @@ func emitStatement(output *strings.Builder, statement ir.Statement, indent int, 
 			output.WriteString(");\n")
 			return
 		}
-		if statement.Operator == "+=" {
+		if statement.Operator != "=" {
 			emitExpression(output, statement.Target)
-			output.WriteString(" = __klang_add(")
+			output.WriteString(" = __klang_binary(")
 			emitExpression(output, statement.Target)
-			output.WriteString(", ")
+			fmt.Fprintf(output, ", %s, ", strconv.Quote(strings.TrimSuffix(statement.Operator, "=")))
 			emitExpression(output, statement.Value)
 			output.WriteByte(')')
 		} else {
 			emitExpression(output, statement.Target)
 			fmt.Fprintf(output, " %s ", statement.Operator)
-			if statement.Operator == "=" {
-				output.WriteString("__klang_copy(")
-				emitExpression(output, statement.Value)
-				output.WriteByte(')')
-			} else {
-				emitExpression(output, statement.Value)
-			}
+			output.WriteString("__klang_copy(")
+			emitExpression(output, statement.Value)
+			output.WriteByte(')')
 		}
 		output.WriteString(";\n")
 	case ir.StatementExpression:
@@ -1104,29 +1102,10 @@ func emitExpression(output *strings.Builder, expression ir.Expression) {
 		emitExpression(output, *expression.Right)
 		output.WriteByte(')')
 	case ir.ExpressionBinary:
-		if expression.Operator == "//" {
-			output.WriteString("Math.floor(")
+		if expression.Operator != "and" && expression.Operator != "or" {
+			output.WriteString("__klang_binary(")
 			emitExpression(output, *expression.Left)
-			output.WriteString(" / ")
-			emitExpression(output, *expression.Right)
-			output.WriteByte(')')
-			return
-		}
-		if expression.Operator == "+" {
-			output.WriteString("__klang_add(")
-			emitExpression(output, *expression.Left)
-			output.WriteString(", ")
-			emitExpression(output, *expression.Right)
-			output.WriteByte(')')
-			return
-		}
-		if expression.Operator == "==" || expression.Operator == "!=" {
-			if expression.Operator == "!=" {
-				output.WriteByte('!')
-			}
-			output.WriteString("__klang_equal(")
-			emitExpression(output, *expression.Left)
-			output.WriteString(", ")
+			fmt.Fprintf(output, ", %s, ", strconv.Quote(expression.Operator))
 			emitExpression(output, *expression.Right)
 			output.WriteByte(')')
 			return

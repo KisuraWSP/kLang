@@ -419,6 +419,10 @@ func (parser *Parser) parseAliasFunction(inline bool, private bool) Statement {
 			stmt.Hooks = append(stmt.Hooks, AliasHook{Name: directive.Literal, Body: parser.collectAliasBodyTokens("alias directive")})
 			continue
 		}
+		if parser.check(lexer.TokenIdentifier) && parser.current().Literal == "operator" {
+			stmt.Methods = append(stmt.Methods, parser.parseAliasOperatorMethod(blockStyle))
+			continue
+		}
 		if parser.check(lexer.TokenIdentifier) && parser.current().Literal == "this" && parser.peek().Type == lexer.TokenDot {
 			if tag, ok := parser.parseAliasStructFieldTag(); ok {
 				stmt.FieldTags = append(stmt.FieldTags, tag)
@@ -449,6 +453,36 @@ func (parser *Parser) parseAliasFunction(inline bool, private bool) Statement {
 		parser.consume(lexer.TokenEnd, "expected end after alias function")
 	}
 	return stmt
+}
+
+func (parser *Parser) parseAliasOperatorMethod(blockStyle bool) FunctionStatement {
+	start := parser.consume(lexer.TokenIdentifier, "expected operator")
+	symbol := parser.advance()
+	name, ok := OperatorMethodName(symbol.Literal)
+	if !ok {
+		parser.addError(symbol, fmt.Sprintf("operator %q cannot be overloaded", symbol.Literal))
+		name = "__operator_invalid"
+	}
+	parser.consume(lexer.TokenLeftBrace, "expected '(' after operator")
+	params := parser.parseParameters()
+	parser.consume(lexer.TokenRightBrace, "expected ')' after operator parameters")
+	returnType := "T"
+	if parser.match(lexer.TokenArrow) || parser.match(lexer.TokenInferReturn) {
+		returnType = parser.parseTypeOnCurrentLine()
+	}
+	var body []Statement
+	if blockStyle {
+		body = parser.parseBlock()
+	} else {
+		body = aliasMethodBodyFromTokens(parser.collectUntilMatchingEnd())
+	}
+	return FunctionStatement{
+		Pos:        positionFromToken(start),
+		Name:       name,
+		Params:     params,
+		ReturnType: normalizeAliasReturnType(returnType),
+		Body:       body,
+	}
 }
 
 func (parser *Parser) parseAliasStructFieldTag() (StructFieldTag, bool) {

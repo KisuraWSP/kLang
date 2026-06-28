@@ -77,6 +77,7 @@
 77. Entry-point resolution is strict and shared by checking, interpretation, and compiler backends. Programs cannot omit an entry, define multiple top-level `Main` functions, use multiple entry directives, or provide an entry with parameters, generic parameters, async behavior, named/multiple returns, or a return type other than `Int`.
 78. `kLang update <project>` migrates an existing project manifest to the current language version and then runs compatibility checks that report source-level breaking changes.
 79. Grua is a `.grua` subset frontend implemented by the Go `src/grua` package. It validates and lowers Grua source into kLang AST input while reusing the same resolver, checker, cache, runtime, diagnostics, and compiler backends.
+80. Struct-style alias functions may overload supported binary operators. Overloads dispatch on the left receiver, take exactly one non-default right-hand parameter, retain normal language precedence, and require comparison operators to return `Bool`.
 
 Rules
 - Variables have scopes (either via the global or local keyword)
@@ -138,6 +139,8 @@ Rules
 - `scope Name { ... }` creates a named lexical block. The name is documentation and metadata, not a namespace qualifier; use `namespace` when functions should be called as `Name.Function(...)`.
 - `for_each item in values { ... }` iterates over values directly. Use `for index := range(len(values)) { ... }` when the index is needed instead of the value.
 - Extension methods declared inside an alias function use `this` as their receiver.
+- Operator overloads use `operator +(other : Alias) : Alias { ... }` inside an alias function. The supported overload set is `+`, `-`, `*`, `/`, `//`, `%`, `**`, `==`, `!=`, `>`, `>=`, `<`, and `<=`; assignment, indexing, calls, `and`, `or`, `xor`, and unary operators are not overloadable.
+- Overload resolution uses only the left operand's alias type. The right operand must satisfy the single declared parameter, comparison overloads return `Bool`, and compound `+=`, `-=`, `*=`, and `/=` require the overload result to remain assignable to the mutable binding.
 - Alias functions may declare members, traits, impls, allocation hooks, deallocation hooks, side-effect hooks, and extension methods in the same block.
 - Struct-style alias functions are first-class static object types: constructor parameters become readable fields on `this`, `#extend` methods are type checked with the receiver in scope, generic arguments inferred from constructor calls flow into fields and methods, and methods may return either the bare alias name or a specialized alias type from the same alias family.
 - Alias-function generic parameters may be placed immediately after `function` or after the alias name, but not in both positions. Both forms support trait bounds, named constraints, and nested `restrict[...]` allow-lists, which are enforced when constructor arguments specialize the alias type.

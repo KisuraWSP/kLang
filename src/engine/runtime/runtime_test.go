@@ -3266,6 +3266,46 @@ function Main() : Int {
 	assertRuntimeErrorContains(t, err, "method Counter.add argument 1 expects Int")
 }
 
+func TestRuntimeExecutesAliasOperatorOverloads(t *testing.T) {
+	result := runParsedSource(t, `
+alias function Vector(x : Int, y : Int) : type = struct {
+    operator +(other : Vector) : Vector {
+        return Vector(this.x + other.x, this.y + other.y);
+    }
+
+    operator *(factor : Int) : Vector {
+        return Vector(this.x * factor, this.y * factor);
+    }
+
+    operator **(power : Int) : Vector {
+        return Vector(this.x ** power, this.y ** power);
+    }
+
+    operator ==(other : Vector) : Bool {
+        return this.x == other.x and this.y == other.y;
+    }
+
+    operator !=(other : Vector) : Bool {
+        return not (this == other);
+    }
+}
+
+function Main() : Int {
+    local mut Vector total = Vector(1, 2) + Vector(3, 4);
+    total += Vector(1, 1);
+    local Vector scaled = total * 2;
+    local Vector powered = Vector(2, 3) ** 2;
+    assert total == Vector(5, 7);
+    assert scaled != Vector(1, 1);
+    return scaled.x + scaled.y + powered.x + powered.y;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 37 {
+		t.Fatalf("expected overloaded vector operators to return 37, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesStandaloneExtensionMethods(t *testing.T) {
 	result := runParsedSource(t, `
 alias function Duration(value : Int) : type = struct {
@@ -3302,6 +3342,39 @@ function Main() : Int {
 
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 2 {
 		t.Fatalf("expected chained standalone extensions to return 2, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesGenericListExtensionMethods(t *testing.T) {
+	result := runParsedSource(t, `
+#extend List[T] {
+    function first_or(fallback : T) : T {
+        if len(this) == 0 {
+            return fallback;
+        }
+        return this[0];
+    }
+
+    function reversed() : List[T] {
+        local mut List[T] result;
+        local mut Int index = len(this) - 1;
+        while index >= 0 {
+            result[len(result)] = this[index];
+            index -= 1;
+        }
+        return result;
+    }
+}
+
+function Main() : Int {
+    local List[Int] values = [4, 5, 6];
+    local List[Int] reversed = values.reversed();
+    return values.first_or(0) + reversed[0];
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 10 {
+		t.Fatalf("expected generic List extensions to return 10, got %#v", result.Value)
 	}
 }
 

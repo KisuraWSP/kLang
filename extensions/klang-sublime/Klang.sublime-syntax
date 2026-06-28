@@ -139,7 +139,7 @@ contexts:
       scope: storage.modifier.annotation.deprecated.klang
 
   keywords:
-    - match: '\b(if|then|else|unless|for|while|do|do_while|end|return|break|continue|try|catch|throw|case|partial|await|import|namespace|region|alias|call|inner|function_group)\b'
+    - match: '\b(if|then|else|unless|for|while|do|do_while|end|return|break|continue|try|catch|throw|case|partial|await|import|namespace|region|alias|call|inner|function_group|operator)\b'
       scope: keyword.control.klang
     - match: '\b(and|or|xor|not|is|as|in)\b'
       scope: keyword.operator.word.klang

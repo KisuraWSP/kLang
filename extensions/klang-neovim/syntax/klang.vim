@@ -4,7 +4,7 @@ endif
 
 syn case match
 
-syn keyword klangKeyword if then else unless for while do do_while end return break continue try catch throw case partial import namespace region alias call function function_group trait impl
+syn keyword klangKeyword if then else unless for while do do_while end return break continue try catch throw case partial import namespace region alias call function function_group trait impl operator
 syn keyword klangKeyword await defer private inline lazy async inner
 syn keyword klangOperator and or xor not is as in move copy clone
 syn keyword klangStorage global local let var val const mut export restrict

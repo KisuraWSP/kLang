@@ -40,7 +40,7 @@ kLang currently experiments with:
 - Shared builtin protocols such as `.count`, `.uppercase()`, `.lowercase()`, and integer `.times(...)`.
 - Copy-on-write aggregate storage for `List`, `Map`, `Table`, and `SIMD`.
 - Lua-style `Table` as the only dynamically typed container.
-- Alias functions for constructor-like custom data types, plus standalone extension methods for builtin and alias-struct receivers.
+- Alias functions for constructor-like custom data types, binary operator overloads, and standalone extension methods for builtin and alias-struct receivers.
 - Async functions, awaitable values, iterators, coroutines, and interpreter worker threads.
 - `Atomic[T]` for race-safe shared values.
 - Builtin allocator and reference-style values such as `Box`, `Ref`, `RefMut`, and `RefCell`.

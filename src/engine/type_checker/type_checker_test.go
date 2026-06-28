@@ -2558,6 +2558,72 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "callback counter.add argument 1 expects Int, got String")
 }
 
+func TestCheckProgramAcceptsAliasOperatorOverloads(t *testing.T) {
+	program := programFromSource(`
+alias function Vector(x : Int, y : Int) : type = struct {
+    operator +(other : Vector) : Vector {
+        return Vector(this.x + other.x, this.y + other.y);
+    }
+
+    operator ==(other : Vector) : Bool {
+        return this.x == other.x and this.y == other.y;
+    }
+
+    operator **(power : Int) : Vector {
+        return Vector(this.x ** power, this.y ** power);
+    }
+}
+
+function Main() : Int {
+    local mut Vector total = Vector(1, 2) + Vector(3, 4);
+    total += Vector(1, 1);
+    local Vector powered = Vector(2, 3) ** 2;
+    if total == Vector(5, 7) {
+        return total.x + total.y + powered.x + powered.y;
+    }
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected alias operator overloads to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsAliasOperatorOperandMismatch(t *testing.T) {
+	program := programFromSource(`
+alias function Vector(x : Int) : type = struct {
+    operator +(other : Vector) : Vector {
+        return Vector(this.x + other.x);
+    }
+}
+
+function Main() : Int {
+    local Vector invalid = Vector(1) + 2;
+    return invalid.x;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "operator + on Vector expects Vector, got Int")
+}
+
+func TestCheckProgramRejectsInvalidComparisonOperatorReturn(t *testing.T) {
+	program := programFromSource(`
+alias function Vector(x : Int) : type = struct {
+    operator ==(other : Vector) : Int {
+        return this.x - other.x;
+    }
+}
+
+function Main() : Int {
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "comparison operator == must return Bool")
+}
+
 func TestCheckProgramAcceptsStandaloneExtensionMethods(t *testing.T) {
 	program := programFromSource(`
 alias function Duration(value : Int) : type = struct {
@@ -2653,6 +2719,47 @@ function Main() : Int {
 	if !report.Passed() {
 		t.Fatalf("expected nested Boolean literal extension call to type check, got %#v", report.Errors)
 	}
+}
+
+func TestCheckProgramSpecializesGenericListExtensionReceiver(t *testing.T) {
+	program := programFromSource(`
+#extend List[T] {
+    function first_or(fallback : T) : T {
+        if len(this) == 0 {
+            return fallback;
+        }
+        return this[0];
+    }
+}
+
+function Main() : Int {
+    local List[Int] values = [4, 5];
+    local Int first = values.first_or(0);
+    return first;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected generic List extension to specialize to Int, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsGenericListExtensionArgumentMismatch(t *testing.T) {
+	program := programFromSource(`
+#extend List[T] {
+    function first_or(fallback : T) : T {
+        return fallback;
+    }
+}
+
+function Main() : Int {
+    local List[Int] values = [4, 5];
+    return values.first_or("bad");
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "expects Int, got String")
 }
 
 func TestCheckProgramAcceptsAllocatorConstructors(t *testing.T) {

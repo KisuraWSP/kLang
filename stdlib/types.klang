@@ -60,6 +60,90 @@ global namespace types {
         }
         return 0;
     }
+
+    function coerce_at_least(minimum : Int) : Int {
+        if this < minimum {
+            return minimum;
+        }
+        return this;
+    }
+
+    function coerce_at_most(maximum : Int) : Int {
+        if this > maximum {
+            return maximum;
+        }
+        return this;
+    }
+
+    function coerce_in(minimum : Int, maximum : Int) : Int {
+        return this.clamp(minimum, maximum);
+    }
+
+    function compare_to(other : Int) : Int {
+        if this < other {
+            return 0 - 1;
+        }
+        if this > other {
+            return 1;
+        }
+        return 0;
+    }
+
+    function minimum(other : Int) : Int {
+        if this < other {
+            return this;
+        }
+        return other;
+    }
+
+    function maximum(other : Int) : Int {
+        if this > other {
+            return this;
+        }
+        return other;
+    }
+
+    function is_positive() : Bool {
+        return this > 0;
+    }
+
+    function is_negative() : Bool {
+        return this < 0;
+    }
+
+    function is_zero() : Bool {
+        return this == 0;
+    }
+
+    function incremented() : Int {
+        return this + 1;
+    }
+
+    function decremented() : Int {
+        return this - 1;
+    }
+
+    function until(limit : Int) : List[Int] {
+        _ = limit;
+        local mut List[Int] result;
+        local mut Int value = this;
+        while value < limit {
+            result[len(result)] = value;
+            value += 1;
+        }
+        return result;
+    }
+
+    function down_to(limit : Int) : List[Int] {
+        _ = limit;
+        local mut List[Int] result;
+        local mut Int value = this;
+        while value >= limit {
+            result[len(result)] = value;
+            value -= 1;
+        }
+        return result;
+    }
 }
 
 --- FLOAT EXTENSIONS
@@ -85,6 +169,64 @@ global namespace types {
     function between(minimum : Float, maximum : Float) : Bool {
         return this >= minimum and this <= maximum;
     }
+
+    function coerce_at_least(minimum : Float) : Float {
+        if this < minimum {
+            return minimum;
+        }
+        return this;
+    }
+
+    function coerce_at_most(maximum : Float) : Float {
+        if this > maximum {
+            return maximum;
+        }
+        return this;
+    }
+
+    function coerce_in(minimum : Float, maximum : Float) : Float {
+        return this.clamp(minimum, maximum);
+    }
+
+    function compare_to(other : Float) : Int {
+        if this < other {
+            return 0 - 1;
+        }
+        if this > other {
+            return 1;
+        }
+        return 0;
+    }
+
+    function minimum(other : Float) : Float {
+        if this < other {
+            return this;
+        }
+        return other;
+    }
+
+    function maximum(other : Float) : Float {
+        if this > other {
+            return this;
+        }
+        return other;
+    }
+
+    function is_positive() : Bool {
+        return this > 0.0;
+    }
+
+    function is_negative() : Bool {
+        return this < 0.0;
+    }
+
+    function is_zero() : Bool {
+        return this == 0.0;
+    }
+
+    function to_int() : Int {
+        return this as Int;
+    }
 }
 
 --- BOOL EXTENSIONS
@@ -94,6 +236,24 @@ global namespace types {
             return 1;
         }
         return 0;
+    }
+
+    function inverse() : Bool {
+        return not this;
+    }
+
+    function to_string() : String {
+        if this {
+            return "True";
+        }
+        return "False";
+    }
+
+    function choose_string(when_true : String, when_false : String) : String {
+        if this {
+            return when_true;
+        }
+        return when_false;
     }
 }
 
@@ -113,11 +273,306 @@ global namespace types {
     function surrounded(prefix : String, suffix : String = "") : String {
         return prefix + this + suffix;
     }
+
+    function is_not_empty() : Bool {
+        return not this.is_empty();
+    }
+
+    function if_empty(fallback : String) : String {
+        return this.or_else(fallback);
+    }
+
+    function prepend(prefix : String) : String {
+        return prefix + this;
+    }
+
+    function append(suffix : String) : String {
+        return this + suffix;
+    }
+
+    function repeat(count : Int) : String {
+        local mut String result = "";
+        local mut Int remaining = count;
+        _ = remaining;
+        while remaining > 0 {
+            result += this;
+            remaining -= 1;
+        }
+        return result;
+    }
+
+    function substring(start : Int, count : Int) : String {
+        local mut String result = "";
+        if count <= 0 {
+            return result;
+        }
+        local mut Int index = start.coerce_at_least(0);
+        local Int stop = (index + count).coerce_at_most(len(this));
+        _ = stop;
+        while index < stop {
+            result += this[index] as String;
+            index += 1;
+        }
+        return result;
+    }
+
+    function take(count : Int) : String {
+        return this.substring(0, count);
+    }
+
+    function drop(count : Int) : String {
+        local Int start = count.coerce_in(0, len(this));
+        return this.substring(start, len(this) - start);
+    }
+
+    function take_last(count : Int) : String {
+        local Int size = count.coerce_in(0, len(this));
+        _ = size;
+        return this.substring(len(this) - size, size);
+    }
+
+    function drop_last(count : Int) : String {
+        local Int size = count.coerce_in(0, len(this));
+        _ = size;
+        return this.substring(0, len(this) - size);
+    }
+
+    function first_or(fallback : Char) : Char {
+        if this.is_empty() {
+            return fallback;
+        }
+        return this[0];
+    }
+
+    function last_or(fallback : Char) : Char {
+        if this.is_empty() {
+            return fallback;
+        }
+        return this[len(this) - 1];
+    }
+
+    function starts_with(prefix : String) : Bool {
+        if len(prefix) > len(this) {
+            return False;
+        }
+        return this.substring(0, len(prefix)) == prefix;
+    }
+
+    function ends_with(suffix : String) : Bool {
+        if len(suffix) > len(this) {
+            return False;
+        }
+        return this.substring(len(this) - len(suffix), len(suffix)) == suffix;
+    }
+
+    function index_of(part : String) : Int {
+        if part.is_empty() {
+            return 0;
+        }
+        local mut Int index = 0;
+        while index + len(part) <= len(this) {
+            if this.substring(index, len(part)) == part {
+                return index;
+            }
+            index += 1;
+        }
+        return 0 - 1;
+    }
+
+    function last_index_of(part : String) : Int {
+        if part.is_empty() {
+            return len(this);
+        }
+        local mut Int index = len(this) - len(part);
+        while index >= 0 {
+            if this.substring(index, len(part)) == part {
+                return index;
+            }
+            index -= 1;
+        }
+        return 0 - 1;
+    }
+
+    function contains(part : String) : Bool {
+        return this.index_of(part) >= 0;
+    }
+
+    function reversed() : String {
+        local mut String result = "";
+        local mut Int index = len(this) - 1;
+        while index >= 0 {
+            result += this[index] as String;
+            index -= 1;
+        }
+        return result;
+    }
+
+    function remove_prefix(prefix : String) : String {
+        if this.starts_with(prefix) {
+            return this.drop(len(prefix));
+        }
+        return this;
+    }
+
+    function remove_suffix(suffix : String) : String {
+        if this.ends_with(suffix) {
+            return this.drop_last(len(suffix));
+        }
+        return this;
+    }
+
+    function pad_start(width : Int, fill : String = " ") : String {
+        if len(this) >= width or fill.is_empty() {
+            return this;
+        }
+        local Int amount = width - len(this);
+        return fill.repeat(amount).take(amount) + this;
+    }
+
+    function pad_end(width : Int, fill : String = " ") : String {
+        if len(this) >= width or fill.is_empty() {
+            return this;
+        }
+        local Int amount = width - len(this);
+        return this + fill.repeat(amount).take(amount);
+    }
 }
 
 --- CHAR EXTENSIONS
 #extend Char {
     function to_string() : String {
         return "" + this;
+    }
+
+    function is_digit() : Bool {
+        return this >= '0' and this <= '9';
+    }
+
+    function is_lowercase_ascii() : Bool {
+        return this >= 'a' and this <= 'z';
+    }
+
+    function is_uppercase_ascii() : Bool {
+        return this >= 'A' and this <= 'Z';
+    }
+
+    function is_letter_ascii() : Bool {
+        return this.is_lowercase_ascii() or this.is_uppercase_ascii();
+    }
+
+    function is_whitespace() : Bool {
+        return this == ' ' or this == '\n' or this == '\t' or this == '\r';
+    }
+
+    function repeat(count : Int) : String {
+        return this.to_string().repeat(count);
+    }
+
+    function digit_to_int_or(fallback : Int) : Int {
+        if not this.is_digit() {
+            return fallback;
+        }
+        if this == '0' { return 0; }
+        if this == '1' { return 1; }
+        if this == '2' { return 2; }
+        if this == '3' { return 3; }
+        if this == '4' { return 4; }
+        if this == '5' { return 5; }
+        if this == '6' { return 6; }
+        if this == '7' { return 7; }
+        if this == '8' { return 8; }
+        return 9;
+    }
+}
+
+--- LIST EXTENSIONS
+--- Generic immutable collection conveniences inspired by Kotlin collections.
+#extend List[T] {
+    function is_empty() : Bool {
+        return this.count == 0;
+    }
+
+    function is_not_empty() : Bool {
+        return this.count != 0;
+    }
+
+    function first_or(fallback : T) : T {
+        if this.is_empty() {
+            return fallback;
+        }
+        return this[0];
+    }
+
+    function last_or(fallback : T) : T {
+        if this.is_empty() {
+            return fallback;
+        }
+        return this[len(this) - 1];
+    }
+
+    function contains(value : T) : Bool {
+        local mut Int index = 0;
+        while index < len(this) {
+            if this[index] == value {
+                return True;
+            }
+            index += 1;
+        }
+        return False;
+    }
+
+    function index_of(value : T) : Int {
+        local mut Int index = 0;
+        while index < len(this) {
+            if this[index] == value {
+                return index;
+            }
+            index += 1;
+        }
+        return 0 - 1;
+    }
+
+    function take(count : Int) : List[T] {
+        local mut List[T] result;
+        local Int limit = count.coerce_in(0, len(this));
+        _ = limit;
+        local mut Int index = 0;
+        while index < limit {
+            result[len(result)] = this[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    function drop(count : Int) : List[T] {
+        local mut List[T] result;
+        local mut Int index = count.coerce_in(0, len(this));
+        while index < len(this) {
+            result[len(result)] = this[index];
+            index += 1;
+        }
+        return result;
+    }
+
+    function take_last(count : Int) : List[T] {
+        local Int size = count.coerce_in(0, len(this));
+        _ = size;
+        return this.drop(len(this) - size);
+    }
+
+    function drop_last(count : Int) : List[T] {
+        local Int size = count.coerce_in(0, len(this));
+        _ = size;
+        return this.take(len(this) - size);
+    }
+
+    function reversed() : List[T] {
+        local mut List[T] result;
+        local mut Int index = len(this) - 1;
+        while index >= 0 {
+            result[len(result)] = this[index];
+            index -= 1;
+        }
+        return result;
     }
 }

@@ -45,7 +45,7 @@ function Main() : Int {
 		t.Fatalf("unexpected JS output: %#v", output)
 	}
 	source := string(output.Artifacts[0].Content)
-	for _, expected := range []string{"function k_Sum", "while (", "k_total = __klang_add(k_total, k_index)", "__klang_print(k_result)", "k_Main();"} {
+	for _, expected := range []string{"function k_Sum", "while (", "k_total = __klang_binary(k_total, \"+\", k_index)", "__klang_print(k_result)", "k_Main();"} {
 		if !strings.Contains(source, expected) {
 			t.Fatalf("generated JS missing %q:\n%s", expected, source)
 		}
@@ -304,7 +304,7 @@ function Main() : Int {
 		t.Fatalf("emit namespaces: %v", err)
 	}
 	source := string(output.Artifacts[0].Content)
-	for _, expected := range []string{"function k_math_u2e_Double", "k_math_u2e_Double(__klang_copy(__klang_add(k_left, k_right)))", "k_platform_u2e_Bias()"} {
+	for _, expected := range []string{"function k_math_u2e_Double", "k_math_u2e_Double(__klang_copy(__klang_binary(k_left, \"+\", k_right)))", "k_platform_u2e_Bias()"} {
 		if !strings.Contains(source, expected) {
 			t.Fatalf("generated namespace JS missing %q:\n%s", expected, source)
 		}
@@ -536,6 +536,57 @@ function Main() : Int {
 		printed, runErr := command.CombinedOutput()
 		if runErr != nil || strings.TrimSpace(string(printed)) != "[core] -10" {
 			t.Fatalf("generated extension program failed: %v\n%s", runErr, printed)
+		}
+	}
+}
+
+func TestJavaScriptBackendExecutesAliasOperatorOverloads(t *testing.T) {
+	request := requestFromSource(`
+alias function Vector(x : Int, y : Int) : type = struct {
+    operator +(other : Vector) : Vector {
+        return Vector(this.x + other.x, this.y + other.y);
+    }
+
+    operator *(factor : Int) : Vector {
+        return Vector(this.x * factor, this.y * factor);
+    }
+
+    operator ==(other : Vector) : Bool {
+        return this.x == other.x and this.y == other.y;
+    }
+}
+
+function Main() : Int {
+    local mut Vector total = Vector(1, 2) + Vector(3, 4);
+    total += Vector(1, 1);
+    local Vector scaled = total * 2;
+    print(total == Vector(5, 7), scaled.x, scaled.y);
+    return 0;
+}
+`)
+	compiler := New()
+	if diagnostics := compiler.Check(request); len(diagnostics) != 0 {
+		t.Fatalf("unexpected operator diagnostics: %#v", diagnostics)
+	}
+	output, err := compiler.Emit(request)
+	if err != nil {
+		t.Fatalf("emit operator overloads: %v", err)
+	}
+	source := string(output.Artifacts[0].Content)
+	for _, expected := range []string{"__klang_binary", "__operator_add", "__operator_equal"} {
+		if !strings.Contains(source, expected) {
+			t.Fatalf("generated operator JS missing %q:\n%s", expected, source)
+		}
+	}
+	if node, lookupErr := exec.LookPath("node"); lookupErr == nil {
+		bundle := t.TempDir()
+		if err := compiler.Package(output, bundle); err != nil {
+			t.Fatalf("package operator program: %v", err)
+		}
+		command := exec.Command(node, filepath.Join(bundle, "program.js"))
+		printed, runErr := command.CombinedOutput()
+		if runErr != nil || strings.TrimSpace(string(printed)) != "True 10 14" {
+			t.Fatalf("generated operator program failed: %v\n%s", runErr, printed)
 		}
 	}
 }
