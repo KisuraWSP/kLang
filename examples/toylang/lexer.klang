@@ -1,0 +1,30 @@
+import "list";
+
+namespace TapeLexer {
+    function Tokenize(source : String) : Result[command_stream, String] {
+        local mut command_stream commands;
+        local mut Bool comment = False;
+        local Iterator[Char] characters = iter(source);
+        local mut Option[Char] current = next(characters);
+
+        while current.some {
+            local Char value = current.value;
+
+            if value == '#' {
+                comment = not comment;
+            } else {
+                if not comment and value.is_tape_command() {
+                    commands = list.append(commands, value);
+                }
+            }
+
+            current = next(characters);
+        }
+
+        if comment {
+            return Err("unterminated '#' comment");
+        }
+
+        return Ok(commands);
+    }
+}

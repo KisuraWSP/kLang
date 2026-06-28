@@ -1,0 +1,128 @@
+import "list";
+
+namespace SalesAnalyzer {
+    function Money(value : Float) : Float {
+        local Int cents =(value * 100.0 + 0.5) as Int;
+        return(cents as Float) / 100.0;
+    }
+
+    function AddUnits(total : Int, sale : Sale) : Int {
+        return total + sale.units;
+    }
+
+    function AddRevenue(total : Float, sale : Sale) : Float {
+        return total + sale.revenue();
+    }
+
+    function UniqueRegions(rows : sales) : string_list {
+        local mut string_list names;
+        local mut Int index = 0;
+
+        while index < rows.count {
+            local String name = rows[index].area;
+            if not list.contains(names, name) {
+                names = list.append(names, name);
+            }
+            index += 1;
+        }
+
+        return names;
+    }
+
+    function UniqueProducts(rows : sales) : string_list {
+        local mut string_list names;
+        local mut Int index = 0;
+
+        while index < rows.count {
+            local String name = rows[index].product;
+            if not list.contains(names, name) {
+                names = list.append(names, name);
+            }
+            index += 1;
+        }
+
+        return names;
+    }
+
+    function Summarize(rows : sales, names : string_list, byRegion : Bool) : group_totals {
+        local mut group_totals groups;
+        local mut Int nameIndex = 0;
+
+        while nameIndex < names.count {
+            local String name = names[nameIndex];
+            local mut Int units = 0;
+            local mut Float revenue = 0.0;
+            local mut Int rowIndex = 0;
+
+            while rowIndex < rows.count {
+                local Sale sale = rows[rowIndex];
+                local mut Bool matches = sale.product == name;
+                if byRegion {
+                    matches = sale.area == name;
+                }
+
+                if matches {
+                    units += sale.units;
+                    revenue += sale.revenue();
+                }
+                rowIndex += 1;
+            }
+
+            groups = list.append(
+            groups,
+            GroupTotal(name, units, Money(revenue))
+            );
+            nameIndex += 1;
+        }
+
+        return groups;
+    }
+
+    function HighestRevenue(groups : group_totals) : GroupTotal {
+        local mut GroupTotal highest = groups[0];
+        local mut Int index = 1;
+
+        while index < groups.count {
+            if groups[index].revenue > highest.revenue {
+                highest = groups[index];
+            }
+            index += 1;
+        }
+
+        return highest;
+    }
+
+    function HighestUnits(groups : group_totals) : GroupTotal {
+        local mut GroupTotal highest = groups[0];
+        local mut Int index = 1;
+
+        while index < groups.count {
+            if groups[index].units > highest.units {
+                highest = groups[index];
+            }
+            index += 1;
+        }
+
+        return highest;
+    }
+
+    function Analyze(dataset : Dataset) : Analysis {
+        local sales rows = dataset.rows;
+        local Int totalUnits = list.fold(rows, 0, AddUnits);
+        local Float totalRevenue = Money(list.fold(rows, 0.0, AddRevenue));
+        local string_list regionNames = UniqueRegions(rows);
+        local string_list productNames = UniqueProducts(rows);
+        local group_totals regions = Summarize(rows, regionNames, True);
+        local group_totals products = Summarize(rows, productNames, False);
+
+        return Analysis(
+        dataset.row_count(),
+        totalUnits,
+        totalRevenue,
+        HighestRevenue(regions),
+        HighestUnits(products),
+        regions,
+        products
+        );
+    }
+}

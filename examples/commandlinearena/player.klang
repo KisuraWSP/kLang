@@ -1,14 +1,48 @@
 namespace Player {
-    function BuildNameScore(name : String) : Int {
-        local T boxedName = Box(name);
-        local Int length = len(name);
-        local mut Int score = 0;
+    function New(name : String, health : Int, attack : Int, defense : Int) : Table {
+        local mut Table fighter = {
+            "name" : "",
+            "health" : 0,
+            "attack" : 0,
+            "defense" : 0
+        };
+        fighter["name"] = name;
+        fighter["health"] = health;
+        fighter["attack"] = attack;
+        fighter["defense"] = defense;
+        return fighter;
+    }
 
-        for i := range(length) {
-            score += i + 1;
+    function Name(fighter : Table) : String {
+        return fighter.name as String;
+    }
+
+    function Health(fighter : Table) : Int {
+        return fighter.health as Int;
+    }
+
+    function Attack(fighter : Table) : Int {
+        return fighter.attack as Int;
+    }
+
+    function Defense(fighter : Table) : Int {
+        return fighter.defense as Int;
+    }
+
+    function IsAlive(fighter : Table) : Bool {
+        return Health(fighter) > 0;
+    }
+
+    function TakeDamage(fighter : Table, damage : Int) : Table {
+        local mut Table updated = fighter;
+        local Int remaining = Health(fighter) - damage;
+
+        if remaining < 0 {
+            updated["health"] = 0;
+            return updated;
         }
 
-        print("player", boxedName, length, score);
-        return score + length;
+        updated["health"] = remaining;
+        return updated;
     }
 }

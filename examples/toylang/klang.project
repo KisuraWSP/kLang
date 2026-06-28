@@ -1,0 +1,4 @@
+name = "toylang"
+entry = "first.klang"
+language_version = 1
+sources = ["first.klang", "model.klang", "app.klang", "lexer.klang", "parser.klang", "vm.klang"]

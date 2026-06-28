@@ -1,0 +1,179 @@
+import "list";
+import "strings";
+
+namespace CSV {
+    function IsUnsignedInteger(value : String) : Bool {
+        if len(value) == 0 {
+            return False;
+        }
+
+        local mut Int index = 0;
+        while index < value.count {
+            local Char digit = value[index];
+            if digit < '0' or digit > '9' {
+                return False;
+            }
+            index += 1;
+        }
+
+        return True;
+    }
+
+    function IsUnsignedDecimal(value : String) : Bool {
+        if len(value) == 0 {
+            return False;
+        }
+
+        local mut Int points = 0;
+        local mut Int digits = 0;
+        local mut Int index = 0;
+        while index < value.count {
+            local Char current = value[index];
+            if current == '.' {
+                points += 1;
+                if points > 1 {
+                    return False;
+                }
+            } else {
+                if current < '0' or current > '9' {
+                    return False;
+                }
+                digits += 1;
+            }
+            index += 1;
+        }
+
+        return digits > 0;
+    }
+
+    function ParseLine(line : String) : Result[string_list, String] {
+        local mut string_list fields;
+        local mut String field = "";
+        local mut Bool quoted = False;
+        local mut Int index = 0;
+
+        while index < line.count {
+            local Char current = line[index];
+
+            if current == '"' {
+                if quoted
+                and index + 1 < line.count
+                and line[index + 1] == '"' {
+                    field += current as String;
+                    index += 1;
+                } else {
+                    quoted = not quoted;
+                }
+            } else {
+                if current == ',' and not quoted {
+                    fields = list.append(fields, field);
+                    field = "";
+                } else {
+                    field += current as String;
+                }
+            }
+
+            index += 1;
+        }
+
+        if quoted {
+            return Err("unterminated quoted field");
+        }
+
+        fields = list.append(fields, field);
+        return Ok(fields);
+    }
+
+    function ParseSale(
+    fields : string_list,
+    lineNumber : Int
+    ) : Result[Sale, String] {
+        local String location = "line " +(lineNumber as String);
+
+        if fields.count != 5 {
+            return Err(
+            location
+            + ": expected 5 columns, found "
+            +(fields.count as String)
+            );
+        }
+        if not IsUnsignedInteger(fields[3]) {
+            return Err(location + ": units must be a non-negative integer");
+        }
+        if not IsUnsignedDecimal(fields[4]) {
+            return Err(location + ": unit_price must be a non-negative number");
+        }
+
+        local Int units = fields[3] as Int;
+        local Float unitPrice = fields[4] as Float;
+        if units <= 0 {
+            return Err(location + ": units must be greater than zero");
+        }
+        if unitPrice <= 0.0 {
+            return Err(location + ": unit_price must be greater than zero");
+        }
+
+        return Ok(Sale(
+        fields[0],
+        fields[1],
+        fields[2],
+        units,
+        unitPrice
+        ));
+    }
+
+    function Parse(lines : string_list) : Result[Dataset, String] {
+        if lines.count == 0 {
+            return Err("CSV file is empty");
+        }
+
+        local Result[string_list, String] parsedHeader = ParseLine(lines[0]);
+        local string_list expected =[
+        "date", "region", "product", "units", "unit_price"
+        ];
+
+        if parsedHeader == {
+        case Ok(header) :
+            if header != expected {
+                return Err(
+                "expected header "
+                + strings.Join(expected, ",")
+                + ", found "
+                + strings.Join(header, ",")
+                );
+            }
+
+            local mut sales rows;
+            local mut Int index = 1;
+            while index < lines.count {
+                if len(lines[index]) > 0 {
+                    local Result[string_list, String] parsedRow = ParseLine(lines[index]);
+                    if parsedRow == {
+                    case Ok(fields) :
+                        local Result[Sale, String] parsedSale = ParseSale(fields, index + 1);
+                        if parsedSale == {
+                        case Ok(sale) :
+                            rows = list.append(rows, sale);
+                        case Err(message) :
+                            return Err(message);
+                        }
+                    case Err(message) :
+                        return Err(
+                        "line " +((index + 1) as String) + ": " + message
+                        );
+                    }
+                }
+                index += 1;
+            }
+
+            if rows.count == 0 {
+                return Err("CSV file contains no sales rows");
+            }
+            return Ok(Dataset(header, rows));
+        case Err(message) :
+            return Err("header: " + message);
+        }
+
+        return Err("CSV parser reached an invalid state");
+    }
+}

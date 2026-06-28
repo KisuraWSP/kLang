@@ -1,0 +1,4 @@
+name = "csvfileanalyzer"
+entry = "first.klang"
+language_version = 1
+sources = ["first.klang", "model.klang", "app.klang", "csv.klang", "analyzer.klang"]

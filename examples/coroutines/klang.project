@@ -1,0 +1,4 @@
+name = "coroutines"
+entry = "first.klang"
+language_version = 1
+sources = ["first.klang", "app.klang"]

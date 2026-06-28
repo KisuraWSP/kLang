@@ -1,34 +1,85 @@
-# CSV File Analyzer
+# CSV Sales Analyzer
 
-Shows a typed CSV-analysis style workflow with lists, parsing helpers, and reporting output.
-## Files
+Reads a sales CSV file, parses quoted fields, validates its schema and numeric
+columns, builds typed records, and produces regional and product analytics.
 
-- `first.klang` is the project entry file.
-- `app.klang` contains the main example module when present.
-- Extra `.klang` files are local modules used by this example.
+The bundled data includes a quoted product name containing a comma:
+`"Monitor, 27 inch"`.
 
-## Try It
+## Features
 
-Check the example:
+- Native `File.read_lines()` with typed `Result` error handling.
+- Quote-aware parsing for commas and escaped `""` quote characters.
+- Header validation for `date,region,product,units,unit_price`.
+- Row and column diagnostics with numeric and positive-value validation.
+- Struct-style `Sale`, `Dataset`, `GroupTotal`, and `Analysis` aliases.
+- Alias methods for revenue, row counts, and date ranges.
+- Compile-time aliases for record and summary lists.
+- Standard-library `list.append`, `list.contains`, and `list.fold`.
+- Cent-based money rounding and two-decimal currency formatting.
+- Optional nested JSON serialization with alias field tags.
+- Command-line selection of alternate CSV files through `args` and `option`.
+
+Each CSV record must occupy one physical line. The parser supports quoted
+commas and doubled quotes but intentionally does not combine multiline fields.
+
+## Project Files
+
+- `model.klang` defines typed records and JSON field mappings.
+- `csv.klang` parses and validates CSV input.
+- `analyzer.klang` calculates totals and grouped summaries.
+- `app.klang` handles files, CLI arguments, reports, and JSON output.
+- `data/sales.csv` contains the valid sales fixture.
+- `data/malformed.csv` demonstrates an unterminated quote diagnostic.
+- `first.klang` provides the required `Main() : Int` entry point.
+- `klang.project` defines the five-source workspace.
+
+## Command Line
+
+Check and run the default data:
 
 ```sh
 go run . check examples/csvfileanalyzer
-```
-
-Run the example through the interpreter:
-
-```sh
 go run . run examples/csvfileanalyzer
 ```
 
-Package it as a browser WASM bundle:
+Pass another CSV file as the first program argument:
 
 ```sh
-go run . package examples/csvfileanalyzer --backend=WASM
+go run . run examples/csvfileanalyzer path/to/sales.csv
 ```
 
-Serve it directly with the built-in browser runtime server:
+Add `json` to print the typed `Analysis` as JSON:
 
 ```sh
-go run . serve examples/csvfileanalyzer --port=8080
+go run . run examples/csvfileanalyzer examples/csvfileanalyzer/data/sales.csv json
+```
+
+Run the intentional parse failure:
+
+```sh
+go run . run examples/csvfileanalyzer examples/csvfileanalyzer/data/malformed.csv
+```
+
+```text
+CSV parse error: line 2: unterminated quoted field
+```
+
+## Expected Output
+
+```text
+CSV SALES ANALYZER
+==================
+File: examples/csvfileanalyzer/data/sales.csv
+Period: 2026-06-01 to 2026-06-08
+Rows: 8
+Units sold: 36
+Revenue: USD 3529.93
+Top region: West (USD 1412.49)
+Top product: Webcam (15 units)
+
+Regional breakdown:
+- North: 16 units, USD 1381.46
+- West: 10 units, USD 1412.49
+- East: 10 units, USD 735.98
 ```

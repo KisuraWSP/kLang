@@ -1,36 +1,46 @@
 namespace Simulation {
-    function FinalScore(total : Int, size : Int) : Int {
-        local T boxedTotal = Box(total);
-        local T restrict[Int] cells = size * size;
-        local T restrict[Int] finalScore = total + cells;
-
-        print("score", boxedTotal, cells, finalScore);
-        return finalScore;
+    function MatchResult(winner : Table, loser : Table, rounds : Int) : Table {
+        local mut Table result = { "winner" : { }, "loser" : { }, "rounds" : 0 };
+        result["winner"] = winner;
+        result["loser"] = loser;
+        result["rounds"] = rounds;
+        return result;
     }
 
-    function DuelRound(row : Int, col : Int, nameScore : Int) : Int {
-        local Int terrain = GameRules.CellPower(row, col, nameScore);
+    function Run(first : Table, second : Table, maxRounds : Int) : Table {
+        assert maxRounds > 0;
 
-        if (row + col) % 2 == 0 {
-            return terrain + nameScore % 5;
-        }
+        local mut Table fighterOne = first;
+        local mut Table fighterTwo = second;
+        local mut Int roundsPlayed = 0;
+        local mut Int round = 1;
 
-        return terrain;
-    }
+        while round <= maxRounds {
+            roundsPlayed = round;
+            Arena.ShowRound(round);
 
-    function Run(playerName : String, size : Int, nameScore : Int) : Int {
-        local List[Int] rows = Arena.BuildIndexes(size);
-        local List[Int] cols = Arena.BuildIndexes(size);
-        local mut Int total = Arena.StartEnergy(size, nameScore);
+            local Int firstDamage = GameRules.Damage(fighterOne, fighterTwo, round);
+            fighterTwo = Player.TakeDamage(fighterTwo, firstDamage);
+            Arena.ShowHit(fighterOne, fighterTwo, firstDamage);
 
-        for row := range(size) {
-            for col := range(size) {
-                total += DuelRound(rows[row], cols[col], nameScore);
+            if not Player.IsAlive(fighterTwo) {
+                break;
             }
+
+            local Int secondDamage = GameRules.Damage(fighterTwo, fighterOne, round);
+            fighterOne = Player.TakeDamage(fighterOne, secondDamage);
+            Arena.ShowHit(fighterTwo, fighterOne, secondDamage);
+
+            if not Player.IsAlive(fighterOne) {
+                break;
+            }
+
+            round += 1;
         }
 
-        local Int finalScore = FinalScore(total, size);
-        print("simulation", playerName, size, finalScore);
-        return finalScore;
+        if Player.Health(fighterOne) >= Player.Health(fighterTwo) {
+            return MatchResult(fighterOne, fighterTwo, roundsPlayed);
+        }
+        return MatchResult(fighterTwo, fighterOne, roundsPlayed);
     }
 }

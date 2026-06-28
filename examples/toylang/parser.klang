@@ -1,0 +1,133 @@
+import "list";
+
+namespace TapeParser {
+    function IsRepeatable(command : Char) : Bool {
+        return command == '>'
+        or command == '<'
+        or command == '+'
+        or command == '-';
+    }
+
+    function Decode(command : Char) : OpCode {
+        if command == '>' {
+            return OpCode.MoveRight;
+        }
+        if command == '<' {
+            return OpCode.MoveLeft;
+        }
+        if command == '+' {
+            return OpCode.Increment;
+        }
+        if command == '-' {
+            return OpCode.Decrement;
+        }
+        if command == '.' {
+            return OpCode.EmitChar;
+        }
+        if command == ',' {
+            return OpCode.ReadChar;
+        }
+        if command == '[' {
+            return OpCode.LoopStart;
+        }
+        if command == ']' {
+            return OpCode.LoopEnd;
+        }
+        if command == '0' {
+            return OpCode.Clear;
+        }
+        if command == ':' {
+            return OpCode.EmitNumber;
+        }
+        if command == ';' {
+            return OpCode.EmitNewline;
+        }
+        if command == '?' {
+            return OpCode.Trace;
+        }
+        return OpCode.Double;
+    }
+
+    function EmitBytecode(commands : command_stream) : bytecode {
+        local mut bytecode instructions;
+        local mut Int offset = 0;
+
+        while offset < commands.count {
+            local Char command = commands[offset];
+            local mut Int repeats = 1;
+
+            if IsRepeatable(command) {
+                while offset + repeats < commands.count
+                and commands[offset + repeats] == command {
+                    repeats += 1;
+                }
+            }
+
+            local Instruction instruction = Instruction(
+            Decode(command),
+            repeats,
+            offset
+            );
+            instructions = list.append(instructions, instruction);
+            offset += repeats;
+        }
+
+        return instructions;
+    }
+
+    function Link(commands : command_stream) : Result[TapeProgram, String] {
+        local bytecode instructions = EmitBytecode(commands);
+        local mut List[Int] stack;
+        local mut jump_table jumps;
+        local mut Int index = 0;
+
+        while index < instructions.count {
+            local Instruction instruction = instructions[index];
+
+            if instruction.op == OpCode.LoopStart {
+                stack = list.append(stack, index);
+            } else {
+                if instruction.op == OpCode.LoopEnd {
+                    local Option[Int] opening = list.last(stack);
+                    if opening.some {
+                        local Int openingIndex = opening.value;
+                        stack = list.pop(stack, stack.count - 1);
+                        jumps[openingIndex] = index;
+                        jumps[index] = openingIndex;
+                    } else {
+                        return Err(
+                        "unmatched ']' at source command "
+                        +(instruction.sourceOffset as String)
+                        );
+                    }
+                }
+            }
+
+            index += 1;
+        }
+
+        local Option[Int] unclosed = list.last(stack);
+        if unclosed.some {
+            local Instruction opening = instructions[unclosed.value];
+            return Err(
+            "unmatched '[' at source command "
+            +(opening.sourceOffset as String)
+            );
+        }
+
+        return Ok(TapeProgram(instructions, jumps, commands.count));
+    }
+
+    function Compile(source : String) : Result[TapeProgram, String] {
+        local Result[command_stream, String] tokenized = TapeLexer.Tokenize(source);
+
+        if tokenized == {
+        case Ok(commands) :
+            return Link(commands);
+        case Err(message) :
+            return Err(message);
+        }
+
+        return Err("compiler reached an invalid state");
+    }
+}

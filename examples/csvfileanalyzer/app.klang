@@ -1,6 +1,116 @@
+import "args";
+import "json";
+import "option";
+
 namespace App {
-    function Start() : Int {
-        print("Welcome to csvfileanalyzer");
+    function SourcePath() : String {
+        return option.unwrap_or(
+        args.FIRST(),
+        "examples/csvfileanalyzer/data/sales.csv"
+        );
+    }
+
+    function Currency(value : Float) : String {
+        local Int cents =(value * 100.0 + 0.5) as Int;
+        local Int dollars = cents // 100;
+        local Int remainder = cents % 100;
+        local mut String decimal = remainder as String;
+        if remainder < 10 {
+            decimal = "0" + decimal;
+        }
+        local String amount =(dollars as String) + "." + decimal;
+        return "USD " + amount;
+    }
+
+    function ShowJSON(analysis : Analysis) : Int {
+        local Result[String, String] encoded = json.serialize(analysis);
+
+        if encoded == {
+        case Ok(document) :
+            print("");
+            print("Analysis JSON:");
+            print(document);
+            return 0;
+        case Err(message) :
+            print("JSON error:", message);
+            return 1;
+        }
+
+        return 1;
+    }
+
+    function ShowReport(path : String, dataset : Dataset, analysis : Analysis) : Int {
+        local GroupTotal topArea = analysis.topRegion;
+        local GroupTotal topProduct = analysis.topProduct;
+        local group_totals breakdown = analysis.regions;
+
+        print("CSV SALES ANALYZER");
+        print("==================");
+        print("File:", path);
+        print("Period:", dataset.first_date(), "to", dataset.last_date());
+        print("Rows:", analysis.rowCount);
+        print("Units sold:", analysis.totalUnits);
+        print("Revenue:", Currency(analysis.totalRevenue));
+        print(
+        "Top region:",
+        topArea.name,
+        "(" + Currency(topArea.revenue) + ")"
+        );
+        print(
+        "Top product:",
+        topProduct.name,
+        "(" +(topProduct.units as String) + " units)"
+        );
+        print("");
+        print("Regional breakdown:");
+
+        local mut Int index = 0;
+        while index < breakdown.count {
+            local GroupTotal areaTotal = breakdown[index];
+            print(
+            "-",
+            areaTotal.name + ":",
+            areaTotal.units,
+            "units,",
+            Currency(areaTotal.revenue)
+            );
+            index += 1;
+        }
+
+        if args.CONTAINS("json") {
+            _ = ShowJSON(analysis);
+        }
+
         return 0;
+    }
+
+    function AnalyzeLines(path : String, lines : string_list) : Int {
+        local Result[Dataset, String] parsed = CSV.Parse(lines);
+
+        if parsed == {
+        case Ok(dataset) :
+            local Analysis analysis = SalesAnalyzer.Analyze(dataset);
+            return ShowReport(path, dataset, analysis);
+        case Err(message) :
+            print("CSV parse error:", message);
+            return 1;
+        }
+
+        return 1;
+    }
+
+    function Start() : Int {
+        local String path = SourcePath();
+        local Result[List[String], String] lines = File(path).read_lines();
+
+        if lines == {
+        case Ok(content) :
+            return AnalyzeLines(path, content);
+        case Err(message) :
+            print("CSV file error:", message);
+            return 1;
+        }
+
+        return 1;
     }
 }

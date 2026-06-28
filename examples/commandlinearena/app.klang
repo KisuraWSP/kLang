@@ -1,12 +1,29 @@
 namespace App {
     function Start() : Int {
-        local String playerName = input("pilot name: ");
-        local String sizeText = input("arena size: ");
-        local Int arenaSize = GameRules.NormalizeSize(sizeText as Int);
-        local Int nameScore = Player.BuildNameScore(playerName);
-        local Int finalScore = Simulation.Run(playerName, arenaSize, nameScore);
+        local Table nyx = Player.New("Nyx", 40, 12, 4);
+        local Table rook = Player.New("Rook", 44, 10, 5);
 
-        print("command line arena", playerName, arenaSize, finalScore);
-        return finalScore;
+        print("COMMAND LINE ARENA");
+        print("==================");
+        Arena.ShowFighter("RED :", nyx);
+        Arena.ShowFighter("BLUE:", rook);
+
+        local Table result = Simulation.Run(nyx, rook, 6);
+        local Table winner = result.winner as Table;
+        local Table loser = result.loser as Table;
+        local Int rounds = result.rounds as Int;
+
+        print("");
+        print("MATCH COMPLETE");
+        print("Winner:", Player.Name(winner));
+        print("Rounds:", rounds);
+        print("Final health:", Player.Health(winner));
+
+        assert Player.Name(winner) == "Nyx";
+        assert Player.Health(winner) == 5;
+        assert not Player.IsAlive(loser);
+        assert rounds == 6;
+
+        return 0;
     }
 }

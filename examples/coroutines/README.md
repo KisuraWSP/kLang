@@ -1,34 +1,39 @@
 # Coroutines
 
-Demonstrates coroutine values, resume flow, and Option-based completion handling.
+Models an order-fulfillment scheduler with three `Coroutine[String]` jobs:
+order validation, inventory reservation, and shipment creation.
+
+Klang coroutines are currently one-shot. The wrapped function runs on the first
+`resume`, which returns `Some(value)`. Further resumes return `None`, allowing a
+scheduler to detect that the job has completed.
+
 ## Files
 
+- `app.klang` defines the jobs and coroutine scheduler.
 - `first.klang` is the project entry file.
-- `app.klang` contains the main example module when present.
-- Extra `.klang` files are local modules used by this example.
+- `klang.project` defines the runnable workspace.
 
 ## Try It
 
-Check the example:
+From the repository root:
 
 ```sh
 go run . check examples/coroutines
-```
-
-Run the example through the interpreter:
-
-```sh
 go run . run examples/coroutines
 ```
 
-Package it as a browser WASM bundle:
+Expected program output:
 
-```sh
-go run . package examples/coroutines --backend=WASM
-```
+```text
+ORDER FULFILLMENT COROUTINES
+----------------------------
+Starting: validate order
+Completed: Order ORD-2048 validated
+Starting: reserve inventory
+Completed: 3 items reserved in warehouse A
+Starting: create shipment
+Completed: Shipment SHP-901 scheduled for pickup
 
-Serve it directly with the built-in browser runtime server:
-
-```sh
-go run . serve examples/coroutines --port=8080
+Jobs completed: 3
+All coroutines exhausted: True
 ```

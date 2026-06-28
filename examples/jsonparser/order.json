@@ -1,0 +1,30 @@
+{
+  "order_id": "ORD-2026-1042",
+  "status": "processing",
+  "currency": "USD",
+  "customer": {
+    "name": "Maya Chen",
+    "email": "maya.chen@example.com"
+  },
+  "items": [
+    {
+      "name": "Mechanical Keyboard",
+      "quantity": 1,
+      "unit_price": 129.99
+    },
+    {
+      "name": "USB-C Cable",
+      "quantity": 2,
+      "unit_price": 14.5
+    },
+    {
+      "name": "Laptop Stand",
+      "quantity": 1,
+      "unit_price": 48.0
+    }
+  ],
+  "shipping": {
+    "city": "Seattle",
+    "country": "USA"
+  }
+}

@@ -1,0 +1,85 @@
+enum OpCode {
+    MoveRight;
+    MoveLeft;
+    Increment;
+    Decrement;
+    EmitChar;
+    ReadChar;
+    LoopStart;
+    LoopEnd;
+    Clear;
+    EmitNumber;
+    EmitNewline;
+    Trace;
+    Double;
+}
+
+alias function Instruction(op : OpCode, repeats : Int, sourceOffset : Int) : type = struct {
+    #extend {
+        function operation_count() : Int {
+            return this.repeats;
+        }
+    }
+}
+
+type command_stream = List[Char];
+type bytecode = List[Instruction];
+type jump_table = Map[Int, Int];
+type memory_tape = List[Int];
+
+alias function TapeProgram(
+instructions : bytecode,
+jumps : jump_table,
+sourceCommands : Int
+) : type = struct {
+    #extend {
+        function instruction_count() : Int {
+            local bytecode instructions = this.instructions;
+            return instructions.count;
+        }
+
+        function optimized_count() : Int {
+            local bytecode instructions = this.instructions;
+            return this.sourceCommands - instructions.count;
+        }
+    }
+}
+
+alias function VMConfig(maxSteps : Int, eofValue : Int) : type = struct {
+    #extend {
+        function valid() : Bool {
+            return this.maxSteps > 0
+            and this.eofValue >= 0
+            and this.eofValue <= 255;
+        }
+    }
+}
+
+alias function VMState(
+output : String,
+trace : String,
+steps : Int,
+cells : Int,
+pointer : Int
+) : type = struct {
+    this.steps `json:"executed_steps"`;
+    this.cells `json:"cells_used"`;
+    this.pointer `json:"final_pointer"`;
+
+    #extend {
+        function has_trace() : Bool {
+            local String trace = this.trace;
+            return trace != "";
+        }
+    }
+}
+
+#extend Char {
+    function is_tape_command() : Bool {
+        local Set[Char] commands = Set([
+        '>', '<', '+', '-', '.', ',', '[', ']',
+        '0', ':', ';', '?', '*'
+        ]);
+        return set_has(commands, this);
+    }
+}

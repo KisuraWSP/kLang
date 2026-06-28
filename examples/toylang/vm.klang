@@ -1,0 +1,131 @@
+import "list";
+
+namespace TapeVM {
+    function Byte(value : Int) : Int {
+        local mut Int normalized = value;
+
+        while normalized < 0 {
+            normalized += 256;
+        }
+        while normalized > 255 {
+            normalized -= 256;
+        }
+
+        return normalized;
+    }
+
+    function InputCode(value : Char) : Int {
+        if value ==(10 as Char) {
+            return 10;
+        }
+        if value ==(13 as Char) {
+            return 13;
+        }
+        if value ==(9 as Char) {
+            return 9;
+        }
+
+        local mut Int code = 32;
+        while code <= 126 {
+            if value ==(code as Char) {
+                return code;
+            }
+            code += 1;
+        }
+
+        return 0;
+    }
+
+    function Run(
+    program : TapeProgram,
+    input : String,
+    config : VMConfig
+    ) : Result[VMState, String] {
+        if not config.valid() {
+            return Err("invalid VM configuration");
+        }
+
+        local bytecode instructions = program.instructions;
+        local jump_table jumps = program.jumps;
+        local mut memory_tape tape =[0];
+        local mut Int pointer = 0;
+        local mut Int pc = 0;
+        local mut Int inputIndex = 0;
+        local mut Int steps = 0;
+        local mut String output = "";
+        local mut String trace = "";
+
+        while pc < instructions.count {
+            local Instruction instruction = instructions[pc];
+            if steps + instruction.operation_count() > config.maxSteps {
+                return Err(
+                "step limit of "
+                +(config.maxSteps as String)
+                + " exceeded at source command "
+                +(instruction.sourceOffset as String)
+                );
+            }
+
+            if instruction.op == {
+            case OpCode.MoveRight :
+                pointer += instruction.repeats;
+                while pointer >= tape.count {
+                    tape = list.append(tape, 0);
+                }
+            case OpCode.MoveLeft :
+                if pointer - instruction.repeats < 0 {
+                    return Err(
+                    "tape pointer moved left of cell 0 at source command "
+                    +(instruction.sourceOffset as String)
+                    );
+                }
+                pointer -= instruction.repeats;
+            case OpCode.Increment :
+                tape[pointer] = Byte(tape[pointer] + instruction.repeats);
+            case OpCode.Decrement :
+                tape[pointer] = Byte(tape[pointer] - instruction.repeats);
+            case OpCode.EmitChar :
+                local Char emitted = tape[pointer] as Char;
+                output += emitted as String;
+            case OpCode.ReadChar :
+                if inputIndex < input.count {
+                    tape[pointer] = InputCode(input[inputIndex]);
+                    inputIndex += 1;
+                } else {
+                    tape[pointer] = config.eofValue;
+                }
+            case OpCode.LoopStart :
+                if tape[pointer] == 0 {
+                    pc = jumps[pc];
+                }
+            case OpCode.LoopEnd :
+                if tape[pointer] != 0 {
+                    pc = jumps[pc];
+                }
+            case OpCode.Clear :
+                tape[pointer] = 0;
+            case OpCode.EmitNumber :
+                output += tape[pointer] as String;
+            case OpCode.EmitNewline :
+                output +=(10 as Char) as String;
+            case OpCode.Trace :
+                trace += "src="
+                +(instruction.sourceOffset as String)
+                + " pc="
+                +(pc as String)
+                + " ptr="
+                +(pointer as String)
+                + " cell="
+                +(tape[pointer] as String)
+                +(10 as Char) as String;
+            case OpCode.Double :
+                tape[pointer] = Byte(tape[pointer] * 2);
+            }
+
+            pc += 1;
+            steps += instruction.operation_count();
+        }
+
+        return Ok(VMState(output, trace, steps, tape.count, pointer));
+    }
+}

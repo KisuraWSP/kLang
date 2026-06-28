@@ -1,16 +1,143 @@
-namespace App {
-    function Start() : Int {
-        local Table root = {"value": 8, "left": 3, "right": 10};
-        local Table left = {"value": root.left, "left": 1, "right": 6};
-        local Table right = {"value": root.right, "left": 9, "right": 14};
+import "list";
 
-        local Bool containsSix = left.right == 6;
-        local mut Int total = root.value + left.value + right.value;
-        if containsSix {
-            total += left.right;
+namespace App {
+    function NewNode(value : Int) : Table {
+        local mut Table node = { "value" : 0, "left" : { }, "right" : { } };
+        node["value"] = value;
+        return node;
+    }
+
+    function Insert(tree : Table, value : Int) : Table {
+        if tree.count == 0 {
+            return NewNode(value);
         }
 
-        print("bst", root.value, left.value, right.value, "contains 6", containsSix);
-        return total;
+        local Int current = tree.value as Int;
+
+        -- Duplicate values are already represented by the existing node.
+        if value == current {
+            return tree;
+        }
+
+        local mut Table updated = tree;
+        if value < current {
+            local Table left = tree.left as Table;
+            updated["left"] = Insert(left, value);
+            return updated;
+        }
+
+        local Table right = tree.right as Table;
+        updated["right"] = Insert(right, value);
+        return updated;
+    }
+
+    function Contains(tree : Table, target : Int) : Bool {
+        if tree.count == 0 {
+            return False;
+        }
+
+        local Int current = tree.value as Int;
+        if target == current {
+            return True;
+        }
+
+        if target < current {
+            return Contains(tree.left as Table, target);
+        }
+
+        return Contains(tree.right as Table, target);
+    }
+
+    function InOrder(tree : Table) : List[Int] {
+        if tree.count == 0 {
+            return[];
+        }
+
+        local List[Int] left = InOrder(tree.left as Table);
+        local List[Int] withCurrent = list.append(left, tree.value as Int);
+        local List[Int] right = InOrder(tree.right as Table);
+        return list.extend(withCurrent, right);
+    }
+
+    function NodeCount(tree : Table) : Int {
+        if tree.count == 0 {
+            return 0;
+        }
+
+        return 1 + NodeCount(tree.left as Table) + NodeCount(tree.right as Table);
+    }
+
+    function Height(tree : Table) : Int {
+        if tree.count == 0 {
+            return 0;
+        }
+
+        local Int leftHeight = Height(tree.left as Table);
+        local Int rightHeight = Height(tree.right as Table);
+        if leftHeight > rightHeight {
+            return leftHeight + 1;
+        }
+
+        return rightHeight + 1;
+    }
+
+    function Minimum(tree : Table) : Int {
+        local Table left = tree.left as Table;
+        if left.count == 0 {
+            return tree.value as Int;
+        }
+
+        return Minimum(left);
+    }
+
+    function Maximum(tree : Table) : Int {
+        local Table right = tree.right as Table;
+        if right.count == 0 {
+            return tree.value as Int;
+        }
+
+        return Maximum(right);
+    }
+
+    function FormatIDs(values : List[Int]) : String {
+        local mut String output = "[";
+
+        for index := range(values.count) {
+            if index > 0 {
+                output += ", ";
+            }
+            output += values[index] as String;
+        }
+
+        return output + "]";
+    }
+
+    function Start() : Int {
+        local List[Int] packageIDs =[42, 18, 68, 7, 27, 55, 73, 20, 30, 65, 27];
+        local mut Table tree = { };
+
+        for index := range(packageIDs.count) {
+            tree = Insert(tree, packageIDs[index]);
+        }
+
+        local List[Int] sortedIDs = InOrder(tree);
+        local Bool found27 = Contains(tree, 27);
+        local Bool found99 = Contains(tree, 99);
+
+        print("WAREHOUSE PACKAGE INDEX");
+        print("-----------------------");
+        print("Inserted IDs:", FormatIDs(packageIDs));
+        print("Sorted IDs:", FormatIDs(sortedIDs));
+        print("Unique packages:", NodeCount(tree));
+        print("Tree height:", Height(tree));
+        print("ID range:", Minimum(tree), "to", Maximum(tree));
+        print("Contains 27:", found27);
+        print("Contains 99:", found99);
+
+        assert found27;
+        assert not found99;
+        assert sortedIDs ==[7, 18, 20, 27, 30, 42, 55, 65, 68, 73];
+
+        return 0;
     }
 }

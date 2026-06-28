@@ -1,23 +1,21 @@
 namespace GameRules {
-    function OnlyInt[T restrict[Int]](value : T) : T {
-        return value;
+    function RoundBonus(round : Int) : Int {
+        if round % 3 == 0 {
+            return 5;
+        }
+        return 0;
     }
 
-    function NormalizeSize(value : Int) : Int {
-        local T restrict[Int] restricted = OnlyInt(value);
+    function Damage(attacker : Table, defender : Table, round : Int) : Int {
+        local Int rawDamage = Player.Attack(attacker) + RoundBonus(round) - Player.Defense(defender);
 
-        if restricted < 1 {
+        if rawDamage < 1 {
             return 1;
         }
-        if restricted > 12 {
-            return 12;
-        }
-
-        return restricted;
+        return rawDamage;
     }
 
-    function CellPower(row : Int, col : Int, seed : Int) : Int {
-        local Int mixed = (row + 1) * (col + 1) + seed;
-        return mixed % 7 + 1;
+    function IsPowerSurge(round : Int) : Bool {
+        return RoundBonus(round) > 0;
     }
 }

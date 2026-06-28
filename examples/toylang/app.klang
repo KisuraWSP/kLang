@@ -1,25 +1,150 @@
+import "args";
+import "json";
+import "option";
+
 namespace App {
-    function IsOperator(ch : Char) : Bool {
-        return ch == "+" or ch == "-" or ch == "*" or ch == "/";
+    function SourcePath() : String {
+        return option.unwrap_or(
+        args.FIRST(),
+        "examples/toylang/programs/hello.tape"
+        );
+    }
+
+    function ProgramInput() : String {
+        return option.unwrap_or(args.GET(1), "");
+    }
+
+    function ShowJSONState(state : VMState) : Int {
+        local Result[String, String] encoded = json.serialize(state);
+
+        if encoded == {
+        case Ok(document) :
+            print("");
+            print("State JSON:");
+            print(document);
+            return 0;
+        case Err(message) :
+            print("State JSON error:", message);
+            return 1;
+        }
+
+        return 1;
+    }
+
+    function ShowBytecode(program : TapeProgram) : Int {
+        local bytecode instructions = program.instructions;
+        local mut Int index = 0;
+
+        print("");
+        print("Bytecode:");
+        while index < instructions.count {
+            local Instruction instruction = instructions[index];
+            local OpCode opcode = instruction.op;
+            print(
+            index,
+            opcode.name,
+            "x",
+            instruction.repeats,
+            "@ source",
+            instruction.sourceOffset
+            );
+            index += 1;
+        }
+
+        return instructions.count;
+    }
+
+    function ShowResult(
+    path : String,
+    program : TapeProgram,
+    state : VMState
+    ) : Int {
+        print("TAPE+ LANGUAGE");
+        print("==============");
+        print("Source:", path);
+        print("Source commands:", program.sourceCommands);
+        print("Bytecode instructions:", program.instruction_count());
+        print("Operations optimized:", program.optimized_count());
+
+        if args.CONTAINS("disassemble") {
+            _ = ShowBytecode(program);
+        }
+
+        print("");
+        print("Program output:");
+        print(state.output);
+        print("Execution stats:");
+        print("- steps:", state.steps);
+        print("- cells used:", state.cells);
+        print("- final pointer:", state.pointer);
+
+        if args.CONTAINS("json") {
+            _ = ShowJSONState(state);
+        }
+
+        if state.has_trace() {
+            print("");
+            print("Trace:");
+            print(state.trace);
+        }
+
+        return 0;
+    }
+
+    function RunProgram(
+    path : String,
+    program : TapeProgram,
+    input : String
+    ) : Int {
+        local VMConfig config = VMConfig(100_000, 0);
+        local Result[VMState, String] executed = TapeVM.Run(
+        program,
+        input,
+        config
+        );
+
+        if executed == {
+        case Ok(state) :
+            return ShowResult(path, program, state);
+        case Err(message) :
+            print("Tape+ runtime error:", message);
+            return 1;
+        }
+
+        return 1;
+    }
+
+    function CompileSource(
+    path : String,
+    source : String,
+    input : String
+    ) : Int {
+        local Result[TapeProgram, String] compiled = TapeParser.Compile(source);
+
+        if compiled == {
+        case Ok(program) :
+            return RunProgram(path, program, input);
+        case Err(message) :
+            print("Tape+ compile error:", message);
+            return 1;
+        }
+
+        return 1;
     }
 
     function Start() : Int {
-        local String source = "1+2*3";
-        local Iterator[Char] chars = iter(source);
-        local mut Option[Char] current = next(chars);
-        local mut Int operators = 0;
-        local mut Int digits = 0;
+        local String path = SourcePath();
+        local String input = ProgramInput();
+        local Result[String, String] source = File(path).read();
 
-        while current.some {
-            if IsOperator(current.value) {
-                operators += 1;
-            } else {
-                digits += 1;
-            }
-            current = next(chars);
+        if source == {
+        case Ok(content) :
+            return CompileSource(path, content, input);
+        case Err(message) :
+            print("Tape+ file error:", message);
+            return 1;
         }
 
-        print("toy language tokens", digits, operators);
-        return digits + operators;
+        return 1;
     }
 }

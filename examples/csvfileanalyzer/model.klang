@@ -1,0 +1,59 @@
+type string_list = List[String];
+type sales = List[Sale];
+type group_totals = List[GroupTotal];
+
+alias function Sale(
+date : String,
+area : String,
+product : String,
+units : Int,
+unitPrice : Float
+) : type = struct {
+    this.area `json:"region"`;
+    this.unitPrice `json:"unit_price"`;
+
+    #extend {
+        function revenue() : Float {
+            return this.unitPrice *(this.units as Float);
+        }
+    }
+}
+
+alias function Dataset(header : string_list, rows : sales) : type = struct {
+    #extend {
+        function row_count() : Int {
+            local sales records = this.rows;
+            return records.count;
+        }
+
+        function first_date() : String {
+            local sales records = this.rows;
+            local Sale first = records[0];
+            return first.date;
+        }
+
+        function last_date() : String {
+            local sales records = this.rows;
+            local Sale last = records[records.count - 1];
+            return last.date;
+        }
+    }
+}
+
+alias function GroupTotal(name : String, units : Int, revenue : Float) : type = struct { }
+
+alias function Analysis(
+rowCount : Int,
+totalUnits : Int,
+totalRevenue : Float,
+topRegion : GroupTotal,
+topProduct : GroupTotal,
+regions : group_totals,
+products : group_totals
+) : type = struct {
+    this.rowCount `json:"row_count"`;
+    this.totalUnits `json:"total_units"`;
+    this.totalRevenue `json:"total_revenue"`;
+    this.topRegion `json:"top_region"`;
+    this.topProduct `json:"top_product"`;
+}

@@ -1,34 +1,34 @@
 # Binary Search Tree
 
-Shows a binary-search-tree shaped data workflow using typed functions and recursive-style operations.
+Builds a real binary search tree for warehouse package IDs. The example
+implements recursive insertion, lookup, in-order traversal, node counting,
+height calculation, and minimum/maximum lookup. Duplicate IDs are ignored.
+
 ## Files
 
+- `app.klang` contains the tree algorithms and warehouse example.
 - `first.klang` is the project entry file.
-- `app.klang` contains the main example module when present.
-- Extra `.klang` files are local modules used by this example.
+- `klang.project` defines the runnable workspace.
 
 ## Try It
 
-Check the example:
+From the repository root:
 
 ```sh
 go run . check examples/binarysearchtree
-```
-
-Run the example through the interpreter:
-
-```sh
 go run . run examples/binarysearchtree
 ```
 
-Package it as a browser WASM bundle:
+Expected program output:
 
-```sh
-go run . package examples/binarysearchtree --backend=WASM
-```
-
-Serve it directly with the built-in browser runtime server:
-
-```sh
-go run . serve examples/binarysearchtree --port=8080
+```text
+WAREHOUSE PACKAGE INDEX
+-----------------------
+Inserted IDs: [42, 18, 68, 7, 27, 55, 73, 20, 30, 65, 27]
+Sorted IDs: [7, 18, 20, 27, 30, 42, 55, 65, 68, 73]
+Unique packages: 10
+Tree height: 4
+ID range: 7 to 73
+Contains 27: True
+Contains 99: False
 ```

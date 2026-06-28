@@ -1,14 +1,40 @@
 namespace Arena {
-    function BuildIndexes(size : Int) : List[Int] {
-        return [index for index in range(size)];
+    function ShowFighter(label : String, fighter : Table) : Int {
+        print(
+        label,
+        Player.Name(fighter),
+        "- HP",
+        Player.Health(fighter),
+        "ATK",
+        Player.Attack(fighter),
+        "DEF",
+        Player.Defense(fighter)
+        );
+        return 0;
     }
 
-    function StartEnergy(size : Int, nameScore : Int) : Int {
-        local T boxedSize = Box(size);
-        local T restrict[Int] cells = size * size;
-        local Int energy = cells + nameScore;
+    function ShowRound(round : Int) : Int {
+        print("");
+        if GameRules.IsPowerSurge(round) {
+            print("ROUND", round, "- POWER SURGE");
+            return 0;
+        }
 
-        print("arena", boxedSize, cells, energy);
-        return energy;
+        print("ROUND", round);
+        return 0;
+    }
+
+    function ShowHit(attacker : Table, defender : Table, damage : Int) : Int {
+        print(
+        Player.Name(attacker),
+        "hits",
+        Player.Name(defender),
+        "for",
+        damage,
+        "damage -",
+        Player.Health(defender),
+        "HP left"
+        );
+        return 0;
     }
 }

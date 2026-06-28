@@ -1,17 +1,58 @@
 namespace App {
-    function BuildScore() : Int {
-        return 21 * 2;
+    function ValidateOrder() : String {
+        return "Order ORD-2048 validated";
+    }
+
+    function ReserveInventory() : String {
+        return "3 items reserved in warehouse A";
+    }
+
+    function CreateShipment() : String {
+        return "Shipment SHP-901 scheduled for pickup";
+    }
+
+    function ShowCompletion(label : String, result : Option[String]) : Int {
+        print("Starting:", label);
+
+        if result.some {
+            print("Completed:", result.value);
+            return 1;
+        }
+
+        print("Skipped:", label, "was already complete");
+        return 0;
     }
 
     function Start() : Int {
-        local Coroutine[Int] job = coroutine(BuildScore);
-        local Option[Int] first = resume(job);
-        local Option[Int] second = resume(job);
+        local Coroutine[String] validationJob = coroutine(ValidateOrder);
+        local Coroutine[String] inventoryJob = coroutine(ReserveInventory);
+        local Coroutine[String] shippingJob = coroutine(CreateShipment);
 
-        if first.some and not second.some {
-            print("coroutine", first.value);
-            return first.value;
-        }
+        print("ORDER FULFILLMENT COROUTINES");
+        print("----------------------------");
+
+        local Option[String] validation = resume(validationJob);
+        local Option[String] inventory = resume(inventoryJob);
+        local Option[String] shipping = resume(shippingJob);
+
+        local Int completed = ShowCompletion("validate order", validation)
+        + ShowCompletion("reserve inventory", inventory)
+        + ShowCompletion("create shipment", shipping);
+
+        local Option[String] validationAgain = resume(validationJob);
+        local Option[String] inventoryAgain = resume(inventoryJob);
+        local Option[String] shippingAgain = resume(shippingJob);
+        local Bool allFinished = not validationAgain.some
+        and not inventoryAgain.some
+        and not shippingAgain.some;
+
+        print("");
+        print("Jobs completed:", completed);
+        print("All coroutines exhausted:", allFinished);
+
+        assert completed == 3;
+        assert allFinished;
+
         return 0;
     }
 }

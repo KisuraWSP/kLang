@@ -1,0 +1,4 @@
+name = "commandlinearena"
+entry = "first.klang"
+language_version = 1
+sources = ["first.klang", "app.klang", "player.klang", "rules.klang", "arena.klang", "simulation.klang"]

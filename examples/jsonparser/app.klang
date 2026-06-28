@@ -1,6 +1,79 @@
+import "json";
+
 namespace App {
-    function Start() : Int {
-        print("Welcome to jsonparser");
+    function PrintOrder(document : JSON) : Int {
+        local JSON customerInfo = document.customer;
+        local JSON shippingInfo = document.shipping;
+        local String orderID = option_unwrap_or(json.as_string(document.order_id), "unknown");
+        local String customer = option_unwrap_or(json.as_string(customerInfo.name), "unknown");
+        local String email = option_unwrap_or(json.as_string(customerInfo.email), "unknown");
+        local String customerContact = customer + " (" + email + ")";
+        local String status = option_unwrap_or(json.as_string(document.status), "unknown");
+        local String currency = option_unwrap_or(json.as_string(document.currency), "USD");
+        local JSON items = document.items;
+        local mut Float subtotal = 0.0;
+        local mut Int itemCount = 0;
+
+        print("ORDER SUMMARY");
+        print("-------------");
+        print("Order:", orderID);
+        print("Customer:", customerContact);
+        print("Status:", status);
+        print("");
+        print("Items:");
+
+        for index := range(items.count) {
+            local JSON item = option_unwrap_or(json.get_index(items, index), json.null_json());
+            local String name = option_unwrap_or(json.as_string(item.name), "Unnamed item");
+            local Int quantity = option_unwrap_or(json.as_int(item.quantity), 0);
+            local Float unitPrice = option_unwrap_or(json.as_float(item.unit_price), 0.0);
+            local Float quantityValue = quantity as Float;
+            local Float lineTotal = unitPrice * quantityValue;
+
+            subtotal += lineTotal;
+            itemCount += quantity;
+            print("-", quantity, "x", name, "@", currency, unitPrice, "=", currency, lineTotal);
+        }
+
+        local String city = option_unwrap_or(json.as_string(shippingInfo.city), "unknown");
+        local String country = option_unwrap_or(json.as_string(shippingInfo.country), "unknown");
+
+        print("");
+        print("Units:", itemCount);
+        print("Subtotal:", currency, subtotal);
+        print("Ship to:", city + ", " + country);
+
         return 0;
+    }
+
+    function ParseOrder(source : String) : Int {
+        local Result[JSON, String] parsed = json.parse(source);
+
+        if parsed == {
+        case Ok(document) :
+            return PrintOrder(document);
+        case Err(message) :
+            print("Could not parse order JSON:", message);
+            return 1;
+        }
+
+        return 1;
+    }
+
+    function Start() : Int {
+        local String path = "examples/jsonparser/order.json";
+        local Result[String, String] source = File(path).read();
+
+        print("Reading", path);
+
+        if source == {
+        case Ok(content) :
+            return ParseOrder(content);
+        case Err(message) :
+            print("Could not read JSON file:", message);
+            return 1;
+        }
+
+        return 1;
     }
 }
