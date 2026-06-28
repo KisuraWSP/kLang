@@ -44,6 +44,63 @@ func TestLoadProgramReadsStandaloneScript(t *testing.T) {
 	}
 }
 
+func TestLoadProgramReadsStandaloneGruaProgram(t *testing.T) {
+	root := t.TempDir()
+	path := writeTestFile(t, root, "simple.grua", `function Main() : Int {
+    local data = {}
+    switch data {
+        case {}: return 0
+        case: return 1
+    }
+}`)
+
+	program, err := LoadProgram(path)
+	if err != nil {
+		t.Fatalf("LoadProgram returned an error: %v", err)
+	}
+	if program.Name != "simple" || len(program.Files) != 1 {
+		t.Fatalf("unexpected Grua program: %#v", program)
+	}
+	source := program.Files[0]
+	if source.Language != LanguageGrua || len(source.OriginalLines) == 0 {
+		t.Fatalf("expected original Grua source metadata: %#v", source)
+	}
+	if !strings.Contains(strings.Join(source.Lines, "\n"), "if data == {") {
+		t.Fatalf("expected switch lowering:\n%s", strings.Join(source.Lines, "\n"))
+	}
+}
+
+func TestLoadProgramRejectsGruaStaticVariableType(t *testing.T) {
+	path := writeTestFile(t, t.TempDir(), "invalid.grua", `function Main() : Int {
+    local Int value = 0
+    return value
+}`)
+
+	_, err := LoadProgram(path)
+	if err == nil || !strings.Contains(err.Error(), "inferred syntax") {
+		t.Fatalf("expected Grua subset error, got %v", err)
+	}
+}
+
+func TestLoadProgramReadsGruaProjectManifest(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, KlangProjectFile, `name = "grua-project"
+entry = "main.grua"
+language_version = 1
+sources = ["main.grua", "helpers.grua"]
+`)
+	writeTestFile(t, root, "main.grua", "function Main() : Int {\n    return Helper()\n}")
+	writeTestFile(t, root, "helpers.grua", "function Helper() : Int {\n    return 0\n}")
+
+	program, err := LoadProgram(root)
+	if err != nil {
+		t.Fatalf("LoadProgram returned an error: %v", err)
+	}
+	if len(program.Files) != 2 || filepath.Ext(program.EntryPoint) != ".grua" {
+		t.Fatalf("unexpected Grua project: %#v", program)
+	}
+}
+
 func TestLoadProgramRejectsStandaloneScriptWithoutLoadAsScript(t *testing.T) {
 	root := t.TempDir()
 	path := writeTestFile(t, root, "script.klang", "function One() : Int { return 1; }")

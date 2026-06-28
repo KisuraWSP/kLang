@@ -8,7 +8,52 @@
 - `kLang fmt file.klang --write` rewrites one file, and `kLang fmt src --write` rewrites every `.klang` file in a folder.
 - `kLang fmt src --check` fails when any source file would change, which is suitable for CI.
 
-3. JSON
+3. Grua subset
+- `.grua` files are validated by the Grua frontend and lowered into the kLang toolchain.
+- Loose Grua files run directly with `kLang run program.grua`; no `load_as_script;` directive is required.
+- Variables are inferred, aggregate literals use `Table`, function parameters use `::Hint`, conditions use `switch`, and all loops use `for`.
+- Grua imports are restricted to `basic`, `file`, `io`, and `repl`.
+- Those imports resolve only to `.grua` implementations under `stdlib/grua`.
+- Grua formatting is not implemented yet; use `kLang check` for subset and semantic validation.
+
+Grua stdlib APIs:
+- `basic`: `NEW`, `PRINT`, `TYPE_OF`, `STRING`, `INT`, `COUNT`, `SEQUENCE_COUNT`, `EMPTY`, `HAS`, `GET`, `SET`, `DELETE`, `PUSH`, `AT`, `INCREMENT`, `MERGE`.
+- `io`: `PRINT`, `PRINT_LINE`, `INPUT`, `LOG`, `INFO`, `WARN`, `ERROR`, `WRITER`, `APPEND`, `WRITE`, `FIELD`, `BUFFER`, `RESET`, `PRINT_TABLE`.
+- `file`: `OPEN`, `PATH`, `SUCCESS`, `FAILURE`, `OK`, `VALUE`, `ERROR`, `READ`, `READ_LINES`, `WRITE`, `APPEND`, `EXISTS`, `SIZE`, `CREATE`, `REMOVE`. File operations return a Table envelope with `ok`, `value`, and `error` fields.
+- `repl`: `NEW_SESSION`, `SUBMIT`, `SOURCE`, `HISTORY`, `DESCRIBE`, `AST`, `SESSION_AST`, `REQUEST_AST`, `SUMMARY`.
+
+```lua
+import "io"
+
+function DOUBLE(value::Int) : Int {
+    return value * 2
+}
+
+function Main() : Int {
+    local immutable = {}
+    local mut state = {"total": 0}
+    val shared = {}
+    var changing = {}
+
+    for index:=0, index<3, index+=1 {
+        state["total"] += index
+    }
+
+    for entry in state {
+        io.PRINT(entry)
+    }
+
+    local total = state["total"]
+    switch total {
+        case 3:
+            return DOUBLE(0)
+        case:
+            return 1
+    }
+}
+```
+
+4. JSON
 - `JSON` parses a String or here string into an immutable builtin JSON value.
 - Use `json_parse` when invalid input should be handled as `Result[JSON, String]` instead of a runtime error.
 

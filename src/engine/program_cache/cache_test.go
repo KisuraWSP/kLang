@@ -3,6 +3,7 @@ package programcache
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"kLang/src/engine/file"
@@ -137,6 +138,43 @@ func TestLanguageVersionUsesSeparateCacheEntry(t *testing.T) {
 	program.LanguageVersion = 1
 	if _, _, ok := Load(program, false); ok {
 		t.Fatal("expected language-version cache lookup to miss older semantic results")
+	}
+}
+
+func TestGruaOriginalSourceRoundTripsThroughCache(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "main.grua")
+	original := []string{
+		"function Main() : Int {",
+		"    switch 0 {",
+		"        case 0: return 0",
+		"        case: return 1",
+		"    }",
+		"}",
+	}
+	writeSource(t, sourcePath, strings.Join(original, "\n"))
+	program := file.Program{
+		Name:       "grua",
+		Root:       root,
+		EntryPoint: sourcePath,
+		Files: []file.SourceFile{{
+			Path:          sourcePath,
+			Lines:         []string{"function Main() : Int {", "    if 0 == {", "        case 0: return 0;", "        case: return 1;", "    }", "}"},
+			OriginalLines: original,
+			Language:      file.LanguageGrua,
+		}},
+	}
+	if err := Store(program, false, nil); err != nil {
+		t.Fatalf("store cache failed: %v", err)
+	}
+
+	loaded, _, ok := Load(program, false)
+	if !ok {
+		t.Fatal("expected Grua cache hit")
+	}
+	if loaded.Files[0].Language != file.LanguageGrua ||
+		strings.Join(loaded.Files[0].DisplayLines(), "\n") != strings.Join(original, "\n") {
+		t.Fatalf("Grua source metadata did not round trip: %#v", loaded.Files[0])
 	}
 }
 

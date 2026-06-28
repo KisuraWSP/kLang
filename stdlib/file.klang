@@ -1,0 +1,51 @@
+-- Native File facade shared by Grua and kLang.
+
+namespace file {
+    function OPEN(path : String) : File {
+        return File(path);
+    }
+
+    function PATH(value : File) : String {
+        return value.path;
+    }
+
+    function NAME(value : File) : String {
+        return value.name;
+    }
+
+    function EXTENSION(value : File) : String {
+        return value.extension;
+    }
+
+    function READ(path : String) : Result[String, String] {
+        return File(path).read();
+    }
+
+    function READ_LINES(path : String) : Result[List[String], String] {
+        return File(path).read_lines();
+    }
+
+    function WRITE(path : String, content : String) : Result[Int, String] {
+        return File(path).write(content);
+    }
+
+    function APPEND(path : String, content : String) : Result[Int, String] {
+        return File(path).append(content);
+    }
+
+    function EXISTS(path : String) : Result[Bool, String] {
+        return File(path).exists();
+    }
+
+    function SIZE(path : String) : Result[Int, String] {
+        return File(path).size();
+    }
+
+    function CREATE(path : String) : Result[File, String] {
+        return File(path).create();
+    }
+
+    function REMOVE(path : String) : Result[Bool, String] {
+        return File(path).remove();
+    }
+}

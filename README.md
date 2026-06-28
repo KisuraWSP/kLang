@@ -23,6 +23,7 @@ The language is function-first and strongly checked, with a design that borrows 
 
 kLang currently experiments with:
 
+- A simpler `.grua` subset frontend that runs through the same kLang toolchain and runtime.
 - Immutable-by-default bindings, explicit `mut`, and strict type checking.
 - Explicit typed declarations with `local` and `global`.
 - Inferred declarations with `let`, `val`, `var`, and `const`.
@@ -52,6 +53,7 @@ For the full design surface, read `LANGUAGE-SPEC.md`, `DATA-TYPES.md`, and `SYNT
 
 - `main.go` contains the CLI entrypoint.
 - `src/lexer` tokenizes `.klang` source files.
+- `src/grua` validates and lowers `.grua` subset source into kLang.
 - `src/parser` builds the AST and expression trees.
 - `src/engine/module_system` resolves local and stdlib imports.
 - `src/engine/program_cache` persists safe startup cache entries for unchanged scripts and projects.
@@ -91,6 +93,17 @@ Run a project:
 ```sh
 go run . run examples/helloworld
 ```
+
+Run a standalone Grua subset program:
+
+```sh
+go run . run examples/grua/hello.grua
+```
+
+Grua uses inferred variables, Table aggregates, `::Hint` function parameters,
+`switch` pattern matching, one `for` loop family, and only the `basic`, `file`,
+`io`, and `repl` stdlib modules. These resolve exclusively from `stdlib/grua`
+as `.grua` source; Grua never falls through to the richer `.klang` modules.
 
 Run without stdlib module resolution while still allowing local workspace imports:
 

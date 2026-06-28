@@ -27,6 +27,7 @@ import (
 	"kLang/src/engine/runtime"
 	typechecker "kLang/src/engine/type_checker"
 	"kLang/src/formatter"
+	"kLang/src/grua"
 	"kLang/src/parser"
 )
 
@@ -136,7 +137,7 @@ func runCLI(args []string) error {
 		return createProject(values[0], entry)
 	case "run":
 		if len(values) < 1 {
-			return fmt.Errorf("%s run expects a .klang file or project folder", cliName)
+			return fmt.Errorf("%s run expects a .klang/.grua file or project folder", cliName)
 		}
 		loadStarted := time.Now()
 		program, err := file.LoadProgram(values[0])
@@ -149,7 +150,7 @@ func runCLI(args []string) error {
 		return executePrograms([]file.Program{program}, options)
 	case "check":
 		if len(values) != 1 {
-			return fmt.Errorf("%s check expects a .klang file or project folder", cliName)
+			return fmt.Errorf("%s check expects a .klang/.grua file or project folder", cliName)
 		}
 		program, err := file.LoadProgram(values[0])
 		if err != nil {
@@ -416,6 +417,9 @@ func discoverFormatSourceFiles(sourcePath string) ([]string, error) {
 		return nil, err
 	}
 	if !info.IsDir() {
+		if filepath.Ext(cleanPath) == grua.Extension {
+			return nil, fmt.Errorf("Grua formatting is not available yet; run %s check %s to validate the subset", cliName, sourcePath)
+		}
 		if filepath.Ext(cleanPath) != file.KlangExtension {
 			return nil, fmt.Errorf("expected a %s file or folder: %s", file.KlangExtension, sourcePath)
 		}
@@ -513,8 +517,9 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 			return err
 		}
-		contents := strings.Join(source.Lines, "\n")
-		if len(source.Lines) != 0 {
+		sourceLines := source.DisplayLines()
+		contents := strings.Join(sourceLines, "\n")
+		if len(sourceLines) != 0 {
 			contents += "\n"
 		}
 		if err := os.WriteFile(targetPath, []byte(contents), 0644); err != nil {
@@ -658,7 +663,7 @@ func bundleSourcePath(root string, sourcePath string) string {
 
 func generateDocumentation(options docOptions) error {
 	if len(options.SourceFiles) == 0 {
-		return fmt.Errorf("%s doc expects --sourcefile=[file.klang,...]", cliName)
+		return fmt.Errorf("%s doc expects --sourcefile=[file.klang-or-.grua,...]", cliName)
 	}
 	outPath := strings.TrimSpace(options.Out)
 	if outPath == "" {
@@ -674,8 +679,8 @@ func generateDocumentation(options docOptions) error {
 	totalItems := 0
 	for _, source := range sourceFiles {
 		sourcePath := filepath.Clean(source.Path)
-		lines := append([]string(nil), source.Lines...)
-		parsed, errors := parser.Parse(strings.Join(lines, "\n"))
+		lines := append([]string(nil), source.DisplayLines()...)
+		parsed, errors := parser.Parse(strings.Join(source.Lines, "\n"))
 		doc := docFile{
 			Path:      sourcePath,
 			Name:      filepath.Base(sourcePath),
@@ -1266,7 +1271,7 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 func countSourceLines(program file.Program) int {
 	total := 0
 	for _, source := range program.Files {
-		total += len(source.Lines)
+		total += len(source.DisplayLines())
 	}
 	return total
 }

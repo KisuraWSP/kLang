@@ -1,0 +1,82 @@
+-- Core Table and conversion helpers for Grua.
+
+function NEW() : Table {
+    return Table()
+}
+
+function PRINT(value::T) : Int {
+    print(value)
+    return 0
+}
+
+function TYPE_OF(value::T) : String {
+    return debug_type(value)
+}
+
+function STRING(value::T) : String {
+    return value as String
+}
+
+function INT(value::T) : Int {
+    return value as Int
+}
+
+function COUNT(data::Table) : Int {
+    return data.count
+}
+
+function SEQUENCE_COUNT(data::Table) : Int {
+    return table_sequence_count(data)
+}
+
+function EMPTY(data::Table) : Bool {
+    return data.count == 0
+}
+
+function HAS(data::Table, key::String) : Bool {
+    return table_has(data, key)
+}
+
+function GET(data::Table, key::String, fallback::T) {
+    switch table_has(data, key) {
+        case True: return data[key]
+        case: return fallback
+    }
+}
+
+function SET(data::Table, key::String, value::T) : Table {
+    local mut result = clone data
+    result[key] = value
+    return result
+}
+
+function DELETE(data::Table, key::String) : Table {
+    return table_delete(data, key)
+}
+
+function PUSH(data::Table, value::T) : Table {
+    local mut result = clone data
+    result[table_sequence_count(result)] = value
+    return result
+}
+
+function AT(data::Table, index::Int, fallback::T) {
+    switch table_has(data, index) {
+        case True: return data[index]
+        case: return fallback
+    }
+}
+
+function INCREMENT(data::Table, key::String, amount::Int) : Table {
+    local current = basic.GET(data, key, 0) as Int
+    return basic.SET(data, key, current + amount)
+}
+
+function MERGE(left::Table, right::Table) : Table {
+    local mut result = clone left
+    for entry in right {
+        local key = entry["key"] as String
+        result[key] = entry["value"]
+    }
+    return result
+}

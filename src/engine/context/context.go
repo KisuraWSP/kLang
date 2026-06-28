@@ -61,7 +61,7 @@ func New(program file.Program) *Context {
 	for _, source := range program.Files {
 		ctx.Sources[filepath.Clean(source.Path)] = SourceContext{
 			File:  source.Path,
-			Lines: append([]string(nil), source.Lines...),
+			Lines: append([]string(nil), source.DisplayLines()...),
 		}
 	}
 	return ctx

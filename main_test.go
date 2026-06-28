@@ -11,6 +11,8 @@ import (
 
 	langcontext "kLang/src/engine/context"
 	"kLang/src/engine/file"
+	modulesystem "kLang/src/engine/module_system"
+	typechecker "kLang/src/engine/type_checker"
 )
 
 func TestRuntimeErrorPartsExtractsLineColumnAndMessage(t *testing.T) {
@@ -149,6 +151,198 @@ func TestProgramLineThroughputMetrics(t *testing.T) {
 	}
 	if got := metrics.Elapsed(); got != 80*time.Millisecond {
 		t.Fatalf("expected measured source phases to total 80ms, got %s", got)
+	}
+}
+
+func TestRunCLIExecutesGruaSubsetProgram(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "program.grua")
+	source := `import "basic"
+
+function Identity(value::Int) : Int {
+    return value
+}
+
+function Main() : Int {
+    local immutable = {}
+    local mut state = {"total": 0}
+    val shared = {}
+    var changing = {}
+
+    local mut forever = 0
+    for {
+        forever += 1
+        break
+    }
+    for forever < 2 {
+        forever += 1
+    }
+    for index:=0, index<3, index+=1 {
+        state["total"] += index
+    }
+    for entry in state {
+        _ = entry
+    }
+
+    local total = state["total"]
+    switch total {
+        case 3:
+        basic.PRINT("grua ok")
+            return Identity(0)
+        case:
+            return 1
+    }
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runCLI([]string{"run", sourcePath}); err != nil {
+		t.Fatalf("Grua run failed: %v", err)
+	}
+}
+
+func TestRunCLIPackagesOriginalGruaSource(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "package.grua")
+	outPath := filepath.Join(root, "out")
+	source := `function Main() : Int {
+    switch 0 {
+        case 0: return 0
+        case: return 1
+    }
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runCLI([]string{"package", sourcePath, "--backend=Standalone", "--out", outPath}); err != nil {
+		t.Fatalf("Grua package failed: %v", err)
+	}
+	bundledPath := filepath.Join(outPath, "package-standalone", "src", "package.grua")
+	bundled, err := os.ReadFile(bundledPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(bundled), "switch 0 {") || strings.Contains(string(bundled), "if 0 == {") {
+		t.Fatalf("package leaked lowered kLang instead of original Grua:\n%s", bundled)
+	}
+}
+
+func TestRunCLIChecksGruaFileStdlib(t *testing.T) {
+	sourcePath := filepath.Join(t.TempDir(), "file_api.grua")
+	source := `import "file"
+
+function Main() : Int {
+    local descriptor = file.OPEN("example.txt")
+    switch descriptor.path {
+        case "example.txt": return 0
+        case: return 1
+    }
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runCLI([]string{"check", sourcePath}); err != nil {
+		t.Fatalf("Grua file stdlib check failed: %v", err)
+	}
+}
+
+func TestRunCLIRejectsInferredDisallowedGruaStdlib(t *testing.T) {
+	sourcePath := filepath.Join(t.TempDir(), "restricted.grua")
+	source := `function Main() : Int {
+    local value = strings.Trim(" grua ")
+    _ = value
+    return 0
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runCLI([]string{"check", sourcePath}); err == nil {
+		t.Fatal("expected inferred strings stdlib import to be rejected for Grua")
+	}
+}
+
+func TestGruaResolverUsesOnlyGruaStdlibModules(t *testing.T) {
+	sourcePath := filepath.Join(t.TempDir(), "stdlib.grua")
+	source := `import "basic"
+import "file"
+import "io"
+import "repl"
+
+function Main() : Int {
+    local data = basic.SET({}, "ready", True)
+    local writer = io.WRITE(io.WRITER(), basic.STRING(data["ready"]))
+    local handle = file.OPEN("example.txt")
+    local session = repl.NEW_SESSION()
+    _ = writer
+    _ = handle
+    _ = session
+    return 0
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := file.LoadProgram(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, report := modulesystem.NewResolver("stdlib").ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("Grua module resolution failed: %#v", report.Errors)
+	}
+	if len(report.Modules) != 4 {
+		t.Fatalf("expected four Grua stdlib modules, got %#v", report.Modules)
+	}
+	for _, module := range report.Modules {
+		if filepath.Ext(module.Path) != ".grua" ||
+			filepath.Base(filepath.Dir(module.Path)) != "grua" {
+			t.Fatalf("Grua resolved a non-Grua stdlib module: %#v", module)
+		}
+	}
+	for index, source := range resolved.Files {
+		if strings.Contains(filepath.ToSlash(source.Path), "stdlib/grua/") &&
+			source.Language != file.LanguageGrua {
+			t.Fatalf("Grua stdlib source lost its dialect: %#v", source)
+		}
+		if strings.Contains(filepath.ToSlash(source.Path), "stdlib/grua/") {
+			resolved.Files[index].ModuleFunctionFilter = nil
+		}
+	}
+	if report := typechecker.CheckProgram(resolved); !report.Passed() {
+		t.Fatalf("Grua stdlib type check failed: %#v", report.Errors)
+	}
+}
+
+func TestKlangResolverKeepsKlangStdlibModules(t *testing.T) {
+	sourcePath := filepath.Join(t.TempDir(), "stdlib.klang")
+	source := `load_as_script;
+import "basic";
+
+function Main() : Int {
+    return basic.Print("klang");
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := file.LoadProgram(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, report := modulesystem.NewResolver("stdlib").ResolveProgram(program)
+	if !report.Passed() || len(report.Modules) != 1 {
+		t.Fatalf("kLang module resolution failed: %#v", report)
+	}
+	module := report.Modules[0]
+	if filepath.Ext(module.Path) != file.KlangExtension ||
+		filepath.Base(filepath.Dir(module.Path)) == "grua" {
+		t.Fatalf("kLang resolved the Grua stdlib module: %#v", module)
 	}
 }
 

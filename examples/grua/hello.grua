@@ -1,0 +1,128 @@
+import "basic"
+import "file"
+import "io"
+import "repl"
+
+function JOB(name::String, files::Int, tests::Int, passed::Bool) : Table {
+    return {
+        "name": name,
+        "files": files,
+        "tests": tests,
+        "passed": passed
+    }
+}
+
+function STATUS(passed::Bool) : String {
+    switch passed {
+        case True: return "PASS"
+        case: return "FAIL"
+    }
+}
+
+function AUDIT(jobs::Table) : Table {
+    local mut summary = basic.NEW()
+    summary = basic.SET(summary, "jobs", 0)
+    summary = basic.SET(summary, "passed", 0)
+    summary = basic.SET(summary, "failed", 0)
+    summary = basic.SET(summary, "files", 0)
+    summary = basic.SET(summary, "tests", 0)
+    summary = basic.SET(summary, "lines", basic.NEW())
+
+    for entry in jobs {
+        local job = entry["value"] as Table
+        local passed = job["passed"] as Bool
+        local mut line = io.WRITER()
+        line = io.FIELD(line, "job", job["name"])
+        line = io.FIELD(line, "status", STATUS(passed))
+        line = io.FIELD(line, "files", job["files"])
+        line = io.FIELD(line, "tests", job["tests"])
+
+        summary = basic.INCREMENT(summary, "jobs", 1)
+        summary = basic.INCREMENT(summary, "files", job["files"] as Int)
+        summary = basic.INCREMENT(summary, "tests", job["tests"] as Int)
+        summary["lines"] = basic.PUSH(summary["lines"] as Table, io.BUFFER(line))
+
+        switch passed {
+            case True: summary = basic.INCREMENT(summary, "passed", 1)
+            case: summary = basic.INCREMENT(summary, "failed", 1)
+        }
+    }
+
+    return summary
+}
+
+function REPORT(summary::Table) : String {
+    local mut output = "jobs=" + basic.STRING(summary["jobs"])
+    output = output + ", passed=" + basic.STRING(summary["passed"])
+    output = output + ", failed=" + basic.STRING(summary["failed"])
+    output = output + ", files=" + basic.STRING(summary["files"])
+    output = output + ", tests=" + basic.STRING(summary["tests"])
+
+    local lines = summary["lines"] as Table
+    for entry in lines {
+        output = output + " | " + (entry["value"] as String)
+    }
+    return output
+}
+
+function Main() : Int {
+    local mut jobs = basic.NEW()
+    jobs = basic.PUSH(jobs, JOB("parser", 14, 38, True))
+    jobs = basic.PUSH(jobs, JOB("runtime", 21, 52, True))
+    jobs = basic.PUSH(jobs, JOB("browser-backend", 8, 11, False))
+
+    local summary = AUDIT(jobs)
+    local report_text = REPORT(summary)
+    io.INFO("audited " + basic.STRING(summary["jobs"]) + " build jobs")
+    io.PRINT_LINE("Grua build audit")
+    io.PRINT_LINE("jobs=" + basic.STRING(summary["jobs"]) + ", passed=" + basic.STRING(summary["passed"]) + ", failed=" + basic.STRING(summary["failed"]) + ", files=" + basic.STRING(summary["files"]) + ", tests=" + basic.STRING(summary["tests"]))
+    local audit_lines = summary["lines"] as Table
+    for entry in audit_lines {
+        io.PRINT_LINE("- " + (entry["value"] as String))
+    }
+
+    local artifact = file.OPEN("grua-build-audit.tmp")
+    local write_status = file.WRITE(artifact, report_text)
+    local write_ok = file.OK(write_status)
+    switch write_ok {
+        case False:
+            io.ERROR("could not write audit: " + file.ERROR(write_status))
+            return 1
+        case:
+            io.INFO("saved " + basic.STRING(file.VALUE(write_status, 0)) + " bytes")
+    }
+
+    local read_status = file.READ(artifact)
+    local size_status = file.SIZE(artifact)
+    local lines_status = file.READ_LINES(artifact)
+    local stored_report = file.VALUE(read_status, "") as String
+    local stored_lines = file.VALUE(lines_status, basic.NEW()) as Table
+    io.INFO("verified " + basic.STRING(file.VALUE(size_status, 0)) + " bytes across " + basic.STRING(basic.SEQUENCE_COUNT(stored_lines)) + " lines")
+
+    local policy_source = "function Main() : Int { return 0; }"
+    local mut session = repl.NEW_SESSION()
+    session = repl.SUBMIT(session, policy_source)
+    local inspection = repl.SUMMARY(session)
+    local ast_message = repl.REQUEST_AST(policy_source)
+    io.INFO("policy inspection: statements=" + basic.STRING(inspection["statement_count"]) + ", ast_nodes=" + basic.STRING(inspection["ast_nodes"]) + ", intercepted=" + basic.STRING(ast_message["intercepted"]))
+
+    local cleanup = file.REMOVE(artifact)
+    local cleanup_ok = file.OK(cleanup)
+    switch cleanup_ok {
+        case False:
+            io.WARN("audit was valid, but cleanup failed: " + file.ERROR(cleanup))
+        case:
+            io.INFO("temporary audit removed")
+    }
+
+    local expected_failures = summary["failed"] as Int
+    local report_saved = stored_report == report_text
+    switch report_saved {
+        case False: return 1
+        case:
+            switch expected_failures {
+                case 1: return 0
+                case: return 1
+            }
+    }
+}

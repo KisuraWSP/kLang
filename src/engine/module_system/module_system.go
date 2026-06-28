@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"kLang/src/engine/file"
+	"kLang/src/grua"
 	"kLang/src/parser"
 )
 
@@ -159,6 +160,18 @@ func (resolver *Resolver) resolveStdlibGlobalNamespaces(state *resolutionState, 
 	}
 }
 
+func programUsesOnlyLanguage(program file.Program, language string) bool {
+	if len(program.Files) == 0 {
+		return false
+	}
+	for _, source := range program.Files {
+		if source.Language != language {
+			return false
+		}
+	}
+	return true
+}
+
 func (resolver *Resolver) mergeVisitedGlobalNamespaceFilter(program *file.Program, imported file.Program, selected map[string]bool) bool {
 	merged := false
 	for _, importedSource := range imported.Files {
@@ -250,6 +263,26 @@ func (resolver *Resolver) resolveSource(state *resolutionState, program *file.Pr
 			})
 			continue
 		}
+		if source.Language == file.LanguageGrua {
+			if module.Kind == ImportStdlib && !grua.AllowsModule(importStmt.Path) {
+				report.Errors = append(report.Errors, Error{
+					File:    source.Path,
+					Line:    importStmt.Pos.Line,
+					Column:  importStmt.Pos.Column,
+					Message: fmt.Sprintf("Grua only exposes the basic, file, io, and repl modules; %q is unavailable", importStmt.Path),
+				})
+				continue
+			}
+			if module.Kind == ImportLocal && !programUsesOnlyLanguage(imported, file.LanguageGrua) {
+				report.Errors = append(report.Errors, Error{
+					File:    source.Path,
+					Line:    importStmt.Pos.Line,
+					Column:  importStmt.Pos.Column,
+					Message: fmt.Sprintf("Grua source cannot import non-Grua local module %q", importStmt.Path),
+				})
+				continue
+			}
+		}
 
 		if resolver.moduleDisabled(imported) {
 			report.Errors = append(report.Errors, Error{
@@ -330,7 +363,7 @@ func (resolver *Resolver) resolveImport(importedBy string, importPath string) (f
 	}
 
 	if !resolver.DisableStdlib {
-		candidates = resolver.stdlibCandidates(importPath)
+		candidates = resolver.stdlibCandidates(importedBy, importPath)
 		for _, candidate := range candidates {
 			if resolver.pathExists(candidate) {
 				program, err := resolver.loadProgram(candidate)
@@ -357,12 +390,26 @@ func (resolver *Resolver) localCandidates(importedBy string, importPath string) 
 	baseDir := filepath.Dir(importedBy)
 	candidates := []string{filepath.Clean(filepath.Join(baseDir, importPath))}
 	if filepath.Ext(importPath) == "" {
-		candidates = append(candidates, filepath.Clean(filepath.Join(baseDir, importPath+file.KlangExtension)))
+		if filepath.Ext(importedBy) == grua.Extension {
+			return append(candidates, filepath.Clean(filepath.Join(baseDir, importPath+grua.Extension)))
+		}
+		candidates = append(
+			candidates,
+			filepath.Clean(filepath.Join(baseDir, importPath+file.KlangExtension)),
+			filepath.Clean(filepath.Join(baseDir, importPath+grua.Extension)),
+		)
 	}
 	return candidates
 }
 
-func (resolver *Resolver) stdlibCandidates(importPath string) []string {
+func (resolver *Resolver) stdlibCandidates(importedBy string, importPath string) []string {
+	if filepath.Ext(importedBy) == grua.Extension {
+		candidates := []string{filepath.Clean(filepath.Join(resolver.StdlibRoot, "grua", importPath))}
+		if filepath.Ext(importPath) == "" {
+			candidates = append(candidates, filepath.Clean(filepath.Join(resolver.StdlibRoot, "grua", importPath+grua.Extension)))
+		}
+		return candidates
+	}
 	candidates := []string{filepath.Clean(filepath.Join(resolver.StdlibRoot, importPath))}
 	if filepath.Ext(importPath) == "" {
 		candidates = append(candidates, filepath.Clean(filepath.Join(resolver.StdlibRoot, importPath+file.KlangExtension)))
@@ -683,7 +730,7 @@ func (resolver *Resolver) expandSelectedFunctions(program file.Program, selected
 
 func moduleNameFromImportPath(importPath string) string {
 	clean := filepath.Clean(importPath)
-	name := strings.TrimSuffix(filepath.Base(clean), file.KlangExtension)
+	name := strings.TrimSuffix(filepath.Base(clean), filepath.Ext(clean))
 	return name
 }
 

@@ -1568,6 +1568,23 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsCStyleLoopEvaluationInitializer(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local mut Int total = 0;
+    for index := 0; index < 3; index += 1 {
+        total += index;
+    }
+    return total;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected C-style loop initializer to pass, got: %v", report.Errors)
+	}
+}
+
 func TestCheckProgramAcceptsForEachLoopAndRejectsLeak(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {
@@ -2861,6 +2878,30 @@ function Main() : Int {
 	report := CheckProgram(program)
 	if !report.Passed() {
 		t.Fatalf("expected extended pattern match type check to pass, got: %v", report.Errors)
+	}
+}
+
+func TestCheckProgramAcceptsResultPatternForInferredLocal(t *testing.T) {
+	program := programFromSource(`
+function Parse() : Result[Int, String] {
+    return Ok(10);
+}
+
+function Main() : Int {
+    local parsed = Parse();
+    if parsed == {
+        case Ok(value):
+            return value;
+        case Err(message):
+            print(message);
+            return 0;
+    }
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected inferred Result pattern match to pass, got: %v", report.Errors)
 	}
 }
 

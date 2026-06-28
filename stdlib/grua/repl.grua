@@ -1,0 +1,72 @@
+-- Parsable-backed REPL sessions represented entirely through Tables.
+
+function NEW_TABLE() : Table {
+    return Table()
+}
+
+function NEW_SESSION() : Table {
+    return {
+        "source": "",
+        "submissions": 0,
+        "has_source": False,
+        "history": repl.NEW_TABLE()
+    }
+}
+
+function SUBMIT(session::Table, source::String) : Table {
+    local mut history = clone (session["history"] as Table)
+    history[table_sequence_count(history)] = source
+    return {
+        "source": source,
+        "submissions": (session["submissions"] as Int) + 1,
+        "has_source": True,
+        "history": history,
+        "parsable": Parsable(source)
+    }
+}
+
+function SOURCE(session::Table) : String {
+    return session["source"] as String
+}
+
+function HISTORY(session::Table) : Table {
+    return clone (session["history"] as Table)
+}
+
+function DESCRIBE(source::String) : Table {
+    local parsed = Parsable(source)
+    return parsable_runtime_info(parsed)
+}
+
+function AST(source::String) : Table {
+    local parsed = Parsable(source)
+    local nodes = parsable_ast(parsed)
+    _ = nodes
+    local mut result = repl.NEW_TABLE()
+    for node in nodes {
+        result[table_sequence_count(result)] = node
+    }
+    return result
+}
+
+function SESSION_AST(session::Table) : Table {
+    return repl.AST(repl.SOURCE(session))
+}
+
+function REQUEST_AST(source::String) : Table {
+    local parsed = parsable_begin_polling(Parsable(source))
+    return parsable_poll_message(parsed, {"kind": "REQUEST_AST"})
+}
+
+function SUMMARY(session::Table) : Table {
+    local source = repl.SOURCE(session)
+    local info = repl.DESCRIBE(source)
+    local ast = repl.AST(source)
+    return {
+        "submissions": session["submissions"],
+        "history_count": table_sequence_count(session["history"] as Table),
+        "source_bytes": info["source_bytes"],
+        "statement_count": info["statement_count"],
+        "ast_nodes": ast.count
+    }
+}

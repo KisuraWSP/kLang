@@ -1,0 +1,74 @@
+-- Console and structured text helpers for Grua.
+
+function PRINT(value::T) : Int {
+    print(value)
+    return 0
+}
+
+function PRINT_LINE(value::T) : Int {
+    print(value)
+    return 0
+}
+
+function INPUT(prompt::String) : String {
+    return input(prompt)
+}
+
+function LOG(level::String, message::String) : Int {
+    print("[" + level + "] " + message)
+    return 0
+}
+
+function INFO(message::String) : Int {
+    return io.LOG("INFO", message)
+}
+
+function WARN(message::String) : Int {
+    return io.LOG("WARN", message)
+}
+
+function ERROR(message::String) : Int {
+    return io.LOG("ERROR", message)
+}
+
+function WRITER() : Table {
+    return {"buffer": "", "items": 0, "separator": ", "}
+}
+
+function APPEND(writer::Table, value::T) : Table {
+    local mut prefix = writer["separator"] as String
+    local items = writer["items"] as Int
+    switch items {
+        case 0: prefix = ""
+        case: prefix = prefix
+    }
+    return {
+        "buffer": (writer["buffer"] as String) + prefix + (value as String),
+        "items": items + 1,
+        "separator": writer["separator"]
+    }
+}
+
+function WRITE(writer::Table, value::T) : Table {
+    return io.APPEND(writer, value)
+}
+
+function FIELD(writer::Table, name::String, value::T) : Table {
+    return io.APPEND(writer, name + "=" + (value as String))
+}
+
+function BUFFER(writer::Table) : String {
+    return writer["buffer"] as String
+}
+
+function RESET(writer::Table) : Table {
+    _ = writer
+    return io.WRITER()
+}
+
+function PRINT_TABLE(data::Table) : Int {
+    for entry in data {
+        print((entry["key"] as String) + "=" + (entry["value"] as String))
+    }
+    return data.count
+}

@@ -92,6 +92,8 @@ Aggregate collection values use copy-on-write storage for ordinary assignment. S
 
 `Table` is the only fully dynamic container. It stores mixed values and accepts only primitive value keys: `String`, `Atom`, `Int`, `UInt`, `Float`, `Bool`, and `Char`. Keys compare by their normalized primitive kind plus value, so `:ready`, `"ready"`, and `'r'` are distinct keys. Unsafe dynamic keys such as `Table`, `List`, functions, refs, allocator objects, and other runtime objects are rejected. `table["name"]` reads a user field and reports a missing-key diagnostic when absent; reads never create fields. Indexed mutation detaches shared storage before writing. `data.count` is the builtin protocol count for the table's own entries, while `data["count"]` reads the user field named `"count"`. Other non-conflicting selectors such as `data.name` remain sugar for `data["name"]`.
 
+Grua `.grua` programs reuse these exact runtime values but restrict user-defined aggregate literals to `Table`. Grua declarations infer their value types, while function `::Hint` annotations are lowered through the kLang checker/runtime contract. Grua does not introduce a parallel dynamic value representation.
+
 Table helper builtins are available without imports:
 - `table_has(table, key)` and `has_key(table, key)` return `Bool`.
 - `table_delete(table, key)` returns a new `Table` without the key; assigning the result applies deletion.

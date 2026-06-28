@@ -131,6 +131,23 @@ Key files:
 Parser output types are used by the checker, runtime, formatter, docs, and JS
 backend. AST changes have a wide blast radius.
 
+### `src/grua`
+
+This package is the restricted `.grua` frontend. It validates Grua-only syntax,
+reports source-positioned subset violations, inserts newline terminators, and
+lowers `::Hint`, `switch`, and Grua `for` forms into parseable kLang source.
+
+Grua deliberately has no independent runtime or AST. Add syntax-only subset
+rules here, then test the resulting behavior through the ordinary checker and
+runtime. Preserve line numbers when lowering because diagnostics and source maps
+render the original Grua source.
+
+Grua stdlib resolution is dialect-specific. `basic`, `file`, `io`, and `repl`
+resolve from `stdlib/grua/*.grua`; the loader internally wraps imported Grua
+files in a namespace derived from the filename. Do not add namespace syntax to
+those source files, and do not let Grua resolution fall back to root `.klang`
+modules.
+
 ### `src/engine/file`
 
 This package loads source files and project manifests.
@@ -144,13 +161,14 @@ Key files:
 Important concepts:
 
 - `file.Program` is the loaded source workspace.
-- `file.SourceFile` contains a path, lines, and an optional
-  `ModuleFunctionFilter`.
-- `klang.project` contains `name`, `entry`, and optional `sources`.
+- `file.SourceFile` contains parser-facing lines, optional original Grua lines,
+  a language marker, a path, and an optional `ModuleFunctionFilter`.
+- `klang.project` contains `name`, `entry`, `language_version`, and optional
+  `sources`. A Grua entry requires all user project sources to use `.grua`.
 - `dist` folders are skipped when discovering source files.
 
 Touch this package when changing project layout, manifest behavior, script opt-in
-rules, or source discovery.
+rules, source discovery, or how Grua source is passed into the shared toolchain.
 
 ### `src/engine/module_system`
 

@@ -1,0 +1,113 @@
+-- Table-oriented access to the native File runtime.
+
+function OPEN(path::String) : Table {
+    local native = File(path)
+    return {
+        "path": native.path,
+        "name": native.name,
+        "extension": native.extension
+    }
+}
+
+function PATH(handle::Table) : String {
+    return handle["path"] as String
+}
+
+function SUCCESS(value::T) : Table {
+    _ = value
+    return {"ok": True, "value": value, "error": ""}
+}
+
+function FAILURE(message::String) : Table {
+    _ = message
+    return {"ok": False, "value": None(), "error": message}
+}
+
+function OK(result::Table) : Bool {
+    return result["ok"] as Bool
+}
+
+function VALUE(result::Table, fallback::T) {
+    local is_ok = result["ok"] as Bool
+    switch is_ok {
+        case True: return result["value"]
+        case: return fallback
+    }
+}
+
+function ERROR(result::Table) : String {
+    return result["error"] as String
+}
+
+function READ(handle::Table) : Table {
+    local outcome = file_read(File(file.PATH(handle)))
+    switch outcome {
+        case Ok(content): return file.SUCCESS(content)
+        case Err(error): return file.FAILURE(error)
+    }
+}
+
+function READ_LINES(handle::Table) : Table {
+    local outcome = file_read_lines(File(file.PATH(handle)))
+    switch outcome {
+        case Ok(lines):
+            local mut values = basic.NEW()
+            for line in lines {
+                values = basic.PUSH(values, line)
+            }
+            return file.SUCCESS(values)
+        case Err(error):
+            return file.FAILURE(error)
+    }
+}
+
+function WRITE(handle::Table, content::String) : Table {
+    local outcome = file_write(File(file.PATH(handle)), content)
+    switch outcome {
+        case Ok(bytes): return file.SUCCESS(bytes)
+        case Err(error): return file.FAILURE(error)
+    }
+}
+
+function APPEND(handle::Table, content::String) : Table {
+    local outcome = file_append(File(file.PATH(handle)), content)
+    switch outcome {
+        case Ok(bytes): return file.SUCCESS(bytes)
+        case Err(error): return file.FAILURE(error)
+    }
+}
+
+function EXISTS(handle::Table) : Table {
+    local outcome = file_exists(File(file.PATH(handle)))
+    switch outcome {
+        case Ok(exists): return file.SUCCESS(exists)
+        case Err(error): return file.FAILURE(error)
+    }
+}
+
+function SIZE(handle::Table) : Table {
+    local outcome = file_size(File(file.PATH(handle)))
+    switch outcome {
+        case Ok(size): return file.SUCCESS(size)
+        case Err(error): return file.FAILURE(error)
+    }
+}
+
+function CREATE(handle::Table) : Table {
+    local outcome = file_create(File(file.PATH(handle)))
+    switch outcome {
+        case Ok(created):
+            _ = created
+            return file.SUCCESS(handle)
+        case Err(error):
+            return file.FAILURE(error)
+    }
+}
+
+function REMOVE(handle::Table) : Table {
+    local outcome = file_remove(File(file.PATH(handle)))
+    switch outcome {
+        case Ok(removed): return file.SUCCESS(removed)
+        case Err(error): return file.FAILURE(error)
+    }
+}

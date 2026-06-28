@@ -379,6 +379,10 @@ func (checker *TypeChecker) checkMatchScope(stmt parser.MatchStatement, scope *l
 		if _, _, ok := resultValueTypes(valueType); ok && resultCases["Ok"] && resultCases["Err"] {
 			return
 		}
+		if valueType == anyType &&
+			((optionCases["Some"] && optionCases["None"]) || (resultCases["Ok"] && resultCases["Err"])) {
+			return
+		}
 		checker.addError(source, stmt.Pos.Line, "pattern match is not exhaustive; add case: or mark it partial")
 	}
 }
@@ -460,9 +464,12 @@ func (checker *TypeChecker) checkConstructorPatternScope(pattern parser.CallExpr
 	switch callee.Name {
 	case "Some":
 		elementType, ok := optionElementType(valueType)
-		if !ok {
+		if !ok && valueType != anyType {
 			checker.addError(source, line, fmt.Sprintf("case pattern type Option[T] does not match %s", valueType))
 			return matchPatternInfo{}
+		}
+		if !ok {
+			elementType = anyType
 		}
 		if len(pattern.Arguments) != 1 {
 			checker.addError(source, line, "Some pattern expects one argument")
@@ -471,7 +478,7 @@ func (checker *TypeChecker) checkConstructorPatternScope(pattern parser.CallExpr
 		checker.checkPatternScope(pattern.Arguments[0], elementType, scope, namespace, source, line)
 		return matchPatternInfo{Kind: "option", Name: "Some"}
 	case "None":
-		if _, ok := optionElementType(valueType); !ok {
+		if _, ok := optionElementType(valueType); !ok && valueType != anyType {
 			checker.addError(source, line, fmt.Sprintf("case pattern type Option[T] does not match %s", valueType))
 		}
 		if len(pattern.Arguments) != 0 {
@@ -480,9 +487,12 @@ func (checker *TypeChecker) checkConstructorPatternScope(pattern parser.CallExpr
 		return matchPatternInfo{Kind: "option", Name: "None"}
 	case "Ok":
 		okType, _, ok := resultValueTypes(valueType)
-		if !ok {
+		if !ok && valueType != anyType {
 			checker.addError(source, line, fmt.Sprintf("case pattern type Result[T,E] does not match %s", valueType))
 			return matchPatternInfo{}
+		}
+		if !ok {
+			okType = anyType
 		}
 		if len(pattern.Arguments) != 1 {
 			checker.addError(source, line, "Ok pattern expects one argument")
@@ -492,9 +502,12 @@ func (checker *TypeChecker) checkConstructorPatternScope(pattern parser.CallExpr
 		return matchPatternInfo{Kind: "result", Name: "Ok"}
 	case "Err":
 		_, errType, ok := resultValueTypes(valueType)
-		if !ok {
+		if !ok && valueType != anyType {
 			checker.addError(source, line, fmt.Sprintf("case pattern type Result[T,E] does not match %s", valueType))
 			return matchPatternInfo{}
+		}
+		if !ok {
+			errType = anyType
 		}
 		if len(pattern.Arguments) != 1 {
 			checker.addError(source, line, "Err pattern expects one argument")

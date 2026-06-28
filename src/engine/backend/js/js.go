@@ -106,7 +106,7 @@ func lowerProgram(request backend.Request) (ir.Program, []backend.Diagnostic) {
 		loaded := sourceFiles[filepath.Clean(source.Path)]
 		program.Sources = append(program.Sources, ir.Source{
 			Path: source.Path, MapPath: jsSourceMapPath(request.Program.Root, source.Path),
-			Content: strings.Join(loaded.Lines, "\n"),
+			Content: strings.Join(loaded.DisplayLines(), "\n"),
 		})
 	}
 	for _, source := range request.Parsed.Sources {

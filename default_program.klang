@@ -356,7 +356,7 @@ function RunCLI(args : List[String]) : Table {
     }
     if kind == CommandKind.Run {
         if values.count < 1 {
-            return ErrorPlan(cliName + " run expects a .klang file or project folder");
+            return ErrorPlan(cliName + " run expects a .klang/.grua file or project folder");
         }
         options["run"] = True;
         options["program_args"] = RestArgs(values);
@@ -364,7 +364,7 @@ function RunCLI(args : List[String]) : Table {
     }
     if kind == CommandKind.Check {
         if values.count != 1 {
-            return ErrorPlan(cliName + " check expects a .klang file or project folder");
+            return ErrorPlan(cliName + " check expects a .klang/.grua file or project folder");
         }
         return ExecutePrograms([LoadProgramPlan(values[0])], options);
     }

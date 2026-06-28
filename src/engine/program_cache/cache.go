@@ -14,7 +14,7 @@ import (
 	"kLang/src/lexer"
 )
 
-const Version = "klang-program-cache-v3-language-version"
+const Version = "klang-program-cache-v5-grua-table-lowering"
 
 type Warning struct {
 	File    string `json:"file"`
@@ -37,6 +37,8 @@ type Entry struct {
 type CachedSource struct {
 	Path                 string   `json:"path"`
 	Lines                []string `json:"lines"`
+	OriginalLines        []string `json:"original_lines,omitempty"`
+	Language             string   `json:"language,omitempty"`
 	ModuleFunctionFilter []string `json:"module_function_filter,omitempty"`
 	Size                 int64    `json:"size"`
 	SHA256               string   `json:"sha256"`
@@ -90,6 +92,8 @@ func Load(program file.Program, rawLang bool) (file.Program, Entry, bool) {
 		files = append(files, file.SourceFile{
 			Path:                 cached.Path,
 			Lines:                append([]string(nil), cached.Lines...),
+			OriginalLines:        append([]string(nil), cached.OriginalLines...),
+			Language:             cached.Language,
 			ModuleFunctionFilter: listToFilter(cached.ModuleFunctionFilter),
 		})
 	}
@@ -121,6 +125,8 @@ func Store(program file.Program, rawLang bool, warnings []Warning) error {
 		files = append(files, CachedSource{
 			Path:                 source.Path,
 			Lines:                append([]string(nil), source.Lines...),
+			OriginalLines:        append([]string(nil), source.OriginalLines...),
+			Language:             source.Language,
 			ModuleFunctionFilter: filterToList(source.ModuleFunctionFilter),
 			Size:                 size,
 			SHA256:               hash,

@@ -117,7 +117,7 @@ func discoverSources(root string) ([]string, error) {
 			}
 			return nil
 		}
-		if filepath.Ext(entry.Name()) != file.KlangExtension {
+		if !file.IsSourcePath(entry.Name()) {
 			return nil
 		}
 		relativePath, err := filepath.Rel(root, path)

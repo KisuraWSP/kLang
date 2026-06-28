@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"kLang/src/grua"
 	"kLang/src/lexer"
 )
 
@@ -17,11 +18,22 @@ const KlangEntryPoint = "first.klang"
 const KlangProjectFile = "klang.project"
 const KlangDistDir = "dist"
 const CurrentLanguageVersion = 1
+const LanguageKlang = "klang"
+const LanguageGrua = "grua"
 
 type SourceFile struct {
 	Path                 string
 	Lines                []string
+	OriginalLines        []string
+	Language             string
 	ModuleFunctionFilter map[string]bool
+}
+
+func (source SourceFile) DisplayLines() []string {
+	if len(source.OriginalLines) != 0 {
+		return source.OriginalLines
+	}
+	return source.Lines
 }
 
 type Program struct {
@@ -83,20 +95,26 @@ func LoadProgram(path string) (Program, error) {
 		return readManifestProgram(path)
 	}
 
-	if filepath.Ext(path) != KlangExtension {
-		return Program{}, fmt.Errorf("expected %s, a %s script with load_as_script;, or a project folder: %s", KlangProjectFile, KlangExtension, path)
+	if !IsSourcePath(path) {
+		return Program{}, fmt.Errorf(
+			"expected %s, a %s script with load_as_script;, a %s program, or a project folder: %s",
+			KlangProjectFile,
+			KlangExtension,
+			grua.Extension,
+			path,
+		)
 	}
 
 	source, err := readSourceFile(path)
 	if err != nil {
 		return Program{}, err
 	}
-	if !sourceHasDirective(source.Lines, "load_as_script") {
+	if source.Language != LanguageGrua && !sourceHasDirective(source.Lines, "load_as_script") {
 		return Program{}, fmt.Errorf("%s scripts must opt in with load_as_script; or be listed in %s", path, KlangProjectFile)
 	}
 
 	return Program{
-		Name:       strings.TrimSuffix(filepath.Base(path), KlangExtension),
+		Name:       strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),
 		Root:       filepath.Dir(path),
 		EntryPoint: path,
 		Files:      []SourceFile{source},
@@ -111,15 +129,15 @@ func LoadModuleProgram(path string) (Program, error) {
 	if info.IsDir() {
 		return readLegacyDirectoryProgram(path, false)
 	}
-	if filepath.Ext(path) != KlangExtension {
-		return Program{}, fmt.Errorf("expected a %s file or folder with %s: %s", KlangExtension, KlangEntryPoint, path)
+	if !IsSourcePath(path) {
+		return Program{}, fmt.Errorf("expected a %s or %s file, or a folder with %s: %s", KlangExtension, grua.Extension, KlangEntryPoint, path)
 	}
-	source, err := readSourceFile(path)
+	source, err := readModuleSourceFile(path)
 	if err != nil {
 		return Program{}, err
 	}
 	return Program{
-		Name:       strings.TrimSuffix(filepath.Base(path), KlangExtension),
+		Name:       strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),
 		Root:       filepath.Dir(path),
 		EntryPoint: path,
 		Files:      []SourceFile{source},
@@ -150,7 +168,7 @@ func DiscoverPrograms(root string) ([]Program, error) {
 			continue
 		}
 
-		if filepath.Ext(entry.Name()) != KlangExtension {
+		if !IsSourcePath(entry.Name()) {
 			continue
 		}
 
@@ -208,7 +226,7 @@ func readLegacyDirectoryProgram(programDir string, requireScriptOptIn bool) (Pro
 			}
 			return nil
 		}
-		if filepath.Ext(entry.Name()) != KlangExtension {
+		if !IsSourcePath(entry.Name()) {
 			return nil
 		}
 		paths = append(paths, path)
@@ -263,6 +281,9 @@ func readManifestProgram(manifestPath string) (Program, error) {
 		manifest.Entry = KlangEntryPoint
 	}
 	entryPoint := filepath.Clean(filepath.Join(programDir, manifest.Entry))
+	if !IsSourcePath(entryPoint) {
+		return Program{}, fmt.Errorf("%s entry %q must be a %s or %s file", KlangProjectFile, manifest.Entry, KlangExtension, grua.Extension)
+	}
 	if !FileExists(entryPoint) {
 		return Program{}, fmt.Errorf("%s entry %q does not exist", KlangProjectFile, manifest.Entry)
 	}
@@ -277,8 +298,8 @@ func readManifestProgram(manifestPath string) (Program, error) {
 		seen := map[string]bool{}
 		for _, source := range manifest.Sources {
 			path := filepath.Clean(filepath.Join(programDir, source))
-			if filepath.Ext(path) != KlangExtension {
-				return Program{}, fmt.Errorf("%s source %q must be a %s file", KlangProjectFile, source, KlangExtension)
+			if !IsSourcePath(path) {
+				return Program{}, fmt.Errorf("%s source %q must be a %s or %s file", KlangProjectFile, source, KlangExtension, grua.Extension)
 			}
 			if !FileExists(path) {
 				return Program{}, fmt.Errorf("%s source %q does not exist", KlangProjectFile, source)
@@ -290,6 +311,13 @@ func readManifestProgram(manifestPath string) (Program, error) {
 		}
 		if !seen[entryPoint] {
 			paths = append([]string{entryPoint}, paths...)
+		}
+	}
+	if filepath.Ext(entryPoint) == grua.Extension {
+		for _, path := range paths {
+			if filepath.Ext(path) != grua.Extension {
+				return Program{}, fmt.Errorf("Grua projects may only list %s source files: %s", grua.Extension, path)
+			}
 		}
 	}
 
@@ -327,7 +355,7 @@ func discoverProjectSourcePaths(programDir string) ([]string, error) {
 			}
 			return nil
 		}
-		if filepath.Ext(entry.Name()) == KlangExtension {
+		if IsSourcePath(entry.Name()) {
 			paths = append(paths, path)
 		}
 		return nil
@@ -353,10 +381,44 @@ func readSourceFile(path string) (SourceFile, error) {
 		return SourceFile{}, err
 	}
 
+	if filepath.Ext(path) == grua.Extension {
+		transpiled, diagnostics := grua.Transpile(strings.Join(lines, "\n"))
+		if len(diagnostics) != 0 {
+			return SourceFile{}, grua.FormatDiagnostics(path, diagnostics)
+		}
+		return SourceFile{
+			Path:          path,
+			Lines:         strings.Split(transpiled, "\n"),
+			OriginalLines: append([]string(nil), lines...),
+			Language:      LanguageGrua,
+		}, nil
+	}
 	return SourceFile{
-		Path:  path,
-		Lines: lines,
+		Path:     path,
+		Lines:    lines,
+		Language: LanguageKlang,
 	}, nil
+}
+
+func readModuleSourceFile(path string) (SourceFile, error) {
+	source, err := readSourceFile(path)
+	if err != nil || source.Language != LanguageGrua {
+		return source, err
+	}
+	moduleName := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	if len(source.Lines) == 0 {
+		source.Lines = []string{"namespace " + moduleName + " {}"}
+		return source, nil
+	}
+	source.Lines[0] = "namespace " + moduleName + " { " + source.Lines[0]
+	last := len(source.Lines) - 1
+	source.Lines[last] += " }"
+	return source, nil
+}
+
+func IsSourcePath(path string) bool {
+	extension := filepath.Ext(path)
+	return extension == KlangExtension || extension == grua.Extension
 }
 
 func readProjectManifest(path string) (ProjectManifest, error) {

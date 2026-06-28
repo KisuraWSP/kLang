@@ -1244,6 +1244,18 @@ func semanticLoopHeaderStatement(expr parser.Expression) (parser.Statement, bool
 	if len(tokens) == 0 {
 		return nil, false
 	}
+	if tokens[0].Type == lexer.TokenIdentifier && len(tokens) >= 3 && tokens[1].Type == lexer.TokenEvaluationAssign {
+		value := parser.Expression{Tokens: tokens[2:], Node: parser.ParseExpressionTokens(tokens[2:])}
+		return parser.VariableStatement{
+			Pos:        parser.Position{Line: tokens[0].Line, Column: tokens[0].Column},
+			Scope:      "local",
+			Inferred:   true,
+			Mutable:    true,
+			Type:       "T",
+			Name:       tokens[0].Literal,
+			Expression: value,
+		}, true
+	}
 	if tokens[0].Type == lexer.TokenLocal || tokens[0].Type == lexer.TokenLet || tokens[0].Type == lexer.TokenConst {
 		parserSource := expressionTokensSource(tokens) + ";"
 		program, errors := parser.Parse(parserSource)
