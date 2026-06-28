@@ -1009,6 +1009,44 @@ alias function[T restrict[List[Option[Int]]]] OptionalInts(value : T) : type = s
 alias function NumericValue[T numeric](value : T) : type = struct {
 }
 
+-- A standalone extension adds methods to an existing builtin or alias struct.
+-- `this` is statically typed as the extension target.
+alias function Duration(value : Int) : type = struct {
+    #extend {
+        function ago() : Int {
+            return 0 - this.value;
+        }
+    }
+}
+
+#extend Int {
+    function days() : Duration {
+        return Duration(this);
+    }
+}
+
+#extend String {
+    function surrounded(left : String, right : String) : String {
+        return left + this + right;
+    }
+}
+
+local Int ten_days_ago = 10.days().ago();
+local String label = "release".surrounded("[", "]");
+
+-- Extensions are additive. A declaration is rejected when its method name
+-- already belongs to the builtin protocol, the alias itself, or another
+-- extension for the same target.
+-- The stdlib types module uses this feature directly:
+-- Int: absolute, clamp, between, is_even, is_odd, sign
+-- Float: absolute, clamp, between
+-- Bool: to_int
+-- String: is_empty, or_else, surrounded
+-- Char: to_string
+import "types";
+local Int safe_percent = 140.clamp(0, 100);
+local String display_name = "".or_else("anonymous");
+
 alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type {
     trait LengthTracked {
         function Size(value : Int) : Int;

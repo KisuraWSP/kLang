@@ -18,3 +18,106 @@ global namespace types {
     alias complex64 = Complex.child(64);
     alias complex128 = Complex.child(128);
 }
+
+--- INT EXTENSIONS
+--- Adds readable numeric operations to Int and signed child-width aliases.
+#extend Int {
+    function absolute() : Int {
+        if this < 0 {
+            return 0 - this;
+        }
+        return this;
+    }
+
+    function clamp(minimum : Int, maximum : Int) : Int {
+        if this < minimum {
+            return minimum;
+        }
+        if this > maximum {
+            return maximum;
+        }
+        return this;
+    }
+
+    function between(minimum : Int, maximum : Int) : Bool {
+        return this >= minimum and this <= maximum;
+    }
+
+    function is_even() : Bool {
+        return this % 2 == 0;
+    }
+
+    function is_odd() : Bool {
+        return not this.is_even();
+    }
+
+    function sign() : Int {
+        if this < 0 {
+            return 0 - 1;
+        }
+        if this > 0 {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+--- FLOAT EXTENSIONS
+--- Mirrors the bounded and absolute-value operations for Float values.
+#extend Float {
+    function absolute() : Float {
+        if this < 0.0 {
+            return 0.0 - this;
+        }
+        return this;
+    }
+
+    function clamp(minimum : Float, maximum : Float) : Float {
+        if this < minimum {
+            return minimum;
+        }
+        if this > maximum {
+            return maximum;
+        }
+        return this;
+    }
+
+    function between(minimum : Float, maximum : Float) : Bool {
+        return this >= minimum and this <= maximum;
+    }
+}
+
+--- BOOL EXTENSIONS
+#extend Bool {
+    function to_int() : Int {
+        if this {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+--- STRING EXTENSIONS
+#extend String {
+    function is_empty() : Bool {
+        return this == "";
+    }
+
+    function or_else(fallback : String) : String {
+        if this.is_empty() {
+            return fallback;
+        }
+        return this;
+    }
+
+    function surrounded(prefix : String, suffix : String = "") : String {
+        return prefix + this + suffix;
+    }
+}
+
+--- CHAR EXTENSIONS
+#extend Char {
+    function to_string() : String {
+        return "" + this;
+    }
+}

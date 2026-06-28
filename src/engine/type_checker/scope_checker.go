@@ -216,6 +216,8 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		return
 	case parser.AliasFunctionStatement:
 		checker.checkAliasFunctionScope(current, scope, namespace, source)
+	case parser.ExtensionStatement:
+		checker.checkExtensionScope(current, scope, namespace, source)
 	case parser.NamespaceStatement:
 		checker.checkScopeStatements(current.Body, scope, namespace+current.Name+".", source, inLoop, topLevel)
 	case parser.TraitStatement:
@@ -641,6 +643,20 @@ func (checker *TypeChecker) checkAliasFunctionScope(alias parser.AliasFunctionSt
 	for _, method := range alias.Methods {
 		methodScope := newLexicalScope(parent)
 		methodScope.define(variableSymbol{Name: "this", Type: alias.Name, File: source, Line: method.Pos.Line})
+		for _, param := range method.Params {
+			if !methodScope.define(variableSymbol{Name: param.Name, Type: normalizeType(param.Type), Mutable: param.Mutable, File: source, Line: method.Pos.Line}) {
+				checker.addError(source, method.Pos.Line, fmt.Sprintf("parameter %q is already defined", param.Name))
+			}
+		}
+		checker.checkScopeStatements(method.Body, methodScope, namespace, source, false, false)
+	}
+}
+
+func (checker *TypeChecker) checkExtensionScope(extension parser.ExtensionStatement, parent *lexicalScope, namespace string, source string) {
+	target := checker.resolveTypeAlias(normalizeType(extension.Target))
+	for _, method := range extension.Methods {
+		methodScope := newLexicalScope(parent)
+		methodScope.define(variableSymbol{Name: "this", Type: target, File: source, Line: method.Pos.Line})
 		for _, param := range method.Params {
 			if !methodScope.define(variableSymbol{Name: param.Name, Type: normalizeType(param.Type), Mutable: param.Mutable, File: source, Line: method.Pos.Line}) {
 				checker.addError(source, method.Pos.Line, fmt.Sprintf("parameter %q is already defined", param.Name))

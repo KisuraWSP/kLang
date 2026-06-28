@@ -53,6 +53,7 @@ type TypeChecker struct {
 	functions       map[string]functionSymbol
 	globalFunctions map[string][]string
 	aliasFunctions  map[string]parser.AliasFunctionStatement
+	extensions      map[string]map[string]extensionMethodSymbol
 	keywordMacros   map[string]parser.AliasStatement
 	regions         map[string]parser.RegionStatement
 	groups          map[string][]string
@@ -105,6 +106,12 @@ type traitMethodSymbol struct {
 	Line       int
 }
 
+type extensionMethodSymbol struct {
+	Target string
+	Method parser.FunctionStatement
+	File   string
+}
+
 type enumSymbol struct {
 	Name     string
 	Variants map[string]enumVariantSymbol
@@ -144,6 +151,7 @@ func CheckProgram(program file.Program) Report {
 		functions:       map[string]functionSymbol{},
 		globalFunctions: map[string][]string{},
 		aliasFunctions:  map[string]parser.AliasFunctionStatement{},
+		extensions:      map[string]map[string]extensionMethodSymbol{},
 		keywordMacros:   map[string]parser.AliasStatement{},
 		regions:         map[string]parser.RegionStatement{},
 		groups:          map[string][]string{},
@@ -178,6 +186,7 @@ func CheckProgram(program file.Program) Report {
 	checker.collectEnums(parsed)
 	checker.collectAliases(parsed)
 	checker.collectAliasFunctionsAndRegions(parsed)
+	checker.collectExtensions(parsed)
 	checker.collectFunctionGroups(parsed)
 	for _, unit := range units {
 		checker.collectGlobals(unit)
@@ -193,6 +202,7 @@ func CheckProgram(program file.Program) Report {
 	}
 	for _, source := range parsed.Sources {
 		checker.checkAliasFunctionMethods(source.Program.Statements, source.Path)
+		checker.checkExtensionMethods(source.Program.Statements, source.Path)
 	}
 	checker.checkLexicalScopes(program.EntryPoint, parsed)
 
@@ -292,6 +302,56 @@ func (checker *TypeChecker) collectAliasFunctionStatements(statements []parser.S
 			checker.collectAliasFunctionStatements(current.Body, source)
 		case parser.ScopeStatement:
 			checker.collectAliasFunctionStatements(current.Body, source)
+		}
+	}
+}
+
+func (checker *TypeChecker) collectExtensions(parsed parser.ParsedProgram) {
+	if !parsed.Passed() {
+		return
+	}
+	for _, source := range parsed.Sources {
+		checker.collectExtensionStatements(source.Program.Statements, source.Path)
+	}
+}
+
+func (checker *TypeChecker) collectExtensionStatements(statements []parser.Statement, source string) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.ExtensionStatement:
+			target := checker.resolveTypeAlias(normalizeType(current.Target))
+			if !isKnownType(target) && !checker.isStructAliasType(target) {
+				checker.addError(source, current.Pos.Line, fmt.Sprintf("extension target %s is not a known type", current.Target))
+				continue
+			}
+			if checker.extensions[target] == nil {
+				checker.extensions[target] = map[string]extensionMethodSymbol{}
+			}
+			for _, method := range current.Methods {
+				if _, exists := checker.extensions[target][method.Name]; exists {
+					checker.addError(source, method.Pos.Line, fmt.Sprintf("extension method %s.%s is already defined", target, method.Name))
+					continue
+				}
+				if _, exists := checker.aliasMethodType(target, method.Name); exists {
+					checker.addError(source, method.Pos.Line, fmt.Sprintf("extension method %s.%s conflicts with an alias method", target, method.Name))
+					continue
+				}
+				if _, exists := builtinProtocolMethodType(target, method.Name); exists {
+					checker.addError(source, method.Pos.Line, fmt.Sprintf("extension method %s.%s conflicts with a builtin method", target, method.Name))
+					continue
+				}
+				checker.extensions[target][method.Name] = extensionMethodSymbol{
+					Target: target,
+					Method: method,
+					File:   source,
+				}
+			}
+		case parser.NamespaceStatement:
+			checker.collectExtensionStatements(current.Body, source)
+		case parser.PrivateBlockStatement:
+			checker.collectExtensionStatements(current.Body, source)
+		case parser.ScopeStatement:
+			checker.collectExtensionStatements(current.Body, source)
 		}
 	}
 }
@@ -405,6 +465,10 @@ func (checker *TypeChecker) collectFunctions(unit sourceUnit, namespace string, 
 			} else {
 				index = end
 			}
+			continue
+		}
+		if end, ok := enclosingExtensionEnd(unit.Text, nextFunction); ok {
+			index = end
 			continue
 		}
 
@@ -860,6 +924,53 @@ func (checker *TypeChecker) checkAliasFunctionMethods(statements []parser.Statem
 	}
 }
 
+func (checker *TypeChecker) checkExtensionMethods(statements []parser.Statement, source string) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.ExtensionStatement:
+			target := checker.resolveTypeAlias(normalizeType(current.Target))
+			for _, method := range current.Methods {
+				symbol, ok := checker.extensions[target][method.Name]
+				if !ok || symbol.File != source || symbol.Method.Pos != method.Pos {
+					continue
+				}
+				locals := map[string]variableSymbol{
+					"this": {Name: "this", Type: target, File: source, Line: method.Pos.Line},
+				}
+				declared := map[string]bool{"this": true}
+				for _, param := range method.Params {
+					locals[param.Name] = variableSymbol{
+						Name:      param.Name,
+						Type:      normalizeType(param.Type),
+						Mutable:   param.Mutable,
+						ByRef:     param.ByRef,
+						Parameter: true,
+						File:      source,
+						Line:      method.Pos.Line,
+					}
+					if !isDiscardIdentifier(param.Name) {
+						declared[param.Name] = true
+					}
+				}
+				fn := functionSymbol{
+					Name:       target + "." + method.Name,
+					Params:     localsToParams(method.Params, source, method.Pos.Line),
+					ReturnType: normalizeType(method.ReturnType),
+					File:       source,
+					Line:       method.Pos.Line,
+				}
+				checker.checkSemanticStatements(fn, method.Body, locals, declared)
+			}
+		case parser.NamespaceStatement:
+			checker.checkExtensionMethods(current.Body, source)
+		case parser.PrivateBlockStatement:
+			checker.checkExtensionMethods(current.Body, source)
+		case parser.ScopeStatement:
+			checker.checkExtensionMethods(current.Body, source)
+		}
+	}
+}
+
 func localsToParams(params []parser.Parameter, source string, line int) []variableSymbol {
 	symbols := make([]variableSymbol, 0, len(params))
 	for _, param := range params {
@@ -1114,9 +1225,82 @@ func (checker *TypeChecker) inferExpressionNode(node parser.ExpressionNode, fall
 		return normalizeType(current.Kind)
 	case parser.GroupExpression:
 		return checker.inferExpressionNode(current.Inner, fallback, locals, source, line)
+	case parser.CallExpression:
+		if resultType, ok := checker.inferStandaloneExtensionCall(current, locals, source, line); ok {
+			return resultType
+		}
+		for _, argument := range current.Arguments {
+			if call, ok := argument.(parser.CallExpression); ok {
+				checker.inferStandaloneExtensionCall(call, locals, source, line)
+			}
+		}
+		return checker.inferExpression(fallback, locals, source, line)
 	default:
 		return checker.inferExpression(fallback, locals, source, line)
 	}
+}
+
+func (checker *TypeChecker) inferStandaloneExtensionCall(call parser.CallExpression, locals map[string]variableSymbol, source string, line int) (string, bool) {
+	selector, ok := call.Callee.(parser.SelectorExpression)
+	if !ok {
+		return "", false
+	}
+	targetType, ok := checker.extensionReceiverType(selector.Target, locals, source, line)
+	if !ok {
+		return "", false
+	}
+	method, ok := checker.lookupExtensionMethod(targetType, selector.Field)
+	if !ok {
+		return "", false
+	}
+	return checker.checkExtensionNodeArguments(selector.Field, method, call.Arguments, locals, source, line), true
+}
+
+func (checker *TypeChecker) extensionReceiverType(node parser.ExpressionNode, locals map[string]variableSymbol, source string, line int) (string, bool) {
+	switch current := node.(type) {
+	case parser.LiteralExpression:
+		return normalizeType(current.Kind), true
+	case parser.IdentifierExpression:
+		variable, ok := checker.lookupVariable(current.Name, locals)
+		if !ok {
+			return "", false
+		}
+		if variable.InferredType != "" {
+			return variable.InferredType, true
+		}
+		return variable.Type, true
+	case parser.GroupExpression:
+		return checker.extensionReceiverType(current.Inner, locals, source, line)
+	case parser.CallExpression:
+		if resultType, ok := checker.inferStandaloneExtensionCall(current, locals, source, line); ok {
+			return resultType, true
+		}
+		if callee, ok := current.Callee.(parser.IdentifierExpression); ok {
+			if alias, exists := checker.aliasFunctions[callee.Name]; exists {
+				return checker.aliasConstructedType(alias, nil), true
+			}
+		}
+	}
+	return "", false
+}
+
+func (checker *TypeChecker) checkExtensionNodeArguments(name string, symbol extensionMethodSymbol, args []parser.ExpressionNode, locals map[string]variableSymbol, source string, line int) string {
+	required := requiredAliasParamCount(symbol.Method.Params)
+	if len(args) < required || len(args) > len(symbol.Method.Params) {
+		checker.addError(source, line, fmt.Sprintf("method %s expects %d to %d argument(s), got %d", name, required, len(symbol.Method.Params), len(args)))
+		return normalizeType(symbol.Method.ReturnType)
+	}
+	for index, arg := range args {
+		argType, ok := checker.extensionReceiverType(arg, locals, source, line)
+		if !ok {
+			argType = anyType
+		}
+		paramType := normalizeType(symbol.Method.Params[index].Type)
+		if !checker.isAssignable(paramType, argType) {
+			checker.addError(source, line, fmt.Sprintf("method %s argument %d expects %s, got %s", name, index+1, paramType, argType))
+		}
+	}
+	return normalizeType(symbol.Method.ReturnType)
 }
 
 func (checker *TypeChecker) checkTupleReturnExpressions(fn functionSymbol, values []parser.Expression, locals map[string]variableSymbol, line int) {
@@ -2678,6 +2862,34 @@ func (checker *TypeChecker) aliasMethodType(typeName string, methodName string) 
 	return "", false
 }
 
+func (checker *TypeChecker) extensionMethodType(typeName string, methodName string) (string, bool) {
+	symbol, ok := checker.lookupExtensionMethod(typeName, methodName)
+	if !ok {
+		return "", false
+	}
+	parts := make([]string, 0, len(symbol.Method.Params)+1)
+	for _, param := range symbol.Method.Params {
+		parts = append(parts, normalizeType(param.Type))
+	}
+	parts = append(parts, normalizeType(symbol.Method.ReturnType))
+	return "Function[" + strings.Join(parts, ",") + "]", true
+}
+
+func (checker *TypeChecker) lookupExtensionMethod(typeName string, methodName string) (extensionMethodSymbol, bool) {
+	typeName = checker.resolveTypeAlias(normalizeType(typeName))
+	if child, ok := childType(typeName); ok {
+		typeName = child.Parent
+	}
+	methods := checker.extensions[typeName]
+	if methods == nil {
+		if base, _, ok := splitGenericType(typeName); ok {
+			methods = checker.extensions[base]
+		}
+	}
+	symbol, ok := methods[methodName]
+	return symbol, ok
+}
+
 func (checker *TypeChecker) aliasFieldType(typeName string, fieldName string) (string, bool) {
 	alias, substitutions, ok := checker.aliasTypeInfo(typeName)
 	if !ok {
@@ -2893,6 +3105,9 @@ func (checker *TypeChecker) selectorFieldType(targetType string, fieldName strin
 		}
 	}
 	if methodType, ok := checker.aliasMethodType(targetType, fieldName); ok {
+		return methodType, true
+	}
+	if methodType, ok := checker.extensionMethodType(targetType, fieldName); ok {
 		return methodType, true
 	}
 	if fieldType, ok := checker.aliasFieldType(targetType, fieldName); ok {
@@ -4111,6 +4326,11 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			}
 			targetSymbol, targetOK := checker.lookupVariable(targetExpr, locals)
 			if !targetOK {
+				if targetExpr == "True" || targetExpr == "False" {
+					if method, methodOK := checker.lookupExtensionMethod("Bool", methodName); methodOK {
+						return checker.checkExtensionCall(name, method, args, locals, source, line)
+					}
+				}
 				checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
 				return anyType
 			}
@@ -4121,6 +4341,9 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			if methodType, methodOK := checker.aliasMethodType(targetType, methodName); methodOK {
 				paramTypes, returnType, _ := functionValueType(methodType)
 				return checker.checkCallbackCall(name, paramTypes, returnType, args, locals, source, line)
+			}
+			if method, methodOK := checker.lookupExtensionMethod(targetType, methodName); methodOK {
+				return checker.checkExtensionCall(name, method, args, locals, source, line)
 			}
 			if methodType, methodOK := builtinProtocolMethodType(targetType, methodName); methodOK {
 				paramTypes, returnType, _ := functionValueType(methodType)
@@ -4330,6 +4553,22 @@ func (checker *TypeChecker) checkCallbackCall(name string, paramTypes []string, 
 		}
 	}
 	return returnType
+}
+
+func (checker *TypeChecker) checkExtensionCall(name string, symbol extensionMethodSymbol, args []string, locals map[string]variableSymbol, source string, line int) string {
+	required := requiredAliasParamCount(symbol.Method.Params)
+	if len(args) < required || len(args) > len(symbol.Method.Params) {
+		checker.addError(source, line, fmt.Sprintf("method %s expects %d to %d argument(s), got %d", name, required, len(symbol.Method.Params), len(args)))
+		return normalizeType(symbol.Method.ReturnType)
+	}
+	for index, arg := range args {
+		argType := checker.inferExpression(arg, locals, source, line)
+		paramType := normalizeType(symbol.Method.Params[index].Type)
+		if !checker.isAssignable(paramType, argType) {
+			checker.addError(source, line, fmt.Sprintf("method %s argument %d expects %s, got %s", name, index+1, paramType, argType))
+		}
+	}
+	return normalizeType(symbol.Method.ReturnType)
 }
 
 func requiredParamCount(params []variableSymbol) int {
@@ -4627,6 +4866,22 @@ func aliasFunctionStartBefore(input string, functionIndex int) (int, bool) {
 		return 0, false
 	}
 	return start, true
+}
+
+func enclosingExtensionEnd(input string, functionIndex int) (int, bool) {
+	start := strings.LastIndex(input[:functionIndex], "#extend")
+	if start == -1 {
+		return 0, false
+	}
+	openBrace := findChar(input, '{', start+len("#extend"))
+	if openBrace == -1 || openBrace > functionIndex {
+		return 0, false
+	}
+	closeBrace := matchBrace(input, openBrace)
+	if closeBrace == -1 || closeBrace < functionIndex {
+		return 0, false
+	}
+	return closeBrace + 1, true
 }
 
 func findAliasFunctionEnd(input string, start int) int {

@@ -2558,6 +2558,103 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "callback counter.add argument 1 expects Int, got String")
 }
 
+func TestCheckProgramAcceptsStandaloneExtensionMethods(t *testing.T) {
+	program := programFromSource(`
+alias function Duration(value : Int) : type = struct {
+    #extend {
+        function ago() : Int {
+            return 0 - this.value;
+        }
+    }
+}
+
+#extend Int {
+    function days() : Duration {
+        return Duration(this);
+    }
+}
+
+#extend Duration {
+    function doubled() : Int {
+        return this.value * 2;
+    }
+}
+
+#extend String {
+    function surrounded(left : String, right : String = "]") : String {
+        return left + this + right;
+    }
+}
+
+function Main() : Int {
+    return 10.days().ago() + Duration(3).doubled() + len("x".surrounded("["));
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected standalone extension methods to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsStandaloneExtensionArgumentMismatch(t *testing.T) {
+	program := programFromSource(`
+#extend String {
+    function surrounded(left : String, right : String) : String {
+        return left + this + right;
+    }
+}
+
+function Main() : Int {
+    return len("core".surrounded(1, "]"));
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "method surrounded argument 1 expects String, got Int")
+}
+
+func TestCheckProgramRejectsExtensionMethodCollisions(t *testing.T) {
+	program := programFromSource(`
+#extend String {
+    function uppercase() : String {
+        return this;
+    }
+}
+
+function Main() : Int {
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "conflicts with a builtin method")
+}
+
+func TestCheckProgramAcceptsNestedBooleanLiteralExtensionCall(t *testing.T) {
+	program := programFromSource(`
+#extend Bool {
+    function to_int() : Int {
+        if this {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+function Identity(value : Int) : Int {
+    return value;
+}
+
+function Main() : Int {
+    return Identity(True.to_int());
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected nested Boolean literal extension call to type check, got %#v", report.Errors)
+	}
+}
+
 func TestCheckProgramAcceptsAllocatorConstructors(t *testing.T) {
 	program := programFromSource(`
 function Main() : Int {

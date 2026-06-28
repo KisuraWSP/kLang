@@ -240,6 +240,14 @@ func (parser *Parser) parseBareDirective() Statement {
 func (parser *Parser) parseDirective() Statement {
 	start := parser.consume(lexer.TokenHash, "expected directive")
 	name := parser.consume(lexer.TokenIdentifier, "expected directive name")
+	if name.Literal == "extend" {
+		target := parser.parseType()
+		return ExtensionStatement{
+			Pos:     positionFromToken(start),
+			Target:  target,
+			Methods: parser.parseAliasExtensionMethodsBlock(),
+		}
+	}
 	parser.consumeOptionalSemicolon()
 	if name.Literal == "set_entry_point_to_here" {
 		return EntryPointStatement{Pos: positionFromToken(start)}

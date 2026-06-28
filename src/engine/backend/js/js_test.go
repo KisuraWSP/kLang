@@ -486,6 +486,60 @@ function Main() : Int {
 	}
 }
 
+func TestJavaScriptBackendExecutesStandaloneExtensionMethods(t *testing.T) {
+	request := requestFromSource(`
+alias function Duration(value : Int) : type = struct {
+    #extend {
+        function ago() : Int {
+            return 0 - this.value;
+        }
+    }
+}
+
+#extend Int {
+    function days() : Duration {
+        return Duration(this);
+    }
+}
+
+#extend String {
+    function surrounded(left : String, right : String) : String {
+        return left + this + right;
+    }
+}
+
+function Main() : Int {
+    print("core".surrounded("[", "]"), 10.days().ago());
+    return 0;
+}
+`)
+	compiler := New()
+	if diagnostics := compiler.Check(request); len(diagnostics) != 0 {
+		t.Fatalf("unexpected extension diagnostics: %#v", diagnostics)
+	}
+	output, err := compiler.Emit(request)
+	if err != nil {
+		t.Fatalf("emit extension methods: %v", err)
+	}
+	source := string(output.Artifacts[0].Content)
+	for _, expected := range []string{"function k_Int_u2e_days", "function k_String_u2e_surrounded", "__klang_runtime_type"} {
+		if !strings.Contains(source, expected) {
+			t.Fatalf("generated extension JS missing %q:\n%s", expected, source)
+		}
+	}
+	if node, lookupErr := exec.LookPath("node"); lookupErr == nil {
+		bundle := t.TempDir()
+		if err := compiler.Package(output, bundle); err != nil {
+			t.Fatalf("package extension program: %v", err)
+		}
+		command := exec.Command(node, filepath.Join(bundle, "program.js"))
+		printed, runErr := command.CombinedOutput()
+		if runErr != nil || strings.TrimSpace(string(printed)) != "[core] -10" {
+			t.Fatalf("generated extension program failed: %v\n%s", runErr, printed)
+		}
+	}
+}
+
 func TestJavaScriptBackendRejectsStructAliasHooks(t *testing.T) {
 	request := requestFromSource(`
 alias function Resource(id : Int) : type = struct {

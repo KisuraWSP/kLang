@@ -3266,6 +3266,45 @@ function Main() : Int {
 	assertRuntimeErrorContains(t, err, "method Counter.add argument 1 expects Int")
 }
 
+func TestRuntimeExecutesStandaloneExtensionMethods(t *testing.T) {
+	result := runParsedSource(t, `
+alias function Duration(value : Int) : type = struct {
+    #extend {
+        function ago() : Int {
+            return 0 - this.value;
+        }
+    }
+}
+
+#extend Int {
+    function days() : Duration {
+        return Duration(this);
+    }
+}
+
+#extend Duration {
+    function doubled() : Int {
+        return this.value * 2;
+    }
+}
+
+#extend String {
+    function surrounded(left : String, right : String = "]") : String {
+        return left + this + right;
+    }
+}
+
+function Main() : Int {
+    local String label = "core".surrounded("[");
+    return 10.days().ago() + Duration(len(label)).doubled();
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 2 {
+		t.Fatalf("expected chained standalone extensions to return 2, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesRegionArraySyntax(t *testing.T) {
 	result := runParsedSource(t, `
 region MyRegion(T, sizeof(T) * 100, 10);

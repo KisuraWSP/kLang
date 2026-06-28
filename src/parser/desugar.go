@@ -35,6 +35,9 @@ func (lowerer *destructuringLowerer) lowerStatement(stmt Statement) []Statement 
 		current.Body = lowerer.lowerStatements(current.Body)
 		current.Methods = lowerer.lowerFunctions(current.Methods)
 		return []Statement{current}
+	case ExtensionStatement:
+		current.Methods = lowerer.lowerFunctions(current.Methods)
+		return []Statement{current}
 	case NamespaceStatement:
 		current.Body = lowerer.lowerStatements(current.Body)
 		return []Statement{current}

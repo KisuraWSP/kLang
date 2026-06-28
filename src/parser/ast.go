@@ -79,6 +79,12 @@ type AliasFunctionStatement struct {
 	Body       []Statement
 }
 
+type ExtensionStatement struct {
+	Pos     Position
+	Target  string
+	Methods []FunctionStatement
+}
+
 type StructFieldTag struct {
 	Pos   Position
 	Field string
@@ -444,6 +450,7 @@ func (stmt TypeAliasStatement) statementNode() {}
 func (stmt RegionStatement) statementNode()    {}
 func (stmt AliasFunctionStatement) statementNode() {
 }
+func (stmt ExtensionStatement) statementNode() {}
 func (stmt NamespaceStatement) statementNode() {}
 func (stmt TraitStatement) statementNode()     {}
 func (stmt ImplStatement) statementNode()      {}
@@ -486,6 +493,7 @@ func (stmt RegionStatement) Position() Position    { return stmt.Pos }
 func (stmt AliasFunctionStatement) Position() Position {
 	return stmt.Pos
 }
+func (stmt ExtensionStatement) Position() Position { return stmt.Pos }
 func (stmt NamespaceStatement) Position() Position { return stmt.Pos }
 func (stmt TraitStatement) Position() Position     { return stmt.Pos }
 func (stmt ImplStatement) Position() Position      { return stmt.Pos }

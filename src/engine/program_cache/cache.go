@@ -14,7 +14,7 @@ import (
 	"kLang/src/lexer"
 )
 
-const Version = "klang-program-cache-v5-grua-table-lowering"
+const Version = "klang-program-cache-v6-extension-methods"
 
 type Warning struct {
 	File    string `json:"file"`

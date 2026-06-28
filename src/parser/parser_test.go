@@ -1408,6 +1408,28 @@ end
 	}
 }
 
+func TestParseStandaloneExtensionMethods(t *testing.T) {
+	program, errors := Parse(`
+#extend String {
+    function surrounded(left : String, right : String) : String {
+        return left + this + right;
+    }
+}
+`)
+	assertNoParseErrors(t, errors)
+
+	extension, ok := program.Statements[0].(ExtensionStatement)
+	if !ok {
+		t.Fatalf("expected extension statement, got %#v", program.Statements[0])
+	}
+	if extension.Target != "String" || len(extension.Methods) != 1 {
+		t.Fatalf("unexpected extension declaration: %#v", extension)
+	}
+	if extension.Methods[0].Name != "surrounded" || extension.Methods[0].ReturnType != "String" {
+		t.Fatalf("unexpected extension method: %#v", extension.Methods[0])
+	}
+}
+
 func TestParseTemporaryRegion(t *testing.T) {
 	program, errors := Parse(`
 temp region Scratch(T, sizeof(T) * 16, 4);

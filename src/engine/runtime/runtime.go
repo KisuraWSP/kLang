@@ -225,6 +225,7 @@ type Runtime struct {
 	functionFiles   map[string]string
 	globalFunctions map[string][]string
 	aliasFunctions  map[string]parser.AliasFunctionStatement
+	extensions      map[string]map[string]parser.FunctionStatement
 	keywordMacros   map[string]parser.AliasStatement
 	enums           map[string]parser.EnumStatement
 	regions         map[string]RegionData
@@ -270,6 +271,7 @@ func New() *Runtime {
 		functionFiles:   map[string]string{},
 		globalFunctions: map[string][]string{},
 		aliasFunctions:  map[string]parser.AliasFunctionStatement{},
+		extensions:      map[string]map[string]parser.FunctionStatement{},
 		keywordMacros:   map[string]parser.AliasStatement{},
 		enums:           map[string]parser.EnumStatement{},
 		regions:         map[string]RegionData{},
@@ -410,6 +412,7 @@ type runtimeSymbolSet struct {
 	functionFiles   map[string]string
 	globalFunctions map[string][]string
 	aliasFunctions  map[string]parser.AliasFunctionStatement
+	extensions      map[string]map[string]parser.FunctionStatement
 	keywordMacros   map[string]parser.AliasStatement
 	enums           map[string]parser.EnumStatement
 	regions         map[string]RegionData
@@ -449,6 +452,7 @@ func collectRuntimeSymbolsForSource(source parser.ParsedSource) (runtimeSymbolSe
 		functionFiles:   local.functionFiles,
 		globalFunctions: local.globalFunctions,
 		aliasFunctions:  local.aliasFunctions,
+		extensions:      local.extensions,
 		keywordMacros:   local.keywordMacros,
 		enums:           local.enums,
 		regions:         local.regions,
@@ -466,6 +470,17 @@ func (runtime *Runtime) mergeRuntimeSymbols(symbols runtimeSymbolSet) error {
 			return Error{Message: fmt.Sprintf("alias function %q is already defined", name)}
 		}
 		runtime.aliasFunctions[name] = aliasFunction
+	}
+	for target, methods := range symbols.extensions {
+		if runtime.extensions[target] == nil {
+			runtime.extensions[target] = map[string]parser.FunctionStatement{}
+		}
+		for name, method := range methods {
+			if _, exists := runtime.extensions[target][name]; exists {
+				return Error{Message: fmt.Sprintf("extension method %s.%s is already defined", target, name)}
+			}
+			runtime.extensions[target][name] = method
+		}
 	}
 	for name, macro := range symbols.keywordMacros {
 		if _, exists := runtime.keywordMacros[name]; exists {
@@ -615,6 +630,7 @@ func (runtime *Runtime) childRuntime() *Runtime {
 		functionFiles:   cloneStringMap(runtime.functionFiles),
 		globalFunctions: cloneGroupMap(runtime.globalFunctions),
 		aliasFunctions:  cloneAliasFunctionMap(runtime.aliasFunctions),
+		extensions:      cloneExtensionMap(runtime.extensions),
 		keywordMacros:   cloneKeywordMacroMap(runtime.keywordMacros),
 		enums:           cloneEnumMap(runtime.enums),
 		regions:         cloneRegionMap(runtime.regions),
@@ -648,6 +664,17 @@ func cloneAliasFunctionMap(items map[string]parser.AliasFunctionStatement) map[s
 	copied := make(map[string]parser.AliasFunctionStatement, len(items))
 	for key, value := range items {
 		copied[key] = value
+	}
+	return copied
+}
+
+func cloneExtensionMap(items map[string]map[string]parser.FunctionStatement) map[string]map[string]parser.FunctionStatement {
+	copied := make(map[string]map[string]parser.FunctionStatement, len(items))
+	for target, methods := range items {
+		copied[target] = make(map[string]parser.FunctionStatement, len(methods))
+		for name, method := range methods {
+			copied[target][name] = method
+		}
 	}
 	return copied
 }
@@ -709,6 +736,17 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 			return errorAt(current.Pos, fmt.Sprintf("alias function %q is already defined", current.Name))
 		}
 		runtime.aliasFunctions[current.Name] = current
+	case parser.ExtensionStatement:
+		target := normalizeRuntimeType(current.Target)
+		if runtime.extensions[target] == nil {
+			runtime.extensions[target] = map[string]parser.FunctionStatement{}
+		}
+		for _, method := range current.Methods {
+			if _, exists := runtime.extensions[target][method.Name]; exists {
+				return errorAt(method.Pos, fmt.Sprintf("extension method %s.%s is already defined", target, method.Name))
+			}
+			runtime.extensions[target][method.Name] = method
+		}
 	case parser.EnumStatement:
 		if _, exists := runtime.enums[current.Name]; exists {
 			return errorAt(current.Pos, fmt.Sprintf("enum %q is already defined", current.Name))
@@ -980,6 +1018,8 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		})
 		return signal{kind: signalNone}, nil
 	case parser.AliasFunctionStatement:
+		return signal{kind: signalNone}, nil
+	case parser.ExtensionStatement:
 		return signal{kind: signalNone}, nil
 	case parser.EnumStatement:
 		return signal{kind: signalNone}, nil
@@ -2225,6 +2265,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			if builtinProtocolMethodExists(value, current.Field) {
 				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
 			}
+			if runtime.extensionMethodExists(runtimeTypeName(value), current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
+			}
 			key := TableKey{Kind: ValueString, Repr: current.Field}
 			field, ok := tableGet(value.Data.(TableData), key)
 			if !ok {
@@ -2236,6 +2279,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			if field, ok := builtinProtocolField(value, current.Field); ok {
 				return field, nil
 			}
+			if runtime.extensionMethodExists(runtimeTypeName(value), current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
+			}
 			field, ok, lookupErr := jsonLookup(value, StringValue(current.Field))
 			if lookupErr != nil {
 				return NullValue(), lookupErr
@@ -2246,6 +2292,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			return field, nil
 		}
 		if err == nil && value.Kind == ValueMap {
+			if runtime.extensionMethodExists(runtimeTypeName(value), current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
+			}
 			fields := value.Data.(map[string]Value)
 			field, ok := fields[current.Field]
 			if !ok {
@@ -2264,6 +2313,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			case "some":
 				return BoolValue(option.Some), nil
 			}
+			if runtime.extensionMethodExists(runtimeTypeName(value), current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
+			}
 			return NullValue(), Error{Message: fmt.Sprintf("unknown Option field %q", current.Field)}
 		}
 		if err == nil && value.Kind == ValueResult {
@@ -2277,6 +2329,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			case "ok":
 				return BoolValue(result.Ok), nil
 			}
+			if runtime.extensionMethodExists(runtimeTypeName(value), current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
+			}
 			return NullValue(), Error{Message: fmt.Sprintf("unknown Result field %q", current.Field)}
 		}
 		if err == nil && value.Kind == ValueEnum {
@@ -2287,6 +2342,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			case "name", "variant":
 				return StringValue(data.Variant), nil
 			}
+			if runtime.extensionMethodExists(runtimeTypeName(value), current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
+			}
 			return NullValue(), Error{Message: fmt.Sprintf("unknown enum field %q", current.Field)}
 		}
 		if err == nil {
@@ -2296,6 +2354,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			if builtinProtocolMethodExists(value, current.Field) {
 				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
 			}
+			if value.Kind != ValueObject && runtime.extensionMethodExists(runtimeTypeName(value), current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
+			}
 		}
 		if err == nil && value.Kind == ValueObject {
 			object := value.Data.(ObjectData)
@@ -2303,6 +2364,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 				return field, nil
 			}
 			if runtime.aliasMethodExists(object.Type, current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: object.Type, Name: current.Field, Receiver: value}}, nil
+			}
+			if runtime.extensionMethodExists(object.Type, current.Field) {
 				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: object.Type, Name: current.Field, Receiver: value}}, nil
 			}
 			return NullValue(), Error{Message: fmt.Sprintf("unknown field or method %q", current.Field)}
@@ -4191,6 +4255,24 @@ func (runtime *Runtime) aliasMethodExists(typeName string, methodName string) bo
 	return false
 }
 
+func (runtime *Runtime) extensionMethod(typeName string, methodName string) (parser.FunctionStatement, bool) {
+	typeName = normalizeRuntimeType(typeName)
+	if method, ok := runtime.extensions[typeName][methodName]; ok {
+		return method, true
+	}
+	if base, _, ok := splitRuntimeGenericType(typeName); ok {
+		if method, exists := runtime.extensions[base][methodName]; exists {
+			return method, true
+		}
+	}
+	return parser.FunctionStatement{}, false
+}
+
+func (runtime *Runtime) extensionMethodExists(typeName string, methodName string) bool {
+	_, ok := runtime.extensionMethod(typeName, methodName)
+	return ok
+}
+
 func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parser.ExpressionNode, env *Environment) (Value, error) {
 	if builtinProtocolMethodExists(method.Receiver, method.Name) {
 		args := make([]Value, 0, len(argNodes))
@@ -4205,7 +4287,11 @@ func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parse
 	}
 
 	alias := runtime.aliasFunctions[method.Type]
-	for _, fn := range alias.Methods {
+	methods := alias.Methods
+	if extension, ok := runtime.extensionMethod(method.Type, method.Name); ok {
+		methods = append(methods, extension)
+	}
+	for _, fn := range methods {
 		if fn.Name != method.Name {
 			continue
 		}

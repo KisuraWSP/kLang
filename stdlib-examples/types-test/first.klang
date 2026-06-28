@@ -167,6 +167,43 @@ function ShowTestValueHelpers() : Int {
     return 1;
 }
 
+function ShowExtensionMethods() : Int {
+    Section("types extension methods");
+
+    local i8 signedChild = 0 - 12;
+    local Int magnitude = signedChild.absolute();
+    local Int clamped = 140.clamp(0, 100);
+    local Float floatMagnitude = (0.0 - 3.5).absolute();
+    local Float floatClamp = (12.5).clamp(0.0, 10.0);
+    local String fallback = "".or_else("untitled");
+    local String label = "release".surrounded("[", "]");
+    local String letter = 'k'.to_string();
+
+    _ = test.equal(magnitude, 12, "i8 should inherit Int.absolute");
+    _ = test.equal(clamped, 100, "Int.clamp should enforce the upper bound");
+    _ = test.assert_true(42.between(1, 100), "Int.between should include interior values");
+    _ = test.assert_true(42.is_even(), "42 should be even");
+    _ = test.assert_true(17.is_odd(), "17 should be odd");
+    _ = test.equal(signedChild.sign(), 0 - 1, "negative sign should be -1");
+    _ = test.equal(floatMagnitude, 3.5, "Float.absolute changed the value");
+    _ = test.equal(floatClamp, 10.0, "Float.clamp should enforce the upper bound");
+    _ = test.assert_true((5.5).between(5.0, 6.0), "Float.between should include interior values");
+    _ = test.equal(True.to_int(), 1, "True.to_int should return 1");
+    _ = test.equal(False.to_int(), 0, "False.to_int should return 0");
+    _ = test.assert_true("".is_empty(), "empty String should report empty");
+    _ = test.equal(fallback, "untitled", "String.or_else should use its fallback");
+    _ = test.equal(label, "[release]", "String.surrounded changed the value");
+    _ = test.equal(letter, "k", "Char.to_string changed the value");
+
+    print("signed child absolute", magnitude);
+    print("clamped Int and Float", clamped, floatClamp);
+    print("String fallback and label", fallback, label);
+    print("Bool conversion", True.to_int(), False.to_int());
+    print("Char conversion", letter);
+
+    return 1;
+}
+
 function Main() : Int {
     print("types + test stdlib example");
 
@@ -176,8 +213,9 @@ function Main() : Int {
     completed += ShowWideningAndAliases();
     completed += ShowTypeMetadata();
     completed += ShowTestValueHelpers();
+    completed += ShowExtensionMethods();
 
-    _ = test.equal(completed, 5, "not every section completed");
+    _ = test.equal(completed, 6, "not every section completed");
     print("");
     print("completed sections", completed);
     return 0;

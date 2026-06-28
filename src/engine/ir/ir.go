@@ -12,6 +12,7 @@ type Program struct {
 	Sources    []Source
 	Globals    []Statement
 	Structs    []Struct
+	Extensions []Extension
 	Functions  []Function
 }
 
@@ -37,6 +38,12 @@ type StructField struct {
 }
 
 type StructMethod struct {
+	Name     string
+	Function string
+}
+
+type Extension struct {
+	Target   string
 	Name     string
 	Function string
 }

@@ -123,6 +123,9 @@ func parsableStatementValue(statement parser.Statement) Value {
 		fields["name"] = StringValue(current.Name)
 	case parser.AliasFunctionStatement:
 		fields["name"] = StringValue(current.Name)
+	case parser.ExtensionStatement:
+		fields["target"] = StringValue(current.Target)
+		fields["method_count"] = IntValue(len(current.Methods))
 	case parser.AliasStatement:
 		fields["name"] = StringValue(current.Name)
 		fields["target"] = StringValue(current.Target)

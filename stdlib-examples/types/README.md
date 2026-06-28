@@ -10,6 +10,9 @@ It demonstrates:
 - `.sizeof` on parent types, aliases, and direct child types.
 - Assigning smaller child types into wider child or parent types.
 - Runtime behavior shared with parent values, such as calling `.times` on an `i8`.
+- Extension methods supplied by `types.klang`, including numeric bounds,
+  predicates, String fallbacks/decorators, Bool conversion, and Char conversion.
+- Signed child-width aliases inheriting the `Int` extension surface.
 - Commented-out examples of range failures.
 
 Run it from the repository root:

@@ -1,5 +1,7 @@
 load_as_script;
 
+import "types";
+
 function ShowSignedTypes() : Int {
     local i8 tiny = 127;
     local i16 wider = tiny;
@@ -78,6 +80,43 @@ function ShowParentInterop() : Int {
     return parentInt + last + parentUInt;
 }
 
+function ShowExtensionMethods() : Int {
+    local i8 signedChild = 0 - 12;
+    local Int magnitude = signedChild.absolute();
+    local Int limited = 140.clamp(0, 100);
+    local Bool inRange = 42.between(1, 100);
+    local Bool even = 42.is_even();
+    local Bool odd = 17.is_odd();
+    local Int direction = signedChild.sign();
+    local Float ratio = (12.5).clamp(0.0, 10.0);
+    local Float distance = (0.0 - 3.5).absolute();
+    local Int enabled = True.to_int();
+    local String title = "".or_else("untitled");
+    local String label = "release".surrounded("[", "]");
+    local String letter = 'k'.to_string();
+
+    print("extension methods from types.klang");
+    print("i8 absolute", magnitude);
+    print("140 clamped to 0..100", limited);
+    print("42 between 1 and 100", inRange);
+    print("42 even, 17 odd", even, odd);
+    print("sign of -12", direction);
+    print("12.5 clamped to 0.0..10.0", ratio);
+    print("absolute -3.5", distance);
+    print("True as Int", enabled);
+    print("empty String fallback", title);
+    print("surrounded String", label);
+    print("Char as String", letter);
+
+    if magnitude == 12 and limited == 100 and inRange and even and odd and
+        direction == 0 - 1 and ratio == 10.0 and distance == 3.5 and
+        enabled == 1 and title == "untitled" and label == "[release]" and
+        letter == "k" {
+        return 1;
+    }
+    return 0;
+}
+
 function Main() : Int {
     print("types stdlib feature tour");
     print("no import is required for i8, types.u8, float32, or complex128");
@@ -86,6 +125,7 @@ function Main() : Int {
     local Int unsigned = ShowUnsignedTypes();
     local Int wide = ShowFloatAndComplexTypes();
     local Int interop = ShowParentInterop();
+    local Int extensions = ShowExtensionMethods();
     print("Sizeof Int is",Int.sizeof);
 
     (*
@@ -96,7 +136,7 @@ function Main() : Int {
        local u8 negative = -1;
     *)
 
-    if signed == 318 and unsigned == 1534 and wide == 36 and interop == 15 {
+    if signed == 318 and unsigned == 1534 and wide == 36 and interop == 15 and extensions == 1 {
         return 0;
     }
 

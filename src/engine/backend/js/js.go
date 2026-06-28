@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -169,6 +170,19 @@ func (lower *lowerer) lowerTopLevel(statements []parser.Statement, namespace str
 			if ok {
 				program.Structs = append(program.Structs, structure)
 				program.Functions = append(program.Functions, methods...)
+			}
+		case parser.ExtensionStatement:
+			for _, method := range current.Methods {
+				name := current.Target + "." + method.Name
+				function, ok := lower.lowerFunction(method, name, namespace)
+				function.Params = append([]ir.Binding{{Name: "this", Type: current.Target}}, function.Params...)
+				if !ok {
+					continue
+				}
+				program.Extensions = append(program.Extensions, ir.Extension{
+					Target: current.Target, Name: method.Name, Function: function.Name,
+				})
+				program.Functions = append(program.Functions, function)
 			}
 		case parser.VariableStatement:
 			if namespace != "" {
@@ -487,7 +501,7 @@ func (lower *lowerer) lowerExpression(node parser.ExpressionNode, position parse
 		} else if builtin, exists := jsCollectionBuiltin(calleePath); exists {
 			calleeName, resolved = builtin, true
 		}
-		if ok && !resolved {
+		if !resolved {
 			if selector, selectorOK := current.Callee.(parser.SelectorExpression); selectorOK {
 				receiver, receiverOK := lower.lowerExpression(selector.Target, position)
 				arguments := []ir.Expression{receiver}
@@ -778,9 +792,21 @@ func emitProgram(program ir.Program) (string, []byte) {
 	}
 	output.WriteString("};\n")
 	output.WriteString("const __klang_struct_methods = {\n")
+	methodsByType := map[string][]ir.StructMethod{}
 	for _, structure := range program.Structs {
-		fmt.Fprintf(&output, "  %s: {", strconv.Quote(structure.Name))
-		for index, method := range structure.Methods {
+		methodsByType[structure.Name] = append(methodsByType[structure.Name], structure.Methods...)
+	}
+	for _, extension := range program.Extensions {
+		methodsByType[extension.Target] = append(methodsByType[extension.Target], ir.StructMethod{Name: extension.Name, Function: extension.Function})
+	}
+	methodTypes := make([]string, 0, len(methodsByType))
+	for typeName := range methodsByType {
+		methodTypes = append(methodTypes, typeName)
+	}
+	sort.Strings(methodTypes)
+	for _, typeName := range methodTypes {
+		fmt.Fprintf(&output, "  %s: {", strconv.Quote(typeName))
+		for index, method := range methodsByType[typeName] {
 			if index != 0 {
 				output.WriteString(", ")
 			}
@@ -809,7 +835,8 @@ func emitProgram(program ir.Program) (string, []byte) {
 	output.WriteString("const __klang_string_uppercase = (value) => __klang_is_char(value) ? __klang_char(value.__klang_char.toUpperCase()) : value.toUpperCase();\n")
 	output.WriteString("const __klang_string_lowercase = (value) => __klang_is_char(value) ? __klang_char(value.__klang_char.toLowerCase()) : value.toLowerCase();\n\n")
 	output.WriteString("const __klang_select = (value, field) => { if (__klang_is_result(value) && (field === \"ok\" || field === \"value\")) return __klang_copy(value[field]); if (__klang_is_struct(value)) { if (!Object.prototype.hasOwnProperty.call(value, field)) throw new TypeError(`unknown field ${value.__klang_struct}.${field}`); return __klang_copy(value[field]); } if (field === \"count\") return __klang_len(value); if (__klang_is_collection(value) && value.__klang_collection === \"Table\") return __klang_collection_get(value, field); throw new TypeError(`selector .${field} is not supported for this value`); };\n")
-	output.WriteString("const __klang_call_method = (value, name, args) => { if (!__klang_is_struct(value)) throw new TypeError(`method .${name} expects a struct alias receiver`); const method = __klang_struct_methods[value.__klang_struct]?.[name]; if (typeof method !== \"function\") throw new TypeError(`unknown method ${value.__klang_struct}.${name}`); return method(__klang_copy(value), ...args.map(__klang_copy)); };\n")
+	output.WriteString("const __klang_runtime_type = (value) => __klang_is_struct(value) ? value.__klang_struct : __klang_is_char(value) ? \"Char\" : Array.isArray(value) ? \"List[T]\" : __klang_is_collection(value) ? value.__klang_collection + (value.__klang_collection === \"Table\" ? \"\" : \"[T,T]\") : typeof value === \"string\" ? \"String\" : typeof value === \"boolean\" ? \"Bool\" : typeof value === \"number\" ? (Number.isInteger(value) ? \"Int\" : \"Float\") : \"T\";\n")
+	output.WriteString("const __klang_call_method = (value, name, args) => { const type = __klang_runtime_type(value); const method = __klang_struct_methods[type]?.[name]; if (typeof method !== \"function\") throw new TypeError(`unknown method ${type}.${name}`); return method(__klang_copy(value), ...args.map(__klang_copy)); };\n")
 	output.WriteString("const __klang_to_json = (value) => { if (__klang_is_char(value)) return value.__klang_char; if (value === null || typeof value === \"string\" || typeof value === \"number\" || typeof value === \"boolean\") return value; if (Array.isArray(value)) return value.map(__klang_to_json); if (__klang_is_collection(value)) return __klang_collection_json(value); if (typeof value === \"object\") { const tags = __klang_is_struct(value) ? (__klang_struct_tags[value.__klang_struct] || {}) : {}; const entries = Object.keys(value).filter((field) => !field.startsWith(\"__\")).map((field) => [tags[field] || field, __klang_to_json(value[field])]).sort((left, right) => left[0].localeCompare(right[0])); return Object.fromEntries(entries); } throw new TypeError(\"cannot serialize value as JSON\"); };\n")
 	output.WriteString("const __klang_json = (value) => typeof value === \"string\" ? JSON.parse(value) : __klang_to_json(value);\n")
 	output.WriteString("const __klang_json_stringify = (value) => JSON.stringify(__klang_to_json(value));\n\n")

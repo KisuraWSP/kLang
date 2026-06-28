@@ -12,6 +12,8 @@ It covers:
 - widening into larger child and parent numeric types
 - user type aliases layered over `types` aliases
 - parent protocol behavior such as `.times`
+- extension methods from `types.klang` on Int, signed child-width values, Float,
+  Bool, String, and Char
 - runtime `Type` metadata
 - every non-terminal `test` helper: `assert_true`, `assert_false`, `equal`,
   `not_equal`, `some`, `none`, `ok`, and `err`

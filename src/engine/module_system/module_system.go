@@ -636,6 +636,10 @@ func collectSourceMetadataInto(statements []parser.Statement, namespace string, 
 			for _, method := range current.Methods {
 				collectSourceMetadataInto(method.Body, namespace, global, metadata, imports)
 			}
+		case parser.ExtensionStatement:
+			for _, method := range current.Methods {
+				collectSourceMetadataInto(method.Body, namespace, global, metadata, imports)
+			}
 		case parser.ImplStatement:
 			for _, method := range current.Methods {
 				collectSourceMetadataInto(method.Body, namespace, global, metadata, imports)
@@ -787,6 +791,10 @@ func collectNamespaceAliases(statements []parser.Statement) map[string]string {
 				for _, method := range current.Methods {
 					collect(method.Body)
 				}
+			case parser.ExtensionStatement:
+				for _, method := range current.Methods {
+					collect(method.Body)
+				}
 			case parser.IfStatement:
 				collect(current.Consequence)
 				collect(current.Alternative)
@@ -891,6 +899,10 @@ func collectStatementCalls(statements []parser.Statement, add func(string)) {
 			collectStatementCalls(current.Body, add)
 		case parser.AliasFunctionStatement:
 			collectStatementCalls(current.Body, add)
+			for _, method := range current.Methods {
+				collectStatementCalls(method.Body, add)
+			}
+		case parser.ExtensionStatement:
 			for _, method := range current.Methods {
 				collectStatementCalls(method.Body, add)
 			}
