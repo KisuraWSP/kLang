@@ -4,6 +4,8 @@
 # TODO
 - revisit the modules in the standard library when more languages features are there or the language runtime becomes very powerful
 
+- add a new keyword called transaction for data transactional memory
+- add a keyword called go_to to go to a specific scope, label, loop
 - add new keyword called "foreign" if its a ffi based function for any backend or language interop
 
 - for structs we do the .cast_as() method for if we want to convert a struct to a specific types we want
