@@ -90,11 +90,11 @@ namespace core {
             return {"name": name, "arguments": args};
         }
 
-        --- Signature: function Parse(args : List[String], command : Table) : Result[Table, String]
-        --- Returns: Result[Table, String].
+        --- Signature: function Parse(args : List[String], command : Table) : Result[Table, Atom]
+        --- Returns: Result[Table, Atom].
         --- Summary: Reads, locates, or decodes parse from the provided Klang input(s).
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-        function Parse(args : List[String], command : Table) : Result[Table, String] {
+        function Parse(args : List[String], command : Table) : Result[Table, Atom] {
             local Table parsed = {"args": args, "command": command, "count": len(args)};
             return Ok(parsed);
         }

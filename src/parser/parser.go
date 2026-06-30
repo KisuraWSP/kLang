@@ -2112,7 +2112,7 @@ func isNamedTypeConstraint(literal string) bool {
 
 func isBuiltinNamedTypeConstraint(literal string) bool {
 	switch literal {
-	case "numeric", "comparable", "hashable", "iterable", "allocator_like", "allocator-like":
+	case "numeric", "comparable", "hashable", "iterable", "allocator_like", "allocator-like", "transferable":
 		return true
 	default:
 		return false

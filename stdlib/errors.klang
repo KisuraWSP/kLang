@@ -1,239 +1,77 @@
--- Error value helpers.
--- Klang has Result[T,E], throw/try/catch, Any, and Table today, so this module
--- models errors as either plain String messages or structured Table records.
+-- Atom-native error helpers.
+--
+-- Result[T, E] remains generic, but only Result[T, Atom] participates in
+-- postfix ! propagation. Atoms are stable identities; descriptive context
+-- belongs in logs, returned data, or a captured exception Table.
 
 namespace errors {
-    --- Signature: function New(message : String) : String
-    --- Returns: String.
-    --- Summary: Creates or initializes new with the supplied Klang value(s).
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function New(message : String) : String {
-        return message;
+    function New(name : String) : Atom {
+        return Atom(name);
     }
 
-    --- Signature: function Error(message : String) : Table
-    --- Returns: Table.
-    --- Summary: Provides the stdlib error operation using current Klang data types and runtime helpers.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Error(message : String) : Table {
-        return {
-            "message": message,
-            "cause": "",
-            "kind": "error"
-        };
+    function Error(name : String) : Atom {
+        return New(name);
     }
 
-    --- Signature: function ErrorWithKind(kind : String, message : String) : Table
-    --- Returns: Table.
-    --- Summary: Provides the stdlib error with kind operation using current Klang data types and runtime helpers.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function ErrorWithKind(kind : String, message : String) : Table {
-        return {
-            "message": message,
-            "cause": "",
-            "kind": kind
-        };
+    function Name(error : Atom) : String {
+        return error.name;
     }
 
-    --- Signature: function Wrap(context : String, message : String) : String
-    --- Returns: String.
-    --- Summary: Provides the stdlib wrap operation using current Klang data types and runtime helpers.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Wrap(context : String, message : String) : String {
-        if len(message) == 0 { return context; }
-        return context + ": " + message;
+    function Message(error : Atom) : String {
+        return error.name;
     }
 
-    --- Signature: function WrapError(context : String, err : Table) : Table
-    --- Returns: Table.
-    --- Summary: Provides the stdlib wrap error operation using current Klang data types and runtime helpers.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function WrapError(context : String, err : Table) : Table {
-        return {
-            "message": Wrap(context, TableMessage(err)),
-            "cause": err,
-            "kind": TableKind(err)
-        };
+    function Is(error : Atom, target : Atom) : Bool {
+        return error == target;
     }
 
-    --- Signature: function IsEmpty(message : String) : Bool
-    --- Returns: Bool.
-    --- Summary: Checks whether is empty is true for the provided Klang value(s).
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function IsEmpty(message : String) : Bool {
-        return len(message) == 0;
+    function IsName(error : Atom, target : String) : Bool {
+        return error.name == target;
     }
 
-    --- Signature: function HasError(message : String) : Bool
-    --- Returns: Bool.
-    --- Summary: Checks whether has error is true for the provided Klang value(s).
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function HasError(message : String) : Bool {
-        return len(message) != 0;
+    function OkResult[T Any](value : T) : Result[T, Atom] {
+        return Ok(value);
     }
 
-    --- Signature: function Message(message : String) : String
-    --- Returns: String.
-    --- Summary: Provides the stdlib message operation using current Klang data types and runtime helpers.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Message(message : String) : String {
-        return message;
+    function ErrResult[T Any](error : Atom) : Result[T, Atom] {
+        return Err(error);
     }
 
-    --- Signature: function TableMessage(err : Table) : String
-    --- Returns: String.
-    --- Summary: Provides the stdlib table message operation using current Klang data types and runtime helpers.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function TableMessage(err : Table) : String {
-        if table_has(err, "message") {
-            return err["message"] as String;
-        }
-
-        return "";
-    }
-
-    --- Signature: function TableKind(err : Table) : String
-    --- Returns: String.
-    --- Summary: Provides the stdlib table kind operation using current Klang data types and runtime helpers.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function TableKind(err : Table) : String {
-        if table_has(err, "kind") {
-            return err["kind"] as String;
-        }
-
-        return "error";
-    }
-
-    --- Signature: function As(err : Any, target : Any) : Bool
-    --- Returns: Bool.
-    --- Summary: Converts the provided Klang value(s) into as.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function As(err : Any, target : Any) : Bool {
-        if not err? {
-            return not target?;
-        }
-
-        if debug_type(err) == debug_type(target) {
-            return True;
-        }
-
-        return False;
-    }
-
-    --- Signature: function AsType(err : Any, targetType : String) : Table
-    --- Returns: Table.
-    --- Summary: Converts the provided Klang value(s) into as type.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function AsType(err : Any, targetType : String) : Table {
-        return {
-            "matched": debug_type(err) == targetType,
-            "value": err,
-            "type": debug_type(err)
-        };
-    }
-
-    --- Signature: function Is(err : Any, target : Any) : Bool
-    --- Returns: Bool.
-    --- Summary: Checks whether is is true for the provided Klang value(s).
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Is(err : Any, target : Any) : Bool {
-        if As(err, target) {
-            return True;
-        }
-
-        return False;
-    }
-
-    --- Signature: function IsMessage(err : String, target : String) : Bool
-    --- Returns: Bool.
-    --- Summary: Checks whether is message is true for the provided Klang value(s).
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function IsMessage(err : String, target : String) : Bool {
-        return err == target;
-    }
-
-    --- Signature: function IsKind(err : Table, targetKind : String) : Bool
-    --- Returns: Bool.
-    --- Summary: Checks whether is kind is true for the provided Klang value(s).
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function IsKind(err : Table, targetKind : String) : Bool {
-        return TableKind(err) == targetKind;
-    }
-
-    --- Signature: function Join(errs : List[String]) : String
-    --- Returns: String.
-    --- Summary: Combines or extends Klang value(s) for the join operation.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Join(errs : List[String]) : String {
-        local mut String joined = "";
-        local mut Int index = 0;
-
-        while index < len(errs) {
-            if len(errs[index]) != 0 {
-                if len(joined) == 0 {
-                    joined = errs[index];
-                } else {
-                    joined = joined + "\n" + errs[index];
-                }
-            }
-
-            index += 1;
-        }
-
-        return joined;
-    }
-
-    --- Signature: function JoinTables(errs : List[Table]) : Table
-    --- Returns: Table.
-    --- Summary: Combines or extends Klang value(s) for the join tables operation.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function JoinTables(errs : List[Table]) : Table {
-        local mut List[String] messages;
-        local mut Int index = 0;
-
-        while index < len(errs) {
-            messages[len(messages)] = TableMessage(errs[index]);
-            index += 1;
-        }
-
-        return {
-            "message": Join(messages),
-            "cause": errs,
-            "kind": "joined"
-        };
-    }
-
-    --- Signature: function Unwrap(err : Table) : Any
-    --- Returns: Any.
-    --- Summary: Provides the stdlib unwrap operation using current Klang data types and runtime helpers.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Unwrap(err : Table) : Any {
-        if table_has(err, "cause") {
-            return err["cause"];
-        }
-
-        return "";
-    }
-
-    --- Signature: function ToResult(value : T, message : String) : Result[T, String]
-    --- Returns: Result[T, String].
-    --- Summary: Converts the provided Klang value(s) into to result.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function ToResult(value : T, message : String) : Result[T, String] {
-        if len(message) == 0 {
+    function ToResult[T Any](value : T, success : Bool, error : Atom) : Result[T, Atom] {
+        if success {
             return Ok(value);
         }
-
-        return Err(message);
+        return Err(error);
     }
 
-    --- Signature: function ThrowIf(message : String)
-    --- Returns: No explicit return value.
-    --- Summary: Performs the throw if control-flow or runtime I/O operation.
-    --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function ThrowIf(message : String) {
-        if len(message) != 0 {
-            throw message;
+    -- Converts a descriptive Result error into a stable propagation code.
+    -- The original message may be logged before this boundary when needed.
+    function WithCode[T Any](value : Result[T, String], error : Atom) : Result[T, Atom] {
+        if value == {
+            case Ok(item): return Ok(item);
+            case Err(message):
+                _ = message;
+                return Err(error);
+        }
+        return Err(error);
+    }
+
+    function Throw(error : Atom) {
+        throw error;
+    }
+
+    function ThrowIf(condition : Bool, error : Atom) {
+        if condition {
+            throw error;
         }
     }
+
+    function InvalidArgument() : Atom { return :invalid_argument; }
+    function NotFound() : Atom { return :not_found; }
+    function PermissionDenied() : Atom { return :permission_denied; }
+    function Conflict() : Atom { return :conflict; }
+    function Timeout() : Atom { return :timeout; }
+    function Cancelled() : Atom { return :cancelled; }
+    function Unavailable() : Atom { return :unavailable; }
+    function Internal() : Atom { return :internal; }
 }

@@ -76,9 +76,9 @@ local Result[JSON, String] checked = json_parse(userInput);
 local Result[String, String] encodedNative = json_encode({"items": [1, 2], "ok": True});
 local Result[T, String] decodedNative = json_decode(encodedNative.value);
 
--- The json stdlib names the native-value operations serialize/deserialize.
-local Result[String, String] serialized = json.serialize({"name": "kLang"});
-local Result[T, String] deserialized = json.deserialize(serialized.value);
+-- The json stdlib converts native descriptions to propagatable Atom codes.
+local Result[String, Atom] serialized = json.serialize({"name": "kLang"});
+local Result[T, Atom] deserialized = json.deserialize(serialized.value);
 ```
 
 Disable the program cache for a workspace when fresh module resolution and type checking are required:
@@ -552,8 +552,10 @@ local Result[Int, String] mappedCount = result.map(parsedCount, Double);
 _ = test.ok(mappedCount);
 
 -- Error propagation
--- The postfix ! operator unwraps Ok(value), or throws Err(value) to the nearest catch.
-local Int parsedValue = parsedCount!;
+-- The postfix ! operator accepts Result[T, Atom] only. It unwraps Ok(value),
+-- or throws Err(atom) to the nearest catch.
+local Result[Int, Atom] checkedCount = Ok(10);
+local Int parsedValue = checkedCount!;
 
 -- typed ordinal enums
 -- Enum variants follow Go/iota-style numbering: first implicit value is 0,
@@ -866,7 +868,8 @@ function CountDown(value : Int, total : Int) : Int {
 }
 
 -- async/await
--- async functions return Awaitable[T]. await unwraps the completed value.
+-- Async is lazy, single-threaded work: calling returns Awaitable[T], and await
+-- executes it once on the current thread and caches its result.
 async function LoadCount() : Int {
     return 40;
 }
@@ -890,7 +893,9 @@ local Coroutine[Int] buildCount = coroutine(BuildCount);
 local Option[Int] resumedCount = resume(buildCount);
 
 -- multi-threaded interpreter workers
--- spawn starts a child interpreter worker. join waits for its result.
+-- spawn is the parallel boundary. Its target must be a named synchronous
+-- workspace function. Transfer-safe ordinary values are deep snapshots;
+-- Atomic[T] deliberately keeps shared identity.
 function CountWorker(counter : Atomic[Int], mut amount : Int) : Int {
     while amount > 0 {
         atomic_add(counter, 1);
@@ -908,10 +913,24 @@ local Int workerBResult = join(workerB);
 local Int threadedTotal = atomic_load(sharedCounter);
 
 -- atomic race-safe cells
+-- Keep the Atomic binding itself immutable. Each operation is linearizable,
+-- but atomic_load followed by atomic_store is not a combined transaction.
 local Atomic[Int] counter = Atomic(1);
 atomic_add(counter, 2);
 atomic_store(counter, atomic_load(counter) + 1);
 local Int counterValue = atomic_load(counter);
+
+-- Not transferable: Table/Any, functions and captures, Awaitable, Iterator,
+-- Coroutine, Thread, Parsable, Ref/RefMut/RefCell, allocator wrappers, or any
+-- aggregate/struct containing one of them.
+-- A worker also cannot access a mutable global:
+-- global mut Int unsafeCounter = 0;
+-- function UnsafeWorker() : Int { unsafeCounter += 1; return unsafeCounter; }
+-- Use this instead:
+global Atomic[Int] safeCounter = Atomic(0);
+function SafeWorker() : Int {
+    return atomic_add(safeCounter, 1);
+}
 
 -- compact build/workspace meta-programming
 -- BuildSystem backend must be "WASM", "JS", or "Standalone".
@@ -1023,6 +1042,13 @@ local JSCall pendingJSCall = js_call(js, "init", [manifest]);
 print("count", 1, True);
 local String name = input("name: ");
 
+-- bulk integer I/O and interval-state graph processing
+local Int vertexCount = read_int();
+local Int edgeCount = read_int();
+local List[Int] graphData = read_ints(vertexCount + edgeCount * 4);
+local List[Int] graphScores = interval_walk_max_scores(vertexCount, edgeCount, graphData);
+print_ints(graphScores);
+
 -- alias functions and extension methods
 -- alias function creates a constructor-like type value. #extend adds receiver methods.
 -- [T: Any] can later be replaced with stricter forms like T restrict[Int, Float].
@@ -1036,6 +1062,14 @@ alias function[T restrict[List[Option[Int]]]] OptionalInts(value : T) : type = s
 
 -- The established suffix form remains equivalent:
 alias function NumericValue[T numeric](value : T) : type = struct {
+}
+
+-- Generic concurrency helpers can require values that safely cross spawn.
+function RunWorker[T transferable, U transferable](
+    worker : Function[T, U],
+    value : T
+) : Thread[U] {
+    return spawn(worker, [value]);
 }
 
 -- A standalone extension adds methods to an existing builtin or alias struct.
@@ -1232,9 +1266,9 @@ function ParseNumber(value : String) : Int {
 ```
 
 5. Error Handling
-- Errors can be handled as values with `Result[T, E]`, or as exceptions with `throw` and `try/catch`.
-- `Result!` propagates `Err(value)` through the exception path and unwraps `Ok(value)`.
-- Atom values are recommended for stable user-defined error codes.
+- Errors can be handled as values with generic `Result[T, E]`.
+- Exception control flow is Atom-only: `throw` requires `Atom`, and `catch` binds an `Atom`.
+- `Result[T, Atom]!` propagates `Err(atom)` through the exception path and unwraps `Ok(value)`. Other Result error types must be handled explicitly.
 ```lua
 function Fallible() : Result[Int, Atom] {
     return Err(:not_ready);
@@ -1255,6 +1289,11 @@ function Main() : Int {
 function FailFast() {
     throw :boom;
 }
+
+-- Adapt a descriptive native/host error at an application boundary.
+import "errors";
+local Result[String, String] content = File("settings.json").read();
+local Result[String, Atom] checked = errors.WithCode(content, :settings_unreadable);
 ```
 
 6. Condition Handling
@@ -1443,6 +1482,7 @@ impl Printable for Int {
 - Resolver caches imported files and parsed import lists to speed repeated checks.
 - Successful CLI checks and runs also write a `.klang-cache` entry for the workspace. Repeating the same unchanged script or project can reuse the resolved and checked source set, while source edits, entry changes, or `--raw-lang` changes force a miss.
 - Successful CLI runs print runtime completion metrics, including elapsed time, resolved source lines processed, and source lines processed per second.
+- `kLang run program.klang --quiet` suppresses compiler and runtime metrics and prints only program output.
 - Stdlib imports use selective function lookup by default; only functions called through the imported module namespace and their same-module helper dependencies are collected.
 - Use `module_caller(call_entire_module : True);` in the importing source to load complete stdlib modules.
 - Use `module(disabled : True);` in a module source to make imports of that module fail until the directive is removed or set to false.
@@ -1543,7 +1583,7 @@ print(host.name, host.arch, host.cpu_count);
 print(host.path_separator, host.path_list_separator);
 
 local Table platform = os.PLATFORM();
-local Result[String, String] stdlibCurrent = os.CURRENT_DIR();
+local Result[String, Atom] stdlibCurrent = os.CURRENT_DIR();
 local Option[String] stdlibPath = os.GET_ENV("PATH");
 
 local Result[String, String] current = host.current_dir();
@@ -1563,6 +1603,9 @@ if process.ok {
     print(process.value["stdout"]);
     print(process.value["exit_code"]);
 }
+
+-- The stdlib facade converts the same host failures to stable Atoms.
+local Result[Table, Atom] stdlibProcess = os.Execute("git", ["status", "--short"]);
 ```
 
 14. Atoms

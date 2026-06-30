@@ -135,17 +135,17 @@ namespace metasystem {
             };
         }
 
-        --- Signature: function Validate(workspace : WorkSpace) : Result[WorkSpace, String]
-        --- Returns: Result[WorkSpace, String].
+        --- Signature: function Validate(workspace : WorkSpace) : Result[WorkSpace, Atom]
+        --- Returns: Result[WorkSpace, Atom].
         --- Summary: Validates the workspace descriptor before a tool tries to build or run it.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-        function Validate(workspace : WorkSpace) : Result[WorkSpace, String] {
+        function Validate(workspace : WorkSpace) : Result[WorkSpace, Atom] {
             local String workspaceBackend = backend(workspace);
             if not ValidBackend(workspaceBackend) {
-                return Err("unsupported workspace backend: " + workspaceBackend);
+                return Err(:unsupported_backend);
             }
             if FileCount(workspace) == 0 {
-                return Err("workspace must contain at least one source file");
+                return Err(:empty_workspace);
             }
             return Ok(workspace);
         }

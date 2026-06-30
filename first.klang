@@ -1,46 +1,427 @@
--- A Basic Program
--- In the Future we will improve this by adding more code actually
--- This file is for examples purposes for users to see all the features of this 
--- programming language when we hook up default_program.klang we know this
--- language is powerful enough to call itself and be able to modify itself
--- and be able to understand complex user code
+-- kLang feature tour
+--
+-- This is a user-facing example, not the entry point of the kLang compiler
+-- repository itself. Its Main function is used only when this file is run
+-- directly:
+--
+--     kLang run first.klang --quiet
+--
+-- Coming soon: this example role will be formalized as default_program.klang,
+-- allowing kLang to ship a discoverable default program that demonstrates the
+-- language and can eventually participate in its self-hosting story.
 
-val appName = "demo";
-const intSize = Int.sizeof;
+load_as_script;
+no_cache;
 
-enum NetworkState {
-    Idle;
-    Connecting = 10;
-    Connected;
-    Failed;
+import "errors";
+import "json";
+
+-- Constants, immutable globals, type aliases, child-width numerics, and Atoms.
+const languageName = "kLang";
+const tourVersion = 1;
+const ready = :ready;
+val greeting = "Hello from kLang";
+global Atomic[Int] completedSections = Atomic(0);
+
+type names = List[String];
+type optional_name = Option[String];
+
+enum TourState {
+    Starting;
+    Running = 10;
+    Complete;
 }
 
-function Add(left : Int, right : Int) : Int {
+trait Describable {
+    function Describe(value : Int) : String;
+}
+
+impl Describable for Int {
+    function Describe(value : Int) : String {
+        return "Int(" + value as String + ")";
+    }
+}
+
+-- Struct-style aliases support fields, defaults, JSON tags, methods, and
+-- operator overloading.
+alias function Point(x : Int, y : Int, label : String = "point") : type = struct {
+    this.label `json:"name"`;
+
+    operator +(other : Point) : Point {
+        return Point(this.x + other.x, this.y + other.y, this.label);
+    }
+
+    operator ==(other : Point) : Bool {
+        return this.x == other.x and this.y == other.y;
+    }
+
+    #extend {
+        function shifted(dx : Int, dy : Int) : Point {
+            return Point(this.x + dx, this.y + dy, this.label);
+        }
+
+        function summary() : String {
+            return this.label + "(" + this.x as String + ", " + this.y as String + ")";
+        }
+    }
+}
+
+-- Standalone extensions add readable methods without changing a type's layout.
+#extend String {
+    function bracketed() : String {
+        _ = this;
+        return "[" + this + "]";
+    }
+}
+
+namespace tourmath {
+    function Square(value : Int) : Int {
+        return value * value;
+    }
+}
+
+alias tm = tourmath;
+
+-- Ordinary, defaulted, generic, reference, multi-return, private, lazy,
+-- recursive, async, coroutine, and worker functions.
+function Add(left : Int, right : Int = 1) : Int {
     return left + right;
+}
+
+function Maximum[T numeric](left : T, right : T) : T {
+    if left > right {
+        return left;
+    }
+    return right;
+}
+
+function Increment(ref value : Int) {
+    _ = value;
+    value += 1;
+}
+
+function Pair() :(name : String, count : Int) {
+    return languageName, 2;
+}
+
+private function HiddenAnswer() : Int {
+    return 42;
+}
+
+lazy function Choose(useFirst : Bool, first : Int, second : Int) : Int {
+    if useFirst {
+        return first;
+    }
+    return second;
+}
+
+function CountDown(value : Int, total : Int = 0) : Int {
+    if value == 0 {
+        return total;
+    }
+    return CountDown(value - 1, total + 1);
+}
+
+async function LoadAnswer() : Int {
+    return HiddenAnswer();
+}
+
+function CoroutineAnswer() : Int {
+    return 7;
+}
+
+function CountWorker(counter : Atomic[Int], mut amount : Int) : Int {
+    _ = amount;
+    while amount > 0 {
+        atomic_add(counter, 1);
+        amount -= 1;
+    }
+    return atomic_load(counter);
+}
+
+function IsEven(value : Int) : Bool {
+    return value % 2 == 0;
+}
+
+function Double(value : Int) : Int {
+    return value * 2;
+}
+
+function SafeAnswer(ready : Bool) : Result[Int, Atom] {
+    if not ready {
+        return Err(:not_ready);
+    }
+    return Ok(42);
+}
+
+function ThrowAndCatch() : Atom {
+    try {
+        _ = SafeAnswer(False)!;
+    } catch error {
+        return error;
+    }
+    return :unexpected_success;
+}
+
+function CleanupDemo() : Int {
+    defer print("  defer: cleanup ran");
+    return 1;
 }
 
 function RememberIndex(index : Int) : Int {
     return index;
 }
 
-function Main() : Int {
-    let maybeCount = Some(41);
-    let mut total = Add(maybeCount.value, 1);
-    local NetworkState state = NetworkState.Connected;
+-- Function groups provide runtime dispatch by argument shape.
+function PolyOne(value : Int) : Int {
+    return value;
+}
 
+function PolyTwo(value : Int, text : String) : String {
+    _ = value;
+    return text;
+}
+
+function_group Poly {
+    set_function_as_part_of[{.name = "Poly" }, "PolyOne", "PolyTwo"];
+}
+
+-- Region-backed storage is fixed-capacity and zero-indexed.
+region TourRegion(T, sizeof(T) * 8, 8);
+
+run {
+    print("initializing kLang feature tour");
+}
+
+function Main() : Int {
+    print("");
+    print(greeting.bracketed(), "tour", tourVersion);
+    print("Args supplied:", len(Args));
+
+    -- Primitive values, literal bases, separators, casts, metadata, Complex,
+    -- SIMD, Any, and Unicode identifiers.
+    local Int decimal = 42;
+    local Int hexadecimal = 0x2A;
+    local Int binary = 0b10_1010;
+    local Int readable = 1_000_000;
+    local i8 small = 100;
+    local u8 byte = 255;
+    local Float ratio = 12.5;
+    local Complex complexValue = Complex(2, 3);
+    local SIMD[Int] lanes = SIMD([1, 2, 3, 4]);
+    local Char letter = "klang"[0];
+    local mut Any dynamic = "text";
+    dynamic = decimal;
+    local Int එකතුව = decimal + hexadecimal;
+    local Type intInfo = Int.get_runtime_type_info();
+
+    assert decimal == hexadecimal and hexadecimal == binary;
+    assert small as Int == 100 and byte as Int == 255;
+    print("types:", intInfo.name, intInfo.size, letter, ratio, complexValue, lanes, dynamic, එකතුව, readable);
+
+    -- Immutability, mutation, copy-on-write, copy, clone, move, lazy values,
+    -- temporary values, references, and regions.
+    local mut Int counter = 1;
+    Increment(counter);
+    lazy local Int lazyAnswer = Add(40, 2);
+    temp local Int scratch = tm ::Square(3);
+
+    local mut List[Int] mutableNumbers =[1, 2, 3];
+    local List[Int] snapshot = mutableNumbers;
+    mutableNumbers[0] = 99;
+    local List[Int] copied = copy mutableNumbers;
+    local List[Int] cloned = clone mutableNumbers;
+
+    local String owned = "moved safely";
+    local String transferred = move owned;
+
+    local mut T[TourRegion] regionValues;
+    regionValues[0] = "region storage";
+
+    assert snapshot[0] == 1 and mutableNumbers[0] == 99;
+    print("values:", counter, lazyAnswer, scratch, copied, cloned, transferred, regionValues[0]);
+
+    -- Option and generic Result remain value types. Atom Results additionally
+    -- support postfix ! propagation through try/catch.
+    local optional_name maybeName = Some("Ada");
+    local optional_name missingName = None();
+    local String selectedName = option_unwrap_or(maybeName, "anonymous");
+    local String fallbackName = option_unwrap_or(missingName, "anonymous");
+    local Result[Int, String] descriptive = Err("kept as an ordinary value");
+    local Result[Int, Atom] readyAnswer = SafeAnswer(True);
+    local Int answer = readyAnswer!;
+    local Atom caught = ThrowAndCatch();
+
+    assert descriptive.ok == False;
+    assert caught == :not_ready;
+    assert errors.Is(caught, :not_ready);
+    print("safe values:", selectedName, fallbackName, answer, caught.name, ready.name);
+
+    -- Lists, Sets, Maps, Tables, comprehensions, destructuring, pattern
+    -- matching, copy-on-write, fallback lookup, and lazy iterator pipelines.
+    local names people =["Ada", "Grace", "Linus"];
+    local Set[String] unique = Set(["parser", "runtime", "parser"]);
+    local Map[String, Int] scores = { "Ada" : 10, "Grace" : 20 };
+    local mut Table record = {
+        "language" : languageName,
+        "stable" : True,
+        :status : ready
+    };
+    record["features"] = 12;
+
+    local Table defaults = { "theme" : "dark" };
+    local Table localSettings = { "language" : "en" };
+    local Table settings = table_set_fallback(localSettings, defaults);
+    local List[Int] source =[1, 2, 3, 4, 5];
+    local List[Int] comprehension =[value * value for value in source if value > 2];
+    local List[Int] pipeline = source.filter(IsEven).map(Double).collect();
+    local[first, second] = pipeline;
+    local { language, features : featureCount } = record;
+
+    local mut String stateMessage = "";
+    local TourState state = TourState.Running;
     if state == {
-        case NetworkState.Idle:
-            print(appName, "idle");
-        case NetworkState.Connected:
-            print(appName, "connected", total);
-        case:
-            print(appName, "other state", state.name);
+    case TourState.Starting :
+        stateMessage = "starting";
+    case TourState.Running :
+        stateMessage = "running";
+    case TourState.Complete :
+        stateMessage = "complete";
     }
 
-    local Int itemCount = [10, 20, 30].count;
-    local String loud = "hallo".uppercase();
+    assert unique.count == 2;
+    assert scores["Ada"] == 10;
+    assert settings.theme == "dark";
+    print("collections:", people.count, unique, scores, record, comprehension, pipeline, first, second);
+    print("destructured:", language, featureCount, stateMessage);
+
+    -- Iterators, loops, integer callbacks, lambdas, closures, and first-class
+    -- functions.
+    local mut Int loopTotal = 0;
+    for index := range(4) {
+        loopTotal += index;
+    }
+
+    local mut Int whileCount = 0;
+    while whileCount < 2 {
+        whileCount += 1;
+    }
+
+    for_each value in [10, 20] {
+        loopTotal += value;
+    }
+
+    local Iterator[String] iterator = iter(people);
+    local Option[String] firstPerson = next(iterator);
+    local String firstPersonName = option_unwrap_or(firstPerson, "nobody");
+    local Function[Int, Int] triple = fun(value : Int) : Int {
+        return value * 3;
+    };
+    local Int tripled = triple(4);
     local Int lastIndex = 5.times(RememberIndex);
 
-    print(loud, itemCount, lastIndex, intSize);
-    return total;
+    assert firstPerson.some;
+    print("control flow:", loopTotal, whileCount, firstPersonName, tripled, lastIndex);
+
+    -- Alias structs, methods, operators, structural casts, JSON tags, and
+    -- deterministic serialization.
+    local Point origin = Point(1, 2, "origin");
+    local Point moved = origin + Point(3, 4);
+    local Point shifted = moved.shifted(1, 1);
+    local Table pointFields = shifted.cast_as(Table);
+    local JSON pointJson = shifted.cast_as(JSON);
+    local Result[String, Atom] encodedPoint = json.Serialize(shifted);
+
+    assert shifted == Point(5, 7, "origin");
+    assert encodedPoint.ok;
+    print("structs:", origin.summary(), shifted.summary(), pointFields, json_stringify(pointJson));
+
+    -- Multiple returns, generics, namespaces, conditional expressions,
+    -- function groups, here strings, and formatting.
+    local String pairName, Int pairCount = Pair();
+    local Int maximum = Maximum(7, 4);
+    local Bool choice = if maximum > 5 then return True : False;
+    local Int polyNumber = Poly(5);
+    local String polyText = Poly(5, "polymorphic");
+    local String multiline = //
+kLang supports readable multiline strings.
+This tour is ordinary executable source.
+//;
+    local String formatted = format("%: % features", [pairName, pairCount]);
+
+    assert choice;
+    print("functions:", maximum, polyNumber, polyText, formatted);
+    print(multiline);
+
+    -- Async is lazy single-threaded work. Coroutines are resumable. spawn/join
+    -- is real parallel work, and Atomic is the explicit shared-mutation tool.
+    local Awaitable[Int] pending = LoadAnswer();
+    local Int loaded = await pending;
+    local Coroutine[Int] coroutineValue = coroutine(CoroutineAnswer);
+    local Option[Int] resumed = resume(coroutineValue);
+    local Int resumedValue = option_unwrap_or(resumed, 0);
+    local Atomic[Int] shared = Atomic(0);
+    local Thread[Int] worker = spawn(CountWorker, [shared, 5]);
+    local Int workerResult = join(worker);
+    local String workerStatus = thread_status(worker);
+    atomic_add(completedSections, 1);
+
+    assert resumed.some and resumedValue == 7;
+    assert workerResult == 5 and atomic_load(shared) == 5;
+    print("execution models:", loaded, resumedValue, workerResult, workerStatus, atomic_load(completedSections));
+
+    -- Native descriptors expose safe metadata without performing destructive
+    -- operations. Actual File/OS failures use Results; stdlib facades convert
+    -- them to stable Atom errors.
+    local File sourceFile = File("first.klang");
+    local OS host = OS();
+    print("host:", host.name, host.arch, host.cpu_count, sourceFile.name, sourceFile.extension);
+
+    -- Parsable exposes source, AST, runtime, Program, BuildSystem, and WorkSpace
+    -- metadata for metaprogramming.
+    local Parsable[Any] parsed = Parsable(
+    "function Generated() : Int { return 42; }",
+    ["generated-argument"]
+    );
+    local List[Table] ast = parsable_ast(parsed);
+    local Program program = Program(["first"]);
+    local BuildSystem build = BuildSystem("feature-tour", 1, ["first.klang"], "Standalone");
+    local WorkSpace workspace = WorkSpace(program, build);
+    local String manifest = workspace_manifest(workspace);
+
+    assert len(ast) == 1;
+    _ = ast;
+    print("metaprogramming:", parsed.statement_count, len(parsed.args), workspace_backend(workspace));
+    print("manifest:", manifest);
+
+    -- Allocator/reference wrappers are runtime-tracked values.
+    local Box boxed = Box(answer);
+    local Ref reference = Ref(boxed);
+    local RefMut mutableReference = RefMut(boxed);
+    local RefCell cell = RefCell(boxed);
+    local HeapAllocator heap = HeapAllocator();
+    print("memory:", debug_type(boxed), debug_type(reference), debug_type(mutableReference), debug_type(cell), debug_type(heap));
+
+    scope FinalChecks {
+        assert CleanupDemo() == 1;
+        assert CountDown(5) == 5;
+        assert Choose(True, 1, 2) == 1;
+        print("final scope: all assertions passed");
+    }
+
+    -- report emits the value, runtime type, and active stack as a diagnostic.
+    report { "tour" : languageName, "state" : :complete, "answer" : answer };
+
+    print("");
+    print("Tour complete.");
+    print("Try: kLang check first.klang");
+    print("Try: kLang fmt first.klang --check");
+    print("Try: kLang package first.klang --backend=JS");
+    print("JS execution and the portable native VM are tracked in JS-INTEROP-AND-PORTABLE-VM-ROADMAP.md.");
+    return 0;
+}
+
+-- The CLI also discovers zero-argument functions whose names begin with Test.
+function TestFeatureTour() : Bool {
+    return Add(40, 2) == 42 and errors.Is(:ready, ready);
 }

@@ -22,7 +22,7 @@ function Main() : Int {
         return 1;
     }
 
-    local Result[WorkSpace, String] validation = metasystem.workspace.Validate(workspace);
+    local Result[WorkSpace, Atom] validation = metasystem.workspace.Validate(workspace);
     if not validation.ok {
         print("metasystem workspace validation failed");
         return 1;

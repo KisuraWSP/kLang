@@ -2155,7 +2155,7 @@ function Main() : Int {
 
 func TestCheckProgramAcceptsTryCatchThrowAndResultPropagation(t *testing.T) {
 	program := programFromSource(`
-function Fallible() : Result[Int, String] {
+function Fallible() : Result[Int, Atom] {
     return Ok(41);
 }
 
@@ -2164,7 +2164,7 @@ function Main() : Int {
         local Int value = Fallible()!;
         return value + 1;
     } catch err {
-        print(err);
+        print(err.name);
         return 0;
     }
 }
@@ -2174,6 +2174,30 @@ function Main() : Int {
 	if !report.Passed() {
 		t.Fatalf("expected type check to pass, got: %v", report.Errors)
 	}
+}
+
+func TestCheckProgramRejectsNonAtomErrorPropagation(t *testing.T) {
+	program := programFromSource(`
+function Fallible() : Result[Int, String] {
+    return Err("bad");
+}
+
+function Main() : Int {
+    return Fallible()!;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "! only propagates Result[T, Atom]")
+}
+
+func TestCheckProgramRejectsNonAtomThrow(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    throw "bad";
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "throw expects Atom, got String")
 }
 
 func TestCheckProgramAcceptsNamespaceLocalFunctionCalls(t *testing.T) {
@@ -2539,6 +2563,151 @@ function Main() : Int {
 `)
 
 	assertTypeError(t, CheckProgram(program), "spawn argument 1 expects Int, got String")
+}
+
+func TestCheckProgramRejectsNonTransferSafeSpawnTypes(t *testing.T) {
+	program := programFromSource(`
+function Worker(value : RefMut) : Int {
+    return 0;
+}
+
+function Main() : Int {
+    local Thread[Int] worker = spawn(Worker, [RefMut(1)]);
+    return join(worker);
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "spawn parameter 1 type RefMut is not thread-transfer-safe")
+}
+
+func TestCheckProgramRejectsAsyncSpawnTarget(t *testing.T) {
+	program := programFromSource(`
+async function Worker() : Int {
+    return 1;
+}
+
+function Main() : Int {
+    local Thread[Int] worker = spawn(Worker);
+    return join(worker);
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "spawn target cannot be async")
+}
+
+func TestCheckProgramRejectsMutableGlobalWorkerAccess(t *testing.T) {
+	program := programFromSource(`
+global mut Int shared = 0;
+
+function Worker() : Int {
+    shared += 1;
+    return shared;
+}
+
+function Main() : Int {
+    local Thread[Int] worker = spawn(Worker);
+    return join(worker);
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "spawn worker Worker accesses mutable global shared")
+}
+
+func TestCheckProgramAcceptsImmutableGlobalAtomicWorkerAccess(t *testing.T) {
+	program := programFromSource(`
+global Atomic[Int] shared = Atomic(0);
+
+function Worker() : Int {
+    return atomic_add(shared, 1);
+}
+
+function Main() : Int {
+    local Thread[Int] worker = spawn(Worker);
+    return join(worker);
+}
+`)
+
+	if report := CheckProgram(program); !report.Passed() {
+		t.Fatalf("expected immutable global Atomic worker access to pass, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsNonTransferableGlobalWorkerAccess(t *testing.T) {
+	program := programFromSource(`
+global Table shared = {"answer": 42};
+
+function Worker() : Int {
+    return shared["answer"] as Int;
+}
+
+function Main() : Int {
+    local Thread[Int] worker = spawn(Worker);
+    return join(worker);
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "spawn worker Worker accesses non-transferable global shared of type Table")
+}
+
+func TestCheckProgramRejectsUnsafeAtomicPayload(t *testing.T) {
+	program := programFromSource(`
+function Main() : Int {
+    local Atomic[RefMut] cell = Atomic(RefMut(1));
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	assertTypeError(t, report, "Atomic payload type RefMut is not thread-transfer-safe")
+	assertTypeError(t, report, "Atomic value type RefMut is not thread-transfer-safe")
+}
+
+func TestCheckProgramAcceptsTransferSafeAggregateWorker(t *testing.T) {
+	program := programFromSource(`
+function Worker(mut values : List[Int]) : List[Int] {
+    values[0] = 99;
+    return values;
+}
+
+function Main() : Int {
+    local Thread[List[Int]] worker = spawn(Worker, [[1, 2, 3]]);
+    local List[Int] result = join(worker);
+    return result[0];
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected transfer-safe aggregate worker to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramEnforcesTransferableGenericConstraint(t *testing.T) {
+	accepted := programFromSource(`
+function Identity[T transferable](value : T) : T {
+    return value;
+}
+
+function Main() : Int {
+    local List[Int] values = Identity([1, 2, 3]);
+    return values[0];
+}
+`)
+	if report := CheckProgram(accepted); !report.Passed() {
+		t.Fatalf("expected transferable List[Int] to pass, got %#v", report.Errors)
+	}
+
+	rejected := programFromSource(`
+function Identity[T transferable](value : T) : T {
+    return value;
+}
+
+function Main() : Int {
+    local Table value = Identity({"answer": 42});
+    return value.answer;
+}
+`)
+	assertTypeError(t, CheckProgram(rejected), "function Identity argument 1 expects T:transferable, got Map[T,T]")
 }
 
 func TestCheckProgramAcceptsTraitsInsideAliasFunctions(t *testing.T) {
@@ -3007,7 +3176,7 @@ function Main() : Int {
 }
 `)
 
-	assertTypeError(t, CheckProgram(program), "Result value value must be checked with .ok, pattern matched with Ok(...), or propagated with ! before accessing .value")
+	assertTypeError(t, CheckProgram(program), "Result value value must be checked with .ok or pattern matched with Ok(...) before accessing .value")
 }
 
 func TestCheckProgramAcceptsGuardedResultValueAccess(t *testing.T) {

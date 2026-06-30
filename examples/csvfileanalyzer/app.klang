@@ -23,7 +23,7 @@ namespace App {
     }
 
     function ShowJSON(analysis : Analysis) : Int {
-        local Result[String, String] encoded = json.serialize(analysis);
+        local Result[String, Atom] encoded = json.serialize(analysis);
 
         if encoded == {
         case Ok(document) :

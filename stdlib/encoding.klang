@@ -108,19 +108,19 @@ namespace encoding {
     }
 
     namespace asn1 {
-        --- Signature: function Marshal(value : Any) : Result[String, String]
-        --- Returns: Result[String, String].
+        --- Signature: function Marshal(value : Any) : Result[String, Atom]
+        --- Returns: Result[String, Atom].
         --- Summary: Provides the stdlib marshal operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-        function Marshal(value : Any) : Result[String, String] {
+        function Marshal(value : Any) : Result[String, Atom] {
             return Ok(debug_type(value));
         }
 
-        --- Signature: function MarshalWithParams(value : Any, params : String) : Result[String, String]
-        --- Returns: Result[String, String].
+        --- Signature: function MarshalWithParams(value : Any, params : String) : Result[String, Atom]
+        --- Returns: Result[String, Atom].
         --- Summary: Provides the stdlib marshal with params operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-        function MarshalWithParams(value : Any, params : String) : Result[String, String] {
+        function MarshalWithParams(value : Any, params : String) : Result[String, Atom] {
             return Ok(params + ":" + debug_type(value));
         }
 
@@ -261,13 +261,13 @@ namespace encoding {
             return "base32:" + src;
         }
 
-        --- Signature: function DecodeString(src : String) : Result[String, String]
-        --- Returns: Result[String, String].
+        --- Signature: function DecodeString(src : String) : Result[String, Atom]
+        --- Returns: Result[String, Atom].
         --- Summary: Reads, locates, or decodes decode string from the provided Klang input(s).
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-        function DecodeString(src : String) : Result[String, String] {
+        function DecodeString(src : String) : Result[String, Atom] {
             if len(src) == 0 {
-                return Err("base32 input cannot be empty");
+                return Err(:base32_empty_input);
             }
 
             return Ok(src);
@@ -315,13 +315,13 @@ namespace encoding {
             return "base64:" + src;
         }
 
-        --- Signature: function DecodeString(src : String) : Result[String, String]
-        --- Returns: Result[String, String].
+        --- Signature: function DecodeString(src : String) : Result[String, Atom]
+        --- Returns: Result[String, Atom].
         --- Summary: Reads, locates, or decodes decode string from the provided Klang input(s).
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-        function DecodeString(src : String) : Result[String, String] {
+        function DecodeString(src : String) : Result[String, Atom] {
             if len(src) == 0 {
-                return Err("base64 input cannot be empty");
+                return Err(:base64_empty_input);
             }
 
             return Ok(src);
@@ -479,13 +479,13 @@ namespace encoding {
             return "hex:" + src;
         }
 
-        --- Signature: function DecodeString(src : String) : Result[String, String]
-        --- Returns: Result[String, String].
+        --- Signature: function DecodeString(src : String) : Result[String, Atom]
+        --- Returns: Result[String, Atom].
         --- Summary: Reads, locates, or decodes decode string from the provided Klang input(s).
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-        function DecodeString(src : String) : Result[String, String] {
+        function DecodeString(src : String) : Result[String, Atom] {
             if len(src) == 0 {
-                return Err("hex input cannot be empty");
+                return Err(:hex_empty_input);
             }
 
             return Ok(src);
@@ -533,13 +533,13 @@ namespace encoding {
             return debug_type(value);
         }
 
-        --- Signature: function Decode(value : String) : Result[String, String]
-        --- Returns: Result[String, String].
+        --- Signature: function Decode(value : String) : Result[String, Atom]
+        --- Returns: Result[String, Atom].
         --- Summary: Reads, locates, or decodes decode from the provided Klang input(s).
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-        function Decode(value : String) : Result[String, String] {
+        function Decode(value : String) : Result[String, Atom] {
             if len(value) == 0 {
-                return Err("gob input cannot be empty");
+                return Err(:gob_empty_input);
             }
 
             return Ok(value);

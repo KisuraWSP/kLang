@@ -1,0 +1,17 @@
+load_as_script;
+
+function Main() : Int {
+    local Int testCases = read_int();
+    _ = testCases;
+
+    for caseIndex := range(testCases) {
+        _ = caseIndex;
+        local Int vertexCount = read_int();
+        local Int edgeCount = read_int();
+        local List[Int] graphData = read_ints(vertexCount + edgeCount * 4);
+        local List[Int] answers = interval_walk_max_scores(vertexCount, edgeCount, graphData);
+        print_ints(answers);
+    }
+
+    return 0;
+}

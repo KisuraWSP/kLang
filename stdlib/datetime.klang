@@ -46,13 +46,13 @@ namespace datetime {
         };
     }
 
-    --- Signature: function ParseDuration(value : String) : Result[Table, String]
-    --- Returns: Result[Table, String].
+    --- Signature: function ParseDuration(value : String) : Result[Table, Atom]
+    --- Returns: Result[Table, Atom].
     --- Summary: Reads, locates, or decodes parse duration from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function ParseDuration(value : String) : Result[Table, String] {
+    function ParseDuration(value : String) : Result[Table, Atom] {
         if len(value) == 0 {
-            return Err("duration string cannot be empty");
+            return Err(:invalid_duration);
         }
 
         return Ok(Duration(value as Int));
@@ -173,25 +173,25 @@ namespace datetime {
         return Location(name, offset);
     }
 
-    --- Signature: function LoadLocation(name : String) : Result[Table, String]
-    --- Returns: Result[Table, String].
+    --- Signature: function LoadLocation(name : String) : Result[Table, Atom]
+    --- Returns: Result[Table, Atom].
     --- Summary: Reads, locates, or decodes load location from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function LoadLocation(name : String) : Result[Table, String] {
+    function LoadLocation(name : String) : Result[Table, Atom] {
         if len(name) == 0 {
-            return Err("location name cannot be empty");
+            return Err(:invalid_location);
         }
 
         return Ok(Location(name, 0));
     }
 
-    --- Signature: function LoadLocationFromTZData(name : String, data : List[Int]) : Result[Table, String]
-    --- Returns: Result[Table, String].
+    --- Signature: function LoadLocationFromTZData(name : String, data : List[Int]) : Result[Table, Atom]
+    --- Returns: Result[Table, Atom].
     --- Summary: Reads, locates, or decodes load location from tzdata from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function LoadLocationFromTZData(name : String, data : List[Int]) : Result[Table, String] {
+    function LoadLocationFromTZData(name : String, data : List[Int]) : Result[Table, Atom] {
         if len(data) == 0 {
-            return Err("tzdata cannot be empty");
+            return Err(:invalid_tzdata);
         }
 
         return Ok(Location(name, len(data)));
@@ -297,25 +297,25 @@ namespace datetime {
         return Time(UnixEpoch(), "UTC");
     }
 
-    --- Signature: function Parse(layout : String, value : String) : Result[Table, String]
-    --- Returns: Result[Table, String].
+    --- Signature: function Parse(layout : String, value : String) : Result[Table, Atom]
+    --- Returns: Result[Table, Atom].
     --- Summary: Reads, locates, or decodes parse from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Parse(layout : String, value : String) : Result[Table, String] {
+    function Parse(layout : String, value : String) : Result[Table, Atom] {
         if len(value) == 0 {
-            return Err("time value cannot be empty");
+            return Err(:invalid_time);
         }
 
         return Ok(Time(value as Int, "UTC"));
     }
 
-    --- Signature: function ParseInLocation(layout : String, value : String, location : Table) : Result[Table, String]
-    --- Returns: Result[Table, String].
+    --- Signature: function ParseInLocation(layout : String, value : String, location : Table) : Result[Table, Atom]
+    --- Returns: Result[Table, Atom].
     --- Summary: Reads, locates, or decodes parse in location from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function ParseInLocation(layout : String, value : String, location : Table) : Result[Table, String] {
+    function ParseInLocation(layout : String, value : String, location : Table) : Result[Table, Atom] {
         if len(value) == 0 {
-            return Err("time value cannot be empty");
+            return Err(:invalid_time);
         }
 
         return Ok(Time(value as Int, location["name"] as String));

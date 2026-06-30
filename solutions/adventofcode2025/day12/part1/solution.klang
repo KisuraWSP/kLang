@@ -1,0 +1,111 @@
+load_as_script;
+
+import "strings";
+
+function InputPath() : String {
+    if len(Args) > 0 {
+        return Args[0];
+    }
+    return "solutions/adventofcode2025_day12/input.txt";
+}
+
+function Solve(lines : List[String]) : Int {
+    local mut List[Int] shapeAreas;
+    local mut Int maximumShapeWidth = 0;
+    local mut Int maximumShapeHeight = 0;
+    local mut Int lineIndex = 0;
+
+    -- Read every shape and retain both its occupied area and a uniform
+    -- bounding-box size that can hold any orientation.
+    while lineIndex < len(lines) {
+        local String line = lines[lineIndex];
+        if strings.Contains(line, "x") and strings.Contains(line, ": ") {
+            break;
+        }
+
+        if len(line) > 0 and line[len(line) - 1] == ':' {
+            local mut Int shapeArea = 0;
+            local mut Int shapeHeight = 0;
+            local mut Int shapeWidth = 0;
+            lineIndex += 1;
+
+            while lineIndex < len(lines) and len(lines[lineIndex]) > 0 {
+                local String row = lines[lineIndex];
+                shapeArea += strings.Count(row, "#");
+                shapeHeight += 1;
+                if len(row) > shapeWidth {
+                    shapeWidth = len(row);
+                }
+                lineIndex += 1;
+            }
+
+            shapeAreas[len(shapeAreas)] = shapeArea;
+            if shapeWidth > maximumShapeWidth {
+                maximumShapeWidth = shapeWidth;
+            }
+            if shapeHeight > maximumShapeHeight {
+                maximumShapeHeight = shapeHeight;
+            }
+        } else {
+            lineIndex += 1;
+        }
+    }
+
+    local mut Int fittingRegions = 0;
+    local mut Int unresolvedRegions = 0;
+    while lineIndex < len(lines) {
+        local String line = lines[lineIndex];
+        lineIndex += 1;
+        if len(line) == 0 {
+            continue;
+        }
+
+        local List[String] sections = strings.Split(line, ": ");
+        local List[String] dimensions = strings.Split(sections[0], "x");
+        local List[String] quantities = strings.Split(sections[1], " ");
+        local Int width = dimensions[0] as Int;
+        local Int height = dimensions[1] as Int;
+        local mut Int requiredCells = 0;
+        local mut Int presentCount = 0;
+        local mut Int shapeIndex = 0;
+
+        while shapeIndex < len(shapeAreas) {
+            local Int quantity = quantities[shapeIndex] as Int;
+            requiredCells += quantity * shapeAreas[shapeIndex];
+            presentCount += quantity;
+            shapeIndex += 1;
+        }
+
+        local Int separateBoxCapacity = (width // maximumShapeWidth) * (height // maximumShapeHeight);
+
+        -- Too much occupied area is a proof of impossibility. Conversely,
+        -- enough disjoint maximum-size boxes is a constructive packing proof.
+        if requiredCells > width * height {
+            -- Impossible by occupied area.
+        } else if presentCount <= separateBoxCapacity {
+            fittingRegions += 1;
+        } else {
+            -- This input has no such region. A general input would need an
+            -- exact polyomino search here because neither bound decides it.
+            unresolvedRegions += 1;
+        }
+    }
+
+    if unresolvedRegions > 0 {
+        print("Exact packing required for", unresolvedRegions, "region(s)");
+        return 1;
+    }
+
+    print(fittingRegions);
+    return 0;
+}
+
+function Main() : Int {
+    local Result[List[String], String] loaded = File(InputPath()).read_lines();
+    if loaded.ok {
+        return Solve(loaded.value);
+    }
+
+    print("Could not read input");
+    return 1;
+}

@@ -854,7 +854,7 @@ func (checker *TypeChecker) checkFunction(fn functionSymbol) {
 		locals[nestedName] = variableSymbol{Name: nestedName, Type: anyType}
 	}
 	for catchName := range collectCatchNames(fn.Body) {
-		locals[catchName] = variableSymbol{Name: catchName, Type: anyType}
+		locals[catchName] = variableSymbol{Name: catchName, Type: "Atom"}
 	}
 	for loopName := range collectEvaluationAssignmentNames(fn.Body) {
 		locals[loopName] = variableSymbol{Name: loopName, Type: anyType, Mutable: true}
@@ -1170,6 +1170,10 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		}
 	case parser.ThrowStatement:
 		checker.checkSemanticExpression(fn, current.Expression, locals, line)
+		exprType := checker.inferParsedExpression(current.Expression, locals, fn.File, line)
+		if checker.resolveTypeAlias(exprType) != "Atom" {
+			checker.addError(fn.File, line, fmt.Sprintf("throw expects Atom, got %s", exprType))
+		}
 	case parser.AssertStatement:
 		checker.checkSemanticExpression(fn, current.Expression, locals, line)
 		exprType := checker.inferParsedExpression(current.Expression, locals, fn.File, line)
@@ -1204,7 +1208,7 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 	case parser.TryCatchStatement:
 		checker.checkSemanticChildBlock(fn, current.TryBody, locals)
 		catchLocals := copyLocals(locals)
-		catchLocals[current.ErrorName] = variableSymbol{Name: current.ErrorName, Type: anyType, File: fn.File, Line: line}
+		catchLocals[current.ErrorName] = variableSymbol{Name: current.ErrorName, Type: "Atom", File: fn.File, Line: line}
 		checker.checkSemanticChildBlockWithLocals(fn, current.CatchBody, locals, catchLocals, map[string]bool{current.ErrorName: true})
 	case parser.DeferStatement:
 		if current.Stmt != nil {
@@ -1826,7 +1830,7 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 		case parser.TryCatchStatement:
 			checker.checkNullSafetyStatements(current.TryBody, copyNullSafetyEnv(env), source, baseLine)
 			catchEnv := copyNullSafetyEnv(env)
-			catchEnv[current.ErrorName] = nullSafetySymbol{Type: anyType}
+			catchEnv[current.ErrorName] = nullSafetySymbol{Type: "Atom"}
 			checker.checkNullSafetyStatements(current.CatchBody, catchEnv, source, baseLine)
 		case parser.DeferStatement:
 			checker.checkNullSafetyStatements(current.Body, copyNullSafetyEnv(env), source, baseLine)
@@ -1880,9 +1884,13 @@ func (checker *TypeChecker) checkNullSafetyExpression(expr parser.ExpressionNode
 						line := baseLine + selectorLine(current.Target) - 1
 						checker.addError(source, line, fmt.Sprintf("Option value %s must be checked with .some, pattern matched with Some(...), or unwrapped with option_unwrap_or before accessing .value", target.Name))
 					}
-					if _, _, result := resultValueTypes(symbol.Type); result && !symbol.KnownOk {
+					if _, errorType, result := resultValueTypes(symbol.Type); result && !symbol.KnownOk {
 						line := baseLine + selectorLine(current.Target) - 1
-						checker.addError(source, line, fmt.Sprintf("Result value %s must be checked with .ok, pattern matched with Ok(...), or propagated with ! before accessing .value", target.Name))
+						if checker.resolveTypeAlias(errorType) == "Atom" {
+							checker.addError(source, line, fmt.Sprintf("Result value %s must be checked with .ok, pattern matched with Ok(...), or propagated with ! before accessing .value", target.Name))
+						} else {
+							checker.addError(source, line, fmt.Sprintf("Result value %s must be checked with .ok or pattern matched with Ok(...) before accessing .value", target.Name))
+						}
 					}
 				}
 			}
@@ -2836,10 +2844,13 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	}
 	if inner, ok := splitPostfixPropagateExpression(expr); ok {
 		resultType := checker.inferExpression(inner, locals, source, line)
-		okType, _, ok := resultValueTypes(resultType)
+		okType, errorType, ok := resultValueTypes(resultType)
 		if !ok {
 			checker.addError(source, line, fmt.Sprintf("! expects Result, got %s", resultType))
 			return anyType
+		}
+		if checker.resolveTypeAlias(errorType) != "Atom" {
+			checker.addError(source, line, fmt.Sprintf("! only propagates Result[T, Atom], got %s", resultType))
 		}
 		return okType
 	}
@@ -3444,6 +3455,10 @@ func (checker *TypeChecker) checkDeclaredType(typeName string, source string, li
 		checker.addError(source, line, fmt.Sprintf("unknown type %s", typeName))
 		return
 	}
+	if inner, ok := atomicItemType(typeName); ok && !checker.isThreadTransferSafeType(inner) {
+		checker.addError(source, line, fmt.Sprintf("Atomic payload type %s is not thread-transfer-safe", inner))
+		return
+	}
 	if !isArrayTypeName(typeName) {
 		return
 	}
@@ -3850,6 +3865,45 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			}
 		}
 		return "String"
+	case "read_int":
+		if len(args) != 0 {
+			checker.addError(source, line, "read_int expects 0 arguments")
+		}
+		return "Int"
+	case "read_ints":
+		if len(args) != 1 {
+			checker.addError(source, line, "read_ints expects 1 argument")
+		} else if argumentType := checker.inferExpression(args[0], locals, source, line); !isIntegerIndexType(argumentType) {
+			checker.addError(source, line, fmt.Sprintf("read_ints count expects Int, got %s", argumentType))
+		}
+		return "List[Int]"
+	case "print_ints":
+		if len(args) != 1 {
+			checker.addError(source, line, "print_ints expects 1 argument")
+		} else if argumentType := normalizeType(checker.inferExpression(args[0], locals, source, line)); argumentType != "List[Int]" {
+			checker.addError(source, line, fmt.Sprintf("print_ints expects List[Int], got %s", argumentType))
+		}
+		return anyType
+	case "interval_walk_max_scores":
+		if len(args) != 3 {
+			checker.addError(source, line, "interval_walk_max_scores expects 3 arguments")
+			return "List[Int]"
+		}
+		for index := 0; index < 2; index++ {
+			argumentType := checker.inferExpression(args[index], locals, source, line)
+			if !isIntegerIndexType(argumentType) {
+				checker.addError(source, line, fmt.Sprintf(
+					"interval_walk_max_scores argument %d expects Int, got %s", index+1, argumentType,
+				))
+			}
+		}
+		dataType := normalizeType(checker.inferExpression(args[2], locals, source, line))
+		if dataType != "List[Int]" {
+			checker.addError(source, line, fmt.Sprintf(
+				"interval_walk_max_scores data expects List[Int], got %s", dataType,
+			))
+		}
+		return "List[Int]"
 	case "len":
 		if len(args) != 1 {
 			checker.addError(source, line, "len expects 1 argument")
@@ -4181,6 +4235,28 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.addError(source, line, fmt.Sprintf("spawn expects Function, got %s", functionType))
 			return "Thread[T]"
 		}
+		workerName := normalizeNamespaceAccess(strings.TrimSpace(args[0]))
+		worker, namedWorker := checker.lookupFunction(workerName)
+		if !namedWorker {
+			checker.addError(source, line, "spawn target must be a named workspace function without captured local state")
+		} else {
+			if worker.Async {
+				checker.addError(source, line, "spawn target cannot be async; await async work on its owning thread")
+			}
+			checker.checkSpawnWorkerGlobals(worker, source, line)
+			for index, param := range worker.Params {
+				if !checker.isThreadTransferSafeType(param.Type) {
+					checker.addError(source, line, fmt.Sprintf(
+						"spawn parameter %d type %s is not thread-transfer-safe", index+1, normalizeType(param.Type),
+					))
+				}
+			}
+			if !checker.isThreadTransferSafeType(worker.ReturnType) {
+				checker.addError(source, line, fmt.Sprintf(
+					"spawn return type %s is not thread-transfer-safe", normalizeType(worker.ReturnType),
+				))
+			}
+		}
 		if len(args) == 2 {
 			argsType := checker.inferExpression(args[1], locals, source, line)
 			if !strings.HasPrefix(argsType, "List[") {
@@ -4225,7 +4301,11 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			checker.addError(source, line, "Atomic expects 1 argument")
 			return "Atomic[T]"
 		}
-		return "Atomic[" + checker.inferExpression(args[0], locals, source, line) + "]"
+		valueType := checker.inferExpression(args[0], locals, source, line)
+		if !checker.isThreadTransferSafeType(valueType) {
+			checker.addError(source, line, fmt.Sprintf("Atomic value type %s is not thread-transfer-safe", normalizeType(valueType)))
+		}
+		return "Atomic[" + valueType + "]"
 	case "atomic_load":
 		if len(args) != 1 {
 			checker.addError(source, line, "atomic_load expects 1 argument")
@@ -4612,6 +4692,167 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 func (checker *TypeChecker) isStructAliasType(typeName string) bool {
 	alias, _, ok := checker.aliasTypeInfo(typeName)
 	return ok && alias.Struct
+}
+
+func (checker *TypeChecker) isThreadTransferSafeType(typeName string) bool {
+	return checker.isThreadTransferSafeTypeSeen(checker.resolveTypeAlias(normalizeType(typeName)), map[string]bool{})
+}
+
+func (checker *TypeChecker) checkSpawnWorkerGlobals(worker functionSymbol, source string, line int) {
+	locals := map[string]bool{}
+	for _, param := range worker.Params {
+		locals[param.Name] = true
+	}
+	if parsed, ok := checker.parseFunctionBodyForSemanticCheck(worker); ok {
+		collectThreadWorkerLocals(parsed.Body, locals)
+	}
+
+	reported := map[string]bool{}
+	tokens := lexer.New(worker.Body).Tokenize()
+	for index, token := range tokens {
+		if token.Type != lexer.TokenIdentifier || locals[token.Literal] || reported[token.Literal] {
+			continue
+		}
+		if index > 0 && (tokens[index-1].Type == lexer.TokenDot || tokens[index-1].Type == lexer.TokenNamespaceAccess) {
+			continue
+		}
+		global, ok := checker.globals[token.Literal]
+		if !ok {
+			continue
+		}
+		if global.Mutable {
+			reported[token.Literal] = true
+			checker.addError(source, line, fmt.Sprintf(
+				"spawn worker %s accesses mutable global %s; use an immutable Atomic[T] binding",
+				worker.Name, token.Literal,
+			))
+		} else if !checker.isThreadTransferSafeType(global.Type) {
+			reported[token.Literal] = true
+			checker.addError(source, line, fmt.Sprintf(
+				"spawn worker %s accesses non-transferable global %s of type %s",
+				worker.Name, token.Literal, normalizeType(global.Type),
+			))
+		}
+	}
+}
+
+func collectThreadWorkerLocals(statements []parser.Statement, locals map[string]bool) {
+	for _, stmt := range statements {
+		switch current := stmt.(type) {
+		case parser.VariableStatement:
+			locals[current.Name] = true
+		case parser.MultiVariableStatement:
+			for _, binding := range current.Bindings {
+				locals[binding.Name] = true
+			}
+		case parser.DestructuringStatement:
+			collectThreadWorkerPatternLocals(current.Pattern, locals)
+		case parser.FunctionStatement:
+			locals[current.Name] = true
+		case parser.IfStatement:
+			collectThreadWorkerLocals(current.Consequence, locals)
+			collectThreadWorkerLocals(current.Alternative, locals)
+			if current.ElseIf != nil {
+				collectThreadWorkerLocals([]parser.Statement{*current.ElseIf}, locals)
+			}
+		case parser.MatchStatement:
+			for _, matchCase := range current.Cases {
+				collectThreadWorkerLocals(matchCase.Body, locals)
+			}
+		case parser.LoopStatement:
+			if len(current.Header.Tokens) > 0 && current.Header.Tokens[0].Type == lexer.TokenIdentifier {
+				locals[current.Header.Tokens[0].Literal] = true
+			}
+			collectThreadWorkerLocals(current.Body, locals)
+		case parser.TryCatchStatement:
+			locals[current.ErrorName] = true
+			collectThreadWorkerLocals(current.TryBody, locals)
+			collectThreadWorkerLocals(current.CatchBody, locals)
+		case parser.DeferStatement:
+			if current.Stmt != nil {
+				collectThreadWorkerLocals([]parser.Statement{current.Stmt}, locals)
+			}
+			collectThreadWorkerLocals(current.Body, locals)
+		case parser.RunStatement:
+			if current.Stmt != nil {
+				collectThreadWorkerLocals([]parser.Statement{current.Stmt}, locals)
+			}
+			collectThreadWorkerLocals(current.Body, locals)
+		case parser.PrivateBlockStatement:
+			collectThreadWorkerLocals(current.Body, locals)
+		case parser.ScopeStatement:
+			collectThreadWorkerLocals(current.Body, locals)
+		}
+	}
+}
+
+func collectThreadWorkerPatternLocals(pattern parser.DestructuringPattern, locals map[string]bool) {
+	switch current := pattern.(type) {
+	case parser.DestructuringBinding:
+		locals[current.Name] = true
+	case parser.DestructuringListPattern:
+		for _, item := range current.Items {
+			collectThreadWorkerPatternLocals(item, locals)
+		}
+	case parser.DestructuringObjectPattern:
+		for _, field := range current.Fields {
+			collectThreadWorkerPatternLocals(field.Pattern, locals)
+		}
+	}
+}
+
+func (checker *TypeChecker) isThreadTransferSafeTypeSeen(typeName string, seen map[string]bool) bool {
+	typeName = checker.resolveTypeAlias(normalizeType(typeName))
+	if _, allowed, ok := restrictedGenericType(typeName); ok {
+		for _, option := range allowed {
+			if normalizeConstraintName(option) == "transferable" ||
+				checker.isThreadTransferSafeTypeSeen(option, seen) {
+				continue
+			}
+			return false
+		}
+		return true
+	}
+	switch typeName {
+	case "Null", "Int", "UInt", "Float", "Complex", "Bool", "Char", "String", "Atom", "JSON", "File", "OS":
+		return true
+	case anyType, dynamicAnyType, "Table", "Box", "Ref", "RefMut", "RefCell",
+		"HeapAllocator", "RegionAllocator", "BumpAllocator", "ArenaAllocator",
+		"Awaitable", "Iterator", "Coroutine", "Thread", "Function", "Parsable":
+		return false
+	}
+	if isNumeric(typeName) || checker.enums[typeName].Name != "" {
+		return true
+	}
+	if strings.HasPrefix(typeName, "Int.child(") || strings.HasPrefix(typeName, "UInt.child(") ||
+		strings.HasPrefix(typeName, "Float.child(") || strings.HasPrefix(typeName, "Complex.child(") {
+		return true
+	}
+	if base, args, ok := splitGenericType(typeName); ok {
+		switch base {
+		case "List", "Set", "Option", "SIMD", "Atomic":
+			return len(args) == 1 && checker.isThreadTransferSafeTypeSeen(args[0], seen)
+		case "Map", "Result":
+			return len(args) == 2 &&
+				checker.isThreadTransferSafeTypeSeen(args[0], seen) &&
+				checker.isThreadTransferSafeTypeSeen(args[1], seen)
+		case "Awaitable", "Iterator", "Coroutine", "Thread", "Function", "Parsable":
+			return false
+		}
+	}
+	alias, substitutions, ok := checker.aliasTypeInfo(typeName)
+	if !ok || !alias.Struct || seen[typeName] {
+		return false
+	}
+	seen[typeName] = true
+	defer delete(seen, typeName)
+	for _, field := range alias.Params {
+		fieldType := applyAliasTypeSubstitutions(normalizeType(field.Type), substitutions)
+		if !checker.isThreadTransferSafeTypeSeen(fieldType, seen) {
+			return false
+		}
+	}
+	return true
 }
 
 func (checker *TypeChecker) checkStructCast(sourceType string, targetType string, source string, line int) string {
@@ -5733,7 +5974,7 @@ func normalizeConstraintName(name string) string {
 
 func isGenericConstraintName(name string) bool {
 	switch normalizeConstraintName(name) {
-	case "numeric", "comparable", "hashable", "iterable", "allocator_like":
+	case "numeric", "comparable", "hashable", "iterable", "allocator_like", "transferable":
 		return true
 	default:
 		return false
@@ -6276,6 +6517,9 @@ func (checker *TypeChecker) constraintAllows(constraint string, typeName string)
 	if constraint == dynamicAnyType {
 		return true
 	}
+	if constraint == "transferable" {
+		return checker.isThreadTransferSafeType(typeName)
+	}
 	if isGenericConstraintName(constraint) {
 		return builtinConstraintAllows(constraint, typeName)
 	}
@@ -6309,6 +6553,8 @@ func builtinConstraintAllows(constraint string, typeName string) bool {
 		return ok
 	case "allocator_like":
 		return isAllocatorType(typeName)
+	case "transferable":
+		return isBuiltinThreadTransferSafeType(typeName)
 	default:
 		return false
 	}
@@ -6325,6 +6571,37 @@ func isNumericConstraintType(typeName string) bool {
 	default:
 		return false
 	}
+}
+
+func isBuiltinThreadTransferSafeType(typeName string) bool {
+	typeName = normalizeType(typeName)
+	switch typeName {
+	case "Null", "Int", "UInt", "Float", "Complex", "Bool", "Char", "String", "Atom", "JSON", "File", "OS":
+		return true
+	}
+	if child, ok := childType(typeName); ok {
+		return child.Parent == "Int" || child.Parent == "UInt" || child.Parent == "Float" || child.Parent == "Complex"
+	}
+	if _, allowed, ok := restrictedGenericType(typeName); ok {
+		for _, option := range allowed {
+			if normalizeConstraintName(option) == "transferable" || isBuiltinThreadTransferSafeType(option) {
+				continue
+			}
+			return false
+		}
+		return true
+	}
+	if base, args, ok := splitGenericType(typeName); ok {
+		switch base {
+		case "List", "Set", "Option", "SIMD", "Atomic":
+			return len(args) == 1 && isBuiltinThreadTransferSafeType(args[0])
+		case "Map", "Result":
+			return len(args) == 2 &&
+				isBuiltinThreadTransferSafeType(args[0]) &&
+				isBuiltinThreadTransferSafeType(args[1])
+		}
+	}
+	return false
 }
 
 func isComparableConstraintType(typeName string) bool {
@@ -6436,6 +6713,9 @@ func (solver *constraintSolver) constraintAllows(constraint string, typeName str
 	typeName = normalizeType(typeName)
 	if constraint == dynamicAnyType {
 		return true
+	}
+	if constraint == "transferable" && solver.checker != nil {
+		return solver.checker.isThreadTransferSafeType(typeName)
 	}
 	if isGenericConstraintName(constraint) {
 		return builtinConstraintAllows(constraint, typeName)

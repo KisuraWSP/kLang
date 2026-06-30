@@ -34,6 +34,29 @@ alias function ModuleApi(
 }
 
 namespace api {
+    private function with_code[T Any](value : Result[T, String], code : Atom) : Result[T, Atom] {
+        if value == {
+            case Ok(item): return Ok(item);
+            case Err(message):
+                _ = message;
+                return Err(code);
+        }
+        return Err(code);
+    }
+
+    private function with_any_parsable_code(
+        value : Result[Parsable[T], String],
+        code : Atom
+    ) : Result[Parsable[Any], Atom] {
+        if value == {
+            case Ok(parsed): return Ok(parsed);
+            case Err(message):
+                _ = message;
+                return Err(code);
+        }
+        return Err(code);
+    }
+
     function Modules() : List[String] {
         return [
             "api", "args", "array", "basic", "builtin", "calender", "core",
@@ -46,7 +69,7 @@ namespace api {
     }
 
     function Known(module_name : String) : Bool {
-        local List[String] modules = Modules();
+        local List[String] modules = api.Modules();
         local mut Int index = 0;
         while index < len(modules) {
             if modules[index] == module_name {
@@ -57,9 +80,9 @@ namespace api {
         return False;
     }
 
-    function Describe(module_name : String) : Result[ModuleApi, String] {
-        if not Known(module_name) {
-            return Err("unknown stdlib module: " + module_name);
+    function Describe(module_name : String) : Result[ModuleApi, Atom] {
+        if not api.Known(module_name) {
+            return Err(:unknown_module);
         }
         local Bool meta = module_name == "api" or module_name == "language" or
             module_name == "metasystem" or module_name == "reflect" or
@@ -73,53 +96,53 @@ namespace api {
         ));
     }
 
-    function Source(module_name : String) : Result[String, String] {
-        if not Known(module_name) {
-            return Err("unknown stdlib module: " + module_name);
+    function Source(module_name : String) : Result[String, Atom] {
+        if not api.Known(module_name) {
+            return Err(:unknown_module);
         }
-        return File("stdlib/" + module_name + ".klang").read();
+        return api.with_code(File("stdlib/" + module_name + ".klang").read(), :module_read_failed);
     }
 
-    function Parse(module_name : String) : Result[Parsable[Any], String] {
-        local Result[String, String] source = Source(module_name);
+    function Parse(module_name : String) : Result[Parsable[Any], Atom] {
+        local Result[String, Atom] source = api.Source(module_name);
         if source == {
             case Ok(value): return Ok(Parsable(value, [module_name]));
-            case Err(message): return Err(message);
+            case Err(error): return Err(error);
         }
-        return Err("unable to read stdlib module: " + module_name);
+        return Err(:module_read_failed);
     }
 
-    function Ast(module_name : String) : Result[List[Table], String] {
-        local Result[Parsable[Any], String] parsed = Parse(module_name);
+    function Ast(module_name : String) : Result[List[Table], Atom] {
+        local Result[Parsable[Any], Atom] parsed = api.Parse(module_name);
         if parsed == {
             case Ok(value): return Ok(parsable_ast(value));
-            case Err(message): return Err(message);
+            case Err(error): return Err(error);
         }
-        return Err("unable to parse stdlib module: " + module_name);
+        return Err(:module_parse_failed);
     }
 
-    function PollAst(module_name : String) : Result[Table, String] {
-        local Result[Parsable[Any], String] parsed = Parse(module_name);
+    function PollAst(module_name : String) : Result[Table, Atom] {
+        local Result[Parsable[Any], Atom] parsed = api.Parse(module_name);
         if parsed == {
             case Ok(value):
                 local Parsable[Any] polling = parsable_begin_polling(value);
                 return Ok(parsable_poll_message(polling, {"kind": "REQUEST_AST"}));
-            case Err(message): return Err(message);
+            case Err(error): return Err(error);
         }
-        return Err("unable to poll stdlib module: " + module_name);
+        return Err(:module_poll_failed);
     }
 
     function ReplaceSource(
         module_name : String,
         old_source : String,
         new_source : String
-    ) : Result[Parsable[Any], String] {
-        local Result[Parsable[Any], String] parsed = Parse(module_name);
+    ) : Result[Parsable[Any], Atom] {
+        local Result[Parsable[Any], Atom] parsed = api.Parse(module_name);
         if parsed == {
-            case Ok(value): return parsable_replace(value, old_source, new_source);
-            case Err(message): return Err(message);
+            case Ok(value): return api.with_any_parsable_code(parsable_replace(value, old_source, new_source), :module_transform_failed);
+            case Err(error): return Err(error);
         }
-        return Err("unable to transform stdlib module: " + module_name);
+        return Err(:module_transform_failed);
     }
 
     function Migration(old_name : String, new_name : String, reason : String) : Table {

@@ -1,6 +1,16 @@
 -- Native File facade shared by Grua and kLang.
 
 namespace file {
+    private function with_code[T Any](value : Result[T, String], code : Atom) : Result[T, Atom] {
+        if value == {
+            case Ok(item): return Ok(item);
+            case Err(message):
+                _ = message;
+                return Err(code);
+        }
+        return Err(code);
+    }
+
     function Open(path : String) : File {
         return OPEN(path);
     }
@@ -37,75 +47,75 @@ namespace file {
         return value.extension;
     }
 
-    function Read(path : String) : Result[String, String] {
+    function Read(path : String) : Result[String, Atom] {
         return READ(path);
     }
 
     @deprecated("Use Read instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function READ(path : String) : Result[String, String] {
-        return File(path).read();
+    function READ(path : String) : Result[String, Atom] {
+        return file.with_code(File(path).read(), :file_read_failed);
     }
 
-    function ReadLines(path : String) : Result[List[String], String] {
+    function ReadLines(path : String) : Result[List[String], Atom] {
         return READ_LINES(path);
     }
 
     @deprecated("Use ReadLines instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function READ_LINES(path : String) : Result[List[String], String] {
-        return File(path).read_lines();
+    function READ_LINES(path : String) : Result[List[String], Atom] {
+        return file.with_code(File(path).read_lines(), :file_read_lines_failed);
     }
 
-    function Write(path : String, content : String) : Result[Int, String] {
+    function Write(path : String, content : String) : Result[Int, Atom] {
         return WRITE(path, content);
     }
 
     @deprecated("Use Write instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function WRITE(path : String, content : String) : Result[Int, String] {
-        return File(path).write(content);
+    function WRITE(path : String, content : String) : Result[Int, Atom] {
+        return file.with_code(File(path).write(content), :file_write_failed);
     }
 
-    function Append(path : String, content : String) : Result[Int, String] {
+    function Append(path : String, content : String) : Result[Int, Atom] {
         return APPEND(path, content);
     }
 
     @deprecated("Use Append instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function APPEND(path : String, content : String) : Result[Int, String] {
-        return File(path).append(content);
+    function APPEND(path : String, content : String) : Result[Int, Atom] {
+        return file.with_code(File(path).append(content), :file_append_failed);
     }
 
-    function Exists(path : String) : Result[Bool, String] {
+    function Exists(path : String) : Result[Bool, Atom] {
         return EXISTS(path);
     }
 
     @deprecated("Use Exists instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function EXISTS(path : String) : Result[Bool, String] {
-        return File(path).exists();
+    function EXISTS(path : String) : Result[Bool, Atom] {
+        return file.with_code(File(path).exists(), :file_exists_failed);
     }
 
-    function Size(path : String) : Result[Int, String] {
+    function Size(path : String) : Result[Int, Atom] {
         return SIZE(path);
     }
 
     @deprecated("Use Size instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function SIZE(path : String) : Result[Int, String] {
-        return File(path).size();
+    function SIZE(path : String) : Result[Int, Atom] {
+        return file.with_code(File(path).size(), :file_size_failed);
     }
 
-    function Create(path : String) : Result[File, String] {
+    function Create(path : String) : Result[File, Atom] {
         return CREATE(path);
     }
 
     @deprecated("Use Create instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function CREATE(path : String) : Result[File, String] {
-        return File(path).create();
+    function CREATE(path : String) : Result[File, Atom] {
+        return file.with_code(File(path).create(), :file_create_failed);
     }
 
-    function Remove(path : String) : Result[Bool, String] {
+    function Remove(path : String) : Result[Bool, Atom] {
         return REMOVE(path);
     }
 
     @deprecated("Use Remove instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function REMOVE(path : String) : Result[Bool, String] {
-        return File(path).remove();
+    function REMOVE(path : String) : Result[Bool, Atom] {
+        return file.with_code(File(path).remove(), :file_remove_failed);
     }
 }

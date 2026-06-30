@@ -2,10 +2,20 @@
 -- The older String encoder functions remain as compatibility helpers.
 
 namespace json {
+    private function with_code[T Any](value : Result[T, String], code : Atom) : Result[T, Atom] {
+        if value == {
+            case Ok(item): return Ok(item);
+            case Err(message):
+                _ = message;
+                return Err(code);
+        }
+        return Err(code);
+    }
+
     --- Parses one complete JSON value without throwing.
     @deprecated("Use Parse instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function parse(source : String) : Result[JSON, String] {
-        return json_parse(source);
+    function parse(source : String) : Result[JSON, Atom] {
+        return json.with_code(json_parse(source), :json_parse_failed);
     }
 
     --- Parses one complete JSON value or raises a positioned runtime error.
@@ -22,14 +32,14 @@ namespace json {
 
     --- Safely serializes Table, List, primitive, JSON, Option, enum, or alias struct values.
     @deprecated("Use Serialize instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function serialize(value : T) : Result[String, String] {
-        return json_encode(value);
+    function serialize(value : T) : Result[String, Atom] {
+        return json.with_code(json_encode(value), :json_encode_failed);
     }
 
     --- Safely decodes JSON objects to Table, arrays to List, and scalars to native values.
     @deprecated("Use Deserialize instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function deserialize(source : String) : Result[T, String] {
-        return json_decode(source);
+    function deserialize(source : String) : Result[T, Atom] {
+        return json.with_code(json_decode(source), :json_decode_failed);
     }
 
     @deprecated("Use Valid instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
@@ -107,15 +117,15 @@ null
         return stringify(value);
     }
 
-    function Parse(source : String) : Result[JSON, String] { return json.parse(source); }
+    function Parse(source : String) : Result[JSON, Atom] { return json.parse(source); }
 
     function MustParse(source : String) : JSON { return json.must_parse(source); }
 
     function Stringify(value : T) : String { return json.stringify(value); }
 
-    function Serialize(value : T) : Result[String, String] { return json.serialize(value); }
+    function Serialize(value : T) : Result[String, Atom] { return json.serialize(value); }
 
-    function Deserialize(source : String) : Result[T, String] { return json.deserialize(source); }
+    function Deserialize(source : String) : Result[T, Atom] { return json.deserialize(source); }
 
     function Valid(source : String) : Bool { return json.valid(source); }
 
@@ -424,37 +434,37 @@ null
         return from_binary;
     }
 
-    --- Signature: function decode_value(binary : String) : Result[String, String]
-    --- Returns: Result[String, String].
+    --- Signature: function decode_value(binary : String) : Result[String, Atom]
+    --- Returns: Result[String, Atom].
     --- Summary: Reads, locates, or decodes decode value from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function DecodeValue(binary : String) : Result[String, String] {
+    function DecodeValue(binary : String) : Result[String, Atom] {
         return decode_value(binary);
     }
 
     @deprecated("Use DecodeValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function decode_value(binary : String) : Result[String, String] {
+    function decode_value(binary : String) : Result[String, Atom] {
         if len(binary) == 0 {
-            return Err("json decode expected a value");
+            return Err(:json_value_missing);
         }
 
-        local Result[JSON, String] parsed = parse(binary);
+        local Result[JSON, Atom] parsed = parse(binary);
         if parsed.ok {
             return Ok(stringify(parsed.value));
         }
-        return Err("json decode expected valid JSON");
+        return Err(:json_parse_failed);
     }
 
-    --- Signature: function decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, String]
-    --- Returns: Result[String, String].
+    --- Signature: function decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, Atom]
+    --- Returns: Result[String, Atom].
     --- Summary: Reads, locates, or decodes decode from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, String] {
+    function Decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, Atom] {
         return decode(binary, acc0, decoderTable);
     }
 
     @deprecated("Use Decode instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, String] {
+    function decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, Atom] {
         local mut String input = acc0 + binary;
         if table_has(decoderTable, "from_binary") {
             local Function[String, String] fromBinary = decoderTable["from_binary"];
@@ -617,25 +627,25 @@ null
         return state + "}";
     }
 
-    --- Signature: function encode_key_value_list_checked(list : List[Table], encodeFn : Function[String, String] = encode_binary) : Result[String, String]
-    --- Returns: Result[String, String].
+    --- Signature: function encode_key_value_list_checked(list : List[Table], encodeFn : Function[String, String] = encode_binary) : Result[String, Atom]
+    --- Returns: Result[String, Atom].
     --- Summary: Builds, writes, or formats encode key value list checked using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function EncodeKeyValueListChecked(list : List[Table], encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
+    function EncodeKeyValueListChecked(list : List[Table], encodeFn : Function[String, String] = encode_binary) : Result[String, Atom] {
         return encode_key_value_list_checked(list, encodeFn);
     }
 
     @deprecated("Use EncodeKeyValueListChecked instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function encode_key_value_list_checked(list : List[Table], encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
+    function encode_key_value_list_checked(list : List[Table], encodeFn : Function[String, String] = encode_binary) : Result[String, Atom] {
         local mut Int index = 0;
 
         while index < len(list) {
             local Table pair = list[index];
             if not table_has(pair, "key") {
-                return Err("json object pair is missing key");
+                return Err(:json_key_missing);
             }
             if not table_has(pair, "value") {
-                return Err("json object pair is missing value");
+                return Err(:json_value_missing);
             }
             index += 1;
         }
@@ -689,21 +699,21 @@ null
         return "{}";
     }
 
-    --- Signature: function encode_map_checked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, String]
-    --- Returns: Result[String, String].
+    --- Signature: function encode_map_checked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, Atom]
+    --- Returns: Result[String, Atom].
     --- Summary: Builds, writes, or formats encode map checked using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function EncodeMapChecked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
+    function EncodeMapChecked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, Atom] {
         return encode_map_checked(value, encodeFn);
     }
 
     @deprecated("Use EncodeMapChecked instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function encode_map_checked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
+    function encode_map_checked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, Atom] {
         if table_has(value, "key") and table_has(value, "value") {
             return Ok(encode_map(value, encodeFn));
         }
 
-        return Err("json map requires key and value fields");
+        return Err(:json_pair_invalid);
     }
 
     --- Signature: function encode_value(value : T, encodeFn : Function[T, String]) : String
@@ -762,23 +772,23 @@ null
         return format_key_value_list_checked(list, encodeFn, state)!;
     }
 
-    --- Signature: function format_key_value_list_checked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, String]
-    --- Returns: Result[String, String].
+    --- Signature: function format_key_value_list_checked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, Atom]
+    --- Returns: Result[String, Atom].
     --- Summary: Builds, writes, or formats format key value list checked using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function FormatKeyValueListChecked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, String] {
+    function FormatKeyValueListChecked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, Atom] {
         return format_key_value_list_checked(list, encodeFn, state);
     }
 
     @deprecated("Use FormatKeyValueListChecked instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function format_key_value_list_checked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, String] {
-        local Result[String, String] encoded = encode_key_value_list_checked(list, encodeFn);
+    function format_key_value_list_checked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, Atom] {
+        local Result[String, Atom] encoded = encode_key_value_list_checked(list, encodeFn);
         _ = state;
-        if not encoded.ok {
-            return encoded;
+        if encoded == {
+            case Ok(value): return Ok(value);
+            case Err(error): return Err(error);
         }
-
-        return Ok(encoded!);
+        return Err(:invalid_result_state);
     }
 
     --- Signature: function format_value(value : T, encodeFn : Function[T, String], state : Table) : String

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,87 @@ import (
 	typechecker "kLang/src/engine/type_checker"
 	"kLang/src/parser"
 )
+
+func TestImplementedStdlibUsesAtomErrorPropagation(t *testing.T) {
+	stdlibRoot := filepath.Join("..", "..", "..", "stdlib")
+	err := filepath.WalkDir(stdlibRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relative, err := filepath.Rel(stdlibRoot, path)
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if relative == "js-wasm" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Base(path) == "raylib.klang" || (filepath.Ext(path) != ".klang" && filepath.Ext(path) != ".grua") {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for index, line := range strings.Split(string(content), "\n") {
+			nativeBoundary := strings.Contains(line, "function with_code") ||
+				strings.Contains(line, "function WithCode") ||
+				strings.Contains(line, "value : Result[")
+			if hasStringErrorResult(line) && !nativeBoundary {
+				t.Errorf("%s:%d exposes a String error Result instead of Result[..., Atom]", relative, index+1)
+			}
+			if strings.Contains(line, `Err("`) {
+				t.Errorf("%s:%d constructs a String error instead of an Atom", relative, index+1)
+			}
+			if strings.Contains(line, `throw "`) {
+				t.Errorf("%s:%d throws a String instead of an Atom", relative, index+1)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan implemented stdlib: %v", err)
+	}
+}
+
+func hasStringErrorResult(line string) bool {
+	for offset := 0; offset < len(line); {
+		start := strings.Index(line[offset:], "Result[")
+		if start == -1 {
+			return false
+		}
+		start += offset + len("Result[")
+		depth := 0
+		comma := -1
+		for index := start; index < len(line); index++ {
+			switch line[index] {
+			case '[':
+				depth++
+			case ']':
+				if depth == 0 {
+					if comma != -1 && strings.TrimSpace(line[comma+1:index]) == "String" {
+						return true
+					}
+					offset = index + 1
+					index = len(line)
+				} else {
+					depth--
+				}
+			case ',':
+				if depth == 0 && comma == -1 {
+					comma = index
+				}
+			}
+		}
+		if offset <= start {
+			return false
+		}
+	}
+	return false
+}
 
 func TestRuntimeRunsMainFunction(t *testing.T) {
 	result := runSource(t, `
@@ -1505,6 +1587,36 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeInputPreservesBufferedLinesAcrossCalls(t *testing.T) {
+	previousStdin := os.Stdin
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stdin pipe: %v", err)
+	}
+	os.Stdin = reader
+	defer func() {
+		os.Stdin = previousStdin
+		reader.Close()
+	}()
+	if _, err := writer.WriteString("7\n35\n"); err != nil {
+		t.Fatalf("failed to write input: %v", err)
+	}
+	writer.Close()
+
+	result := runSource(t, `
+function Main() : Int {
+    local Int first = input() as Int;
+    local Int second = input() as Int;
+    print(first, second);
+    return 0;
+}
+`)
+
+	if strings.Join(result.Output, "\n") != "7 35" {
+		t.Fatalf("unexpected input output: %#v", result.Output)
+	}
+}
+
 func TestRuntimeRejectsUseAfterMove(t *testing.T) {
 	_, err := runSourceWithError(`
 function Main() : Int {
@@ -2515,21 +2627,30 @@ function Main() : Int {
         return 0;
     }
 
-    local String message = errors.TableMessage({"message": "ok"});
-    local String kind = errors.TableKind({});
-    local Any cause = errors.Unwrap({});
+    local String message = errors.Message(:ok);
+    local String kind = errors.Name(errors.Error("error"));
+    local Atom cause = errors.NotFound();
     local Bool stopped = datetime.TimerStop({});
     local Table pair = {"key": "a", "value": "b"};
-    local Result[String, String] encoded = json.encode_map_checked(pair, json.encode_binary);
+    local Result[String, Atom] encoded = json.encode_map_checked(pair, json.encode_binary);
+    local Result[String, String] nativeEncoded = json_encode(pair);
+    local Result[String, Atom] coded = errors.WithCode(nativeEncoded, :json_encode_failed);
     local Table exceptionOptions = exceptions.format_options();
-    local String formatted = exceptions.format_exception("E", "why", [], exceptionOptions);
+    local String formatted = exceptions.format_exception(:E, :why, [], exceptionOptions);
+    local mut Bool atomCaught = False;
+    try {
+        local Result[Int, Atom] failure = errors.ErrResult(:not_found);
+        _ = exceptions.ResultToException(failure);
+    } catch reason {
+        atomCaught = errors.Is(reason, errors.NotFound());
+    }
     local WorkSpace workspace = metasystem.workspace.UserDefinedWorkspace("demo", ["app"], ["first.klang"], "Standalone");
     local Table loop = metasystem.build.message_loop(workspace, [{"kind": "COMPLETE"}]);
 
-    if message != "ok" or kind != "error" or debug_type(cause) != "String" or stopped {
+    if message != "ok" or kind != "error" or debug_type(cause) != "Atom" or stopped or not atomCaught {
         return 0;
     }
-    if not encoded.ok or not loop["complete"] as Bool {
+    if not encoded.ok or not coded.ok or not loop["complete"] as Bool {
         return 0;
     }
 
@@ -2539,6 +2660,69 @@ function Main() : Int {
 
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 131 {
 		t.Fatalf("expected stdlib table compatibility helpers to return 131, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesAtomErrorStdlibFacades(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd failed: %v", err)
+	}
+	repoRoot := filepath.Join(cwd, "..", "..", "..")
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root failed: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd failed: %v", err)
+		}
+	}()
+
+	result := runSource(t, `
+import "api";
+import "basic";
+import "calender";
+import "core";
+import "datetime";
+import "encoding";
+import "file";
+import "hash";
+import "interface";
+import "io";
+import "json";
+import "language";
+import "metasystem";
+import "repl";
+
+function Main() : Int {
+    local Result[Int, Atom] basicValue = basic.OkValue(1);
+    local Result[Table, Atom] args = core.argparse.Parse([], {});
+    local Result[Parsable[Any], Atom] line = repl.ParseLine("function Value() : Int { return 1; }");
+    local Parsable[Any] parsed = Parsable("function Value() : Int { return 1; }", []);
+    local Result[Parsable[Any], Atom] changed = language.WithSource(parsed, "function Value() : Int { return 2; }");
+    local Result[Parsable[Any], Atom] replaced = api.ReplaceSource("api", "Reflective", "Reflective");
+
+    assert basicValue.ok;
+    assert args.ok;
+    assert line.ok;
+    assert changed.ok;
+    assert replaced.ok;
+    assert not api.Describe("__missing__").ok;
+    assert not calender.LocalTime().ok;
+    assert not datetime.ParseDuration("").ok;
+    assert not encoding.base64.DecodeString("").ok;
+    assert not file.Read("__klang_missing_file__").ok;
+    assert not hash.New("").ok;
+    assert not interface.Access("", 0).ok;
+    assert not io.Unsupported("ffi").ok;
+    assert not json.Parse("{").ok;
+    assert not metasystem.workspace.Validate(WorkSpace(Program([]), BuildSystem("empty", 0, [], "Standalone"))).ok;
+    return 0;
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 0 {
+		t.Fatalf("expected Atom-error stdlib facades to return 0, got %#v", result.Value)
 	}
 }
 
@@ -2603,14 +2787,14 @@ function Main() : Int {
     local String name = option_unwrap_or(json.as_string(document.name), "missing");
     local JSON first = option_unwrap_or(json.get_index(document.ports, 0), json.null_json());
     local Int port = option_unwrap_or(json.as_int(first), 0);
-    local Result[JSON, String] reparsed = json.parse(json.stringify(document));
+    local Result[JSON, Atom] reparsed = json.parse(json.stringify(document));
     local Table native = {"enabled": True, "ports": [1, 2]};
-    local Result[String, String] serialized = json.serialize(native);
+    local Result[String, Atom] serialized = json.serialize(native);
     if name != "kLang" or not reparsed.ok or not serialized.ok or not json.is_null(document.metadata) {
         return 0;
     }
     local String serializedText = result_unwrap_or(serialized, "");
-    local Result[T, String] restored = json.deserialize(serializedText);
+    local Result[T, Atom] restored = json.deserialize(serializedText);
     if not restored.ok {
         return 0;
     }
@@ -2974,6 +3158,103 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeSnapshotsAggregateSpawnArguments(t *testing.T) {
+	result := runParsedSource(t, `
+function Worker(mut values : List[Int]) : Int {
+    values[0] = 99;
+    return values[0];
+}
+
+function Main() : Int {
+    local List[Int] source = [1, 2, 3];
+    local Thread[Int] worker = spawn(Worker, [source]);
+    local Int changed = join(worker);
+    return changed * 10 + source[0];
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 991 {
+		t.Fatalf("expected worker snapshot isolation, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsMutableGlobalAccessFromWorker(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+global mut Int shared = 0;
+
+function Worker() : Int {
+    shared += 1;
+    return shared;
+}
+
+function Main() : Int {
+    local Thread[Int] worker = spawn(Worker);
+    return join(worker);
+}
+`)
+
+	if err == nil || !strings.Contains(err.Error(), `thread worker cannot mutate global "shared"`) {
+		t.Fatalf("expected mutable-global worker error, got %v", err)
+	}
+}
+
+func TestRuntimeSharesImmutableGlobalAtomicWithWorkers(t *testing.T) {
+	result := runParsedSource(t, `
+global Atomic[Int] shared = Atomic(0);
+
+function Worker() : Int {
+    return atomic_add(shared, 1);
+}
+
+function Main() : Int {
+    local Thread[Int] left = spawn(Worker);
+    local Thread[Int] right = spawn(Worker);
+    join(left);
+    join(right);
+    return atomic_load(shared);
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 2 {
+		t.Fatalf("expected shared global Atomic value 2, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeRejectsUnsafeSpawnArgument(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Worker(value : RefMut) : Int {
+    return 0;
+}
+
+function Main() : Int {
+    local T reference = RefMut(1);
+    local Thread[Int] worker = spawn(Worker, [reference]);
+    return join(worker);
+}
+`)
+
+	if err == nil || !strings.Contains(err.Error(), "spawn argument 1 is not thread-transfer-safe") {
+		t.Fatalf("expected unsafe spawn argument error, got %v", err)
+	}
+}
+
+func TestRuntimeRejectsCapturedSpawnTarget(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    local Int captured = 41;
+    function Worker() : Int {
+        return captured + 1;
+    }
+    local Thread[Int] worker = spawn(Worker);
+    return join(worker);
+}
+`)
+
+	if err == nil || !strings.Contains(err.Error(), "spawn target must be a named workspace function") {
+		t.Fatalf("expected captured worker error, got %v", err)
+	}
+}
+
 func TestRuntimeExecutesLambdaFunction(t *testing.T) {
 	result := runSource(t, `
 function Apply(value : Int, callback : Function[Int, Int]) : Int {
@@ -3029,7 +3310,7 @@ func TestRuntimeCatchesThrownValues(t *testing.T) {
 	result := runSource(t, `
 function Main() : Int {
     try {
-        throw "bad";
+        throw :bad;
     } catch err {
         print(err);
         return 7;
@@ -3041,15 +3322,15 @@ function Main() : Int {
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 7 {
 		t.Fatalf("expected caught throw to return 7, got %#v", result.Value)
 	}
-	if strings.Join(result.Output, ",") != "bad" {
+	if strings.Join(result.Output, ",") != ":bad" {
 		t.Fatalf("expected caught error output, got %v", result.Output)
 	}
 }
 
 func TestRuntimePropagatesResultErrorsWithBang(t *testing.T) {
 	result := runSource(t, `
-function Fallible() : Result[Int, String] {
-    return Err("nope");
+function Fallible() : Result[Int, Atom] {
+    return Err(:nope);
 }
 
 function Main() : Int {
@@ -3066,7 +3347,7 @@ function Main() : Int {
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 42 {
 		t.Fatalf("expected propagated error to return 42, got %#v", result.Value)
 	}
-	if strings.Join(result.Output, ",") != "nope" {
+	if strings.Join(result.Output, ",") != ":nope" {
 		t.Fatalf("expected propagated error output, got %v", result.Output)
 	}
 }
@@ -3074,10 +3355,28 @@ function Main() : Int {
 func TestRuntimeReportsUncaughtException(t *testing.T) {
 	_, err := runSourceWithError(`
 function Main() : Int {
+    throw :boom;
+}
+`)
+	assertRuntimeErrorContains(t, err, "uncaught exception: :boom")
+}
+
+func TestRuntimeRejectsNonAtomThrowWhenTypeCheckingIsBypassed(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
     throw "boom";
 }
 `)
-	assertRuntimeErrorContains(t, err, "uncaught exception: boom")
+	assertRuntimeErrorContains(t, err, "throw expects Atom, got String")
+}
+
+func TestRuntimeRejectsNonAtomResultPropagationWhenTypeCheckingIsBypassed(t *testing.T) {
+	_, err := runParsedSourceWithError(`
+function Main() : Int {
+    return Err("boom")!;
+}
+`)
+	assertRuntimeErrorContains(t, err, "! only propagates Result[T, Atom], got Err(String)")
 }
 
 func TestRuntimeExecutesReportStatement(t *testing.T) {
@@ -3896,19 +4195,19 @@ function Main() : Int {
     assert os.PROCESS_ID() > 0;
     assert len(os.TEMP_DIR()) > 0;
 
-    local Result[String, String] current = os.CURRENT_DIR();
-    local Result[String, String] home = os.HOME_DIR();
-    local Result[String, String] hostname = os.HOSTNAME();
+    local Result[String, Atom] current = os.CURRENT_DIR();
+    local Result[String, Atom] home = os.HOME_DIR();
+    local Result[String, Atom] hostname = os.HOSTNAME();
     assert current.ok and home.ok and hostname.ok;
 
-    local Result[Bool, String] set = os.SET_ENV(%q, "facade");
+    local Result[Bool, Atom] set = os.SET_ENV(%q, "facade");
     assert set.ok;
     assert os.HAS_ENV(%q);
     assert os.GET_ENV_OR(%q, "missing") == "facade";
     local Map[String, String] environment = os.ENVIRONMENT();
     assert len(environment) > 0;
 
-    local Result[Table, String] execution = os.EXECUTE(%q, ["-test.run=^$"]);
+    local Result[Table, Atom] execution = os.EXECUTE(%q, ["-test.run=^$"]);
     assert execution.ok;
     local Table fallback;
     local Table process = result_unwrap_or(execution, fallback);
@@ -3917,7 +4216,7 @@ function Main() : Int {
     _ = os.STDOUT(process);
     _ = os.STDERR(process);
 
-    local Result[Bool, String] unset = os.UNSET_ENV(%q);
+    local Result[Bool, Atom] unset = os.UNSET_ENV(%q);
     assert unset.ok;
     assert not os.HAS_ENV(%q);
     return platform["cpu_count"] as Int;

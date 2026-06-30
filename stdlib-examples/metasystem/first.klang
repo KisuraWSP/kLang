@@ -10,7 +10,7 @@ function Main() : Int {
     );
 
     local Table summary = metasystem.workspace.Summary(workspace);
-    local Result[WorkSpace, String] validation = metasystem.workspace.Validate(workspace);
+    local Result[WorkSpace, Atom] validation = metasystem.workspace.Validate(workspace);
     local Table plan = metasystem.build.BuildPlan(workspace, ["check", "run"]);
     local Table complete = metasystem.build.CompleteMessage(workspace, summary);
     local Table loop = metasystem.build.MessageLoop(workspace, [complete]);

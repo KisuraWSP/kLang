@@ -228,6 +228,7 @@ func thrownValue(err error) (Value, bool) {
 
 type Runtime struct {
 	mu              sync.Mutex
+	input           *RuntimeInput
 	memory          *Memory
 	global          *Environment
 	functions       map[string]parser.FunctionStatement
@@ -251,11 +252,17 @@ type Runtime struct {
 	args            []string
 	parsableArgs    [][]Value
 	states          []StateRecord
+	worker          bool
 }
 
 type RuntimeOutput struct {
 	Mutex sync.Mutex
 	Lines []string
+}
+
+type RuntimeInput struct {
+	Mutex  sync.Mutex
+	Reader *bufio.Reader
 }
 
 type StateRecord struct {
@@ -274,6 +281,7 @@ const defaultMaxCallDepth = 1024
 
 func New() *Runtime {
 	return &Runtime{
+		input:           &RuntimeInput{Reader: bufio.NewReaderSize(os.Stdin, 1<<20)},
 		memory:          NewMemory(),
 		global:          NewEnvironment(nil),
 		functions:       map[string]parser.FunctionStatement{},
@@ -633,6 +641,7 @@ func (runtime *Runtime) stackTraceLines(pos parser.Position) []string {
 
 func (runtime *Runtime) childRuntime() *Runtime {
 	child := &Runtime{
+		input:           runtime.input,
 		memory:          runtime.memory,
 		global:          runtime.global,
 		functions:       cloneFunctionMap(runtime.functions),
@@ -649,6 +658,7 @@ func (runtime *Runtime) childRuntime() *Runtime {
 		output:          runtime.output,
 		maxDepth:        runtime.maxDepth,
 		args:            append([]string(nil), runtime.args...),
+		worker:          true,
 	}
 	return child
 }
@@ -1188,6 +1198,9 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		if err != nil {
 			return signal{}, err
 		}
+		if value.Kind != ValueAtom {
+			return signal{}, errorAt(current.Pos, fmt.Sprintf("throw expects Atom, got %s", value.Kind))
+		}
 		return signal{kind: signalThrow, value: value}, nil
 	case parser.AssertStatement:
 		value, err := runtime.evalExpression(current.Expression.Node, env)
@@ -1305,7 +1318,10 @@ func (runtime *Runtime) executeTryCatch(stmt parser.TryCatchStatement, env *Envi
 		return currentSignal, nil
 	}
 	catchEnv := NewEnvironment(env)
-	if err := runtime.defineValueInRegion(catchEnv, stmt.ErrorName, false, "T", currentSignal.value, MemoryStack); err != nil {
+	if currentSignal.value.Kind != ValueAtom {
+		return signal{}, errorAt(stmt.Pos, fmt.Sprintf("catch received non-Atom exception %s", currentSignal.value.Kind))
+	}
+	if err := runtime.defineValueInRegion(catchEnv, stmt.ErrorName, false, "Atom", currentSignal.value, MemoryStack); err != nil {
 		return signal{}, errorAt(stmt.Pos, err.Error())
 	}
 	return runtime.executeBlock(stmt.CatchBody, catchEnv, inLoop)
@@ -2060,6 +2076,9 @@ func (runtime *Runtime) executeAssignment(stmt parser.AssignmentStatement, env *
 	if !ok {
 		return Error{Message: fmt.Sprintf("unknown variable %q", identifier.Name)}
 	}
+	if err := runtime.ensureThreadAssignmentSafe(binding); err != nil {
+		return err
+	}
 	return binding.WithLock(func() error {
 		if binding.Moved {
 			return Error{Message: fmt.Sprintf("variable %q was moved", identifier.Name)}
@@ -2106,6 +2125,9 @@ func (runtime *Runtime) assignIndex(indexExpr parser.IndexExpression, operator s
 	binding, ok := env.Get(targetIdentifier.Name)
 	if !ok {
 		return Error{Message: fmt.Sprintf("unknown variable %q", targetIdentifier.Name)}
+	}
+	if err := runtime.ensureThreadAssignmentSafe(binding); err != nil {
+		return err
 	}
 
 	index, err := runtime.evalExpression(indexExpr.Index, env)
@@ -2227,7 +2249,7 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 				return NullValue(), err
 			}
 			runtime.memory.ReleaseImmutable(snapshot.ObjectID)
-			return runtime.forceBindingValue(binding)
+			return runtime.threadSafeGlobalValue(binding)
 		}
 		if isBuiltinFunction(current.Name) {
 			return FunctionValue(current.Name), nil
@@ -2438,6 +2460,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 		result := value.Data.(ResultData)
 		if result.Ok {
 			return result.Value, nil
+		}
+		if result.Value.Kind != ValueAtom {
+			return NullValue(), Error{Message: fmt.Sprintf("! only propagates Result[T, Atom], got Err(%s)", result.Value.Kind)}
 		}
 		return NullValue(), thrownError{Value: result.Value}
 	case parser.ConditionalExpression:
@@ -3012,6 +3037,8 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		return AtomValue(args[0].Data.(string))
 	case "File", "file_read", "file_read_lines", "file_write", "file_append", "file_exists", "file_size", "file_create", "file_remove":
 		return runtime.callFileBuiltin(name, args)
+	case "read_int", "read_ints", "print_ints", "interval_walk_max_scores":
+		return runtime.callIntervalWalkBuiltin(name, args)
 	case "OS", "os_current_dir", "os_change_dir", "os_temp_dir", "os_home_dir", "os_hostname", "os_process_id",
 		"os_get_env", "os_set_env", "os_unset_env", "os_environment", "os_execute":
 		return runtime.callOSBuiltin(name, args)
@@ -3058,8 +3085,9 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			}
 			runtime.appendOutput(valueString(value))
 		}
-		reader := bufio.NewReader(os.Stdin)
-		text, err := reader.ReadString('\n')
+		runtime.input.Mutex.Lock()
+		text, err := runtime.input.Reader.ReadString('\n')
+		runtime.input.Mutex.Unlock()
 		if err != nil && len(text) == 0 {
 			return StringValue(""), nil
 		}
@@ -3511,18 +3539,42 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			if args[1].Kind != ValueList {
 				return NullValue(), Error{Message: "spawn arguments must be a List"}
 			}
-			threadArgs = append([]Value(nil), args[1].Data.([]Value)...)
+			for index, argument := range args[1].Data.([]Value) {
+				cloned, err := cloneThreadTransferValue(argument)
+				if err != nil {
+					return NullValue(), Error{Message: fmt.Sprintf(
+						"spawn argument %d is not thread-transfer-safe: %v", index+1, err,
+					)}
+				}
+				threadArgs = append(threadArgs, cloned)
+			}
 		}
 		thread := &ThreadData{Done: make(chan struct{})}
 		functionName := args[0].Data.(string)
+		if closure, captured := runtime.closures[functionName]; captured && closure != runtime.global {
+			return NullValue(), Error{Message: "spawn target must be a named workspace function without captured local state"}
+		}
+		if function, ok := runtime.functions[functionName]; ok && function.Async {
+			return NullValue(), Error{Message: "spawn target cannot be async; await async work on its owning thread"}
+		}
 		child := runtime.childRuntime()
 		go func() {
-			value, err := child.callFunctionMode(functionName, threadArgs, nil, false)
-			thread.Mutex.Lock()
-			thread.Value = cloneValue(value)
-			thread.Err = err
-			thread.Mutex.Unlock()
-			close(thread.Done)
+			var value Value
+			var workerErr error
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					workerErr = Error{Message: fmt.Sprintf("thread worker panicked: %v", recovered)}
+				}
+				if workerErr == nil {
+					value, workerErr = cloneThreadTransferValue(value)
+				}
+				thread.Mutex.Lock()
+				thread.Value = value
+				thread.Err = workerErr
+				thread.Mutex.Unlock()
+				close(thread.Done)
+			}()
+			value, workerErr = child.callFunctionMode(functionName, threadArgs, nil, false)
 		}()
 		return Value{Kind: ValueThread, Data: thread}, nil
 	case "join":
@@ -3552,7 +3604,11 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		if len(args) != 1 {
 			return NullValue(), Error{Message: "Atomic expects one value"}
 		}
-		return Value{Kind: ValueAtomic, Data: &AtomicData{Value: cloneValue(args[0])}}, nil
+		value, err := cloneThreadTransferValue(args[0])
+		if err != nil {
+			return NullValue(), Error{Message: fmt.Sprintf("Atomic value is not thread-transfer-safe: %v", err)}
+		}
+		return Value{Kind: ValueAtomic, Data: &AtomicData{Value: value}}, nil
 	case "atomic_load":
 		if len(args) != 1 || args[0].Kind != ValueAtomic {
 			return NullValue(), Error{Message: "atomic_load expects one Atomic value"}
@@ -3565,9 +3621,13 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		if len(args) != 2 || args[0].Kind != ValueAtomic {
 			return NullValue(), Error{Message: "atomic_store expects Atomic and value"}
 		}
+		value, err := cloneThreadTransferValue(args[1])
+		if err != nil {
+			return NullValue(), Error{Message: fmt.Sprintf("atomic_store value is not thread-transfer-safe: %v", err)}
+		}
 		atomic := args[0].Data.(*AtomicData)
 		atomic.Mutex.Lock()
-		atomic.Value = cloneValue(args[1])
+		atomic.Value = value
 		atomic.Mutex.Unlock()
 		return args[0], nil
 	case "atomic_add":
@@ -4864,7 +4924,7 @@ func longestRuntimeAliasPath(name string, aliases map[string]string) (string, st
 
 func isBuiltinFunction(name string) bool {
 	switch name {
-	case "print", "format", "printf", "input", "len", "range",
+	case "print", "format", "printf", "input", "read_int", "read_ints", "print_ints", "interval_walk_max_scores", "len", "range",
 		"option_map", "option_unwrap_or", "option_and_then",
 		"result_map", "result_map_err", "result_unwrap_or", "result_and_then",
 		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON", "Parsable", "File", "OS", "Atom",

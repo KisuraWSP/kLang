@@ -27,44 +27,44 @@ namespace interface {
         return {"name": name, "args": args, "available": IsAvailable()};
     }
 
-    --- Signature: function Access(path : String, mode : Int) : Result[Bool, String]
-    --- Returns: Result[Bool, String].
+    --- Signature: function Access(path : String, mode : Int) : Result[Bool, Atom]
+    --- Returns: Result[Bool, Atom].
     --- Summary: Provides the stdlib access operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Access(path : String, mode : Int) : Result[Bool, String] {
-        return Err(Unsupported("access " + path));
+    function Access(path : String, mode : Int) : Result[Bool, Atom] {
+        return Err(:interface_unavailable);
     }
 
-    --- Signature: function Open(path : String, mode : Int, perm : Int = 0) : Result[Table, String]
-    --- Returns: Result[Table, String].
+    --- Signature: function Open(path : String, mode : Int, perm : Int = 0) : Result[Table, Atom]
+    --- Returns: Result[Table, Atom].
     --- Summary: Creates or initializes open with the supplied Klang value(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Open(path : String, mode : Int, perm : Int = 0) : Result[Table, String] {
-        return Err(Unsupported("open " + path));
+    function Open(path : String, mode : Int, perm : Int = 0) : Result[Table, Atom] {
+        return Err(:interface_unavailable);
     }
 
-    --- Signature: function Close(fd : Int) : Result[Int, String]
-    --- Returns: Result[Int, String].
+    --- Signature: function Close(fd : Int) : Result[Int, Atom]
+    --- Returns: Result[Int, Atom].
     --- Summary: Provides the stdlib close operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Close(fd : Int) : Result[Int, String] {
-        return Err(Unsupported("close"));
+    function Close(fd : Int) : Result[Int, Atom] {
+        return Err(:interface_unavailable);
     }
 
-    --- Signature: function Read(fd : Int, count : Int) : Result[String, String]
-    --- Returns: Result[String, String].
+    --- Signature: function Read(fd : Int, count : Int) : Result[String, Atom]
+    --- Returns: Result[String, Atom].
     --- Summary: Reads, locates, or decodes read from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Read(fd : Int, count : Int) : Result[String, String] {
-        return Err(Unsupported("read"));
+    function Read(fd : Int, count : Int) : Result[String, Atom] {
+        return Err(:interface_unavailable);
     }
 
-    --- Signature: function Write(fd : Int, data : String) : Result[Int, String]
-    --- Returns: Result[Int, String].
+    --- Signature: function Write(fd : Int, data : String) : Result[Int, Atom]
+    --- Returns: Result[Int, Atom].
     --- Summary: Builds, writes, or formats write using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Write(fd : Int, data : String) : Result[Int, String] {
-        return Err(Unsupported("write"));
+    function Write(fd : Int, data : String) : Result[Int, Atom] {
+        return Err(:interface_unavailable);
     }
 
     --- Signature: function Getenv(key : String) : Option[String]
@@ -75,12 +75,12 @@ namespace interface {
         return None();
     }
 
-    --- Signature: function Setenv(key : String, value : String) : Result[Int, String]
-    --- Returns: Result[Int, String].
+    --- Signature: function Setenv(key : String, value : String) : Result[Int, Atom]
+    --- Returns: Result[Int, Atom].
     --- Summary: Builds, writes, or formats setenv using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Setenv(key : String, value : String) : Result[Int, String] {
-        return Err(Unsupported("setenv"));
+    function Setenv(key : String, value : String) : Result[Int, Atom] {
+        return Err(:interface_unavailable);
     }
 
     --- Signature: function Environ() : List[String]
@@ -99,28 +99,28 @@ namespace interface {
         return 0;
     }
 
-    --- Signature: function Exit(code : Int) : Result[Int, String]
-    --- Returns: Result[Int, String].
+    --- Signature: function Exit(code : Int) : Result[Int, Atom]
+    --- Returns: Result[Int, Atom].
     --- Summary: Provides the stdlib exit operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Exit(code : Int) : Result[Int, String] {
-        return Err(Unsupported("exit"));
+    function Exit(code : Int) : Result[Int, Atom] {
+        return Err(:interface_unavailable);
     }
 
-    --- Signature: function Socket(domain : Int, typ : Int, proto : Int) : Result[Int, String]
-    --- Returns: Result[Int, String].
+    --- Signature: function Socket(domain : Int, typ : Int, proto : Int) : Result[Int, Atom]
+    --- Returns: Result[Int, Atom].
     --- Summary: Provides the stdlib socket operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Socket(domain : Int, typ : Int, proto : Int) : Result[Int, String] {
-        return Err(Unsupported("socket"));
+    function Socket(domain : Int, typ : Int, proto : Int) : Result[Int, Atom] {
+        return Err(:interface_unavailable);
     }
 
-    --- Signature: function Stat(path : String) : Result[Table, String]
-    --- Returns: Result[Table, String].
+    --- Signature: function Stat(path : String) : Result[Table, Atom]
+    --- Returns: Result[Table, Atom].
     --- Summary: Provides the stdlib stat operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Stat(path : String) : Result[Table, String] {
-        return Err(Unsupported("stat " + path));
+    function Stat(path : String) : Result[Table, Atom] {
+        return Err(:interface_unavailable);
     }
 
     @deprecated("Use IsAvailable instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
@@ -134,39 +134,39 @@ namespace interface {
         return Operation(name, args);
     }
 
-    function Request(name : String, args : List[String]) : Result[Table, String] {
+    function Request(name : String, args : List[String]) : Result[Table, Atom] {
         return REQUEST(name, args);
     }
 
     @deprecated("Use Request instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function REQUEST(name : String, args : List[String]) : Result[Table, String] {
+    function REQUEST(name : String, args : List[String]) : Result[Table, Atom] {
         local Table operation = Operation(name, args);
         if operation.available {
             return Ok(operation);
         }
-        return Err(Unsupported(name));
+        return Err(:interface_unavailable);
     }
 
     @deprecated("Use Access instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function ACCESS(path : String, mode : Int) : Result[Bool, String] {
+    function ACCESS(path : String, mode : Int) : Result[Bool, Atom] {
         return Access(path, mode);
     }
 
     @deprecated("Use Open instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function OPEN(path : String, mode : Int, perm : Int = 0) : Result[Table, String] {
+    function OPEN(path : String, mode : Int, perm : Int = 0) : Result[Table, Atom] {
         return Open(path, mode, perm);
     }
 
     @deprecated("Use Close instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function CLOSE(fd : Int) : Result[Int, String] { return Close(fd); }
+    function CLOSE(fd : Int) : Result[Int, Atom] { return Close(fd); }
 
     @deprecated("Use Read instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function READ(fd : Int, count : Int) : Result[String, String] {
+    function READ(fd : Int, count : Int) : Result[String, Atom] {
         return Read(fd, count);
     }
 
     @deprecated("Use Write instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function WRITE(fd : Int, data : String) : Result[Int, String] {
+    function WRITE(fd : Int, data : String) : Result[Int, Atom] {
         return Write(fd, data);
     }
 
@@ -174,7 +174,7 @@ namespace interface {
     function GETENV(key : String) : Option[String] { return Getenv(key); }
 
     @deprecated("Use Setenv instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function SETENV(key : String, value : String) : Result[Int, String] {
+    function SETENV(key : String, value : String) : Result[Int, Atom] {
         return Setenv(key, value);
     }
 
@@ -185,13 +185,13 @@ namespace interface {
     function GETPID() : Int { return Getpid(); }
 
     @deprecated("Use Exit instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function EXIT(code : Int) : Result[Int, String] { return Exit(code); }
+    function EXIT(code : Int) : Result[Int, Atom] { return Exit(code); }
 
     @deprecated("Use Socket instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function SOCKET(domain : Int, typ : Int, proto : Int) : Result[Int, String] {
+    function SOCKET(domain : Int, typ : Int, proto : Int) : Result[Int, Atom] {
         return Socket(domain, typ, proto);
     }
 
     @deprecated("Use Stat instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function STAT(path : String) : Result[Table, String] { return Stat(path); }
+    function STAT(path : String) : Result[Table, Atom] { return Stat(path); }
 }

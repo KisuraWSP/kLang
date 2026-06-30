@@ -650,20 +650,25 @@ namespace basic {
         return None();
     }
 
-    --- Signature: function OkValue(value : T) : Result[T, String]
-    --- Returns: Result[T, String].
+    --- Signature: function OkValue(value : T) : Result[T, Atom]
+    --- Returns: Result[T, Atom].
     --- Summary: Provides the stdlib ok value operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function OkValue(value : T) : Result[T, String] {
+    function OkValue(value : T) : Result[T, Atom] {
         return Ok(value);
     }
 
-    --- Signature: function ErrString(message : String) : Result[T, String]
-    --- Returns: Result[T, String].
-    --- Summary: Provides the stdlib err string operation using current Klang data types and runtime helpers.
+    --- Signature: function ErrString(message : String) : Result[T, Atom]
+    --- Returns: Result[T, Atom].
+    --- Summary: Compatibility helper that maps descriptive text to the stable :error code.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function ErrString(message : String) : Result[T, String] {
-        return Err(message);
+    function ErrString(message : String) : Result[T, Atom] {
+        _ = message;
+        return Err(:error);
+    }
+
+    function ErrAtom(error : Atom) : Result[T, Atom] {
+        return Err(error);
     }
 
     --- Signature: function IsSome(value : Option[T]) : Bool
@@ -674,11 +679,11 @@ namespace basic {
         return value.some;
     }
 
-    --- Signature: function IsOk(value : Result[T, String]) : Bool
+    --- Signature: function IsOk(value : Result[T, Atom]) : Bool
     --- Returns: Bool.
     --- Summary: Checks whether is ok is true for the provided Klang value(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function IsOk(value : Result[T, String]) : Bool {
+    function IsOk(value : Result[T, Atom]) : Bool {
         return value?;
     }
 

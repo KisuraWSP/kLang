@@ -80,12 +80,12 @@ namespace repl {
         return "klang![diagnostic]> ";
     }
 
-    function ParseLine(source : String) : Result[Parsable[Any], String] {
+    function ParseLine(source : String) : Result[Parsable[Any], Atom] {
         return PARSE_LINE(source);
     }
 
     @deprecated("Use ParseLine instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function PARSE_LINE(source : String) : Result[Parsable[Any], String] {
+    function PARSE_LINE(source : String) : Result[Parsable[Any], Atom] {
         return Ok(Parsable(source, EMPTY_STRINGS()));
     }
 
@@ -99,11 +99,11 @@ namespace repl {
         local mut List[String] diagnostics = clone (session.diagnostics as List[String]);
         history[len(history)] = source;
 
-        local Result[Parsable[Any], String] parsed = PARSE_LINE(source);
+        local Result[Parsable[Any], Atom] parsed = PARSE_LINE(source);
         if parsed == {
             case Ok(value): return SESSION(history, diagnostics, Some(value));
             case Err(error):
-                diagnostics[len(diagnostics)] = error;
+                diagnostics[len(diagnostics)] = error.name;
                 return SESSION(history, diagnostics, session.last);
         }
 

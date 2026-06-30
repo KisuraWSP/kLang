@@ -15,7 +15,7 @@ namespace App {
     }
 
     function ShowJSONState(state : VMState) : Int {
-        local Result[String, String] encoded = json.serialize(state);
+        local Result[String, Atom] encoded = json.serialize(state);
 
         if encoded == {
         case Ok(document) :

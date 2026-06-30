@@ -4,6 +4,19 @@
 -- workspace descriptors, and message polling.
 
 namespace language {
+    private function with_parsable_code[T Any](
+        value : Result[Parsable[T], String],
+        code : Atom
+    ) : Result[Parsable[T], Atom] {
+        if value == {
+            case Ok(parsed): return Ok(parsed);
+            case Err(message):
+                _ = message;
+                return Err(code);
+        }
+        return Err(code);
+    }
+
     type SOURCE_ARGS = List[String];
     type AST_NODE = Table;
     type AST = List[Table];
@@ -104,14 +117,14 @@ namespace language {
         return Parsable(source, args);
     }
 
-    function ParseEdit(edit : SOURCE_EDIT) : Result[Parsable[T], String] {
+    function ParseEdit(edit : SOURCE_EDIT) : Result[Parsable[T], Atom] {
         return PARSE_EDIT(edit);
     }
 
     @deprecated("Use ParseEdit instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function PARSE_EDIT(edit : SOURCE_EDIT) : Result[Parsable[T], String] {
+    function PARSE_EDIT(edit : SOURCE_EDIT) : Result[Parsable[T], Atom] {
         if not edit.OK() {
-            return Err(edit.diagnostics[0]);
+            return Err(:source_diagnostics);
         }
         return Ok(Parsable(edit.source, edit.args));
     }
@@ -200,31 +213,31 @@ namespace language {
         return json_stringify(DESCRIBE(value));
     }
 
-    function WithSource(value : Parsable[T], source : String) : Result[Parsable[T], String] {
+    function WithSource(value : Parsable[T], source : String) : Result[Parsable[T], Atom] {
         return WITH_SOURCE(value, source);
     }
 
     @deprecated("Use WithSource instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function WITH_SOURCE(value : Parsable[T], source : String) : Result[Parsable[T], String] {
-        return parsable_with_source(value, source);
+    function WITH_SOURCE(value : Parsable[T], source : String) : Result[Parsable[T], Atom] {
+        return language.with_parsable_code(parsable_with_source(value, source), :source_parse_failed);
     }
 
-    function ReplaceSource(value : Parsable[T], old : String, next : String) : Result[Parsable[T], String] {
+    function ReplaceSource(value : Parsable[T], old : String, next : String) : Result[Parsable[T], Atom] {
         return REPLACE_SOURCE(value, old, next);
     }
 
     @deprecated("Use ReplaceSource instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function REPLACE_SOURCE(value : Parsable[T], old : String, next : String) : Result[Parsable[T], String] {
-        return parsable_replace(value, old, next);
+    function REPLACE_SOURCE(value : Parsable[T], old : String, next : String) : Result[Parsable[T], Atom] {
+        return language.with_parsable_code(parsable_replace(value, old, next), :source_replace_failed);
     }
 
-    function AppendSource(value : Parsable[T], extra : String) : Result[Parsable[T], String] {
+    function AppendSource(value : Parsable[T], extra : String) : Result[Parsable[T], Atom] {
         return APPEND_SOURCE(value, extra);
     }
 
     @deprecated("Use AppendSource instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function APPEND_SOURCE(value : Parsable[T], extra : String) : Result[Parsable[T], String] {
-        return parsable_append(value, extra);
+    function APPEND_SOURCE(value : Parsable[T], extra : String) : Result[Parsable[T], Atom] {
+        return language.with_parsable_code(parsable_append(value, extra), :source_append_failed);
     }
 
     function BeginPolling(value : Parsable[T]) : Parsable[T] {

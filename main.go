@@ -37,6 +37,7 @@ const cliName = "kLang"
 type commandOptions struct {
 	Run                bool
 	Verbose            bool
+	Quiet              bool
 	RawLang            bool
 	ProgramArgs        []string
 	SourceLoadDuration time.Duration
@@ -119,6 +120,7 @@ func runCLI(args []string) error {
 	options := commandOptions{
 		Run:     hasFlag(rest, "--run"),
 		Verbose: hasFlag(rest, "--verbose") || hasFlag(rest, "-v"),
+		Quiet:   hasFlag(rest, "--quiet") || hasFlag(rest, "-q"),
 		RawLang: hasFlag(rest, "--raw-lang"),
 	}
 	values := positionalArgs(rest)
@@ -157,7 +159,9 @@ func runCLI(args []string) error {
 		if err != nil {
 			return err
 		}
-		return executePrograms([]file.Program{program}, commandOptions{Run: false, Verbose: options.Verbose, RawLang: options.RawLang})
+		return executePrograms([]file.Program{program}, commandOptions{
+			Run: false, Verbose: options.Verbose, Quiet: options.Quiet, RawLang: options.RawLang,
+		})
 	case "update":
 		if len(values) != 1 {
 			return fmt.Errorf("%s update expects a project folder or %s", cliName, file.KlangProjectFile)
@@ -1194,6 +1198,10 @@ func executeTestPrograms(programs []file.Program, options commandOptions) error 
 }
 
 func executeProgram(resolver *modulesystem.Resolver, program file.Program, options commandOptions) error {
+	if options.Quiet {
+		return executeProgramQuiet(resolver, program, options)
+	}
+
 	fmt.Printf("%s\n", program.Name)
 	fmt.Printf("  entry: %s\n", program.EntryPoint)
 	fmt.Printf("  files: %d\n", len(program.Files))
@@ -1313,6 +1321,51 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 		fmt.Printf("  memory: stack=%d object(s)/%d byte(s), heap=%d object(s)/%d byte(s)\n",
 			result.Memory.StackObjects, result.Memory.StackBytes,
 			result.Memory.HeapObjects, result.Memory.HeapBytes)
+	}
+	return nil
+}
+
+func executeProgramQuiet(resolver *modulesystem.Resolver, program file.Program, options commandOptions) error {
+	resolvedProgram, cacheEntry, cacheHit := programcache.Load(program, options.RawLang)
+	typeReport := typechecker.Report{}
+	if cacheHit {
+		typeReport.Warnings = warningsFromCache(cacheEntry.Warnings)
+	} else {
+		var moduleReport modulesystem.Report
+		resolvedProgram, moduleReport = resolver.ResolveProgram(program)
+		if !moduleReport.Passed() {
+			printModuleErrors(resolvedProgram, moduleReport)
+			return fmt.Errorf("module resolution failed")
+		}
+		typeReport = typechecker.CheckProgram(resolvedProgram)
+		if !typeReport.Passed() {
+			printTypeErrors(resolvedProgram, typeReport)
+			return fmt.Errorf("type check failed")
+		}
+	}
+
+	parsedProgram := parser.ParseLoadedProgram(resolvedProgram)
+	if !parsedProgram.Passed() {
+		printContextErrors(langcontext.ParseErrors(resolvedProgram, parsedProgram))
+		return fmt.Errorf("parse failed")
+	}
+	if err := validateParsedEntryPoint(resolvedProgram, parsedProgram); err != nil {
+		return err
+	}
+	if !cacheHit {
+		_ = programcache.Store(resolvedProgram, options.RawLang, warningsToCache(typeReport.Warnings))
+	}
+	if !options.Run {
+		return nil
+	}
+
+	result, err := runtime.NewWithArgs(options.ProgramArgs).Run(parsedProgram)
+	if err != nil {
+		printContextErrors([]langcontext.ErrorContext{langcontext.RuntimeError(resolvedProgram, err)})
+		return fmt.Errorf("runtime failed: %w", err)
+	}
+	for _, line := range result.Output {
+		fmt.Println(line)
 	}
 	return nil
 }
@@ -2007,6 +2060,7 @@ Options:
   --host=<host>                    Host for the built-in web server, default 127.0.0.1
   --port=<port>                    Port for the built-in web server, default 8080
   --raw-lang                      Disable stdlib imports while resolving modules
+  --quiet, -q                     Print only program output when running or checking
   --verbose, -v                   Print import details
   --help, -h                      Show this help
 

@@ -98,6 +98,10 @@ function Sum[T numeric](left : T, right : T) : T {
 function Show[T Printable](value : T) : T {
     return value;
 }
+
+function Send[T transferable](value : T) : T {
+    return value;
+}
 `)
 	assertNoParseErrors(t, errors)
 
@@ -108,6 +112,10 @@ function Show[T Printable](value : T) : T {
 	second, ok := program.Statements[1].(FunctionStatement)
 	if !ok || len(second.TypeParams) != 1 || second.TypeParams[0].Type != "T:Printable" {
 		t.Fatalf("unexpected trait type parameter: %#v", program.Statements[1])
+	}
+	third, ok := program.Statements[2].(FunctionStatement)
+	if !ok || len(third.TypeParams) != 1 || third.TypeParams[0].Type != "T:transferable" {
+		t.Fatalf("unexpected transferable type parameter: %#v", program.Statements[2])
 	}
 }
 
@@ -1663,7 +1671,7 @@ func TestParseTryCatchThrowAndResultPropagation(t *testing.T) {
 	program, errors := Parse(`
 function Main() : Int {
     try {
-        local Int value = Err("bad")!;
+        local Int value = Err(:bad)!;
         return value;
     } catch err {
         throw err;

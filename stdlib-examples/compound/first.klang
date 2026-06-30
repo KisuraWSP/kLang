@@ -101,7 +101,7 @@ function Main() : Int {
 }
 //;
 
-    local Result[JSON, String] parsed = json.Parse(source);
+    local Result[JSON, Atom] parsed = json.Parse(source);
     assert parsed.ok;
     local JSON document = result_unwrap_or(parsed, json.NullJson());
     local JSON project = document.project;
@@ -200,7 +200,7 @@ function Main() : Int {
     files,
     backend
     );
-    local Result[WorkSpace, String] validation = metasystem.workspace.Validate(workspace);
+    local Result[WorkSpace, Atom] validation = metasystem.workspace.Validate(workspace);
     local Table summary = metasystem.workspace.Summary(workspace);
     local names flags = list.Append(["check"], "run");
     local Table plan = metasystem.build.BuildPlan(workspace, flags);
@@ -327,10 +327,10 @@ function GeneratedProject() : String {
         "build" : buildSummary,
         "source_program" : parsableSummary
     };
-    local Result[String, String] encodedResult = json.Serialize(outputReport);
+    local Result[String, Atom] encodedResult = json.Serialize(outputReport);
     assert encodedResult.ok;
     local String encoded = result_unwrap_or(encodedResult, "{}");
-    local Result[JSON, String] reportDocument = json.Parse(encoded);
+    local Result[JSON, Atom] reportDocument = json.Parse(encoded);
     assert reportDocument.ok;
     local JSON verifiedReport = result_unwrap_or(reportDocument, json.NullJson());
     local JSON verifiedTasks = option_unwrap_or(json.GetField(verifiedReport, "tasks"), json.NullJson());

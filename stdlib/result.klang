@@ -35,20 +35,22 @@ namespace result {
 
     @deprecated("Use Expect instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function expect[T Any, E Any](value : Result[T, E], message : String) : T {
+        _ = message;
         if value == {
             case Ok(item): return item;
-            case Err(error): throw message;
+            case Err(error): throw :expected_ok;
         }
-        throw message;
+        throw :expected_ok;
     }
 
     @deprecated("Use ExpectErr instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function expect_err[T Any, E Any](value : Result[T, E], message : String) : E {
+        _ = message;
         if value == {
-            case Ok(item): throw message;
+            case Ok(item): throw :expected_err;
             case Err(error): return error;
         }
-        throw message;
+        throw :expected_err;
     }
 
     @deprecated("Use OkOption instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")

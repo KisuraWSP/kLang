@@ -30,11 +30,12 @@ namespace option {
 
     @deprecated("Use Expect instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function expect[T Any](value : Option[T], message : String) : T {
+        _ = message;
         if value == {
             case Some(item): return item;
-            case None(): throw message;
+            case None(): throw :expected_some;
         }
-        throw message;
+        throw :expected_some;
     }
 
     @deprecated("Use OkOr instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")

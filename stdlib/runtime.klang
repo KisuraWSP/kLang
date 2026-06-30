@@ -36,51 +36,51 @@ namespace runtime {
         return 0;
     }
 
-    --- Signature: function Spawn(worker : Function[T, U], value : T) : Thread[U]
+    --- Signature: function Spawn[T transferable, U transferable](worker : Function[T, U], value : T) : Thread[U]
     --- Returns: Thread[U].
     --- Summary: Provides the stdlib spawn operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Spawn(worker : Function[T, U], value : T) : Thread[U] {
+    function Spawn[T transferable, U transferable](worker : Function[T, U], value : T) : Thread[U] {
         return spawn(worker, [value]);
     }
 
-    --- Signature: function Join(worker : Thread[T]) : T
+    --- Signature: function Join[T transferable](worker : Thread[T]) : T
     --- Returns: T.
     --- Summary: Combines or extends Klang value(s) for the join operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Join(worker : Thread[T]) : T {
+    function Join[T transferable](worker : Thread[T]) : T {
         return join(worker);
     }
 
-    --- Signature: function Status(worker : Thread[T]) : String
+    --- Signature: function Status[T transferable](worker : Thread[T]) : String
     --- Returns: String.
     --- Summary: Provides the stdlib status operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Status(worker : Thread[T]) : String {
+    function Status[T transferable](worker : Thread[T]) : String {
         return thread_status(worker);
     }
 
-    --- Signature: function AtomicValue(value : T) : Atomic[T]
+    --- Signature: function AtomicValue[T transferable](value : T) : Atomic[T]
     --- Returns: Atomic[T].
     --- Summary: Provides the stdlib atomic value operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function AtomicValue(value : T) : Atomic[T] {
+    function AtomicValue[T transferable](value : T) : Atomic[T] {
         return Atomic(value);
     }
 
-    --- Signature: function AtomicLoadValue(value : Atomic[T]) : T
+    --- Signature: function AtomicLoadValue[T transferable](value : Atomic[T]) : T
     --- Returns: T.
     --- Summary: Provides the stdlib atomic load value operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function AtomicLoadValue(value : Atomic[T]) : T {
+    function AtomicLoadValue[T transferable](value : Atomic[T]) : T {
         return atomic_load(value);
     }
 
-    --- Signature: function AtomicStoreValue(value : Atomic[T], next : T) : Atomic[T]
+    --- Signature: function AtomicStoreValue[T transferable](value : Atomic[T], next : T) : Atomic[T]
     --- Returns: Atomic[T].
     --- Summary: Provides the stdlib atomic store value operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function AtomicStoreValue(value : Atomic[T], next : T) : Atomic[T] {
+    function AtomicStoreValue[T transferable](value : Atomic[T], next : T) : Atomic[T] {
         return atomic_store(value, next);
     }
 
@@ -153,24 +153,24 @@ namespace runtime {
     function BREAKPOINT(label : String = "breakpoint") : Int { return Breakpoint(label); }
 
     @deprecated("Use Spawn instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function SPAWN(worker : Function[T, U], value : T) : Thread[U] {
+    function SPAWN[T transferable, U transferable](worker : Function[T, U], value : T) : Thread[U] {
         return Spawn(worker, value);
     }
 
     @deprecated("Use Join instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function JOIN(worker : Thread[T]) : T { return Join(worker); }
+    function JOIN[T transferable](worker : Thread[T]) : T { return Join(worker); }
 
     @deprecated("Use Status instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function STATUS(worker : Thread[T]) : String { return Status(worker); }
+    function STATUS[T transferable](worker : Thread[T]) : String { return Status(worker); }
 
     @deprecated("Use AtomicValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function ATOMIC_VALUE(value : T) : Atomic[T] { return AtomicValue(value); }
+    function ATOMIC_VALUE[T transferable](value : T) : Atomic[T] { return AtomicValue(value); }
 
     @deprecated("Use AtomicLoadValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function ATOMIC_LOAD_VALUE(value : Atomic[T]) : T { return AtomicLoadValue(value); }
+    function ATOMIC_LOAD_VALUE[T transferable](value : Atomic[T]) : T { return AtomicLoadValue(value); }
 
     @deprecated("Use AtomicStoreValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function ATOMIC_STORE_VALUE(value : Atomic[T], next : T) : Atomic[T] {
+    function ATOMIC_STORE_VALUE[T transferable](value : Atomic[T], next : T) : Atomic[T] {
         return AtomicStoreValue(value, next);
     }
 

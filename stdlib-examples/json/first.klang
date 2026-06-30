@@ -44,7 +44,7 @@ function RequireBool(name : String, actual : Bool, expected : Bool) : Int {
     return 0;
 }
 
-function RequireOkString(name : String, result : Result[String, String], expected : String) : Int {
+function RequireOkString(name : String, result : Result[String, Atom], expected : String) : Int {
     print("check", name, result);
     assert result.ok;
     local String value = result_unwrap_or(result, "");
@@ -52,16 +52,16 @@ function RequireOkString(name : String, result : Result[String, String], expecte
     return len(value);
 }
 
-function RequireErrString(name : String, result : Result[String, String], expected : String) : Int {
+function RequireErrString(name : String, result : Result[String, Atom], expected : Atom) : Int {
     print("check", name, result);
     if result == {
     case Ok(value) :
         _ = value;
         assert False;
         return 0;
-    case Err(message) :
-        assert message == expected;
-        return len(message);
+    case Err(error) :
+        assert error == expected;
+        return len(error.name);
     }
     return 0;
 }
@@ -98,8 +98,8 @@ function ShowTypedJSON() : Int {
     local Option[JSON] missing = json.GetField(document, "missing");
     local String encoded = json.Stringify(document);
     local String encodedDirect = json.EncodeJson(document);
-    local Result[JSON, String] reparsed = json.Parse(encoded);
-    local Result[JSON, String] invalid = json.Parse("{");
+    local Result[JSON, Atom] reparsed = json.Parse(encoded);
+    local Result[JSON, Atom] invalid = json.Parse("{");
 
     print("document", document);
     print("kind", json.Kind(document));
@@ -186,9 +186,9 @@ function ShowNativeRoundTrip() : Int {
         "items" :[1, 2, 3],
         "metadata" : None()
     };
-    local Result[String, String] serialized = json.Serialize(source);
+    local Result[String, Atom] serialized = json.Serialize(source);
     local String encoded = result_unwrap_or(serialized, "");
-    local Result[T, String] decoded = json.Deserialize(encoded);
+    local Result[T, Atom] decoded = json.Deserialize(encoded);
     local T decodedValue = result_unwrap_or(decoded, { });
     local Table restored = decodedValue as Table;
     local List[T] restoredItems = restored.items as List[T];
@@ -198,7 +198,7 @@ function ShowNativeRoundTrip() : Int {
     local T recoveredValue = json.DeserializeOr("{", fallback);
     local Table recovered = recoveredValue as Table;
     local Int scalar = json.DeserializeOr("42", 0);
-    local Result[String, String] unsafeKey = json.Serialize({ 1 : "not an object key" });
+    local Result[String, Atom] unsafeKey = json.Serialize({ 1 : "not an object key" });
     local String expectedEncoded = //
 {"active":true,"items":[1,2,3],"metadata":null,"name":"kLang","ratio":1.5}
 //;
@@ -225,7 +225,7 @@ function ShowNativeRoundTrip() : Int {
     RequireBool("fallback value", recovered.fallback as Bool, True);
     RequireString("fallback reason", recovered.reason as String, "invalid JSON");
     RequireInt("scalar deserialize_or", scalar, 42);
-    RequireErrString("unsafe Table key", unsafeKey, "JSON serialization requires String table keys");
+    RequireErrString("unsafe Table key", unsafeKey, :json_encode_failed);
 
     return 1;
 }
@@ -236,7 +236,7 @@ function ShowAliasStructSerialization() : Int {
     let user = User("42", "Ada", ["admin", "author"]);
     local JSON document = JSON(user);
     local String encoded = json.Stringify(user);
-    local Result[String, String] serialized = json.Serialize(user);
+    local Result[String, Atom] serialized = json.Serialize(user);
     local Type metadata = User.get_runtime_type_info();
     local Table serialization = metadata.serialization;
     local Table tags = serialization.json_tags as Table;
@@ -351,18 +351,18 @@ function ShowListAndObjectEncoding() : Int {
     pairs[len(pairs)] = { "key" : "mode", "value" : "stdlib" };
     pairs[len(pairs)] = { "key" : "status", "value" : "experimental" };
     local String encodedPairs = json.EncodeKeyValueList(pairs, json.EncodeBinary);
-    local Result[String, String] checkedPairs = json.EncodeKeyValueListChecked(pairs, json.EncodeBinary);
+    local Result[String, Atom] checkedPairs = json.EncodeKeyValueListChecked(pairs, json.EncodeBinary);
 
     local mut List[Table] brokenPairs;
     brokenPairs[len(brokenPairs)] = { "key" : "missing-value" };
-    local Result[String, String] brokenPairsResult = json.EncodeKeyValueListChecked(brokenPairs, json.EncodeBinary);
+    local Result[String, Atom] brokenPairsResult = json.EncodeKeyValueListChecked(brokenPairs, json.EncodeBinary);
 
     local Table pair = { "key" : "language", "value" : "kLang" };
     local Table brokenMap = { "key" : "language" };
     local String encodedMap = json.EncodeMap(pair, json.EncodeBinary);
     local String emptyMap = json.EncodeMap(brokenMap, json.EncodeBinary);
-    local Result[String, String] checkedMap = json.EncodeMapChecked(pair, json.EncodeBinary);
-    local Result[String, String] brokenMapResult = json.EncodeMapChecked(brokenMap, json.EncodeBinary);
+    local Result[String, Atom] checkedMap = json.EncodeMapChecked(pair, json.EncodeBinary);
+    local Result[String, Atom] brokenMapResult = json.EncodeMapChecked(brokenMap, json.EncodeBinary);
 
     print("encodedNames", encodedNames);
     print("rawNames", rawNames);
@@ -378,11 +378,11 @@ function ShowListAndObjectEncoding() : Int {
     RequireString("encode_list raw", rawNames, "[alpha,beta,gamma]");
     RequireString("encode_key_value_list", encodedPairs, "{\"name\":\"kLang\",\"mode\":\"stdlib\",\"status\":\"experimental\"}");
     RequireOkString("encode_key_value_list_checked ok", checkedPairs, encodedPairs);
-    RequireErrString("encode_key_value_list_checked error", brokenPairsResult, "json object pair is missing value");
+    RequireErrString("encode_key_value_list_checked error", brokenPairsResult, :json_value_missing);
     RequireString("encode_map", encodedMap, "{\"language\":\"kLang\"}");
     RequireString("encode_map missing fields", emptyMap, "{}");
     RequireOkString("encode_map_checked ok", checkedMap, encodedMap);
-    RequireErrString("encode_map_checked error", brokenMapResult, "json map requires key and value fields");
+    RequireErrString("encode_map_checked error", brokenMapResult, :json_pair_invalid);
 
     return len(encodedNames) + len(encodedPairs) + len(encodedMap) + len(emptyMap);
 }
@@ -432,8 +432,8 @@ function ShowFormattingHelpers() : Int {
     broken[len(broken)] = { "value" : "R" };
 
     local String formattedPairs = json.FormatKeyValueList(pairs, json.EncodeBinary, twoSpace);
-    local Result[String, String] checkedPairs = json.FormatKeyValueListChecked(pairs, json.EncodeBinary, fourSpace);
-    local Result[String, String] brokenPairs = json.FormatKeyValueListChecked(broken, json.EncodeBinary, fourSpace);
+    local Result[String, Atom] checkedPairs = json.FormatKeyValueListChecked(pairs, json.EncodeBinary, fourSpace);
+    local Result[String, Atom] brokenPairs = json.FormatKeyValueListChecked(broken, json.EncodeBinary, fourSpace);
     local String formattedValue = json.FormatValue("boxed", BracketString, twoSpace);
     local String formattedValueNoIndent = json.FormatValue("boxed", BracketString, { });
 
@@ -450,7 +450,7 @@ function ShowFormattingHelpers() : Int {
     RequireString("format_options newline", twoSpace["newline"] as String, "\n");
     RequireString("format_key_value_list", formattedPairs, "{\"left\":\"L\",\"right\":\"R\"}");
     RequireOkString("format_key_value_list_checked ok", checkedPairs, formattedPairs);
-    RequireErrString("format_key_value_list_checked error", brokenPairs, "json object pair is missing key");
+    RequireErrString("format_key_value_list_checked error", brokenPairs, :json_key_missing);
     RequireString("format_value", formattedValue, "[boxed]");
     RequireString("format_value no indent", formattedValueNoIndent, "[boxed]");
 
@@ -469,9 +469,9 @@ function ShowDecoderHelpers() : Int {
     local String streamPrefix = "{" + json.String("stream") + ":";
     local String readyPrefix = "{" + json.String("ready") + ":";
     local String readyComplete = readyPrefix + "true}";
-    local Result[String, String] valueOk = json.DecodeValue(expectedRaw);
-    local Result[String, String] valueErr = json.DecodeValue("");
-    local Result[String, String] decoded = json.Decode(expectedDecoded, "", json.Decoders());
+    local Result[String, Atom] valueOk = json.DecodeValue(expectedRaw);
+    local Result[String, Atom] valueErr = json.DecodeValue("");
+    local Result[String, Atom] decoded = json.Decode(expectedDecoded, "", json.Decoders());
 
     local Table continuation = json.ContinuationState(streamPrefix);
     local Table startedEmpty = json.DecodeStart("", "", json.Decoders());
@@ -487,7 +487,7 @@ function ShowDecoderHelpers() : Int {
     print("continued", continued);
 
     RequireOkString("decode_value ok", valueOk, expectedRaw);
-    RequireErrString("decode_value error", valueErr, "json decode expected a value");
+    RequireErrString("decode_value error", valueErr, :json_value_missing);
     RequireOkString("decode with accumulator", decoded, expectedDecoded);
     RequireString("continuation input", continuation["input"] as String, streamPrefix);
     RequireInt("continuation offset", continuation["offset"] as Int, 0);

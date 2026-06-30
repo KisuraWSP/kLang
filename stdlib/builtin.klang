@@ -324,12 +324,12 @@ namespace builtin {
     --- Returns: No explicit return value.
     --- Summary: Performs the panic control-flow or runtime I/O operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Panic(value : Any) {
+    function Panic(value : Atom) {
         return panic(value);
     }
 
     @deprecated("Use Panic instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function panic(value : Any) {
+    function panic(value : Atom) {
         throw value;
     }
 

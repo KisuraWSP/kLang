@@ -135,11 +135,12 @@ namespace io {
         return {"path": file["path"], "mode": file["mode"], "open": False, "data": file["data"]};
     }
 
-    --- Signature: function Unsupported(operation : String) : Result[String, String]
-    --- Returns: Result[String, String].
+    --- Signature: function Unsupported(operation : String) : Result[String, Atom]
+    --- Returns: Result[String, Atom].
     --- Summary: Provides the stdlib unsupported operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function Unsupported(operation : String) : Result[String, String] {
-        return Err("io operation requires host binding: " + operation);
+    function Unsupported(operation : String) : Result[String, Atom] {
+        _ = operation;
+        return Err(:unsupported_operation);
     }
 }

@@ -47,7 +47,7 @@ namespace App {
     }
 
     function ParseOrder(source : String) : Int {
-        local Result[JSON, String] parsed = json.parse(source);
+        local Result[JSON, Atom] parsed = json.parse(source);
 
         if parsed == {
         case Ok(document) :

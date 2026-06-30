@@ -4,6 +4,16 @@ module(disabled : False);
 -- ALL HOST INTERACTIONS DELEGATE TO THE GO-BACKED OS BUILTIN.
 
 namespace os {
+    private function with_code[T Any](value : Result[T, String], code : Atom) : Result[T, Atom] {
+        if value == {
+            case Ok(item): return Ok(item);
+            case Err(message):
+                _ = message;
+                return Err(code);
+        }
+        return Err(code);
+    }
+
     --- SIGNATURE: FUNCTION HOST() : OS
     --- RETURNS: A FRESH IMMUTABLE DESCRIPTOR FOR THE CURRENT HOST.
     function Host() : OS {
@@ -81,26 +91,26 @@ namespace os {
         return HOST().line_separator;
     }
 
-    --- SIGNATURE: FUNCTION CURRENT_DIR() : RESULT[STRING, STRING]
+    --- SIGNATURE: FUNCTION CURRENT_DIR() : RESULT[STRING, ATOM]
     --- RETURNS: THE LIVE PROCESS WORKING DIRECTORY OR AN OS ERROR.
-    function CurrentDir() : Result[String, String] {
+    function CurrentDir() : Result[String, Atom] {
         return CURRENT_DIR();
     }
 
     @deprecated("Use CurrentDir instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function CURRENT_DIR() : Result[String, String] {
-        return os_current_dir(HOST());
+    function CURRENT_DIR() : Result[String, Atom] {
+        return os.with_code(os_current_dir(HOST()), :current_dir_failed);
     }
 
-    --- SIGNATURE: FUNCTION CHANGE_DIR(PATH : STRING) : RESULT[BOOL, STRING]
+    --- SIGNATURE: FUNCTION CHANGE_DIR(PATH : STRING) : RESULT[BOOL, ATOM]
     --- EFFECT: CHANGES THE PROCESS-GLOBAL WORKING DIRECTORY.
-    function ChangeDir(path : String) : Result[Bool, String] {
+    function ChangeDir(path : String) : Result[Bool, Atom] {
         return CHANGE_DIR(path);
     }
 
     @deprecated("Use ChangeDir instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function CHANGE_DIR(path : String) : Result[Bool, String] {
-        return os_change_dir(HOST(), path);
+    function CHANGE_DIR(path : String) : Result[Bool, Atom] {
+        return os.with_code(os_change_dir(HOST(), path), :change_dir_failed);
     }
 
     --- SIGNATURE: FUNCTION TEMP_DIR() : STRING
@@ -114,26 +124,26 @@ namespace os {
         return os_temp_dir(HOST());
     }
 
-    --- SIGNATURE: FUNCTION HOME_DIR() : RESULT[STRING, STRING]
+    --- SIGNATURE: FUNCTION HOME_DIR() : RESULT[STRING, ATOM]
     --- RETURNS: THE CURRENT USER HOME DIRECTORY OR AN OS ERROR.
-    function HomeDir() : Result[String, String] {
+    function HomeDir() : Result[String, Atom] {
         return HOME_DIR();
     }
 
     @deprecated("Use HomeDir instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function HOME_DIR() : Result[String, String] {
-        return os_home_dir(HOST());
+    function HOME_DIR() : Result[String, Atom] {
+        return os.with_code(os_home_dir(HOST()), :home_dir_failed);
     }
 
-    --- SIGNATURE: FUNCTION HOSTNAME() : RESULT[STRING, STRING]
+    --- SIGNATURE: FUNCTION HOSTNAME() : RESULT[STRING, ATOM]
     --- RETURNS: THE CURRENT HOSTNAME OR AN OS ERROR.
-    function Hostname() : Result[String, String] {
+    function Hostname() : Result[String, Atom] {
         return HOSTNAME();
     }
 
     @deprecated("Use Hostname instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function HOSTNAME() : Result[String, String] {
-        return os_hostname(HOST());
+    function HOSTNAME() : Result[String, Atom] {
+        return os.with_code(os_hostname(HOST()), :hostname_failed);
     }
 
     --- SIGNATURE: FUNCTION PROCESS_ID() : INT
@@ -180,26 +190,26 @@ namespace os {
         return GET_ENV(name).some;
     }
 
-    --- SIGNATURE: FUNCTION SET_ENV(NAME : STRING, VALUE : STRING) : RESULT[BOOL, STRING]
+    --- SIGNATURE: FUNCTION SET_ENV(NAME : STRING, VALUE : STRING) : RESULT[BOOL, ATOM]
     --- EFFECT: SETS A PROCESS-GLOBAL ENVIRONMENT VARIABLE.
-    function SetEnv(name : String, value : String) : Result[Bool, String] {
+    function SetEnv(name : String, value : String) : Result[Bool, Atom] {
         return SET_ENV(name, value);
     }
 
     @deprecated("Use SetEnv instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function SET_ENV(name : String, value : String) : Result[Bool, String] {
-        return os_set_env(HOST(), name, value);
+    function SET_ENV(name : String, value : String) : Result[Bool, Atom] {
+        return os.with_code(os_set_env(HOST(), name, value), :set_env_failed);
     }
 
-    --- SIGNATURE: FUNCTION UNSET_ENV(NAME : STRING) : RESULT[BOOL, STRING]
+    --- SIGNATURE: FUNCTION UNSET_ENV(NAME : STRING) : RESULT[BOOL, ATOM]
     --- EFFECT: REMOVES A PROCESS-GLOBAL ENVIRONMENT VARIABLE.
-    function UnsetEnv(name : String) : Result[Bool, String] {
+    function UnsetEnv(name : String) : Result[Bool, Atom] {
         return UNSET_ENV(name);
     }
 
     @deprecated("Use UnsetEnv instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function UNSET_ENV(name : String) : Result[Bool, String] {
-        return os_unset_env(HOST(), name);
+    function UNSET_ENV(name : String) : Result[Bool, Atom] {
+        return os.with_code(os_unset_env(HOST(), name), :unset_env_failed);
     }
 
     --- SIGNATURE: FUNCTION ENVIRONMENT() : MAP[STRING, STRING]
@@ -213,15 +223,15 @@ namespace os {
         return os_environment(HOST());
     }
 
-    --- SIGNATURE: FUNCTION EXECUTE(COMMAND : STRING, ARGUMENTS : LIST[STRING]) : RESULT[TABLE, STRING]
+    --- SIGNATURE: FUNCTION EXECUTE(COMMAND : STRING, ARGUMENTS : LIST[STRING]) : RESULT[TABLE, ATOM]
     --- RETURNS: STDOUT, STDERR, EXIT_CODE, SUCCESS, AND COMMAND WITHOUT USING A SHELL.
-    function Execute(command : String, arguments : List[String]) : Result[Table, String] {
+    function Execute(command : String, arguments : List[String]) : Result[Table, Atom] {
         return EXECUTE(command, arguments);
     }
 
     @deprecated("Use Execute instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function EXECUTE(command : String, arguments : List[String]) : Result[Table, String] {
-        return os_execute(HOST(), command, arguments);
+    function EXECUTE(command : String, arguments : List[String]) : Result[Table, Atom] {
+        return os.with_code(os_execute(HOST(), command, arguments), :process_start_failed);
     }
 
     --- SIGNATURE: FUNCTION MUST_EXECUTE(COMMAND : STRING, ARGUMENTS : LIST[STRING]) : TABLE

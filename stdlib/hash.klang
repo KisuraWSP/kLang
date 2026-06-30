@@ -147,17 +147,17 @@ namespace hash {
         };
     }
 
-    --- Signature: function DigestResult(algorithm : String, data : String, size : Int, usedforsecurity : Bool = True) : Result[Table, String]
-    --- Returns: Result[Table, String].
+    --- Signature: function DigestResult(algorithm : String, data : String, size : Int, usedforsecurity : Bool = True) : Result[Table, Atom]
+    --- Returns: Result[Table, Atom].
     --- Summary: Provides the stdlib digest result operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function DigestResult(algorithm : String, data : String, size : Int, usedforsecurity : Bool = True) : Result[Table, String] {
+    function DigestResult(algorithm : String, data : String, size : Int, usedforsecurity : Bool = True) : Result[Table, Atom] {
         if len(algorithm) == 0 {
-            return Err("hash algorithm name cannot be empty");
+            return Err(:invalid_algorithm);
         }
 
         if size <= 0 {
-            return Err("hash digest size must be positive");
+            return Err(:invalid_digest_size);
         }
 
         return Ok(Digest(algorithm, data, size, usedforsecurity));
@@ -345,16 +345,16 @@ namespace hash {
         return False;
     }
 
-    --- Signature: function new(name : String, data : String = "", usedforsecurity : Bool = True) : Result[Table, String]
-    --- Returns: Result[Table, String].
+    --- Signature: function new(name : String, data : String = "", usedforsecurity : Bool = True) : Result[Table, Atom]
+    --- Returns: Result[Table, Atom].
     --- Summary: Creates or initializes new with the supplied Klang value(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-    function New(name : String, data : String = "", usedforsecurity : Bool = True) : Result[Table, String] {
+    function New(name : String, data : String = "", usedforsecurity : Bool = True) : Result[Table, Atom] {
         return new(name, data, usedforsecurity);
     }
 
     @deprecated("Use New instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
-    function new(name : String, data : String = "", usedforsecurity : Bool = True) : Result[Table, String] {
+    function new(name : String, data : String = "", usedforsecurity : Bool = True) : Result[Table, Atom] {
         if name == "md5" {
             return Ok(md5(data, usedforsecurity));
         }
@@ -386,6 +386,6 @@ namespace hash {
             return Ok(sha3_512(data, usedforsecurity));
         }
 
-        return Err("unknown hash algorithm: " + name);
+        return Err(:unsupported_algorithm);
     }
 }

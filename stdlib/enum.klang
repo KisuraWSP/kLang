@@ -195,7 +195,7 @@ namespace enum {
             return found.value;
         }
 
-        throw "enum fetch index is out of range";
+        throw :index_out_of_range;
     }
 
     --- Signature: function chunk_every(values : List[T], count : Int) : List[List[T]]

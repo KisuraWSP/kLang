@@ -301,7 +301,7 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 	case parser.TryCatchStatement:
 		checker.checkScopeStatements(current.TryBody, newLexicalScope(scope), namespace, source, inLoop, false)
 		catchScope := newLexicalScope(scope)
-		catchScope.define(variableSymbol{Name: current.ErrorName, Type: anyType, File: source, Line: current.Pos.Line})
+		catchScope.define(variableSymbol{Name: current.ErrorName, Type: "Atom", File: source, Line: current.Pos.Line})
 		checker.checkScopeStatements(current.CatchBody, catchScope, namespace, source, inLoop, false)
 	case parser.DeferStatement:
 		if current.Stmt != nil {
@@ -983,7 +983,7 @@ func selectorPath(expr parser.ExpressionNode) (string, bool) {
 
 func isBuiltinFunctionName(name string) bool {
 	switch name {
-	case "print", "format", "printf", "input", "len", "range",
+	case "print", "format", "printf", "input", "read_int", "read_ints", "print_ints", "interval_walk_max_scores", "len", "range",
 		"option_map", "option_unwrap_or", "option_and_then",
 		"result_map", "result_map_err", "result_unwrap_or", "result_and_then",
 		"Some", "None", "Ok", "Err", "Result", "Complex", "SIMD", "Set", "JSON", "Parsable", "File", "OS", "Atom",
