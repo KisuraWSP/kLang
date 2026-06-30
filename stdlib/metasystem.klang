@@ -154,6 +154,7 @@ namespace metasystem {
         --- Returns: WorkSpace.
         --- Summary: Creates or initializes create workspace with the supplied Klang value(s).
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use CreateWorkspace instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function create_workspace(name : String, workspace := DefaultWorkspace()) : WorkSpace {
             return workspace;
         }
@@ -162,6 +163,7 @@ namespace metasystem {
         --- Returns: String.
         --- Summary: Provides the stdlib build workspace operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use BuildWorkspace instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function build_workspace(name : String, workspace := DefaultWorkspace()) : String {
             return workspace_manifest(workspace);
         }
@@ -170,6 +172,7 @@ namespace metasystem {
         --- Returns: Option[WorkSpace].
         --- Summary: Provides the stdlib edit workspace operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use EditWorkspace instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function edit_workspace(name : String, workspace : Option[WorkSpace]) : Option[WorkSpace] {
             if workspace.some {
                 return workspace;
@@ -182,6 +185,7 @@ namespace metasystem {
         --- Returns: String.
         --- Summary: Provides the stdlib backend operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use Backend instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function backend(workspace : WorkSpace) : String {
             return workspace_backend(workspace);
         }
@@ -190,6 +194,7 @@ namespace metasystem {
         --- Returns: List[String].
         --- Summary: Provides the stdlib files operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use Files instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function files(workspace : WorkSpace) : List[String] {
             return workspace_files(workspace);
         }
@@ -198,6 +203,7 @@ namespace metasystem {
         --- Returns: String.
         --- Summary: Provides the stdlib manifest operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use Manifest instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function manifest(workspace : WorkSpace) : String {
             return workspace_manifest(workspace);
         }
@@ -244,6 +250,7 @@ namespace metasystem {
         --- Returns: Table.
         --- Summary: Provides the stdlib begin intercept operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use BeginIntercept instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function begin_intercept(workspace : WorkSpace, flags : List[String]) : Table {
             return {
                 "workspace": workspace,
@@ -257,6 +264,7 @@ namespace metasystem {
         --- Returns: Table.
         --- Summary: Provides the stdlib end intercept operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use EndIntercept instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function end_intercept(workspace : WorkSpace) : Table {
             return {
                 "workspace": workspace,
@@ -282,6 +290,7 @@ namespace metasystem {
         --- Returns: Table.
         --- Summary: Provides the stdlib message loop operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use MessageLoop instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function message_loop(workspace : WorkSpace, messages : List[Table]) : Table {
             local mut Int index = 0;
             local mut Bool complete = False;
@@ -305,6 +314,7 @@ namespace metasystem {
         --- Returns: Table.
         --- Summary: Provides the stdlib poll message and return ast of said item operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use PollMessageAndReturnAstOfSaidItem instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function poll_message_and_return_ast_of_said_item(message : Table) : Table {
             return {
                 "message": message,
@@ -317,6 +327,7 @@ namespace metasystem {
         --- Returns: Table.
         --- Summary: Provides the stdlib intercept message by runtime operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use InterceptMessageByRuntime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function intercept_message_by_runtime(message : Table) : Table {
             return {
                 "intercepted": True,
@@ -329,6 +340,11 @@ namespace metasystem {
         --- Returns: Table.
         --- Summary: Provides the stdlib provide api to system of user defined program operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function ProvideApiToSystemOfUserDefinedProgram(system : Table, apiName : String, api : Any) : Table {
+            return provide_api_to_system_of_user_defined_program(system, apiName, api);
+        }
+
+        @deprecated("Use ProvideApiToSystemOfUserDefinedProgram instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function provide_api_to_system_of_user_defined_program(system : Table, apiName : String, api : Any) : Table {
             return {
                 "system": system,
@@ -342,6 +358,11 @@ namespace metasystem {
         --- Returns: Table.
         --- Summary: Reads, locates, or decodes get system api of user defined program from the provided Klang input(s).
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function GetSystemApiOfUserDefinedProgram(workspace : WorkSpace) : Table {
+            return get_system_api_of_user_defined_program(workspace);
+        }
+
+        @deprecated("Use GetSystemApiOfUserDefinedProgram instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function get_system_api_of_user_defined_program(workspace : WorkSpace) : Table {
             return {
                 "workspace": workspace,
@@ -356,6 +377,11 @@ namespace metasystem {
         --- Returns: Table.
         --- Summary: Reads, locates, or decodes get system api of default program from the provided Klang input(s).
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        function GetSystemApiOfDefaultProgram() : Table {
+            return get_system_api_of_default_program();
+        }
+
+        @deprecated("Use GetSystemApiOfDefaultProgram instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function get_system_api_of_default_program() : Table {
             local WorkSpace workspace = metasystem.workspace.DefaultWorkspace();
             return {
@@ -371,6 +397,7 @@ namespace metasystem {
         --- Returns: Table.
         --- Summary: Provides the stdlib override default program operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+        @deprecated("Use OverrideDefaultProgram instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function override_default_program(system : Table, workspaceSet : List[WorkSpace]) : Table {
             return {
                 "system": system,

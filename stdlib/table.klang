@@ -1,27 +1,35 @@
 namespace table {
+    @deprecated("Use Empty instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function empty(value : Table) : Bool { return value.count == 0; }
 
+    @deprecated("Use Len instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function len(value : Table) : Int { return value.count; }
 
+    @deprecated("Use Has instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function has[T hashable](value : Table, key : T) : Bool { return table_has(value, key); }
 
+    @deprecated("Use Get instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function get[T hashable, U Any](value : Table, key : T) : Option[U] {
         if not table_has(value, key) { return None(); }
         return Some(value[key] as U);
     }
 
+    @deprecated("Use GetOr instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function get_or[T hashable, U Any](value : Table, key : T, fallback : U) : U {
         return option_unwrap_or(table.get(value, key), fallback);
     }
 
+    @deprecated("Use Set instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function set[T hashable, U Any](value : Table, key : T, item : U) : Table {
         local mut Table result = clone value;
         result[key] = item;
         return result;
     }
 
+    @deprecated("Use Delete instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function delete[T hashable](value : Table, key : T) : Table { return table_delete(value, key); }
 
+    @deprecated("Use Clear instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function clear(value : Table) : Table {
         _ = value;
         return {};
@@ -29,18 +37,39 @@ namespace table {
 
     function copy(value : Table) : Table { return clone value; }
 
+    @deprecated("Use Keys instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function keys[T hashable](value : Table) : List[T] { return table_keys(value); }
 
+    @deprecated("Use Values instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function values[T Any](value : Table) : List[T] { return table_values(value); }
 
+    @deprecated("Use Entries instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function entries(value : Table) : List[Table] { return table_entries(value); }
 
+    @deprecated("Use SequenceLen instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sequence_len(value : Table) : Int { return table_sequence_count(value); }
 
+    @deprecated("Use WithFallback instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function with_fallback(value : Table, fallback : Table) : Table {
         return table_set_fallback(value, fallback);
     }
 
+    @deprecated("Use Pipeline instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
+    function pipeline(value : Table) : Iterator[Table] {
+        return value.iter();
+    }
+
+    @deprecated("Use LazyFilter instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
+    function lazy_filter(value : Table, predicate : Function[Table, Bool]) : Iterator[Table] {
+        return value.filter(predicate);
+    }
+
+    @deprecated("Use LazyMap instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
+    function lazy_map[T Any](value : Table, mapper : Function[Table, T]) : Iterator[T] {
+        return value.map(mapper);
+    }
+
+    @deprecated("Use Merge instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function merge(left : Table, right : Table) : Table {
         local mut Table result = clone left;
         local List[Table] source = table_entries(right);
@@ -53,6 +82,7 @@ namespace table {
         return result;
     }
 
+    @deprecated("Use Filter instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function filter[T hashable, U Any](value : Table, predicate : Function[T, U, Bool]) : Table {
         local mut Table result = {};
         local List[Table] source = table_entries(value);
@@ -67,6 +97,7 @@ namespace table {
         return result;
     }
 
+    @deprecated("Use MapValues instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function map_values[T hashable, U Any, V Any](value : Table, mapper : Function[T, U, V]) : Table {
         local mut Table result = {};
         local List[Table] source = table_entries(value);
@@ -114,6 +145,16 @@ namespace table {
 
     function WithFallback(value : Table, fallback : Table) : Table {
         return table.with_fallback(value, fallback);
+    }
+
+    function Pipeline(value : Table) : Iterator[Table] { return table.pipeline(value); }
+
+    function LazyFilter(value : Table, predicate : Function[Table, Bool]) : Iterator[Table] {
+        return table.lazy_filter(value, predicate);
+    }
+
+    function LazyMap[T Any](value : Table, mapper : Function[Table, T]) : Iterator[T] {
+        return table.lazy_map(value, mapper);
     }
 
     function Merge(left : Table, right : Table) : Table { return table.merge(left, right); }

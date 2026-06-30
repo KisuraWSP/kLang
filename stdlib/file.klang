@@ -1,50 +1,110 @@
 -- Native File facade shared by Grua and kLang.
 
 namespace file {
+    function Open(path : String) : File {
+        return OPEN(path);
+    }
+
+    @deprecated("Use Open instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function OPEN(path : String) : File {
         return File(path);
     }
 
+    function Path(value : File) : String {
+        return PATH(value);
+    }
+
+    @deprecated("Use Path instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PATH(value : File) : String {
         return value.path;
     }
 
+    function Name(value : File) : String {
+        return NAME(value);
+    }
+
+    @deprecated("Use Name instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function NAME(value : File) : String {
         return value.name;
     }
 
+    function Extension(value : File) : String {
+        return EXTENSION(value);
+    }
+
+    @deprecated("Use Extension instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function EXTENSION(value : File) : String {
         return value.extension;
     }
 
+    function Read(path : String) : Result[String, String] {
+        return READ(path);
+    }
+
+    @deprecated("Use Read instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function READ(path : String) : Result[String, String] {
         return File(path).read();
     }
 
+    function ReadLines(path : String) : Result[List[String], String] {
+        return READ_LINES(path);
+    }
+
+    @deprecated("Use ReadLines instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function READ_LINES(path : String) : Result[List[String], String] {
         return File(path).read_lines();
     }
 
+    function Write(path : String, content : String) : Result[Int, String] {
+        return WRITE(path, content);
+    }
+
+    @deprecated("Use Write instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function WRITE(path : String, content : String) : Result[Int, String] {
         return File(path).write(content);
     }
 
+    function Append(path : String, content : String) : Result[Int, String] {
+        return APPEND(path, content);
+    }
+
+    @deprecated("Use Append instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function APPEND(path : String, content : String) : Result[Int, String] {
         return File(path).append(content);
     }
 
+    function Exists(path : String) : Result[Bool, String] {
+        return EXISTS(path);
+    }
+
+    @deprecated("Use Exists instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function EXISTS(path : String) : Result[Bool, String] {
         return File(path).exists();
     }
 
+    function Size(path : String) : Result[Int, String] {
+        return SIZE(path);
+    }
+
+    @deprecated("Use Size instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SIZE(path : String) : Result[Int, String] {
         return File(path).size();
     }
 
+    function Create(path : String) : Result[File, String] {
+        return CREATE(path);
+    }
+
+    @deprecated("Use Create instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function CREATE(path : String) : Result[File, String] {
         return File(path).create();
     }
 
+    function Remove(path : String) : Result[Bool, String] {
+        return REMOVE(path);
+    }
+
+    @deprecated("Use Remove instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function REMOVE(path : String) : Result[Bool, String] {
         return File(path).remove();
     }

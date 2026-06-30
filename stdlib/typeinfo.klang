@@ -3,6 +3,11 @@
 -- extra runtime functions. Import `typeinfo` when descriptor tables are needed.
 
 namespace typeinfo {
+    function Info(typeName : String, typeSize : Int) : Table {
+        return INFO(typeName, typeSize);
+    }
+
+    @deprecated("Use Info instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function INFO(typeName : String, typeSize : Int) : Table {
         return {
             "name": typeName,
@@ -10,34 +15,74 @@ namespace typeinfo {
         };
     }
 
+    function IntInfo() : Table {
+        return INT_INFO();
+    }
+
+    @deprecated("Use IntInfo instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function INT_INFO() : Table {
         return INFO("Int", Int.sizeof);
     }
 
+    function UintInfo() : Table {
+        return UINT_INFO();
+    }
+
+    @deprecated("Use UintInfo instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function UINT_INFO() : Table {
         return INFO("UInt", UInt.sizeof);
     }
 
+    function FloatInfo() : Table {
+        return FLOAT_INFO();
+    }
+
+    @deprecated("Use FloatInfo instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FLOAT_INFO() : Table {
         return INFO("Float", Float.sizeof);
     }
 
+    function BoolInfo() : Table {
+        return BOOL_INFO();
+    }
+
+    @deprecated("Use BoolInfo instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function BOOL_INFO() : Table {
         return INFO("Bool", Bool.sizeof);
     }
 
+    function StringInfo() : Table {
+        return STRING_INFO();
+    }
+
+    @deprecated("Use StringInfo instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function STRING_INFO() : Table {
         return INFO("String", String.sizeof);
     }
 
+    function JsonInfo() : Table {
+        return JSON_INFO();
+    }
+
+    @deprecated("Use JsonInfo instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function JSON_INFO() : Table {
         return INFO("JSON", JSON.sizeof);
     }
 
+    function TableInfo() : Table {
+        return TABLE_INFO();
+    }
+
+    @deprecated("Use TableInfo instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TABLE_INFO() : Table {
         return INFO("Table", Table.sizeof);
     }
 
+    function NumericChildren() : Table {
+        return NUMERIC_CHILDREN();
+    }
+
+    @deprecated("Use NumericChildren instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function NUMERIC_CHILDREN() : Table {
         return {
             "int": [INFO("i8", types.i8.sizeof), INFO("i16", types.i16.sizeof), INFO("i32", types.i32.sizeof), INFO("i64", types.i64.sizeof)],
@@ -47,6 +92,11 @@ namespace typeinfo {
         };
     }
 
+    function TypeTable() : Table {
+        return TYPE_TABLE();
+    }
+
+    @deprecated("Use TypeTable instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TYPE_TABLE() : Table {
         return {
             "Int": INT_INFO(),
@@ -60,6 +110,11 @@ namespace typeinfo {
         };
     }
 
+    function TypeTableJson() : String {
+        return TYPE_TABLE_JSON();
+    }
+
+    @deprecated("Use TypeTableJson instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TYPE_TABLE_JSON() : String {
         return json_stringify(TYPE_TABLE());
     }

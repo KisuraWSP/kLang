@@ -435,6 +435,45 @@ function Main() : Int {
 	}
 }
 
+func TestResolveProgramKeepsFunctionsUsedByAliasMethods(t *testing.T) {
+	root := t.TempDir()
+	stdlibRoot := filepath.Join(root, "stdlib")
+	writeModuleTestFile(t, stdlibRoot, "tools.klang", `
+alias function Box(value : Int) : type = struct {
+    #extend {
+        function read() : Int {
+            return tools.Helper();
+        }
+    }
+}
+
+namespace tools {
+    function Helper() : Int { return 7; }
+    function Unused() : Int { return 99; }
+}
+`)
+	programPath := writeModuleTestFile(t, filepath.Join(root, "app"), "main.klang", `
+import "tools";
+function Main() : Int { return 0; }
+`)
+
+	program, err := file.LoadProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load test program: %v", err)
+	}
+	resolved, report := NewResolver(stdlibRoot).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected module resolution to pass, got %#v", report.Errors)
+	}
+	filter := resolved.Files[1].ModuleFunctionFilter
+	if !filter["tools.Helper"] {
+		t.Fatalf("expected alias method dependency in filter, got %#v", filter)
+	}
+	if filter["tools.Unused"] {
+		t.Fatalf("did not expect unrelated function in filter, got %#v", filter)
+	}
+}
+
 func TestResolveProgramModuleCallerLoadsEntireStdlibModule(t *testing.T) {
 	root := t.TempDir()
 	stdlibRoot := filepath.Join(root, "stdlib")

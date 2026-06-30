@@ -1243,6 +1243,9 @@ func (checker *TypeChecker) inferExpressionNode(node parser.ExpressionNode, fall
 	case parser.GroupExpression:
 		return checker.inferExpressionNode(current.Inner, fallback, locals, source, line)
 	case parser.CallExpression:
+		if resultType, ok := checker.inferStructCastCall(current, locals, source, line); ok {
+			return resultType
+		}
 		if resultType, ok := checker.inferStandaloneExtensionCall(current, locals, source, line); ok {
 			return resultType
 		}
@@ -1254,6 +1257,41 @@ func (checker *TypeChecker) inferExpressionNode(node parser.ExpressionNode, fall
 		return checker.inferExpression(fallback, locals, source, line)
 	default:
 		return checker.inferExpression(fallback, locals, source, line)
+	}
+}
+
+func (checker *TypeChecker) inferStructCastCall(call parser.CallExpression, locals map[string]variableSymbol, source string, line int) (string, bool) {
+	selector, ok := call.Callee.(parser.SelectorExpression)
+	if !ok || selector.Field != "cast_as" {
+		return "", false
+	}
+	sourceType, ok := checker.extensionReceiverType(selector.Target, locals, source, line)
+	if !ok {
+		sourceType = anyType
+	}
+	if len(call.Arguments) != 1 {
+		checker.addError(source, line, fmt.Sprintf("cast_as expects exactly 1 target type, got %d", len(call.Arguments)))
+		return anyType, true
+	}
+	targetType, ok := checker.structCastTargetNode(call.Arguments[0])
+	if !ok {
+		checker.addError(source, line, "cast_as expects a builtin target type or struct alias name, for example value.cast_as(Table)")
+		return anyType, true
+	}
+	return checker.checkStructCast(sourceType, targetType, source, line), true
+}
+
+func (checker *TypeChecker) structCastTargetNode(node parser.ExpressionNode) (string, bool) {
+	identifier, ok := node.(parser.IdentifierExpression)
+	if !ok {
+		return "", false
+	}
+	targetType := checker.resolveTypeAlias(normalizeType(identifier.Name))
+	switch targetType {
+	case "Table", "JSON", "String":
+		return targetType, true
+	default:
+		return targetType, checker.isStructAliasType(targetType)
 	}
 }
 
@@ -1270,6 +1308,7 @@ func (checker *TypeChecker) inferStandaloneExtensionCall(call parser.CallExpress
 	if !ok {
 		return "", false
 	}
+	checker.warnDeprecatedMethod(source, line, targetType, method.Method)
 	return checker.checkExtensionNodeArguments(selector.Field, targetType, method, call.Arguments, locals, source, line), true
 }
 
@@ -2117,6 +2156,11 @@ func functionDeprecatedMarker(input string, functionStart int) (bool, string) {
 	return false, ""
 }
 
+func isStdlibImplementationSource(source string) bool {
+	cleaned := filepath.ToSlash(filepath.Clean(source))
+	return strings.HasPrefix(cleaned, "stdlib/") || strings.Contains(cleaned, "/stdlib/")
+}
+
 func parseReturnSignatureText(input string) (string, []returnValueSymbol, error) {
 	input = strings.TrimSpace(input)
 	if !strings.HasPrefix(input, "(") {
@@ -2902,6 +2946,30 @@ func (checker *TypeChecker) aliasMethodType(typeName string, methodName string) 
 	return "", false
 }
 
+func (checker *TypeChecker) aliasMethod(typeName string, methodName string) (parser.FunctionStatement, bool) {
+	alias, _, ok := checker.aliasTypeInfo(typeName)
+	if !ok {
+		return parser.FunctionStatement{}, false
+	}
+	for _, method := range alias.Methods {
+		if method.Name == methodName {
+			return method, true
+		}
+	}
+	return parser.FunctionStatement{}, false
+}
+
+func (checker *TypeChecker) warnDeprecatedMethod(source string, line int, typeName string, method parser.FunctionStatement) {
+	if !method.Deprecated || isStdlibImplementationSource(source) {
+		return
+	}
+	message := fmt.Sprintf("method %s.%s is deprecated", typeName, method.Name)
+	if method.DeprecationMessage != "" {
+		message += ": " + method.DeprecationMessage
+	}
+	checker.addWarning(source, line, message)
+}
+
 func (checker *TypeChecker) checkOverloadedBinaryOperator(leftType string, operator string, rightType string, source string, line int) (string, bool) {
 	methodName, ok := parser.OperatorMethodName(operator)
 	if !ok {
@@ -3188,6 +3256,9 @@ func (checker *TypeChecker) selectorFieldType(targetType string, fieldName strin
 			return "Bool", true
 		}
 	}
+	if fieldName == "cast_as" && checker.isStructAliasType(targetType) {
+		return "Function[Type,T]", true
+	}
 	if methodType, ok := checker.aliasMethodType(targetType, fieldName); ok {
 		return methodType, true
 	}
@@ -3250,6 +3321,28 @@ func builtinProtocolMethodType(targetType string, methodName string) (string, bo
 	targetType = normalizeType(targetType)
 	if child, ok := childType(targetType); ok {
 		targetType = child.Parent
+	}
+	if itemType, ok := pipelineItemType(targetType); ok {
+		switch methodName {
+		case "iter":
+			return "Function[Iterator[" + itemType + "]]", true
+		case "filter":
+			return "Function[Function[" + itemType + ",Bool],Iterator[" + itemType + "]]", true
+		case "map":
+			return "Function[Function[" + itemType + ",T],Iterator[T]]", true
+		case "skip", "limit":
+			return "Function[Int,Iterator[" + itemType + "]]", true
+		case "collect", "sort":
+			return "Function[List[" + itemType + "]]", true
+		case "first":
+			return "Function[Option[" + itemType + "]]", true
+		case "fold":
+			return "Function[T,Function[T," + itemType + ",T],T]", true
+		case "any", "all":
+			return "Function[Function[" + itemType + ",Bool],Bool]", true
+		case "for_each":
+			return "Function[Function[" + itemType + ",T],Null]", true
+		}
 	}
 	switch methodName {
 	case "uppercase", "lowercase":
@@ -3326,6 +3419,11 @@ func builtinProtocolMethodType(targetType string, methodName string) (string, bo
 		}
 	}
 	return "", false
+}
+
+func pipelineItemType(typeName string) (string, bool) {
+	typeName = normalizeType(typeName)
+	return iterableItemType(typeName)
 }
 
 func runtimeTypeInfoCallTarget(name string) (string, bool) {
@@ -4422,11 +4520,34 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			if targetSymbol.InferredType != "" {
 				targetType = targetSymbol.InferredType
 			}
+			if methodName == "cast_as" {
+				if len(args) != 1 {
+					checker.addError(source, line, fmt.Sprintf("cast_as expects exactly 1 target type, got %d", len(args)))
+					return anyType
+				}
+				targetTypeName := checker.resolveTypeAlias(normalizeType(strings.TrimSpace(args[0])))
+				switch targetTypeName {
+				case "Table", "JSON", "String":
+				default:
+					if !isIdentifier(strings.TrimSpace(args[0])) || !checker.isStructAliasType(targetTypeName) {
+						checker.addError(source, line, fmt.Sprintf("unknown or unsupported cast_as target %q", strings.TrimSpace(args[0])))
+						return anyType
+					}
+				}
+				return checker.checkStructCast(targetType, targetTypeName, source, line)
+			}
+			if resultType, handled := checker.checkPipelineMethodCall(targetType, methodName, args, locals, source, line); handled {
+				return resultType
+			}
 			if methodType, methodOK := checker.aliasMethodType(targetType, methodName); methodOK {
+				if method, ok := checker.aliasMethod(targetType, methodName); ok {
+					checker.warnDeprecatedMethod(source, line, targetType, method)
+				}
 				paramTypes, returnType, _ := functionValueType(methodType)
 				return checker.checkCallbackCall(name, paramTypes, returnType, args, locals, source, line)
 			}
 			if method, methodOK := checker.lookupExtensionMethod(targetType, methodName); methodOK {
+				checker.warnDeprecatedMethod(source, line, targetType, method.Method)
 				return checker.checkExtensionCall(name, targetType, method, args, locals, source, line)
 			}
 			if methodType, methodOK := builtinProtocolMethodType(targetType, methodName); methodOK {
@@ -4437,7 +4558,7 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 		checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
 		return anyType
 	}
-	if fn.Deprecated {
+	if fn.Deprecated && !isStdlibImplementationSource(source) {
 		message := fmt.Sprintf("function %s is deprecated", fn.Name)
 		if fn.DeprecationMessage != "" {
 			message += ": " + fn.DeprecationMessage
@@ -4491,6 +4612,147 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 func (checker *TypeChecker) isStructAliasType(typeName string) bool {
 	alias, _, ok := checker.aliasTypeInfo(typeName)
 	return ok && alias.Struct
+}
+
+func (checker *TypeChecker) checkStructCast(sourceType string, targetType string, source string, line int) string {
+	sourceType = checker.resolveTypeAlias(normalizeType(sourceType))
+	targetType = checker.resolveTypeAlias(normalizeType(targetType))
+	if !checker.isStructAliasType(sourceType) {
+		checker.addError(source, line, fmt.Sprintf("cast_as requires a struct alias receiver, got %s", sourceType))
+		return targetType
+	}
+	switch targetType {
+	case "Table", "String":
+		return targetType
+	case "JSON":
+		if !checker.isJSONSerializableType(sourceType) {
+			checker.addError(source, line, fmt.Sprintf("%s cannot be serialized as JSON", sourceType))
+		}
+		return targetType
+	}
+	targetAlias, targetSubstitutions, ok := checker.aliasTypeInfo(targetType)
+	if !ok || !targetAlias.Struct {
+		checker.addError(source, line, fmt.Sprintf("cast_as target %s must be Table, JSON, String, or a struct alias", targetType))
+		return targetType
+	}
+	for _, targetField := range targetAlias.Params {
+		expected := applyAliasTypeSubstitutions(normalizeType(targetField.Type), targetSubstitutions)
+		actual, exists := checker.aliasFieldType(sourceType, targetField.Name)
+		if !exists {
+			if targetField.Default.Node == nil {
+				checker.addError(source, line, fmt.Sprintf("cannot cast %s to %s: required field %q is missing", sourceType, targetType, targetField.Name))
+			}
+			continue
+		}
+		if !checker.isAssignable(expected, actual) {
+			checker.addError(source, line, fmt.Sprintf("cannot cast %s to %s: field %q expects %s, got %s", sourceType, targetType, targetField.Name, expected, actual))
+		}
+	}
+	return targetType
+}
+
+func (checker *TypeChecker) checkPipelineMethodCall(targetType string, methodName string, args []string, locals map[string]variableSymbol, source string, line int) (string, bool) {
+	itemType, supported := pipelineItemType(targetType)
+	if !supported || !pipelineMethodTypeName(methodName) {
+		return "", false
+	}
+	expectCount := func(count int) bool {
+		if len(args) == count {
+			return true
+		}
+		checker.addError(source, line, fmt.Sprintf("%s expects %d argument(s), got %d", methodName, count, len(args)))
+		return false
+	}
+	callback := func(index int, expectedReturn string) string {
+		if index >= len(args) {
+			return anyType
+		}
+		callbackType := checker.inferExpression(args[index], locals, source, line)
+		params, returnType, ok := functionValueType(callbackType)
+		if !ok || len(params) != 1 {
+			checker.addError(source, line, fmt.Sprintf("%s callback expects Function[%s,%s], got %s", methodName, itemType, expectedReturn, callbackType))
+			return anyType
+		}
+		if !checker.isAssignable(params[0], itemType) && !checker.isAssignable(itemType, params[0]) {
+			checker.addError(source, line, fmt.Sprintf("%s callback argument expects %s, got %s", methodName, itemType, params[0]))
+		}
+		if expectedReturn != anyType && !checker.isAssignable(expectedReturn, returnType) {
+			checker.addError(source, line, fmt.Sprintf("%s callback must return %s, got %s", methodName, expectedReturn, returnType))
+		}
+		return returnType
+	}
+	switch methodName {
+	case "iter":
+		expectCount(0)
+		return "Iterator[" + itemType + "]", true
+	case "filter":
+		if expectCount(1) {
+			callback(0, "Bool")
+		}
+		return "Iterator[" + itemType + "]", true
+	case "map":
+		mappedType := anyType
+		if expectCount(1) {
+			mappedType = callback(0, anyType)
+		}
+		return "Iterator[" + mappedType + "]", true
+	case "skip", "limit":
+		if expectCount(1) {
+			countType := checker.inferExpression(args[0], locals, source, line)
+			if !checker.isAssignable("Int", countType) {
+				checker.addError(source, line, fmt.Sprintf("%s expects Int, got %s", methodName, countType))
+			}
+		}
+		return "Iterator[" + itemType + "]", true
+	case "collect":
+		expectCount(0)
+		return "List[" + itemType + "]", true
+	case "sort":
+		expectCount(0)
+		if !isComparableConstraintType(itemType) && itemType != anyType {
+			checker.addError(source, line, fmt.Sprintf("sort requires comparable items, got %s", itemType))
+		}
+		return "List[" + itemType + "]", true
+	case "first":
+		expectCount(0)
+		return "Option[" + itemType + "]", true
+	case "any", "all":
+		if expectCount(1) {
+			callback(0, "Bool")
+		}
+		return "Bool", true
+	case "for_each":
+		if expectCount(1) {
+			callback(0, anyType)
+		}
+		return "Null", true
+	case "fold":
+		if !expectCount(2) {
+			return anyType, true
+		}
+		accumulatorType := checker.inferExpression(args[0], locals, source, line)
+		callbackType := checker.inferExpression(args[1], locals, source, line)
+		params, returnType, ok := functionValueType(callbackType)
+		if !ok || len(params) != 2 {
+			checker.addError(source, line, fmt.Sprintf("fold callback expects Function[%s,%s,%s], got %s", accumulatorType, itemType, accumulatorType, callbackType))
+			return accumulatorType, true
+		}
+		if !checker.isAssignable(params[0], accumulatorType) || !checker.isAssignable(params[1], itemType) || !checker.isAssignable(accumulatorType, returnType) {
+			checker.addError(source, line, fmt.Sprintf("fold callback expects Function[%s,%s,%s], got %s", accumulatorType, itemType, accumulatorType, callbackType))
+		}
+		return accumulatorType, true
+	default:
+		return "", false
+	}
+}
+
+func pipelineMethodTypeName(name string) bool {
+	switch name {
+	case "iter", "filter", "map", "skip", "limit", "collect", "sort", "fold", "first", "any", "all", "for_each":
+		return true
+	default:
+		return false
+	}
 }
 
 func (checker *TypeChecker) checkKeywordMacroCall(macro parser.AliasStatement, args []string, locals map[string]variableSymbol, source string, line int) string {
@@ -6429,6 +6691,8 @@ func iterableItemType(typeName string) (string, bool) {
 		return typeName[len("Set[") : len(typeName)-1], true
 	case strings.HasPrefix(typeName, "Iterator[") && strings.HasSuffix(typeName, "]"):
 		return typeName[len("Iterator[") : len(typeName)-1], true
+	case strings.HasPrefix(typeName, "Map[") && strings.HasSuffix(typeName, "]"):
+		return "Table", true
 	default:
 		return "", false
 	}

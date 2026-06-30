@@ -30,12 +30,12 @@ function ShowSignedAndUnsigned() : Int {
     local u64 unsignedParentWidth = packetCount;
     local UInt.child(8) directUnsigned = 200;
 
-    _ = test.assert_true(signedMin < 0, "i8 minimum should be negative");
-    _ = test.assert_true(signedMax > 0, "i8 maximum should be positive");
-    _ = test.not_equal(signedMin, signedMax, "signed endpoints must differ");
-    _ = test.equal(signedWide, signedWide, "i16 value should remain stable");
-    _ = test.equal(unsignedMax, unsignedMax, "u8 value should remain stable");
-    _ = test.assert_false(unsignedMax == directUnsigned, "different unsigned values should not compare equal");
+    _ = test.AssertTrue(signedMin < 0, "i8 minimum should be negative");
+    _ = test.AssertTrue(signedMax > 0, "i8 maximum should be positive");
+    _ = test.NotEqual(signedMin, signedMax, "signed endpoints must differ");
+    _ = test.Equal(signedWide, signedWide, "i16 value should remain stable");
+    _ = test.Equal(unsignedMax, unsignedMax, "u8 value should remain stable");
+    _ = test.AssertFalse(unsignedMax == directUnsigned, "different unsigned values should not compare equal");
 
     print("i8 range", signedMin, signedMax);
     print("i16", signedWide);
@@ -59,12 +59,12 @@ function ShowFloatComplexAndSizes() : Int {
     local complex64 point = Complex(2, 3);
     local complex128 translated = point + Complex(4, 1);
 
-    _ = test.assert_true(ratio > 1.0, "float32 comparison failed");
-    _ = test.assert_true(precise > ratio, "float64 should preserve the larger value");
-    _ = test.equal(float32.sizeof, 4, "float32 size changed");
-    _ = test.equal(float64.sizeof, 8, "float64 size changed");
-    _ = test.equal(complex64.sizeof, 8, "complex64 size changed");
-    _ = test.equal(complex128.sizeof, 16, "complex128 size changed");
+    _ = test.AssertTrue(ratio > 1.0, "float32 comparison failed");
+    _ = test.AssertTrue(precise > ratio, "float64 should preserve the larger value");
+    _ = test.Equal(float32.sizeof, 4, "float32 size changed");
+    _ = test.Equal(float64.sizeof, 8, "float64 size changed");
+    _ = test.Equal(complex64.sizeof, 8, "complex64 size changed");
+    _ = test.Equal(complex128.sizeof, 16, "complex128 size changed");
 
     print("float32", ratio);
     print("float64", precise);
@@ -97,12 +97,12 @@ function ShowWideningAndAliases() : Int {
 
     small.times(Remember);
 
-    _ = test.equal(parentInt, 1200, "signed widening changed the value");
-    _ = test.equal(parentFloat, 4.0, "Int child to Float widening changed the value");
-    _ = test.equal(parentUInt, 10 as UInt, "unsigned widening changed the value");
-    _ = test.equal(lastIndex, 3, "i8.times should finish at index 3");
-    _ = test.equal(len(bytes), 4, "byte_list length changed");
-    _ = test.assert_true(bytes[3] == 255, "byte_list final value changed");
+    _ = test.Equal(parentInt, 1200, "signed widening changed the value");
+    _ = test.Equal(parentFloat, 4.0, "Int child to Float widening changed the value");
+    _ = test.Equal(parentUInt, 10 as UInt, "unsigned widening changed the value");
+    _ = test.Equal(lastIndex, 3, "i8.times should finish at index 3");
+    _ = test.Equal(len(bytes), 4, "byte_list length changed");
+    _ = test.AssertTrue(bytes[3] == 255, "byte_list final value changed");
 
     print("signed_sample", sample);
     print("widened to Int", parentInt);
@@ -122,14 +122,14 @@ function ShowTypeMetadata() : Int {
     local Type floatInfo = Float.get_runtime_type_info();
     local Type complexInfo = Complex.get_runtime_type_info();
 
-    _ = test.equal(intInfo.name, "Int", "unexpected Int metadata name");
-    _ = test.equal(uintInfo.name, "UInt", "unexpected UInt metadata name");
-    _ = test.equal(floatInfo.name, "Float", "unexpected Float metadata name");
-    _ = test.equal(complexInfo.name, "Complex", "unexpected Complex metadata name");
-    _ = test.equal(intInfo.size, Int.sizeof, "Int metadata size mismatch");
-    _ = test.equal(uintInfo.size, UInt.sizeof, "UInt metadata size mismatch");
-    _ = test.assert_true(intInfo.supports_serialization, "Int should support serialization");
-    _ = test.assert_true(floatInfo.supports_memory_layout, "Float should expose layout metadata");
+    _ = test.Equal(intInfo.name, "Int", "unexpected Int metadata name");
+    _ = test.Equal(uintInfo.name, "UInt", "unexpected UInt metadata name");
+    _ = test.Equal(floatInfo.name, "Float", "unexpected Float metadata name");
+    _ = test.Equal(complexInfo.name, "Complex", "unexpected Complex metadata name");
+    _ = test.Equal(intInfo.size, Int.sizeof, "Int metadata size mismatch");
+    _ = test.Equal(uintInfo.size, UInt.sizeof, "UInt metadata size mismatch");
+    _ = test.AssertTrue(intInfo.supports_serialization, "Int should support serialization");
+    _ = test.AssertTrue(floatInfo.supports_memory_layout, "Float should expose layout metadata");
 
     print("Int metadata", intInfo.name, intInfo.size, intInfo.alignment);
     print("UInt metadata", uintInfo.name, uintInfo.size, uintInfo.alignment);
@@ -142,7 +142,7 @@ function ShowTypeMetadata() : Int {
 }
 
 function IntentionalFailure() : Bool {
-    return test.fail("intentional test.fail demonstration");
+    return test.Fail("intentional test.Fail demonstration");
 }
 
 function ShowTestValueHelpers() : Int {
@@ -154,10 +154,10 @@ function ShowTestValueHelpers() : Int {
     local Result[i16, String] success = Ok(1200);
     local Result[i16, String] failure = Err("sample failure");
 
-    _ = test.some(present, "expected the child-width value");
-    _ = test.none(missing, "expected an empty child-width option");
-    _ = test.ok(success, "expected a successful child-width result");
-    _ = test.err(failure, "expected a failed child-width result");
+    _ = test.Some(present, "expected the child-width value");
+    _ = test.None(missing, "expected an empty child-width option");
+    _ = test.Ok(success, "expected a successful child-width result");
+    _ = test.Err(failure, "expected a failed child-width result");
 
     print("Option Some", present);
     print("Option None", missing);
@@ -179,21 +179,21 @@ function ShowExtensionMethods() : Int {
     local String label = "release".surrounded("[", "]");
     local String letter = 'k'.to_string();
 
-    _ = test.equal(magnitude, 12, "i8 should inherit Int.absolute");
-    _ = test.equal(clamped, 100, "Int.clamp should enforce the upper bound");
-    _ = test.assert_true(42.between(1, 100), "Int.between should include interior values");
-    _ = test.assert_true(42.is_even(), "42 should be even");
-    _ = test.assert_true(17.is_odd(), "17 should be odd");
-    _ = test.equal(signedChild.sign(), 0 - 1, "negative sign should be -1");
-    _ = test.equal(floatMagnitude, 3.5, "Float.absolute changed the value");
-    _ = test.equal(floatClamp, 10.0, "Float.clamp should enforce the upper bound");
-    _ = test.assert_true((5.5).between(5.0, 6.0), "Float.between should include interior values");
-    _ = test.equal(True.to_int(), 1, "True.to_int should return 1");
-    _ = test.equal(False.to_int(), 0, "False.to_int should return 0");
-    _ = test.assert_true("".is_empty(), "empty String should report empty");
-    _ = test.equal(fallback, "untitled", "String.or_else should use its fallback");
-    _ = test.equal(label, "[release]", "String.surrounded changed the value");
-    _ = test.equal(letter, "k", "Char.to_string changed the value");
+    _ = test.Equal(magnitude, 12, "i8 should inherit Int.absolute");
+    _ = test.Equal(clamped, 100, "Int.clamp should enforce the upper bound");
+    _ = test.AssertTrue(42.between(1, 100), "Int.between should include interior values");
+    _ = test.AssertTrue(42.is_even(), "42 should be even");
+    _ = test.AssertTrue(17.is_odd(), "17 should be odd");
+    _ = test.Equal(signedChild.sign(), 0 - 1, "negative sign should be -1");
+    _ = test.Equal(floatMagnitude, 3.5, "Float.absolute changed the value");
+    _ = test.Equal(floatClamp, 10.0, "Float.clamp should enforce the upper bound");
+    _ = test.AssertTrue((5.5).between(5.0, 6.0), "Float.between should include interior values");
+    _ = test.Equal(True.to_int(), 1, "True.to_int should return 1");
+    _ = test.Equal(False.to_int(), 0, "False.to_int should return 0");
+    _ = test.AssertTrue("".is_empty(), "empty String should report empty");
+    _ = test.Equal(fallback, "untitled", "String.or_else should use its fallback");
+    _ = test.Equal(label, "[release]", "String.surrounded changed the value");
+    _ = test.Equal(letter, "k", "Char.to_string changed the value");
 
     print("signed child absolute", magnitude);
     print("clamped Int and Float", clamped, floatClamp);
@@ -215,7 +215,7 @@ function Main() : Int {
     completed += ShowTestValueHelpers();
     completed += ShowExtensionMethods();
 
-    _ = test.equal(completed, 6, "not every section completed");
+    _ = test.Equal(completed, 6, "not every section completed");
     print("");
     print("completed sections", completed);
     return 0;

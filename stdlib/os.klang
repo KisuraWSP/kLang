@@ -6,152 +6,282 @@ module(disabled : False);
 namespace os {
     --- SIGNATURE: FUNCTION HOST() : OS
     --- RETURNS: A FRESH IMMUTABLE DESCRIPTOR FOR THE CURRENT HOST.
+    function Host() : OS {
+        return HOST();
+    }
+
+    @deprecated("Use Host instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function HOST() : OS {
         return OS();
     }
 
     --- SIGNATURE: FUNCTION NAME() : STRING
     --- RETURNS: THE HOST OPERATING SYSTEM NAME, SUCH AS DARWIN, LINUX, OR WINDOWS.
+    function Name() : String {
+        return NAME();
+    }
+
+    @deprecated("Use Name instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function NAME() : String {
         return HOST().name;
     }
 
     --- SIGNATURE: FUNCTION ARCH() : STRING
     --- RETURNS: THE HOST CPU ARCHITECTURE.
+    function Arch() : String {
+        return ARCH();
+    }
+
+    @deprecated("Use Arch instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ARCH() : String {
         return HOST().arch;
     }
 
     --- SIGNATURE: FUNCTION CPU_COUNT() : INT
     --- RETURNS: THE NUMBER OF LOGICAL CPUS AVAILABLE TO THE PROCESS.
+    function CpuCount() : Int {
+        return CPU_COUNT();
+    }
+
+    @deprecated("Use CpuCount instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function CPU_COUNT() : Int {
         return HOST().cpu_count;
     }
 
     --- SIGNATURE: FUNCTION PATH_SEPARATOR() : STRING
     --- RETURNS: THE HOST FILESYSTEM PATH SEPARATOR.
+    function PathSeparator() : String {
+        return PATH_SEPARATOR();
+    }
+
+    @deprecated("Use PathSeparator instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PATH_SEPARATOR() : String {
         return HOST().path_separator;
     }
 
     --- SIGNATURE: FUNCTION PATH_LIST_SEPARATOR() : STRING
     --- RETURNS: THE HOST PATH-LIST SEPARATOR USED BY VARIABLES SUCH AS PATH.
+    function PathListSeparator() : String {
+        return PATH_LIST_SEPARATOR();
+    }
+
+    @deprecated("Use PathListSeparator instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PATH_LIST_SEPARATOR() : String {
         return HOST().path_list_separator;
     }
 
     --- SIGNATURE: FUNCTION LINE_SEPARATOR() : STRING
     --- RETURNS: THE NATIVE HOST LINE SEPARATOR.
+    function LineSeparator() : String {
+        return LINE_SEPARATOR();
+    }
+
+    @deprecated("Use LineSeparator instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function LINE_SEPARATOR() : String {
         return HOST().line_separator;
     }
 
     --- SIGNATURE: FUNCTION CURRENT_DIR() : RESULT[STRING, STRING]
     --- RETURNS: THE LIVE PROCESS WORKING DIRECTORY OR AN OS ERROR.
+    function CurrentDir() : Result[String, String] {
+        return CURRENT_DIR();
+    }
+
+    @deprecated("Use CurrentDir instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function CURRENT_DIR() : Result[String, String] {
         return os_current_dir(HOST());
     }
 
     --- SIGNATURE: FUNCTION CHANGE_DIR(PATH : STRING) : RESULT[BOOL, STRING]
     --- EFFECT: CHANGES THE PROCESS-GLOBAL WORKING DIRECTORY.
+    function ChangeDir(path : String) : Result[Bool, String] {
+        return CHANGE_DIR(path);
+    }
+
+    @deprecated("Use ChangeDir instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function CHANGE_DIR(path : String) : Result[Bool, String] {
         return os_change_dir(HOST(), path);
     }
 
     --- SIGNATURE: FUNCTION TEMP_DIR() : STRING
     --- RETURNS: THE HOST TEMPORARY DIRECTORY.
+    function TempDir() : String {
+        return TEMP_DIR();
+    }
+
+    @deprecated("Use TempDir instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TEMP_DIR() : String {
         return os_temp_dir(HOST());
     }
 
     --- SIGNATURE: FUNCTION HOME_DIR() : RESULT[STRING, STRING]
     --- RETURNS: THE CURRENT USER HOME DIRECTORY OR AN OS ERROR.
+    function HomeDir() : Result[String, String] {
+        return HOME_DIR();
+    }
+
+    @deprecated("Use HomeDir instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function HOME_DIR() : Result[String, String] {
         return os_home_dir(HOST());
     }
 
     --- SIGNATURE: FUNCTION HOSTNAME() : RESULT[STRING, STRING]
     --- RETURNS: THE CURRENT HOSTNAME OR AN OS ERROR.
+    function Hostname() : Result[String, String] {
+        return HOSTNAME();
+    }
+
+    @deprecated("Use Hostname instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function HOSTNAME() : Result[String, String] {
         return os_hostname(HOST());
     }
 
     --- SIGNATURE: FUNCTION PROCESS_ID() : INT
     --- RETURNS: THE CURRENT KLANG PROCESS IDENTIFIER.
+    function ProcessId() : Int {
+        return PROCESS_ID();
+    }
+
+    @deprecated("Use ProcessId instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PROCESS_ID() : Int {
         return os_process_id(HOST());
     }
 
     --- SIGNATURE: FUNCTION GET_ENV(NAME : STRING) : OPTION[STRING]
     --- RETURNS: SOME(VALUE) WHEN THE VARIABLE EXISTS, INCLUDING EMPTY VALUES.
+    function GetEnv(name : String) : Option[String] {
+        return GET_ENV(name);
+    }
+
+    @deprecated("Use GetEnv instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function GET_ENV(name : String) : Option[String] {
         return os_get_env(HOST(), name);
     }
 
     --- SIGNATURE: FUNCTION GET_ENV_OR(NAME : STRING, FALLBACK : STRING) : STRING
     --- RETURNS: THE VARIABLE VALUE OR THE PROVIDED FALLBACK.
+    function GetEnvOr(name : String, fallback : String) : String {
+        return GET_ENV_OR(name, fallback);
+    }
+
+    @deprecated("Use GetEnvOr instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function GET_ENV_OR(name : String, fallback : String) : String {
         return option_unwrap_or(GET_ENV(name), fallback);
     }
 
     --- SIGNATURE: FUNCTION HAS_ENV(NAME : STRING) : BOOL
     --- RETURNS: TRUE WHEN THE ENVIRONMENT VARIABLE EXISTS.
+    function HasEnv(name : String) : Bool {
+        return HAS_ENV(name);
+    }
+
+    @deprecated("Use HasEnv instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function HAS_ENV(name : String) : Bool {
         return GET_ENV(name).some;
     }
 
     --- SIGNATURE: FUNCTION SET_ENV(NAME : STRING, VALUE : STRING) : RESULT[BOOL, STRING]
     --- EFFECT: SETS A PROCESS-GLOBAL ENVIRONMENT VARIABLE.
+    function SetEnv(name : String, value : String) : Result[Bool, String] {
+        return SET_ENV(name, value);
+    }
+
+    @deprecated("Use SetEnv instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SET_ENV(name : String, value : String) : Result[Bool, String] {
         return os_set_env(HOST(), name, value);
     }
 
     --- SIGNATURE: FUNCTION UNSET_ENV(NAME : STRING) : RESULT[BOOL, STRING]
     --- EFFECT: REMOVES A PROCESS-GLOBAL ENVIRONMENT VARIABLE.
+    function UnsetEnv(name : String) : Result[Bool, String] {
+        return UNSET_ENV(name);
+    }
+
+    @deprecated("Use UnsetEnv instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function UNSET_ENV(name : String) : Result[Bool, String] {
         return os_unset_env(HOST(), name);
     }
 
     --- SIGNATURE: FUNCTION ENVIRONMENT() : MAP[STRING, STRING]
     --- RETURNS: A SNAPSHOT OF THE COMPLETE PROCESS ENVIRONMENT.
+    function Environment() : Map[String, String] {
+        return ENVIRONMENT();
+    }
+
+    @deprecated("Use Environment instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ENVIRONMENT() : Map[String, String] {
         return os_environment(HOST());
     }
 
     --- SIGNATURE: FUNCTION EXECUTE(COMMAND : STRING, ARGUMENTS : LIST[STRING]) : RESULT[TABLE, STRING]
     --- RETURNS: STDOUT, STDERR, EXIT_CODE, SUCCESS, AND COMMAND WITHOUT USING A SHELL.
+    function Execute(command : String, arguments : List[String]) : Result[Table, String] {
+        return EXECUTE(command, arguments);
+    }
+
+    @deprecated("Use Execute instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function EXECUTE(command : String, arguments : List[String]) : Result[Table, String] {
         return os_execute(HOST(), command, arguments);
     }
 
     --- SIGNATURE: FUNCTION MUST_EXECUTE(COMMAND : STRING, ARGUMENTS : LIST[STRING]) : TABLE
     --- THROWS: THE STARTUP ERROR WHEN THE EXECUTABLE CANNOT BE STARTED.
+    function MustExecute(command : String, arguments : List[String]) : Table {
+        return MUST_EXECUTE(command, arguments);
+    }
+
+    @deprecated("Use MustExecute instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function MUST_EXECUTE(command : String, arguments : List[String]) : Table {
         return EXECUTE(command, arguments)!;
     }
 
     --- SIGNATURE: FUNCTION SUCCEEDED(PROCESS : TABLE) : BOOL
+    function Succeeded(process : Table) : Bool {
+        return SUCCEEDED(process);
+    }
+
+    @deprecated("Use Succeeded instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SUCCEEDED(process : Table) : Bool {
         return process["success"] as Bool;
     }
 
     --- SIGNATURE: FUNCTION EXIT_CODE(PROCESS : TABLE) : INT
+    function ExitCode(process : Table) : Int {
+        return EXIT_CODE(process);
+    }
+
+    @deprecated("Use ExitCode instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function EXIT_CODE(process : Table) : Int {
         return process["exit_code"] as Int;
     }
 
     --- SIGNATURE: FUNCTION STDOUT(PROCESS : TABLE) : STRING
+    function Stdout(process : Table) : String {
+        return STDOUT(process);
+    }
+
+    @deprecated("Use Stdout instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function STDOUT(process : Table) : String {
         return process["stdout"] as String;
     }
 
     --- SIGNATURE: FUNCTION STDERR(PROCESS : TABLE) : STRING
+    function Stderr(process : Table) : String {
+        return STDERR(process);
+    }
+
+    @deprecated("Use Stderr instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function STDERR(process : Table) : String {
         return process["stderr"] as String;
     }
 
     --- SIGNATURE: FUNCTION PLATFORM() : TABLE
     --- RETURNS: A SERIALIZABLE SNAPSHOT OF STABLE HOST METADATA.
+    function Platform() : Table {
+        return PLATFORM();
+    }
+
+    @deprecated("Use Platform instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PLATFORM() : Table {
         return {
             "name" : NAME(),

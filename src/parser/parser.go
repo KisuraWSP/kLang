@@ -568,6 +568,12 @@ func (parser *Parser) parseAliasExtensionMethods() []FunctionStatement {
 		if parser.match(lexer.TokenSemicolon) {
 			continue
 		}
+		if parser.check(lexer.TokenAt) {
+			if method, ok := parser.parseDeprecatedExtensionMethod(false); ok {
+				methods = append(methods, method)
+			}
+			continue
+		}
 		if !parser.check(lexer.TokenFunc) {
 			parser.advance()
 			continue
@@ -585,6 +591,12 @@ func (parser *Parser) parseAliasExtensionMethodsBlock() []FunctionStatement {
 			if parser.match(lexer.TokenSemicolon) {
 				continue
 			}
+			if parser.check(lexer.TokenAt) {
+				if method, ok := parser.parseDeprecatedExtensionMethod(true); ok {
+					methods = append(methods, method)
+				}
+				continue
+			}
 			if !parser.check(lexer.TokenFunc) {
 				parser.advance()
 				continue
@@ -596,6 +608,34 @@ func (parser *Parser) parseAliasExtensionMethodsBlock() []FunctionStatement {
 	}
 	parser.consume(lexer.TokenDo, "expected '{' or do after #extend")
 	return parser.parseAliasExtensionMethods()
+}
+
+func (parser *Parser) parseDeprecatedExtensionMethod(blockStyle bool) (FunctionStatement, bool) {
+	parser.consume(lexer.TokenAt, "expected '@'")
+	tag := parser.consume(lexer.TokenIdentifier, "expected marker tag name")
+	message := ""
+	if parser.match(lexer.TokenLeftBrace) {
+		value := parser.consume(lexer.TokenString, "expected marker tag message string")
+		message = value.Literal
+		parser.consume(lexer.TokenRightBrace, "expected ')' after marker tag message")
+	}
+	if tag.Literal != "deprecated" {
+		parser.addError(tag, fmt.Sprintf("unknown marker tag @%s", tag.Literal))
+		return FunctionStatement{}, false
+	}
+	if !parser.check(lexer.TokenFunc) {
+		parser.addError(parser.current(), "@deprecated must be followed by a function declaration")
+		return FunctionStatement{}, false
+	}
+	var method FunctionStatement
+	if blockStyle {
+		method = parser.parseAliasExtensionMethodBlock()
+	} else {
+		method = parser.parseAliasExtensionMethod()
+	}
+	method.Deprecated = true
+	method.DeprecationMessage = message
+	return method, true
 }
 
 func (parser *Parser) parseAliasExtensionMethodBlock() FunctionStatement {
@@ -767,7 +807,7 @@ func (parser *Parser) parseTypeOnCurrentLine() string {
 
 func (parser *Parser) parseNamespace() Statement {
 	start := parser.consume(lexer.TokenNameSpace, "expected namespace")
-	name := parser.consume(lexer.TokenIdentifier, "expected namespace name")
+	name := parser.consumeNamespaceName()
 	body := parser.parseBlock()
 	return NamespaceStatement{
 		Pos:     positionFromToken(start),
@@ -780,7 +820,7 @@ func (parser *Parser) parseNamespace() Statement {
 func (parser *Parser) parseGlobalNamespace() Statement {
 	start := parser.consume(lexer.TokenGlobal, "expected global")
 	parser.consume(lexer.TokenNameSpace, "expected namespace")
-	name := parser.consume(lexer.TokenIdentifier, "expected namespace name")
+	name := parser.consumeNamespaceName()
 	body := parser.parseBlock()
 	return NamespaceStatement{
 		Pos:     positionFromToken(start),
@@ -789,6 +829,13 @@ func (parser *Parser) parseGlobalNamespace() Statement {
 		Global:  true,
 		Body:    body,
 	}
+}
+
+func (parser *Parser) consumeNamespaceName() lexer.Token {
+	if parser.check(lexer.TokenIdentifier) || parser.check(lexer.TokenEnum) {
+		return parser.advance()
+	}
+	return parser.consume(lexer.TokenIdentifier, "expected namespace name")
 }
 
 func (parser *Parser) parseScope() Statement {

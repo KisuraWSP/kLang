@@ -13,7 +13,7 @@ function Main() : Int {
     local Result[WorkSpace, String] validation = metasystem.workspace.Validate(workspace);
     local Table plan = metasystem.build.BuildPlan(workspace, ["check", "run"]);
     local Table complete = metasystem.build.CompleteMessage(workspace, summary);
-    local Table loop = metasystem.build.message_loop(workspace, [complete]);
+    local Table loop = metasystem.build.MessageLoop(workspace, [complete]);
     local Option[WorkSpace] workspace_option = Some(workspace);
     local Table ast = metasystem.build.GetAstFromEntireProject(workspace_option);
 

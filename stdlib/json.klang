@@ -3,74 +3,94 @@
 
 namespace json {
     --- Parses one complete JSON value without throwing.
+    @deprecated("Use Parse instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function parse(source : String) : Result[JSON, String] {
         return json_parse(source);
     }
 
     --- Parses one complete JSON value or raises a positioned runtime error.
+    @deprecated("Use MustParse instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function must_parse(source : String) : JSON {
         return JSON(source);
     }
 
     --- Serializes any supported Klang value to canonical compact JSON text.
+    @deprecated("Use Stringify instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function stringify(value : T) : String {
         return json_stringify(value);
     }
 
     --- Safely serializes Table, List, primitive, JSON, Option, enum, or alias struct values.
+    @deprecated("Use Serialize instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function serialize(value : T) : Result[String, String] {
         return json_encode(value);
     }
 
     --- Safely decodes JSON objects to Table, arrays to List, and scalars to native values.
+    @deprecated("Use Deserialize instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function deserialize(source : String) : Result[T, String] {
         return json_decode(source);
     }
 
+    @deprecated("Use Valid instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function valid(source : String) : Bool {
         return parse(source).ok;
     }
 
+    @deprecated("Use DeserializeOr instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function deserialize_or(source : String, fallback : T) : T {
         return result_unwrap_or(deserialize(source), fallback);
     }
 
     --- Returns an object field without raising when the field is absent.
+    @deprecated("Use GetField instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function get_field(value : JSON, key : String) : Option[JSON] {
         return json_get(value, key);
     }
 
     --- Returns an array item without raising when the index is absent.
+    @deprecated("Use GetIndex instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function get_index(value : JSON, index : Int) : Option[JSON] {
         return json_get(value, index);
     }
 
     --- Returns object, array, string, number, bool, or null.
+    @deprecated("Use Kind instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function kind(value : JSON) : String {
         return json_kind(value);
     }
 
+    @deprecated("Use AsString instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function as_string(value : JSON) : Option[String] {
         return json_string(value);
     }
 
+    @deprecated("Use AsInt instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function as_int(value : JSON) : Option[Int] {
         return json_int(value);
     }
 
+    @deprecated("Use AsFloat instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function as_float(value : JSON) : Option[Float] {
         return json_float(value);
     }
 
+    @deprecated("Use AsBool instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function as_bool(value : JSON) : Option[Bool] {
         return json_bool(value);
     }
 
+    @deprecated("Use IsNull instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function is_null(value : JSON) : Bool {
         return json_is_null(value);
     }
 
     --- A reusable JSON null value built from a here string.
+    function NullJson() : JSON {
+        return null_json();
+    }
+
+    @deprecated("Use NullJson instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function null_json() : JSON {
         return JSON(//
 null
@@ -78,6 +98,11 @@ null
     }
 
     --- Encodes an already typed JSON value.
+    function EncodeJson(value : JSON) : String {
+        return encode_json(value);
+    }
+
+    @deprecated("Use EncodeJson instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_json(value : JSON) : String {
         return stringify(value);
     }
@@ -170,6 +195,11 @@ null
     --- Returns: Function[String].
     --- Summary: Provides the stdlib array start fun operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ArrayStartFun() : Function[String] {
+        return array_start_fun();
+    }
+
+    @deprecated("Use ArrayStartFun instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function array_start_fun() : Function[String] {
         --- Signature: function start_array() : String
         --- Returns: String.
@@ -186,6 +216,11 @@ null
     --- Returns: Function[String, String, String].
     --- Summary: Provides the stdlib array push fun operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ArrayPushFun() : Function[String, String, String] {
+        return array_push_fun();
+    }
+
+    @deprecated("Use ArrayPushFun instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function array_push_fun() : Function[String, String, String] {
         --- Signature: function push_array_value(state : String, value : String) : String
         --- Returns: String.
@@ -206,6 +241,11 @@ null
     --- Returns: Function[String, String].
     --- Summary: Provides the stdlib array finish fun operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ArrayFinishFun() : Function[String, String] {
+        return array_finish_fun();
+    }
+
+    @deprecated("Use ArrayFinishFun instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function array_finish_fun() : Function[String, String] {
         --- Signature: function finish_array(state : String) : String
         --- Returns: String.
@@ -222,6 +262,11 @@ null
     --- Returns: Function[String].
     --- Summary: Provides the stdlib object start fun operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ObjectStartFun() : Function[String] {
+        return object_start_fun();
+    }
+
+    @deprecated("Use ObjectStartFun instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function object_start_fun() : Function[String] {
         --- Signature: function start_object() : String
         --- Returns: String.
@@ -238,6 +283,11 @@ null
     --- Returns: Function[String, String, String, String].
     --- Summary: Provides the stdlib object push fun operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ObjectPushFun() : Function[String, String, String, String] {
+        return object_push_fun();
+    }
+
+    @deprecated("Use ObjectPushFun instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function object_push_fun() : Function[String, String, String, String] {
         --- Signature: function push_object_pair(state : String, key : String, value : String) : String
         --- Returns: String.
@@ -259,6 +309,11 @@ null
     --- Returns: Function[String, String].
     --- Summary: Provides the stdlib object finish fun operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ObjectFinishFun() : Function[String, String] {
+        return object_finish_fun();
+    }
+
+    @deprecated("Use ObjectFinishFun instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function object_finish_fun() : Function[String, String] {
         --- Signature: function finish_object(state : String) : String
         --- Returns: String.
@@ -275,6 +330,11 @@ null
     --- Returns: Table.
     --- Summary: Provides the stdlib continuation state operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ContinuationState(binary : String) : Table {
+        return continuation_state(binary);
+    }
+
+    @deprecated("Use ContinuationState instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function continuation_state(binary : String) : Table {
         _ = binary;
         return {
@@ -289,6 +349,11 @@ null
     --- Returns: Table.
     --- Summary: Reads, locates, or decodes decoders from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Decoders() : Table {
+        return decoders();
+    }
+
+    @deprecated("Use Decoders instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function decoders() : Table {
         return {
             "from_binary" : from_binary_fun(),
@@ -300,6 +365,11 @@ null
     --- Returns: Function[T, String].
     --- Summary: Builds, writes, or formats encoder using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Encoder() : Function[T, String] {
+        return encoder();
+    }
+
+    @deprecated("Use Encoder instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encoder() : Function[T, String] {
         --- Signature: function default_encoder(value : T) : String
         --- Returns: String.
@@ -316,6 +386,11 @@ null
     --- Returns: Function[T, String].
     --- Summary: Builds, writes, or formats formatter using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Formatter() : Function[T, String] {
+        return formatter();
+    }
+
+    @deprecated("Use Formatter instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function formatter() : Function[T, String] {
         --- Signature: function default_formatter(value : T) : String
         --- Returns: String.
@@ -332,6 +407,11 @@ null
     --- Returns: Function[String, String].
     --- Summary: Provides the stdlib from binary fun operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FromBinaryFun() : Function[String, String] {
+        return from_binary_fun();
+    }
+
+    @deprecated("Use FromBinaryFun instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function from_binary_fun() : Function[String, String] {
         --- Signature: function from_binary(binary : String) : String
         --- Returns: String.
@@ -348,6 +428,11 @@ null
     --- Returns: Result[String, String].
     --- Summary: Reads, locates, or decodes decode value from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function DecodeValue(binary : String) : Result[String, String] {
+        return decode_value(binary);
+    }
+
+    @deprecated("Use DecodeValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function decode_value(binary : String) : Result[String, String] {
         if len(binary) == 0 {
             return Err("json decode expected a value");
@@ -364,6 +449,11 @@ null
     --- Returns: Result[String, String].
     --- Summary: Reads, locates, or decodes decode from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, String] {
+        return decode(binary, acc0, decoderTable);
+    }
+
+    @deprecated("Use Decode instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function decode(binary : String, acc0 : String = "", decoderTable : Table = decoders()) : Result[String, String] {
         local mut String input = acc0 + binary;
         if table_has(decoderTable, "from_binary") {
@@ -378,6 +468,11 @@ null
     --- Returns: Table.
     --- Summary: Reads, locates, or decodes decode start from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function DecodeStart(binary : String, acc : String = "", decoderTable : Table = decoders()) : Table {
+        return decode_start(binary, acc, decoderTable);
+    }
+
+    @deprecated("Use DecodeStart instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function decode_start(binary : String, acc : String = "", decoderTable : Table = decoders()) : Table {
         _ = binary;
         _ = acc;
@@ -395,6 +490,11 @@ null
     --- Returns: Table.
     --- Summary: Reads, locates, or decodes decode continue from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function DecodeContinue(state : Table, binary : String) : Table {
+        return decode_continue(state, binary);
+    }
+
+    @deprecated("Use DecodeContinue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function decode_continue(state : Table, binary : String) : Table {
         local String nextInput =(state["input"] as String) + binary;
         _ = nextInput;
@@ -411,6 +511,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats encode using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Encode(value : T, encodeFn : Function[T, String] = encoder()) : String {
+        return encode(value, encodeFn);
+    }
+
+    @deprecated("Use Encode instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode(value : T, encodeFn : Function[T, String] = encoder()) : String {
         _ = value;
         return encode_value(value, encodeFn);
@@ -420,6 +525,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats encode atom using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EncodeAtom(value : Bool) : String {
+        return encode_atom(value);
+    }
+
+    @deprecated("Use EncodeAtom instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_atom(value : Bool) : String {
         return Bool(value);
     }
@@ -428,6 +538,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats encode binary using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EncodeBinary(value : String) : String {
+        return encode_binary(value);
+    }
+
+    @deprecated("Use EncodeBinary instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_binary(value : String) : String {
         _ = value;
         return "\"" + value + "\"";
@@ -437,6 +552,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats encode binary escape all using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EncodeBinaryEscapeAll(value : String) : String {
+        return encode_binary_escape_all(value);
+    }
+
+    @deprecated("Use EncodeBinaryEscapeAll instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_binary_escape_all(value : String) : String {
         return encode_binary(value);
     }
@@ -445,6 +565,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats encode float using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EncodeFloat(value : Float) : String {
+        return encode_float(value);
+    }
+
+    @deprecated("Use EncodeFloat instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_float(value : Float) : String {
         return stringify(must_parse(value as String));
     }
@@ -453,6 +578,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats encode integer using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EncodeInteger(value : Int) : String {
+        return encode_integer(value);
+    }
+
+    @deprecated("Use EncodeInteger instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_integer(value : Int) : String {
         return stringify(must_parse(value as String));
     }
@@ -461,6 +591,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats encode key value list using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EncodeKeyValueList(list : List[Table], encodeFn : Function[String, String] = encode_binary) : String {
+        return encode_key_value_list(list, encodeFn);
+    }
+
+    @deprecated("Use EncodeKeyValueList instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_key_value_list(list : List[Table], encodeFn : Function[String, String] = encode_binary) : String {
         local mut String state = "{";
         local mut Int index = 0;
@@ -486,6 +621,11 @@ null
     --- Returns: Result[String, String].
     --- Summary: Builds, writes, or formats encode key value list checked using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EncodeKeyValueListChecked(list : List[Table], encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
+        return encode_key_value_list_checked(list, encodeFn);
+    }
+
+    @deprecated("Use EncodeKeyValueListChecked instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_key_value_list_checked(list : List[Table], encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
         local mut Int index = 0;
 
@@ -507,6 +647,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats encode list using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EncodeList(list : List[String], encodeFn : Function[String, String] = encode_binary) : String {
+        return encode_list(list, encodeFn);
+    }
+
+    @deprecated("Use EncodeList instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_list(list : List[String], encodeFn : Function[String, String] = encode_binary) : String {
         local mut String state = "[";
         local mut Int index = 0;
@@ -530,6 +675,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats encode map using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EncodeMap(value : Table, encodeFn : Function[String, String] = encode_binary) : String {
+        return encode_map(value, encodeFn);
+    }
+
+    @deprecated("Use EncodeMap instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_map(value : Table, encodeFn : Function[String, String] = encode_binary) : String {
         _ = encodeFn;
         if table_has(value, "key") and table_has(value, "value") {
@@ -543,6 +693,11 @@ null
     --- Returns: Result[String, String].
     --- Summary: Builds, writes, or formats encode map checked using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EncodeMapChecked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
+        return encode_map_checked(value, encodeFn);
+    }
+
+    @deprecated("Use EncodeMapChecked instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_map_checked(value : Table, encodeFn : Function[String, String] = encode_binary) : Result[String, String] {
         if table_has(value, "key") and table_has(value, "value") {
             return Ok(encode_map(value, encodeFn));
@@ -555,6 +710,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats encode value using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function EncodeValue(value : T, encodeFn : Function[T, String]) : String {
+        return encode_value(value, encodeFn);
+    }
+
+    @deprecated("Use EncodeValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function encode_value(value : T, encodeFn : Function[T, String]) : String {
         return encodeFn(value);
     }
@@ -563,6 +723,11 @@ null
     --- Returns: Table.
     --- Summary: Builds, writes, or formats format options using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FormatOptions(indent : String = "  ") : Table {
+        return format_options(indent);
+    }
+
+    @deprecated("Use FormatOptions instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function format_options(indent : String = "  ") : Table {
         _ = indent;
         return {
@@ -575,6 +740,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats format using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Format(value : T, encodeFn : Function[T, String] = encoder(), options : Table = format_options()) : String {
+        return json.format(value, encodeFn, options);
+    }
+
+    @deprecated("Use Format instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function format(value : T, encodeFn : Function[T, String] = encoder(), options : Table = format_options()) : String {
         return format_value(value, encodeFn, options);
     }
@@ -583,6 +753,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats format key value list using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FormatKeyValueList(list : List[Table], encodeFn : Function[String, String], state : Table) : String {
+        return format_key_value_list(list, encodeFn, state);
+    }
+
+    @deprecated("Use FormatKeyValueList instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function format_key_value_list(list : List[Table], encodeFn : Function[String, String], state : Table) : String {
         return format_key_value_list_checked(list, encodeFn, state)!;
     }
@@ -591,6 +766,11 @@ null
     --- Returns: Result[String, String].
     --- Summary: Builds, writes, or formats format key value list checked using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FormatKeyValueListChecked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, String] {
+        return format_key_value_list_checked(list, encodeFn, state);
+    }
+
+    @deprecated("Use FormatKeyValueListChecked instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function format_key_value_list_checked(list : List[Table], encodeFn : Function[String, String], state : Table) : Result[String, String] {
         local Result[String, String] encoded = encode_key_value_list_checked(list, encodeFn);
         _ = state;
@@ -605,6 +785,11 @@ null
     --- Returns: String.
     --- Summary: Builds, writes, or formats format value using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FormatValue(value : T, encodeFn : Function[T, String], state : Table) : String {
+        return format_value(value, encodeFn, state);
+    }
+
+    @deprecated("Use FormatValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function format_value(value : T, encodeFn : Function[T, String], state : Table) : String {
         _ = encodeFn;
         _ = state;

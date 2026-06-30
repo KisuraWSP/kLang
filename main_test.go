@@ -815,6 +815,14 @@ func TestPackageServeForcesWASMBackend(t *testing.T) {
 	if !strings.Contains(string(manifest), `"backend": "WASM"`) {
 		t.Fatalf("expected serve package to force WASM backend, got:\n%s", manifest)
 	}
+	if !strings.Contains(string(manifest), `"backend_mode": "bytecode-vm"`) ||
+		!strings.Contains(string(manifest), `"bytecode_status": "compiled"`) {
+		t.Fatalf("expected WASM bytecode metadata, got:\n%s", manifest)
+	}
+	bytecodePath := filepath.Join(outPath, "served-wasm", "program.kbc")
+	if info, statErr := os.Stat(bytecodePath); statErr != nil || info.Size() == 0 {
+		t.Fatalf("expected compiled program.kbc: %v", statErr)
+	}
 }
 
 func mustLoadProgram(t *testing.T, path string) file.Program {

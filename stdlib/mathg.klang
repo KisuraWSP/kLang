@@ -104,6 +104,11 @@ namespace mathg {
         return total;
     }
 
+    function Gcd(left : Int, right : Int) : Int {
+        return GCD(left, right);
+    }
+
+    @deprecated("Use Gcd instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function GCD(left : Int, right : Int) : Int {
         local mut Int a = Abs(left);
         local mut Int b = Abs(right);
@@ -115,6 +120,11 @@ namespace mathg {
         return a;
     }
 
+    function Lcm(left : Int, right : Int) : Int {
+        return LCM(left, right);
+    }
+
+    @deprecated("Use Lcm instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function LCM(left : Int, right : Int) : Int {
         if left == 0 or right == 0 { return 0; }
         return Abs((left / GCD(left, right)) * right);

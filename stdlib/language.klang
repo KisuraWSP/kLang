@@ -12,14 +12,29 @@ namespace language {
 
     alias function SOURCE_EDIT(source : String, args : List[String], diagnostics : List[String]) : type = struct {
         #extend {
+            function ok() : Bool {
+                return this.OK();
+            }
+
+            @deprecated("Use ok instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
             function OK() : Bool {
                 return len(this.diagnostics) == 0;
             }
 
+            function has_args() : Bool {
+                return this.HAS_ARGS();
+            }
+
+            @deprecated("Use has_args instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
             function HAS_ARGS() : Bool {
                 return len(this.args) > 0;
             }
 
+            function to_table() : Table {
+                return this.TO_TABLE();
+            }
+
+            @deprecated("Use to_table instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
             function TO_TABLE() : Table {
                 return {
                     "source": this.source,
@@ -29,36 +44,71 @@ namespace language {
                 };
             }
 
+            function to_json() : String {
+                return this.TO_JSON();
+            }
+
+            @deprecated("Use to_json instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
             function TO_JSON() : String {
                 return json_stringify(this.TO_TABLE());
             }
         }
     }
 
+    function EmptyArgs() : List[String] {
+        return EMPTY_ARGS();
+    }
+
+    @deprecated("Use EmptyArgs instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function EMPTY_ARGS() : List[String] {
         local List[String] args;
         return args;
     }
 
+    function EmptyDiagnostics() : List[String] {
+        return EMPTY_DIAGNOSTICS();
+    }
+
+    @deprecated("Use EmptyDiagnostics instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function EMPTY_DIAGNOSTICS() : List[String] {
         local List[String] diagnostics;
         return diagnostics;
     }
 
+    function Source(source : String, args : List[String] = EMPTY_ARGS()) : SOURCE_EDIT {
+        return SOURCE(source, args);
+    }
+
+    @deprecated("Use Source instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SOURCE(source : String, args : List[String] = EMPTY_ARGS()) : SOURCE_EDIT {
         return SOURCE_EDIT(source, args, EMPTY_DIAGNOSTICS());
     }
 
+    function SourceWithDiagnostic(source : String, message : String) : SOURCE_EDIT {
+        return SOURCE_WITH_DIAGNOSTIC(source, message);
+    }
+
+    @deprecated("Use SourceWithDiagnostic instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SOURCE_WITH_DIAGNOSTIC(source : String, message : String) : SOURCE_EDIT {
         local mut List[String] diagnostics;
         diagnostics[len(diagnostics)] = message;
         return SOURCE_EDIT(source, EMPTY_ARGS(), diagnostics);
     }
 
+    function Parse(source : String, args : List[String] = EMPTY_ARGS()) : Parsable[T] {
+        return PARSE(source, args);
+    }
+
+    @deprecated("Use Parse instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PARSE(source : String, args : List[String] = EMPTY_ARGS()) : Parsable[T] {
         return Parsable(source, args);
     }
 
+    function ParseEdit(edit : SOURCE_EDIT) : Result[Parsable[T], String] {
+        return PARSE_EDIT(edit);
+    }
+
+    @deprecated("Use ParseEdit instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PARSE_EDIT(edit : SOURCE_EDIT) : Result[Parsable[T], String] {
         if not edit.OK() {
             return Err(edit.diagnostics[0]);
@@ -66,30 +116,65 @@ namespace language {
         return Ok(Parsable(edit.source, edit.args));
     }
 
+    function SourceOf(value : Parsable[T]) : String {
+        return SOURCE_OF(value);
+    }
+
+    @deprecated("Use SourceOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SOURCE_OF(value : Parsable[T]) : String {
         return parsable_source(value);
     }
 
+    function AstOf(value : Parsable[T]) : List[Table] {
+        return AST_OF(value);
+    }
+
+    @deprecated("Use AstOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function AST_OF(value : Parsable[T]) : List[Table] {
         return parsable_ast(value);
     }
 
+    function ArgsOf(value : Parsable[T]) : List[String] {
+        return ARGS_OF(value);
+    }
+
+    @deprecated("Use ArgsOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ARGS_OF(value : Parsable[T]) : List[String] {
         return parsable_args(value);
     }
 
+    function RuntimeInfoOf(value : Parsable[T]) : Table {
+        return RUNTIME_INFO_OF(value);
+    }
+
+    @deprecated("Use RuntimeInfoOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function RUNTIME_INFO_OF(value : Parsable[T]) : Table {
         return parsable_runtime_info(value);
     }
 
+    function WorkspaceOf(value : Parsable[T]) : WorkSpace {
+        return WORKSPACE_OF(value);
+    }
+
+    @deprecated("Use WorkspaceOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function WORKSPACE_OF(value : Parsable[T]) : WorkSpace {
         return parsable_workspace(value);
     }
 
+    function AstCount(value : Parsable[T]) : Int {
+        return AST_COUNT(value);
+    }
+
+    @deprecated("Use AstCount instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function AST_COUNT(value : Parsable[T]) : Int {
         return len(AST_OF(value));
     }
 
+    function Describe(value : Parsable[T]) : Table {
+        return DESCRIBE(value);
+    }
+
+    @deprecated("Use Describe instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DESCRIBE(value : Parsable[T]) : Table {
         local List[Table] ast = AST_OF(value);
         local List[String] args = ARGS_OF(value);
@@ -106,26 +191,56 @@ namespace language {
         };
     }
 
+    function DescribeJson(value : Parsable[T]) : String {
+        return DESCRIBE_JSON(value);
+    }
+
+    @deprecated("Use DescribeJson instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DESCRIBE_JSON(value : Parsable[T]) : String {
         return json_stringify(DESCRIBE(value));
     }
 
+    function WithSource(value : Parsable[T], source : String) : Result[Parsable[T], String] {
+        return WITH_SOURCE(value, source);
+    }
+
+    @deprecated("Use WithSource instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function WITH_SOURCE(value : Parsable[T], source : String) : Result[Parsable[T], String] {
         return parsable_with_source(value, source);
     }
 
+    function ReplaceSource(value : Parsable[T], old : String, next : String) : Result[Parsable[T], String] {
+        return REPLACE_SOURCE(value, old, next);
+    }
+
+    @deprecated("Use ReplaceSource instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function REPLACE_SOURCE(value : Parsable[T], old : String, next : String) : Result[Parsable[T], String] {
         return parsable_replace(value, old, next);
     }
 
+    function AppendSource(value : Parsable[T], extra : String) : Result[Parsable[T], String] {
+        return APPEND_SOURCE(value, extra);
+    }
+
+    @deprecated("Use AppendSource instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function APPEND_SOURCE(value : Parsable[T], extra : String) : Result[Parsable[T], String] {
         return parsable_append(value, extra);
     }
 
+    function BeginPolling(value : Parsable[T]) : Parsable[T] {
+        return BEGIN_POLLING(value);
+    }
+
+    @deprecated("Use BeginPolling instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function BEGIN_POLLING(value : Parsable[T]) : Parsable[T] {
         return parsable_begin_polling(value);
     }
 
+    function Message(kind : String, payload : Any) : Table {
+        return MESSAGE(kind, payload);
+    }
+
+    @deprecated("Use Message instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function MESSAGE(kind : String, payload : Any) : Table {
         return {
             "kind": kind,
@@ -133,42 +248,92 @@ namespace language {
         };
     }
 
+    function RequestAst(value : Parsable[T]) : Table {
+        return REQUEST_AST(value);
+    }
+
+    @deprecated("Use RequestAst instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function REQUEST_AST(value : Parsable[T]) : Table {
         return parsable_poll_message(value, MESSAGE("REQUEST_AST", SOURCE_OF(value)));
     }
 
+    function PollMessage(value : Parsable[T], message : Table) : Table {
+        return POLL_MESSAGE(value, message);
+    }
+
+    @deprecated("Use PollMessage instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function POLL_MESSAGE(value : Parsable[T], message : Table) : Table {
         return parsable_poll_message(value, message);
     }
 
+    function InterceptMessage(value : Parsable[T], message : Table) : Table {
+        return INTERCEPT_MESSAGE(value, message);
+    }
+
+    @deprecated("Use InterceptMessage instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function INTERCEPT_MESSAGE(value : Parsable[T], message : Table) : Table {
         return parsable_intercept_message(value, message);
     }
 
+    function MacroContextTable() : Table {
+        return MACRO_CONTEXT_TABLE();
+    }
+
+    @deprecated("Use MacroContextTable instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function MACRO_CONTEXT_TABLE() : Table {
         return macro_context();
     }
 
+    function MacroArgs() : List[T] {
+        return MACRO_ARGS();
+    }
+
+    @deprecated("Use MacroArgs instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function MACRO_ARGS() : List[T] {
         return get_args_from_parsable();
     }
 
+    function MacroExpandSource(source : String) : Parsable[T] {
+        return MACRO_EXPAND_SOURCE(source);
+    }
+
+    @deprecated("Use MacroExpandSource instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function MACRO_EXPAND_SOURCE(source : String) : Parsable[T] {
         return macro_expand(source);
     }
 
+    function ProgramFromModules(modules : List[String]) : Program {
+        return PROGRAM_FROM_MODULES(modules);
+    }
+
+    @deprecated("Use ProgramFromModules instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PROGRAM_FROM_MODULES(modules : List[String]) : Program {
         return Program(modules);
     }
 
+    function BuildSystem(name : String, files : List[String], backend : String = "Standalone") : BuildSystem {
+        return BUILD_SYSTEM(name, files, backend);
+    }
+
+    @deprecated("Use BuildSystem instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function BUILD_SYSTEM(name : String, files : List[String], backend : String = "Standalone") : BuildSystem {
         return BuildSystem(name, len(files), files, backend);
     }
 
+    function Workspace(modules : List[String], files : List[String], backend : String = "Standalone") : WorkSpace {
+        return WORKSPACE(modules, files, backend);
+    }
+
+    @deprecated("Use Workspace instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function WORKSPACE(modules : List[String], files : List[String], backend : String = "Standalone") : WorkSpace {
         return WorkSpace(PROGRAM_FROM_MODULES(modules), BUILD_SYSTEM("workspace", files, backend));
     }
 
+    function WorkspaceTable(workspace : WorkSpace) : Table {
+        return WORKSPACE_TABLE(workspace);
+    }
+
+    @deprecated("Use WorkspaceTable instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function WORKSPACE_TABLE(workspace : WorkSpace) : Table {
         return {
             "backend": workspace_backend(workspace),
@@ -178,10 +343,20 @@ namespace language {
         };
     }
 
+    function StateSnapshot() : List[Table] {
+        return STATE_SNAPSHOT();
+    }
+
+    @deprecated("Use StateSnapshot instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function STATE_SNAPSHOT() : List[Table] {
         return debug_state();
     }
 
+    function StackSnapshot() : List[String] {
+        return STACK_SNAPSHOT();
+    }
+
+    @deprecated("Use StackSnapshot instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function STACK_SNAPSHOT() : List[String] {
         return debug_stack();
     }

@@ -2450,6 +2450,9 @@ func TestRuntimeExecutesStdlibArrayAlias(t *testing.T) {
 	result := runSource(t, `
 import "array";
 
+function AliasEven(value : Int) : Bool { return value % 2 == 0; }
+function AliasDouble(value : Int) : Int { return value * 2; }
+
 function Main() : Int {
     local List[Int] values = [1, 2, 3];
     local T created = Array(values, len(values), 3);
@@ -2461,9 +2464,11 @@ function Main() : Int {
     local Array window = removed.reverse();
     local Option[Int] front = window.front();
     local Option[Int] missing = window.fetch(20);
+    local List[Int] pipelineValues = created.filter(AliasEven).map(AliasDouble).sort();
     if not front.some or missing.some {
         return 0;
     }
+    assert pipelineValues[0] == 4;
     return window.count() + window.get(0) + window.index_of(9) + grown.occurrences(9) + created.capacity_value();
 }
 `)
@@ -3143,6 +3148,32 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeCastsStructAliasesByFieldName(t *testing.T) {
+	result := runParsedSource(t, `
+alias function User(id : Int, name : String) : type = struct {}
+alias function PublicUser(name : String, active : Bool = True) : type = struct {}
+
+function Main() : Int {
+    local User user = User(7, "Ada");
+    local Table row = user.cast_as(Table);
+    local JSON document = user.cast_as(JSON);
+    local String encoded = user.cast_as(String);
+    local PublicUser view = user.cast_as(PublicUser);
+    assert row["id"] == 7;
+    assert row["name"] == "Ada";
+    assert document.id == 7;
+    assert encoded == json_stringify(document);
+    assert view.name == "Ada";
+    assert view.active;
+    return row["id"];
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 7 {
+		t.Fatalf("expected converted table id 7, got %#v", result.Value)
+	}
+}
+
 func TestRuntimeExecutesAliasFunctionStructBody(t *testing.T) {
 	result := runParsedSource(t, `
 alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) : type = struct {
@@ -3468,6 +3499,79 @@ function Main() : Int {
 
 	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 57 {
 		t.Fatalf("expected table/async/iterator/coroutine program to return 57, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeExecutesLazyFusedIteratorPipelines(t *testing.T) {
+	result := runParsedSource(t, `
+global mut Int PipelineCalls = 0;
+
+function IsEven(value : Int) : Bool {
+    return value % 2 == 0;
+}
+
+function Track(value : Int) : Int {
+    PipelineCalls += 1;
+    return value * 10;
+}
+
+function Add(total : Int, value : Int) : Int {
+    return total + value;
+}
+
+function GreaterThanFive(value : Int) : Bool {
+    return value > 5;
+}
+
+function OnlyFirst(value : Int) : Int {
+    assert value == 1;
+    return value;
+}
+
+function PositiveEntry(entry : Table) : Bool {
+    return (entry.value as Int) > 0;
+}
+
+function EntryValue(entry : Table) : Int {
+    return entry.value as Int;
+}
+
+function Main() : Int {
+    local List[Int] values = [6, 1, 4, 3, 2];
+    local Iterator[Int] pipeline = values.filter(IsEven).limit(3).map(Track);
+    assert PipelineCalls == 0;
+
+    local List[Int] sorted = pipeline.sort();
+    assert PipelineCalls == 3;
+    assert sorted[0] == 20;
+    assert sorted[1] == 40;
+    assert sorted[2] == 60;
+
+    local Int total = values.filter(IsEven).fold(0, Add);
+    local Option[Int] first = values.filter(IsEven).first();
+    local Bool any = values.map(Track).any(GreaterThanFive);
+    local Int evenCount = values.filter(IsEven).count;
+    local Int limitedCount = [1, 2].map(OnlyFirst).limit(1).count;
+    local Table dictionary = {"six": 6, "two": 2, "four": 4};
+    local List[Int] dictionaryValues = dictionary.filter(PositiveEntry).map(EntryValue).sort();
+    local Map[String, Int] typedDictionary = {"eight": 8, "one": 1};
+    local List[Int] typedValues = typedDictionary.map(EntryValue).sort();
+    assert total == 12;
+    assert evenCount == 3;
+    assert limitedCount == 1;
+    assert first.some;
+    assert first.value == 6;
+    assert any;
+    assert dictionaryValues[0] == 2;
+    assert dictionaryValues[2] == 6;
+    assert typedValues[0] == 1;
+    assert typedValues[1] == 8;
+    return sorted[2];
+}
+`)
+
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 60 {
+		t.Fatalf("expected fused pipeline result 60, got %#v", result.Value)
 	}
 }
 

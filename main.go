@@ -19,6 +19,7 @@ import (
 
 	enginebackend "kLang/src/engine/backend"
 	jsbackend "kLang/src/engine/backend/js"
+	wasmbackend "kLang/src/engine/backend/wasm"
 	langcontext "kLang/src/engine/context"
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
@@ -487,8 +488,11 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 		return fmt.Errorf("parse failed")
 	}
 	var compiledOutput *enginebackend.Output
+	var compilerBackend enginebackend.Backend
+	wasmBytecodeStatus := "not-applicable"
 	if backend == "JS" {
 		compiler := jsbackend.New()
+		compilerBackend = compiler
 		request := backendRequest(resolvedProgram, parsedProgram)
 		diagnostics := compiler.Check(request)
 		if len(diagnostics) != 0 {
@@ -501,6 +505,25 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 			return err
 		}
 		compiledOutput = &output
+	} else if backend == "WASM" {
+		compiler := wasmbackend.New()
+		request := backendRequest(resolvedProgram, parsedProgram)
+		diagnostics := compiler.Check(request)
+		if len(diagnostics) == 0 {
+			output, err := compiler.Emit(request)
+			if err != nil {
+				printContextErrors([]langcontext.ErrorContext{langcontext.BackendError(resolvedProgram, backend, err)})
+				return err
+			}
+			compilerBackend = compiler
+			compiledOutput = &output
+			wasmBytecodeStatus = "compiled"
+		} else {
+			wasmBytecodeStatus = "interpreter-fallback"
+			if options.Verbose {
+				fmt.Fprintf(os.Stderr, "warning: WASM bytecode subset rejected %d construct(s); packaging browser interpreter fallback\n", len(diagnostics))
+			}
+		}
 	}
 
 	bundleDir := filepath.Join(outRoot, program.Name+"-"+strings.ToLower(backend))
@@ -551,9 +574,12 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 		"number_of_files": len(resolvedProgram.Files),
 		"files":           manifestFiles,
 		"artifacts":       artifacts,
-		"backend_mode":    backendMode(backend),
-		"backend_status":  backendStatus(backend),
+		"backend_mode":    backendMode(backend, wasmBytecodeStatus),
+		"backend_status":  backendStatus(backend, wasmBytecodeStatus),
 		"raw_lang":        options.RawLang,
+	}
+	if backend == "WASM" {
+		manifest["bytecode_status"] = wasmBytecodeStatus
 	}
 	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
@@ -563,7 +589,7 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 		return err
 	}
 	if compiledOutput != nil {
-		if err := jsbackend.New().Package(*compiledOutput, bundleDir); err != nil {
+		if err := compilerBackend.Package(*compiledOutput, bundleDir); err != nil {
 			printContextErrors([]langcontext.ErrorContext{langcontext.BackendError(resolvedProgram, backend, err)})
 			return err
 		}
@@ -597,19 +623,22 @@ func backendRequest(program file.Program, parsed parser.ParsedProgram) enginebac
 	return enginebackend.Request{Program: program, Parsed: parsed}
 }
 
-func backendMode(name string) string {
+func backendMode(name string, wasmBytecodeStatus string) string {
 	switch name {
 	case "JS":
 		return "native-codegen"
 	case "WASM":
+		if wasmBytecodeStatus == "compiled" {
+			return "bytecode-vm"
+		}
 		return "browser-runtime"
 	default:
 		return "interpreter-package"
 	}
 }
 
-func backendStatus(name string) string {
-	if name == "JS" {
+func backendStatus(name string, wasmBytecodeStatus string) string {
+	if name == "JS" || name == "WASM" && wasmBytecodeStatus == "compiled" {
 		return "experimental"
 	}
 	return "runtime"
@@ -968,6 +997,7 @@ func klangBrowserJS() string {
 	return `let klangGoRuntime = null;
 let klangWasmStarted = false;
 let klangProject = null;
+let klangBytecode = undefined;
 
 async function startKlangWASM() {
   if (klangWasmStarted) return;
@@ -989,14 +1019,31 @@ async function loadKlangProject() {
   }
   klangProject = {
     name: manifest.project_name,
-    entry: manifest.entry,
+    entry: manifest.source_entry || manifest.entry,
     files,
   };
   return klangProject;
 }
 
+async function loadKlangBytecode() {
+  if (klangBytecode !== undefined) return klangBytecode;
+  const manifest = await fetch("klang-build.json").then((response) => response.json());
+  if (!Array.isArray(manifest.artifacts) || !manifest.artifacts.includes("program.kbc")) {
+    klangBytecode = null;
+    return null;
+  }
+  const response = await fetch("program.kbc");
+  if (!response.ok) throw new Error("could not load program.kbc");
+  klangBytecode = new Uint8Array(await response.arrayBuffer());
+  return klangBytecode;
+}
+
 async function runKlangProject(args = []) {
   await startKlangWASM();
+  const bytecode = await loadKlangBytecode();
+  if (bytecode !== null) {
+    return JSON.parse(globalThis.klangRunBytecode(bytecode, args));
+  }
   const project = await loadKlangProject();
   return JSON.parse(globalThis.klangRunProject(project, args));
 }
@@ -1015,6 +1062,7 @@ async function runKlangSource(source, args = []) {
 globalThis.KlangBrowser = {
   start: startKlangWASM,
   loadProject: loadKlangProject,
+  loadBytecode: loadKlangBytecode,
   runProject: runKlangProject,
   checkProject: checkKlangProject,
   runSource: runKlangSource,
@@ -1069,11 +1117,12 @@ This bundle contains a browser-hosted Klang runtime.
 
 ## Files
 
-- ` + "`klang.wasm`" + `: the Go interpreter/runtime compiled with ` + "`GOOS=js GOARCH=wasm`" + `.
+- ` + "`klang.wasm`" + `: the Go bytecode VM and compatibility interpreter compiled with ` + "`GOOS=js GOARCH=wasm`" + `.
+- ` + "`program.kbc`" + `: versioned Klang bytecode when the project fits the typed WASM subset.
 - ` + "`wasm_exec.js`" + `: Go's JavaScript support shim for WASM.
 - ` + "`klang_browser.js`" + `: browser loader exposing ` + "`KlangBrowser.runProject()`" + ` and ` + "`KlangBrowser.runSource(source, args)`" + `.
 - ` + "`klang-build.json`" + `: package manifest.
-- ` + "`src/`" + `: resolved Klang source files.
+- ` + "`src/`" + `: resolved Klang source files used for diagnostics and interpreter fallback.
 
 ## Run Locally
 

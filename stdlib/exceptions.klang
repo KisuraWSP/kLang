@@ -77,6 +77,11 @@ namespace exceptions {
     --- Returns: Int.
     --- Summary: Provides the stdlib column operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Column() : Int {
+        return column();
+    }
+
+    @deprecated("Use Column instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function column() : Int {
         return 1;
     }
@@ -85,6 +90,11 @@ namespace exceptions {
     --- Returns: Function[Any, String].
     --- Summary: Builds, writes, or formats format fun using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FormatFun() : Function[Any, String] {
+        return format_fun();
+    }
+
+    @deprecated("Use FormatFun instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function format_fun() : Function[Any, String] {
         --- Signature: function default_format(value : Any) : String
         --- Returns: String.
@@ -101,6 +111,11 @@ namespace exceptions {
     --- Returns: Table.
     --- Summary: Builds, writes, or formats format options using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FormatOptions() : Table {
+        return format_options();
+    }
+
+    @deprecated("Use FormatOptions instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function format_options() : Table {
         return {
             "column": column(),
@@ -113,6 +128,11 @@ namespace exceptions {
     --- Returns: Function[String, String, Int, Bool].
     --- Summary: Provides the stdlib stack trim fun operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function StackTrimFun() : Function[String, String, Int, Bool] {
+        return stack_trim_fun();
+    }
+
+    @deprecated("Use StackTrimFun instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function stack_trim_fun() : Function[String, String, Int, Bool] {
         --- Signature: function keep_stack_entry(module : String, functionName : String, arity : Int) : Bool
         --- Returns: Bool.
@@ -129,6 +149,11 @@ namespace exceptions {
     --- Returns: Table.
     --- Summary: Builds, writes, or formats format error using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FormatError(reason : Any, stackTrace : List[String]) : Table {
+        return format_error(reason, stackTrace);
+    }
+
+    @deprecated("Use FormatError instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function format_error(reason : Any, stackTrace : List[String]) : Table {
         local Function[Any, String] formatter = format_fun();
         return {
@@ -143,6 +168,11 @@ namespace exceptions {
     --- Returns: String.
     --- Summary: Builds, writes, or formats format stack using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FormatStack(stackTrace : List[String]) : String {
+        return format_stack(stackTrace);
+    }
+
+    @deprecated("Use FormatStack instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function format_stack(stackTrace : List[String]) : String {
         local mut String rendered = "";
         local mut Int index = 0;
@@ -163,6 +193,11 @@ namespace exceptions {
     --- Returns: String.
     --- Summary: Builds, writes, or formats format exception using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FormatException(errorClass : String, reason : Any, stackTrace : List[String], options : Table = format_options()) : String {
+        return format_exception(errorClass, reason, stackTrace, options);
+    }
+
+    @deprecated("Use FormatException instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function format_exception(errorClass : String, reason : Any, stackTrace : List[String], options : Table = format_options()) : String {
         local Table details = format_error(reason, stackTrace);
         local String reasonText = details.reason as String;
@@ -185,6 +220,11 @@ namespace exceptions {
     --- Returns: String.
     --- Summary: Builds, writes, or formats format current exception using the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FormatCurrentException(errorClass : String, reason : Any) : String {
+        return format_current_exception(errorClass, reason);
+    }
+
+    @deprecated("Use FormatCurrentException instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function format_current_exception(errorClass : String, reason : Any) : String {
         return format_exception(errorClass, reason, debug_stack(), format_options());
     }
@@ -193,6 +233,11 @@ namespace exceptions {
     --- Returns: Table.
     --- Summary: Provides the stdlib capture error operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function CaptureError(errorClass : String, reason : Any) : Table {
+        return capture_error(errorClass, reason);
+    }
+
+    @deprecated("Use CaptureError instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function capture_error(errorClass : String, reason : Any) : Table {
         return {
             "class": errorClass,

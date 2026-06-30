@@ -153,6 +153,31 @@ local string_list copied = values as string_list;
 -- local User user = raw as User;
 ```
 
+Struct aliases use the separate `cast_as` method for structural conversions:
+```lua
+alias function User(id : Int, name : String) : type = struct {}
+alias function PublicUser(name : String, active : Bool = True) : type = struct {}
+
+local User user = User(7, "Ada");
+local Table fields = user.cast_as(Table);
+local JSON document = user.cast_as(JSON);
+local String encoded = user.cast_as(String);
+local PublicUser view = user.cast_as(PublicUser);
+```
+
+Lazy functional pipelines use ordinary selector chaining:
+```lua
+function Active(value : Int) : Bool { return value > 0; }
+function Double(value : Int) : Int { return value * 2; }
+
+local Iterator[Int] plan = values.filter(Active).map(Double).limit(10);
+-- No callbacks have run yet.
+local List[Int] result = plan.sort();
+```
+
+Pipeline stages are `filter`, `map`, `skip`, and `limit`. Terminals are
+`collect`, `sort`, `fold`, `first`, `any`, `all`, and `for_each`.
+
 ```lua
 -- local variable
 local Int x = 10;
@@ -891,7 +916,10 @@ local Int counterValue = atomic_load(counter);
 -- compact build/workspace meta-programming
 -- BuildSystem backend must be "WASM", "JS", or "Standalone".
 -- JS emits experimental native JavaScript for the typed core subset.
--- Standalone packages interpreter sources; WASM runs the interpreter/runtime in browser WebAssembly.
+-- Standalone packages interpreter sources. WASM emits program.kbc for its typed
+-- subset and executes it in a browser WebAssembly stack VM. The VM supports
+-- primitives, Lists, checked indexing/mutation, len, range, and for_each.
+-- Programs outside that subset automatically retain the browser interpreter path.
 -- The CLI can also serve a WASM browser bundle through `kLang serve`.
 local Program program = Program(["app", "mathg"]);
 local BuildSystem build = BuildSystem("demo", 2, ["first.klang", "app.klang"], "Standalone");
@@ -957,7 +985,8 @@ alias function User(id : String, name : String, active : Bool = True) : type = s
 
 function StructJSONForJS() : String {
     let user = User("42", "Ada");
-    local JSON document = JSON(user);
+    local JSON document = user.cast_as(JSON);
+    local Table fields = user.cast_as(Table);
     print(user.label());
     return json_stringify(document);
 }
@@ -1193,6 +1222,13 @@ function OldToNumber(value : String) : Int {
 function ParseNumber(value : String) : Int {
     return value as Int;
 }
+
+#extend String {
+    @deprecated("use normalized")
+    function NORMALIZED() : String {
+        return this;
+    }
+}
 ```
 
 5. Error Handling
@@ -1360,17 +1396,18 @@ do_while i := range(10) {
 - Namespaces can be nested. Nested functions are called through chained dot paths.
 - `alias` binds a shorter name to a local or imported namespace path, and `::` calls through that alias.
 - Alias targets can name nested namespaces or use an earlier alias. Selective and inferred imports resolve the full alias chain.
+- Keyword-shaped names are contextual here, so the stdlib can expose `namespace enum` and calls such as `enum.Map(values, mapper)`.
 ```lua
 import "array";
 
 alias arr = array;
-alias arr_sort = arr.sort;
+alias arr_sort = arr.Sort;
 
 local List[Int] values = [1, 2, 3, 4];
-print(arr::empty(values));
-print(arr::len(values));
-local List[Int] copied = arr::copy(values);
-local List[Int] sorted = arr_sort::sort(values);
+print(arr::Empty(values));
+print(arr::Len(values));
+local List[Int] copied = arr::Copy(values);
+local List[Int] sorted = arr_sort::Sort(values);
 
 namespace std {
     namespace lib {
@@ -1497,7 +1534,7 @@ local Result[Bool, String] removed = file_remove(notes);
 13. Native OS operations
 - `OS()` creates an immutable host descriptor backed by Go. No kLang stdlib implementation performs the underlying OS calls.
 - Environment and working-directory mutations are process-global. Subprocess commands execute directly and do not pass through a shell.
-- Prefer `import "os";` and the upper snake case stdlib API for application code.
+- Prefer `import "os";` and the UpperCamelCase stdlib API for application code.
 ```lua
 import "os";
 

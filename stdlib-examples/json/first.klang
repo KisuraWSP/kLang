@@ -83,7 +83,7 @@ function BracketString(value : String) : String {
 function ShowTypedJSON() : Int {
     Divider("runtime-backed JSON values");
 
-    local JSON document = json.must_parse(//
+    local JSON document = json.MustParse(//
 {
     "name": "kLang",
     "ports": [8080, 8081],
@@ -91,27 +91,27 @@ function ShowTypedJSON() : Int {
     "metadata": null
 }
 //);
-    local String name = option_unwrap_or(json.as_string(document.name), "unknown");
-    local JSON firstPortValue = option_unwrap_or(json.get_index(document.ports, 0), json.null_json());
-    local Int firstPort = option_unwrap_or(json.as_int(firstPortValue), 0);
-    local Bool debug = option_unwrap_or(json.as_bool(document.debug), False);
-    local Option[JSON] missing = json.get_field(document, "missing");
-    local String encoded = json.stringify(document);
-    local String encodedDirect = json.encode_json(document);
-    local Result[JSON, String] reparsed = json.parse(encoded);
-    local Result[JSON, String] invalid = json.parse("{");
+    local String name = option_unwrap_or(json.AsString(document.name), "unknown");
+    local JSON firstPortValue = option_unwrap_or(json.GetIndex(document.ports, 0), json.NullJson());
+    local Int firstPort = option_unwrap_or(json.AsInt(firstPortValue), 0);
+    local Bool debug = option_unwrap_or(json.AsBool(document.debug), False);
+    local Option[JSON] missing = json.GetField(document, "missing");
+    local String encoded = json.Stringify(document);
+    local String encodedDirect = json.EncodeJson(document);
+    local Result[JSON, String] reparsed = json.Parse(encoded);
+    local Result[JSON, String] invalid = json.Parse("{");
 
     print("document", document);
-    print("kind", json.kind(document));
+    print("kind", json.Kind(document));
     print("name", name);
     print("firstPort", firstPort);
     print("encoded", encoded);
 
-    RequireString("JSON kind", json.kind(document), "object");
+    RequireString("JSON kind", json.Kind(document), "object");
     RequireString("JSON name", name, "kLang");
     RequireInt("JSON first port", firstPort, 8080);
     RequireBool("JSON bool", debug, True);
-    RequireBool("JSON null", json.is_null(document.metadata), True);
+    RequireBool("JSON null", json.IsNull(document.metadata), True);
     RequireBool("JSON missing field", missing.some, False);
     RequireBool("JSON parse serialized", reparsed.ok, True);
     RequireBool("JSON invalid parse", invalid.ok, False);
@@ -124,7 +124,7 @@ function ShowTypedJSON() : Int {
 function ShowKindsAndSafeAccess() : Int {
     Divider("JSON kinds and safe typed access");
 
-    local JSON document = json.must_parse(//
+    local JSON document = json.MustParse(//
 {
     "title": "kLang",
     "count": 42,
@@ -134,16 +134,16 @@ function ShowKindsAndSafeAccess() : Int {
     "items": ["first", 2, false]
 }
 //);
-    local JSON titleValue = option_unwrap_or(json.get_field(document, "title"), json.null_json());
-    local JSON countValue = option_unwrap_or(json.get_field(document, "count"), json.null_json());
-    local JSON ratioValue = option_unwrap_or(json.get_field(document, "ratio"), json.null_json());
-    local JSON readyValue = option_unwrap_or(json.get_field(document, "ready"), json.null_json());
-    local JSON firstValue = option_unwrap_or(json.get_index(document.items, 0), json.null_json());
-    local JSON secondValue = option_unwrap_or(json.get_index(document.items, 1), json.null_json());
-    local JSON thirdValue = option_unwrap_or(json.get_index(document.items, 2), json.null_json());
-    local Option[JSON] missingField = json.get_field(document, "unknown");
-    local Option[JSON] missingIndex = json.get_index(document.items, 99);
-    local Option[JSON] negativeIndex = json.get_index(document.items, 0 - 1);
+    local JSON titleValue = option_unwrap_or(json.GetField(document, "title"), json.NullJson());
+    local JSON countValue = option_unwrap_or(json.GetField(document, "count"), json.NullJson());
+    local JSON ratioValue = option_unwrap_or(json.GetField(document, "ratio"), json.NullJson());
+    local JSON readyValue = option_unwrap_or(json.GetField(document, "ready"), json.NullJson());
+    local JSON firstValue = option_unwrap_or(json.GetIndex(document.items, 0), json.NullJson());
+    local JSON secondValue = option_unwrap_or(json.GetIndex(document.items, 1), json.NullJson());
+    local JSON thirdValue = option_unwrap_or(json.GetIndex(document.items, 2), json.NullJson());
+    local Option[JSON] missingField = json.GetField(document, "unknown");
+    local Option[JSON] missingIndex = json.GetIndex(document.items, 99);
+    local Option[JSON] negativeIndex = json.GetIndex(document.items, 0 - 1);
 
     print("document", document);
     print("titleValue", titleValue);
@@ -152,25 +152,25 @@ function ShowKindsAndSafeAccess() : Int {
     print("readyValue", readyValue);
     print("items", document.items);
 
-    RequireString("kind object", json.kind(document), "object");
-    RequireString("kind array", json.kind(document.items), "array");
-    RequireString("kind string", json.kind(titleValue), "string");
-    RequireString("kind integer number", json.kind(countValue), "number");
-    RequireString("kind float number", json.kind(ratioValue), "number");
-    RequireString("kind bool", json.kind(readyValue), "bool");
-    RequireString("kind null", json.kind(document.missing), "null");
-    RequireString("as_string", option_unwrap_or(json.as_string(titleValue), ""), "kLang");
-    RequireInt("as_int", option_unwrap_or(json.as_int(countValue), 0), 42);
-    RequireFloat("as_float", option_unwrap_or(json.as_float(ratioValue), 0.0), 3.5);
-    RequireBool("as_bool", option_unwrap_or(json.as_bool(readyValue), False), True);
-    RequireString("first array item", option_unwrap_or(json.as_string(firstValue), ""), "first");
-    RequireInt("second array item", option_unwrap_or(json.as_int(secondValue), 0), 2);
-    RequireBool("third array item", option_unwrap_or(json.as_bool(thirdValue), True), False);
-    RequireBool("wrong scalar extractor", json.as_int(titleValue).some, False);
+    RequireString("kind object", json.Kind(document), "object");
+    RequireString("kind array", json.Kind(document.items), "array");
+    RequireString("kind string", json.Kind(titleValue), "string");
+    RequireString("kind integer number", json.Kind(countValue), "number");
+    RequireString("kind float number", json.Kind(ratioValue), "number");
+    RequireString("kind bool", json.Kind(readyValue), "bool");
+    RequireString("kind null", json.Kind(document.missing), "null");
+    RequireString("as_string", option_unwrap_or(json.AsString(titleValue), ""), "kLang");
+    RequireInt("as_int", option_unwrap_or(json.AsInt(countValue), 0), 42);
+    RequireFloat("as_float", option_unwrap_or(json.AsFloat(ratioValue), 0.0), 3.5);
+    RequireBool("as_bool", option_unwrap_or(json.AsBool(readyValue), False), True);
+    RequireString("first array item", option_unwrap_or(json.AsString(firstValue), ""), "first");
+    RequireInt("second array item", option_unwrap_or(json.AsInt(secondValue), 0), 2);
+    RequireBool("third array item", option_unwrap_or(json.AsBool(thirdValue), True), False);
+    RequireBool("wrong scalar extractor", json.AsInt(titleValue).some, False);
     RequireBool("missing field", missingField.some, False);
     RequireBool("missing index", missingIndex.some, False);
     RequireBool("negative index", negativeIndex.some, False);
-    RequireBool("is_null", json.is_null(document.missing), True);
+    RequireBool("is_null", json.IsNull(document.missing), True);
     RequireInt("array count", len(document.items), 3);
 
     return 1;
@@ -186,19 +186,19 @@ function ShowNativeRoundTrip() : Int {
         "items" :[1, 2, 3],
         "metadata" : None()
     };
-    local Result[String, String] serialized = json.serialize(source);
+    local Result[String, String] serialized = json.Serialize(source);
     local String encoded = result_unwrap_or(serialized, "");
-    local Result[T, String] decoded = json.deserialize(encoded);
+    local Result[T, String] decoded = json.Deserialize(encoded);
     local T decodedValue = result_unwrap_or(decoded, { });
     local Table restored = decodedValue as Table;
     local List[T] restoredItems = restored.items as List[T];
     local List[T] restoredKeys = table_keys(restored);
     local JSON restoredMetadata = JSON(restored.metadata);
     local Table fallback = { "fallback" : True, "reason" : "invalid JSON" };
-    local T recoveredValue = json.deserialize_or("{", fallback);
+    local T recoveredValue = json.DeserializeOr("{", fallback);
     local Table recovered = recoveredValue as Table;
-    local Int scalar = json.deserialize_or("42", 0);
-    local Result[String, String] unsafeKey = json.serialize({ 1 : "not an object key" });
+    local Int scalar = json.DeserializeOr("42", 0);
+    local Result[String, String] unsafeKey = json.Serialize({ 1 : "not an object key" });
     local String expectedEncoded = //
 {"active":true,"items":[1,2,3],"metadata":null,"name":"kLang","ratio":1.5}
 //;
@@ -219,9 +219,9 @@ function ShowNativeRoundTrip() : Int {
     RequireInt("restored item count", len(restoredItems), 3);
     RequireInt("restored first item", restoredItems[0] as Int, 1);
     RequireString("sorted first key", restoredKeys[0] as String, "active");
-    RequireBool("restored null", json.is_null(restoredMetadata), True);
-    RequireBool("valid serialized", json.valid(encoded), True);
-    RequireBool("valid invalid source", json.valid("{"), False);
+    RequireBool("restored null", json.IsNull(restoredMetadata), True);
+    RequireBool("valid serialized", json.Valid(encoded), True);
+    RequireBool("valid invalid source", json.Valid("{"), False);
     RequireBool("fallback value", recovered.fallback as Bool, True);
     RequireString("fallback reason", recovered.reason as String, "invalid JSON");
     RequireInt("scalar deserialize_or", scalar, 42);
@@ -235,8 +235,8 @@ function ShowAliasStructSerialization() : Int {
 
     let user = User("42", "Ada", ["admin", "author"]);
     local JSON document = JSON(user);
-    local String encoded = json.stringify(user);
-    local Result[String, String] serialized = json.serialize(user);
+    local String encoded = json.Stringify(user);
+    local Result[String, String] serialized = json.Serialize(user);
     local Type metadata = User.get_runtime_type_info();
     local Table serialization = metadata.serialization;
     local Table tags = serialization.json_tags as Table;
@@ -251,9 +251,9 @@ function ShowAliasStructSerialization() : Int {
 
     RequireString("tagged struct JSON", encoded, expectedEncoded);
     RequireOkString("safe tagged serialization", serialized, encoded);
-    RequireString("document display_name", option_unwrap_or(json.as_string(document.display_name), ""), "Ada");
-    RequireString("document user_id", option_unwrap_or(json.as_string(document.user_id), ""), "42");
-    RequireBool("document active", option_unwrap_or(json.as_bool(document.active), False), True);
+    RequireString("document display_name", option_unwrap_or(json.AsString(document.display_name), ""), "Ada");
+    RequireString("document user_id", option_unwrap_or(json.AsString(document.user_id), ""), "42");
+    RequireBool("document active", option_unwrap_or(json.AsBool(document.active), False), True);
     RequireInt("document role count", len(document.roles), 2);
     RequireString("id tag metadata", tags.id as String, "user_id");
     RequireString("displayName tag metadata", tags.displayName as String, "display_name");
@@ -268,12 +268,12 @@ function ShowPrimitiveEncoders() : Int {
     local String trueValue = json.Bool(True);
     local String falseValue = json.Bool(False);
     local String quoted = json.String("klang");
-    local String binary = json.encode_binary("tea");
-    local String escaped = json.encode_binary_escape_all("milk");
-    local String atom = json.encode_atom(True);
-    local String integer = json.encode_integer(42);
-    local String negative = json.encode_integer(0 - 7);
-    local String floating = json.encode_float(3.5);
+    local String binary = json.EncodeBinary("tea");
+    local String escaped = json.EncodeBinaryEscapeAll("milk");
+    local String atom = json.EncodeAtom(True);
+    local String integer = json.EncodeInteger(42);
+    local String negative = json.EncodeInteger(0 - 7);
+    local String floating = json.EncodeFloat(3.5);
     local String pair = json.PairString("name", "kLang");
     local String object = json.Object1(pair);
 
@@ -309,22 +309,22 @@ function ShowPrimitiveEncoders() : Int {
 function ShowFunctionBuilders() : Int {
     Divider("array/object builder functions");
 
-    local Function[String] arrayStart = json.array_start_fun();
-    local Function[String, String, String] arrayPush = json.array_push_fun();
-    local Function[String, String] arrayFinish = json.array_finish_fun();
+    local Function[String] arrayStart = json.ArrayStartFun();
+    local Function[String, String, String] arrayPush = json.ArrayPushFun();
+    local Function[String, String] arrayFinish = json.ArrayFinishFun();
 
     local mut String arrayState = arrayStart();
-    arrayState = arrayPush(arrayState, json.encode_integer(1));
-    arrayState = arrayPush(arrayState, json.encode_integer(2));
-    arrayState = arrayPush(arrayState, json.encode_integer(3));
+    arrayState = arrayPush(arrayState, json.EncodeInteger(1));
+    arrayState = arrayPush(arrayState, json.EncodeInteger(2));
+    arrayState = arrayPush(arrayState, json.EncodeInteger(3));
     local String arrayJson = arrayFinish(arrayState);
 
-    local Function[String] objectStart = json.object_start_fun();
-    local Function[String, String, String, String] objectPush = json.object_push_fun();
-    local Function[String, String] objectFinish = json.object_finish_fun();
+    local Function[String] objectStart = json.ObjectStartFun();
+    local Function[String, String, String, String] objectPush = json.ObjectPushFun();
+    local Function[String, String] objectFinish = json.ObjectFinishFun();
 
     local mut String objectState = objectStart();
-    objectState = objectPush(objectState, "name", json.encode_binary("kLang"));
+    objectState = objectPush(objectState, "name", json.EncodeBinary("kLang"));
     objectState = objectPush(objectState, "active", json.Bool(True));
     local String objectJson = objectFinish(objectState);
 
@@ -343,26 +343,26 @@ function ShowListAndObjectEncoding() : Int {
     Divider("list, key/value list, and map encoders");
 
     local List[String] names =["alpha", "beta", "gamma"];
-    local String encodedNames = json.encode_list(names, json.encode_binary);
-    local String rawNames = json.encode_list(names, RawString);
+    local String encodedNames = json.EncodeList(names, json.EncodeBinary);
+    local String rawNames = json.EncodeList(names, RawString);
 
     local mut List[Table] pairs;
     pairs[len(pairs)] = { "key" : "name", "value" : "kLang" };
     pairs[len(pairs)] = { "key" : "mode", "value" : "stdlib" };
     pairs[len(pairs)] = { "key" : "status", "value" : "experimental" };
-    local String encodedPairs = json.encode_key_value_list(pairs, json.encode_binary);
-    local Result[String, String] checkedPairs = json.encode_key_value_list_checked(pairs, json.encode_binary);
+    local String encodedPairs = json.EncodeKeyValueList(pairs, json.EncodeBinary);
+    local Result[String, String] checkedPairs = json.EncodeKeyValueListChecked(pairs, json.EncodeBinary);
 
     local mut List[Table] brokenPairs;
     brokenPairs[len(brokenPairs)] = { "key" : "missing-value" };
-    local Result[String, String] brokenPairsResult = json.encode_key_value_list_checked(brokenPairs, json.encode_binary);
+    local Result[String, String] brokenPairsResult = json.EncodeKeyValueListChecked(brokenPairs, json.EncodeBinary);
 
     local Table pair = { "key" : "language", "value" : "kLang" };
     local Table brokenMap = { "key" : "language" };
-    local String encodedMap = json.encode_map(pair, json.encode_binary);
-    local String emptyMap = json.encode_map(brokenMap, json.encode_binary);
-    local Result[String, String] checkedMap = json.encode_map_checked(pair, json.encode_binary);
-    local Result[String, String] brokenMapResult = json.encode_map_checked(brokenMap, json.encode_binary);
+    local String encodedMap = json.EncodeMap(pair, json.EncodeBinary);
+    local String emptyMap = json.EncodeMap(brokenMap, json.EncodeBinary);
+    local Result[String, String] checkedMap = json.EncodeMapChecked(pair, json.EncodeBinary);
+    local Result[String, String] brokenMapResult = json.EncodeMapChecked(brokenMap, json.EncodeBinary);
 
     print("encodedNames", encodedNames);
     print("rawNames", rawNames);
@@ -390,15 +390,15 @@ function ShowListAndObjectEncoding() : Int {
 function ShowGenericEncoderHooks() : Int {
     Divider("generic encode hooks");
 
-    local Function[T, String] defaultEncoder = json.encoder();
-    local Function[T, String] defaultFormatter = json.formatter();
+    local Function[T, String] defaultEncoder = json.Encoder();
+    local Function[T, String] defaultFormatter = json.Formatter();
 
-    local String defaultEncodedString = json.encode("plain", defaultEncoder);
-    local String defaultEncodedInt = json.encode(77, defaultEncoder);
-    local String customEncodedString = json.encode("quoted", json.encode_binary);
-    local String encodedViaValue = json.encode_value("angle", AngleString);
-    local String formattedDefault = json.format("pretty", defaultEncoder, json.format_options());
-    local String formattedWithCustom = json.format("pretty", json.encode_binary, json.format_options("    "));
+    local String defaultEncodedString = json.Encode("plain", defaultEncoder);
+    local String defaultEncodedInt = json.Encode(77, defaultEncoder);
+    local String customEncodedString = json.Encode("quoted", json.EncodeBinary);
+    local String encodedViaValue = json.EncodeValue("angle", AngleString);
+    local String formattedDefault = json.Format("pretty", defaultEncoder, json.FormatOptions());
+    local String formattedWithCustom = json.Format("pretty", json.EncodeBinary, json.FormatOptions("    "));
     local String formatterResult = defaultFormatter("format-me");
 
     print("defaultEncodedString", defaultEncodedString);
@@ -423,19 +423,19 @@ function ShowGenericEncoderHooks() : Int {
 function ShowFormattingHelpers() : Int {
     Divider("format options and checked formatting helpers");
 
-    local Table twoSpace = json.format_options();
-    local Table fourSpace = json.format_options("    ");
+    local Table twoSpace = json.FormatOptions();
+    local Table fourSpace = json.FormatOptions("    ");
     local mut List[Table] pairs;
     pairs[len(pairs)] = { "key" : "left", "value" : "L" };
     pairs[len(pairs)] = { "key" : "right", "value" : "R" };
     local mut List[Table] broken;
     broken[len(broken)] = { "value" : "R" };
 
-    local String formattedPairs = json.format_key_value_list(pairs, json.encode_binary, twoSpace);
-    local Result[String, String] checkedPairs = json.format_key_value_list_checked(pairs, json.encode_binary, fourSpace);
-    local Result[String, String] brokenPairs = json.format_key_value_list_checked(broken, json.encode_binary, fourSpace);
-    local String formattedValue = json.format_value("boxed", BracketString, twoSpace);
-    local String formattedValueNoIndent = json.format_value("boxed", BracketString, { });
+    local String formattedPairs = json.FormatKeyValueList(pairs, json.EncodeBinary, twoSpace);
+    local Result[String, String] checkedPairs = json.FormatKeyValueListChecked(pairs, json.EncodeBinary, fourSpace);
+    local Result[String, String] brokenPairs = json.FormatKeyValueListChecked(broken, json.EncodeBinary, fourSpace);
+    local String formattedValue = json.FormatValue("boxed", BracketString, twoSpace);
+    local String formattedValueNoIndent = json.FormatValue("boxed", BracketString, { });
 
     print("twoSpace", twoSpace);
     print("fourSpace", fourSpace);
@@ -469,14 +469,14 @@ function ShowDecoderHelpers() : Int {
     local String streamPrefix = "{" + json.String("stream") + ":";
     local String readyPrefix = "{" + json.String("ready") + ":";
     local String readyComplete = readyPrefix + "true}";
-    local Result[String, String] valueOk = json.decode_value(expectedRaw);
-    local Result[String, String] valueErr = json.decode_value("");
-    local Result[String, String] decoded = json.decode(expectedDecoded, "", json.decoders());
+    local Result[String, String] valueOk = json.DecodeValue(expectedRaw);
+    local Result[String, String] valueErr = json.DecodeValue("");
+    local Result[String, String] decoded = json.Decode(expectedDecoded, "", json.Decoders());
 
-    local Table continuation = json.continuation_state(streamPrefix);
-    local Table startedEmpty = json.decode_start("", "", json.decoders());
-    local Table started = json.decode_start(readyPrefix, "", json.decoders());
-    local Table continued = json.decode_continue(started, "true}");
+    local Table continuation = json.ContinuationState(streamPrefix);
+    local Table startedEmpty = json.DecodeStart("", "", json.Decoders());
+    local Table started = json.DecodeStart(readyPrefix, "", json.Decoders());
+    local Table continued = json.DecodeContinue(started, "true}");
 
     print("valueOk", valueOk);
     print("valueErr", valueErr);
@@ -502,7 +502,7 @@ function ShowDecoderHelpers() : Int {
 }
 
 function Main() : Int {
-    Divider("json.klang complete example");
+    Divider("json.Klang complete example");
     print("This example covers runtime-backed JSON values and compatibility encoders.");
     print("It returns 0 only after all assertions pass.");
 

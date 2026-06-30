@@ -1,18 +1,38 @@
 -- Command-line argument helpers around the builtin immutable Args list.
 
 namespace args {
+    function All() : List[String] {
+        return ALL();
+    }
+
+    @deprecated("Use All instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ALL() : List[String] {
         return clone Args;
     }
 
+    function Count() : Int {
+        return COUNT();
+    }
+
+    @deprecated("Use Count instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function COUNT() : Int {
         return len(Args);
     }
 
+    function Empty() : Bool {
+        return EMPTY();
+    }
+
+    @deprecated("Use Empty instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function EMPTY() : Bool {
         return COUNT() == 0;
     }
 
+    function Get(index : Int) : Option[String] {
+        return GET(index);
+    }
+
+    @deprecated("Use Get instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function GET(index : Int) : Option[String] {
         if index < 0 or index >= len(Args) {
             return None();
@@ -20,10 +40,20 @@ namespace args {
         return Some(Args[index]);
     }
 
+    function First() : Option[String] {
+        return FIRST();
+    }
+
+    @deprecated("Use First instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FIRST() : Option[String] {
         return GET(0);
     }
 
+    function Contains(value : String) : Bool {
+        return CONTAINS(value);
+    }
+
+    @deprecated("Use Contains instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function CONTAINS(value : String) : Bool {
         local mut Int index = 0;
         while index < len(Args) {
@@ -35,10 +65,20 @@ namespace args {
         return False;
     }
 
+    function HasFlag(name : String) : Bool {
+        return HAS_FLAG(name);
+    }
+
+    @deprecated("Use HasFlag instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function HAS_FLAG(name : String) : Bool {
         return CONTAINS("--" + name) or CONTAINS("-" + name);
     }
 
+    function SplitFlag(value : String) : Table {
+        return SPLIT_FLAG(value);
+    }
+
+    @deprecated("Use SplitFlag instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SPLIT_FLAG(value : String) : Table {
         local mut Int index = 0;
         local mut String key = "";
@@ -65,6 +105,11 @@ namespace args {
         };
     }
 
+    function FlagValue(name : String) : Option[String] {
+        return FLAG_VALUE(name);
+    }
+
+    @deprecated("Use FlagValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FLAG_VALUE(name : String) : Option[String] {
         local String longName = "--" + name;
         local String shortName = "-" + name;
@@ -90,6 +135,11 @@ namespace args {
         return None();
     }
 
+    function Positional() : List[String] {
+        return POSITIONAL();
+    }
+
+    @deprecated("Use Positional instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function POSITIONAL() : List[String] {
         local mut List[String] result;
         local mut Int index = 0;
@@ -102,6 +152,11 @@ namespace args {
         return result;
     }
 
+    function ToTable() : Table {
+        return TO_TABLE();
+    }
+
+    @deprecated("Use ToTable instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TO_TABLE() : Table {
         return {
             "all": ALL(),
@@ -111,6 +166,11 @@ namespace args {
         };
     }
 
+    function ToJson() : String {
+        return TO_JSON();
+    }
+
+    @deprecated("Use ToJson instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TO_JSON() : String {
         return json_stringify(TO_TABLE());
     }

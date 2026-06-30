@@ -180,22 +180,31 @@ namespace path {
         return result;
     }
 
+    @deprecated("Use Separator instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SEPARATOR() : String { return Separator(); }
 
+    @deprecated("Use Join instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function JOIN(left : String, right : String) : String { return Join(left, right); }
 
+    @deprecated("Use JoinAll instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function JOIN_ALL(parts : List[String]) : String { return JoinAll(parts); }
 
+    @deprecated("Use Ext instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function EXT(name : String) : String { return Ext(name); }
 
+    @deprecated("Use IsAbs instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function IS_ABS(name : String) : Bool { return IsAbs(name); }
 
+    @deprecated("Use Clean instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function CLEAN(name : String) : String { return Clean(name); }
 
+    @deprecated("Use Base instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function BASE(name : String) : String { return Base(name); }
 
+    @deprecated("Use Dir instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DIR(name : String) : String { return Dir(name); }
 
+    @deprecated("Use Split instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SPLIT(name : String) : Table { return Split(name); }
 
     namespace filepath {
@@ -232,12 +241,16 @@ namespace path {
             return not path.IsAbs(name);
         }
 
+        @deprecated("Use Abs instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function ABS(name : String) : String { return Abs(name); }
 
+        @deprecated("Use ToSlash instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function TO_SLASH(name : String) : String { return ToSlash(name); }
 
+        @deprecated("Use FromSlash instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function FROM_SLASH(name : String) : String { return FromSlash(name); }
 
+        @deprecated("Use IsLocal instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function IS_LOCAL(name : String) : Bool { return IsLocal(name); }
     }
 }

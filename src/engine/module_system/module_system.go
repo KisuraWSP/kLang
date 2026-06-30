@@ -702,12 +702,21 @@ func (resolver *Resolver) applyStdlibFunctionFilter(program file.Program, import
 
 func (resolver *Resolver) expandSelectedFunctions(program file.Program, selected map[string]bool) map[string]bool {
 	definitions := map[string]parser.FunctionStatement{}
+	var parsedSources []parser.ParsedSource
 	for _, source := range program.Files {
 		parsed := parser.ParseSource(source)
 		if len(parsed.Errors) != 0 {
 			continue
 		}
+		parsedSources = append(parsedSources, parsed)
 		collectFunctionDefinitions(parsed.Program.Statements, "", definitions)
+	}
+	for _, parsed := range parsedSources {
+		collectUnfilteredDeclarationCalls(parsed.Program.Statements, "", func(call string) {
+			if _, exists := definitions[call]; exists {
+				selected[call] = true
+			}
+		})
 	}
 
 	changed := true
@@ -730,6 +739,32 @@ func (resolver *Resolver) expandSelectedFunctions(program file.Program, selected
 		}
 	}
 	return selected
+}
+
+func collectUnfilteredDeclarationCalls(statements []parser.Statement, namespace string, visit func(string)) {
+	for _, statement := range statements {
+		switch current := statement.(type) {
+		case parser.AliasFunctionStatement:
+			for _, method := range current.Methods {
+				for call := range collectFunctionBodyCalls(method.Body, namespace) {
+					visit(call)
+				}
+			}
+			collectUnfilteredDeclarationCalls(current.Body, namespace, visit)
+		case parser.ExtensionStatement:
+			for _, method := range current.Methods {
+				for call := range collectFunctionBodyCalls(method.Body, namespace) {
+					visit(call)
+				}
+			}
+		case parser.NamespaceStatement:
+			collectUnfilteredDeclarationCalls(current.Body, namespace+current.Name+".", visit)
+		case parser.PrivateBlockStatement:
+			collectUnfilteredDeclarationCalls(current.Body, namespace, visit)
+		case parser.ScopeStatement:
+			collectUnfilteredDeclarationCalls(current.Body, namespace, visit)
+		}
+	}
 }
 
 func moduleNameFromImportPath(importPath string) string {

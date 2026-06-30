@@ -1,45 +1,54 @@
 -- Small assertion helpers for tests written in kLang.
 
 namespace test {
+    @deprecated("Use Fail instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function fail(message : String) : Bool {
         throw message;
     }
 
+    @deprecated("Use AssertTrue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function assert_true(condition : Bool, message : String = "expected condition to be true") : Bool {
         if not condition { throw message; }
         return True;
     }
 
+    @deprecated("Use AssertFalse instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function assert_false(condition : Bool, message : String = "expected condition to be false") : Bool {
         if condition { throw message; }
         return True;
     }
 
+    @deprecated("Use Equal instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function equal[T comparable](left : T, right : T, message : String = "expected values to be equal") : Bool {
         if left != right { throw message; }
         return True;
     }
 
+    @deprecated("Use NotEqual instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function not_equal[T comparable](left : T, right : T, message : String = "expected values to differ") : Bool {
         if left == right { throw message; }
         return True;
     }
 
+    @deprecated("Use Some instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function some[T Any](value : Option[T], message : String = "expected Some") : Bool {
         if not value.some { throw message; }
         return True;
     }
 
+    @deprecated("Use None instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function none[T Any](value : Option[T], message : String = "expected None") : Bool {
         if value.some { throw message; }
         return True;
     }
 
+    @deprecated("Use Ok instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ok[T Any, E Any](value : Result[T, E], message : String = "expected Ok") : Bool {
         if not value.ok { throw message; }
         return True;
     }
 
+    @deprecated("Use Err instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function err[T Any, E Any](value : Result[T, E], message : String = "expected Err") : Bool {
         if value.ok { throw message; }
         return True;

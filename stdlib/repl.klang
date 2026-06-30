@@ -5,14 +5,29 @@
 namespace repl {
     alias function SESSION(history : List[String], diagnostics : List[String], last : Option[Parsable[Any]]) : type = struct {
         #extend {
+            function count() : Int {
+                return this.COUNT();
+            }
+
+            @deprecated("Use count instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
             function COUNT() : Int {
                 return len(this.history);
             }
 
+            function ok() : Bool {
+                return this.OK();
+            }
+
+            @deprecated("Use ok instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
             function OK() : Bool {
                 return len(this.diagnostics) == 0;
             }
 
+            function to_table() : Table {
+                return this.TO_TABLE();
+            }
+
+            @deprecated("Use to_table instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
             function TO_TABLE() : Table {
                 return {
                     "history": this.history,
@@ -23,21 +38,41 @@ namespace repl {
                 };
             }
 
+            function to_json() : String {
+                return this.TO_JSON();
+            }
+
+            @deprecated("Use to_json instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
             function TO_JSON() : String {
                 return json_stringify(this.TO_TABLE());
             }
         }
     }
 
+    function EmptyStrings() : List[String] {
+        return EMPTY_STRINGS();
+    }
+
+    @deprecated("Use EmptyStrings instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function EMPTY_STRINGS() : List[String] {
         local List[String] values;
         return values;
     }
 
+    function NewSession() : SESSION {
+        return NEW_SESSION();
+    }
+
+    @deprecated("Use NewSession instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function NEW_SESSION() : SESSION {
         return SESSION(EMPTY_STRINGS(), EMPTY_STRINGS(), None());
     }
 
+    function Prompt(session : SESSION) : String {
+        return PROMPT(session);
+    }
+
+    @deprecated("Use Prompt instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PROMPT(session : SESSION) : String {
         if session.OK() {
             return "klang[" + (len(session.history) as String) + "]> ";
@@ -45,10 +80,20 @@ namespace repl {
         return "klang![diagnostic]> ";
     }
 
+    function ParseLine(source : String) : Result[Parsable[Any], String] {
+        return PARSE_LINE(source);
+    }
+
+    @deprecated("Use ParseLine instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PARSE_LINE(source : String) : Result[Parsable[Any], String] {
         return Ok(Parsable(source, EMPTY_STRINGS()));
     }
 
+    function Submit(session : SESSION, source : String) : SESSION {
+        return SUBMIT(session, source);
+    }
+
+    @deprecated("Use Submit instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SUBMIT(session : SESSION, source : String) : SESSION {
         local mut List[String] history = clone (session.history as List[String]);
         local mut List[String] diagnostics = clone (session.diagnostics as List[String]);
@@ -66,6 +111,11 @@ namespace repl {
         return SESSION(history, diagnostics, session.last);
     }
 
+    function AstOf(session : SESSION) : List[Table] {
+        return AST_OF(session);
+    }
+
+    @deprecated("Use AstOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function AST_OF(session : SESSION) : List[Table] {
         if session.last == {
             case Some(value): return parsable_ast(value);
@@ -74,6 +124,11 @@ namespace repl {
         return [];
     }
 
+    function RequestLastAst(session : SESSION) : Table {
+        return REQUEST_LAST_AST(session);
+    }
+
+    @deprecated("Use RequestLastAst instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function REQUEST_LAST_AST(session : SESSION) : Table {
         if session.last == {
             case Some(value):
@@ -85,6 +140,11 @@ namespace repl {
         return {"intercepted": False, "diagnostics": ["unreachable repl state"]};
     }
 
+    function HistoryJson(session : SESSION) : String {
+        return HISTORY_JSON(session);
+    }
+
+    @deprecated("Use HistoryJson instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function HISTORY_JSON(session : SESSION) : String {
         return json_stringify(session.history);
     }

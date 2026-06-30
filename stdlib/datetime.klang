@@ -445,6 +445,11 @@ namespace datetime {
     --- Returns: Table.
     --- Summary: Provides the stdlib utc operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Utc(time : Table) : Table {
+        return UTC(time);
+    }
+
+    @deprecated("Use Utc instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function UTC(time : Table) : Table {
         return Unix(time["unix"] as Int, time["nsec"] as Int);
     }

@@ -153,6 +153,18 @@ func runtimeValueToJSON(value Value) (any, error) {
 	}
 }
 
+func runtimeValueJSONString(value Value) (string, error) {
+	converted, err := runtimeValueToJSON(value)
+	if err != nil {
+		return "", err
+	}
+	encoded, err := json.Marshal(converted)
+	if err != nil {
+		return "", Error{Message: fmt.Sprintf("cannot serialize %s as JSON: %s", runtimeTypeName(value), err)}
+	}
+	return string(encoded), nil
+}
+
 func jsonDataToRuntime(value any) (Value, error) {
 	switch current := value.(type) {
 	case nil:

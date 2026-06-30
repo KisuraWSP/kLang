@@ -7,6 +7,11 @@ namespace enum {
     --- Returns: T.
     --- Summary: Provides the stdlib acc operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Acc(value : T) : T {
+        return acc(value);
+    }
+
+    @deprecated("Use Acc instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function acc(value : T) : T {
         return value;
     }
@@ -15,6 +20,11 @@ namespace enum {
     --- Returns: T.
     --- Summary: Provides the stdlib default operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Default(value : T) : T {
+        return default(value);
+    }
+
+    @deprecated("Use Default instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function default(value : T) : T {
         return value;
     }
@@ -23,6 +33,11 @@ namespace enum {
     --- Returns: Option[T].
     --- Summary: Provides the stdlib element operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Element(values : List[T], index : Int) : Option[T] {
+        return element(values, index);
+    }
+
+    @deprecated("Use Element instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function element(values : List[T], index : Int) : Option[T] {
         return fetch(values, index);
     }
@@ -31,6 +46,11 @@ namespace enum {
     --- Returns: Int.
     --- Summary: Provides the stdlib index operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Index(value : Int) : Int {
+        return index(value);
+    }
+
+    @deprecated("Use Index instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function index(value : Int) : Int {
         return value;
     }
@@ -39,6 +59,11 @@ namespace enum {
     --- Returns: List[T].
     --- Summary: Provides the stdlib t operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function T(values : List[T]) : List[T] {
+        return t(values);
+    }
+
+    @deprecated("Use T instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function t(values : List[T]) : List[T] {
         return values;
     }
@@ -47,6 +72,11 @@ namespace enum {
     --- Returns: Bool.
     --- Summary: Provides the stdlib all operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function All(values : List[Bool]) : Bool {
+        return all(values);
+    }
+
+    @deprecated("Use All instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function all(values : List[Bool]) : Bool {
         local mut Int index = 0;
         while index < len(values) {
@@ -62,6 +92,11 @@ namespace enum {
     --- Returns: Bool.
     --- Summary: Provides the stdlib all by operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function AllBy(values : List[T], predicate : Function[T, Bool]) : Bool {
+        return all_by(values, predicate);
+    }
+
+    @deprecated("Use AllBy instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function all_by(values : List[T], predicate : Function[T, Bool]) : Bool {
         local mut Int index = 0;
         while index < len(values) {
@@ -77,6 +112,11 @@ namespace enum {
     --- Returns: Bool.
     --- Summary: Provides the stdlib any operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Any(values : List[Bool]) : Bool {
+        return any(values);
+    }
+
+    @deprecated("Use Any instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function any(values : List[Bool]) : Bool {
         local mut Int index = 0;
         while index < len(values) {
@@ -92,6 +132,11 @@ namespace enum {
     --- Returns: Bool.
     --- Summary: Provides the stdlib any by operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function AnyBy(values : List[T], predicate : Function[T, Bool]) : Bool {
+        return any_by(values, predicate);
+    }
+
+    @deprecated("Use AnyBy instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function any_by(values : List[T], predicate : Function[T, Bool]) : Bool {
         local mut Int index = 0;
         while index < len(values) {
@@ -107,6 +152,11 @@ namespace enum {
     --- Returns: T.
     --- Summary: Provides the stdlib at operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function At(values : List[T], position : Int, fallback : T) : T {
+        return at(values, position, fallback);
+    }
+
+    @deprecated("Use At instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function at(values : List[T], position : Int, fallback : T) : T {
         if position < 0 or position >= len(values) {
             return fallback;
@@ -118,6 +168,11 @@ namespace enum {
     --- Returns: Option[T].
     --- Summary: Reads, locates, or decodes fetch from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Fetch(values : List[T], position : Int) : Option[T] {
+        return fetch(values, position);
+    }
+
+    @deprecated("Use Fetch instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function fetch(values : List[T], position : Int) : Option[T] {
         if position < 0 or position >= len(values) {
             return None();
@@ -129,6 +184,11 @@ namespace enum {
     --- Returns: T.
     --- Summary: Reads, locates, or decodes fetch bang from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FetchBang(values : List[T], position : Int) : T {
+        return fetch_bang(values, position);
+    }
+
+    @deprecated("Use FetchBang instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function fetch_bang(values : List[T], position : Int) : T {
         local Option[T] found = fetch(values, position);
         if found.some {
@@ -142,6 +202,11 @@ namespace enum {
     --- Returns: List[List[T]].
     --- Summary: Provides the stdlib chunk every operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ChunkEvery(values : List[T], count : Int) : List[List[T]] {
+        return chunk_every(values, count);
+    }
+
+    @deprecated("Use ChunkEvery instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function chunk_every(values : List[T], count : Int) : List[List[T]] {
         local mut List[List[T]] chunks;
         local mut Int index = 0;
@@ -164,6 +229,11 @@ namespace enum {
     --- Returns: List[T].
     --- Summary: Combines or extends Klang value(s) for the concat operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Concat(left : List[T], right : List[T]) : List[T] {
+        return concat(left, right);
+    }
+
+    @deprecated("Use Concat instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function concat(left : List[T], right : List[T]) : List[T] {
         local mut List[T] result = clone left;
         local mut Int index = 0;
@@ -178,6 +248,11 @@ namespace enum {
     --- Returns: Int.
     --- Summary: Provides the stdlib count operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Count(values : List[T]) : Int {
+        return count(values);
+    }
+
+    @deprecated("Use Count instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function count(values : List[T]) : Int {
         return len(values);
     }
@@ -186,6 +261,11 @@ namespace enum {
     --- Returns: Int.
     --- Summary: Provides the stdlib count by operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function CountBy(values : List[T], predicate : Function[T, Bool]) : Int {
+        return count_by(values, predicate);
+    }
+
+    @deprecated("Use CountBy instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function count_by(values : List[T], predicate : Function[T, Bool]) : Int {
         local mut Int total = 0;
         local mut Int index = 0;
@@ -202,6 +282,11 @@ namespace enum {
     --- Returns: Int.
     --- Summary: Provides the stdlib count until operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function CountUntil(values : List[T], limit : Int) : Int {
+        return count_until(values, limit);
+    }
+
+    @deprecated("Use CountUntil instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function count_until(values : List[T], limit : Int) : Int {
         if len(values) < limit {
             return len(values);
@@ -213,6 +298,11 @@ namespace enum {
     --- Returns: List[T].
     --- Summary: Removes or normalizes Klang value(s) for the drop operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Drop(values : List[T], amount : Int) : List[T] {
+        return drop(values, amount);
+    }
+
+    @deprecated("Use Drop instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function drop(values : List[T], amount : Int) : List[T] {
         local mut List[T] result;
         local mut Int index = amount;
@@ -227,6 +317,11 @@ namespace enum {
     --- Returns: Bool.
     --- Summary: Provides the stdlib empty operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Empty(values : List[T]) : Bool {
+        return empty(values);
+    }
+
+    @deprecated("Use Empty instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function empty(values : List[T]) : Bool {
         return len(values) == 0;
     }
@@ -235,6 +330,11 @@ namespace enum {
     --- Returns: List[T].
     --- Summary: Provides the stdlib filter operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Filter(values : List[T], predicate : Function[T, Bool]) : List[T] {
+        return values.filter(predicate).collect();
+    }
+
+    @deprecated("Use Filter instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function filter(values : List[T], predicate : Function[T, Bool]) : List[T] {
         local mut List[T] result;
         local mut Int index = 0;
@@ -252,6 +352,11 @@ namespace enum {
     --- Returns: List[T].
     --- Summary: Provides the stdlib reject operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Reject(values : List[T], predicate : Function[T, Bool]) : List[T] {
+        return reject(values, predicate);
+    }
+
+    @deprecated("Use Reject instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function reject(values : List[T], predicate : Function[T, Bool]) : List[T] {
         local mut List[T] result;
         local mut Int index = 0;
@@ -269,6 +374,11 @@ namespace enum {
     --- Returns: T.
     --- Summary: Reads, locates, or decodes find from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Find(values : List[T], fallback : T, predicate : Function[T, Bool]) : T {
+        return find(values, fallback, predicate);
+    }
+
+    @deprecated("Use Find instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function find(values : List[T], fallback : T, predicate : Function[T, Bool]) : T {
         local mut Int index = 0;
         while index < len(values) {
@@ -284,6 +394,11 @@ namespace enum {
     --- Returns: Option[Int].
     --- Summary: Reads, locates, or decodes find index from the provided Klang input(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FindIndex(values : List[T], predicate : Function[T, Bool]) : Option[Int] {
+        return find_index(values, predicate);
+    }
+
+    @deprecated("Use FindIndex instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function find_index(values : List[T], predicate : Function[T, Bool]) : Option[Int] {
         local mut Int index = 0;
         while index < len(values) {
@@ -299,6 +414,11 @@ namespace enum {
     --- Returns: List[U].
     --- Summary: Provides the stdlib map operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Map(values : List[T], mapper : Function[T, U]) : List[U] {
+        return values.map(mapper).collect();
+    }
+
+    @deprecated("Use Map instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function map(values : List[T], mapper : Function[T, U]) : List[U] {
         local mut List[U] result;
         local mut Int index = 0;
@@ -313,6 +433,11 @@ namespace enum {
     --- Returns: List[U].
     --- Summary: Provides the stdlib flat map operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function FlatMap(values : List[T], mapper : Function[T, List[U]]) : List[U] {
+        return flat_map(values, mapper);
+    }
+
+    @deprecated("Use FlatMap instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function flat_map(values : List[T], mapper : Function[T, List[U]]) : List[U] {
         local mut List[U] result;
         local mut Int index = 0;
@@ -332,6 +457,11 @@ namespace enum {
     --- Returns: U.
     --- Summary: Provides the stdlib reduce operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Reduce(values : List[T], initial : U, reducer : Function[U, T, U]) : U {
+        return values.fold(initial, reducer);
+    }
+
+    @deprecated("Use Reduce instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function reduce(values : List[T], initial : U, reducer : Function[U, T, U]) : U {
         local mut U acc = initial;
         local mut Int index = 0;
@@ -346,6 +476,11 @@ namespace enum {
     --- Returns: List[T].
     --- Summary: Provides the stdlib reverse operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Reverse(values : List[T]) : List[T] {
+        return reverse(values);
+    }
+
+    @deprecated("Use Reverse instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function reverse(values : List[T]) : List[T] {
         local mut List[T] result;
         local mut Int index = len(values) - 1;
@@ -360,6 +495,11 @@ namespace enum {
     --- Returns: List[T].
     --- Summary: Provides the stdlib take operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Take(values : List[T], amount : Int) : List[T] {
+        return take(values, amount);
+    }
+
+    @deprecated("Use Take instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function take(values : List[T], amount : Int) : List[T] {
         local mut List[T] result;
         local mut Int index = 0;
@@ -374,6 +514,11 @@ namespace enum {
     --- Returns: List[T].
     --- Summary: Provides the stdlib take every operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function TakeEvery(values : List[T], nth : Int) : List[T] {
+        return take_every(values, nth);
+    }
+
+    @deprecated("Use TakeEvery instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function take_every(values : List[T], nth : Int) : List[T] {
         local mut List[T] result;
         local mut Int index = 0;
@@ -390,6 +535,11 @@ namespace enum {
     --- Returns: List[T].
     --- Summary: Provides the stdlib take while operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function TakeWhile(values : List[T], predicate : Function[T, Bool]) : List[T] {
+        return take_while(values, predicate);
+    }
+
+    @deprecated("Use TakeWhile instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function take_while(values : List[T], predicate : Function[T, Bool]) : List[T] {
         local mut List[T] result;
         local mut Int index = 0;
@@ -409,6 +559,11 @@ namespace enum {
     --- Returns: List[T].
     --- Summary: Converts the provided Klang value(s) into to list.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ToList(values : List[T]) : List[T] {
+        return to_list(values);
+    }
+
+    @deprecated("Use ToList instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function to_list(values : List[T]) : List[T] {
         return clone values;
     }
@@ -417,6 +572,11 @@ namespace enum {
     --- Returns: Int.
     --- Summary: Provides the stdlib sum operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sum(values : List[Int]) : Int {
+        return sum(values);
+    }
+
+    @deprecated("Use Sum instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sum(values : List[Int]) : Int {
         local mut Int total = 0;
         local mut Int index = 0;
@@ -431,6 +591,11 @@ namespace enum {
     --- Returns: Int.
     --- Summary: Provides the stdlib product operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Product(values : List[Int]) : Int {
+        return product(values);
+    }
+
+    @deprecated("Use Product instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function product(values : List[Int]) : Int {
         local mut Int total = 1;
         local mut Int index = 0;
@@ -445,6 +610,11 @@ namespace enum {
     --- Returns: Bool.
     --- Summary: Checks whether member is true for the provided Klang value(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Member(values : List[T], value : T) : Bool {
+        return member(values, value);
+    }
+
+    @deprecated("Use Member instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function member(values : List[T], value : T) : Bool {
         local mut Int index = 0;
         while index < len(values) {
@@ -460,6 +630,11 @@ namespace enum {
     --- Returns: T.
     --- Summary: Provides the stdlib min operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Min[T comparable](values : List[T], fallback : T) : T {
+        return min(values, fallback);
+    }
+
+    @deprecated("Use Min instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function min[T comparable](values : List[T], fallback : T) : T {
         if len(values) == 0 {
             return fallback;
@@ -479,6 +654,11 @@ namespace enum {
     --- Returns: T.
     --- Summary: Provides the stdlib max operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Max[T comparable](values : List[T], fallback : T) : T {
+        return max(values, fallback);
+    }
+
+    @deprecated("Use Max instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function max[T comparable](values : List[T], fallback : T) : T {
         if len(values) == 0 {
             return fallback;
@@ -498,6 +678,11 @@ namespace enum {
     --- Returns: String.
     --- Summary: Combines or extends Klang value(s) for the join operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Join(values : List[String], joiner : String = "") : String {
+        return join(values, joiner);
+    }
+
+    @deprecated("Use Join instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function join(values : List[String], joiner : String = "") : String {
         local mut String result = "";
         local mut Int index = 0;
@@ -516,6 +701,11 @@ namespace enum {
     --- Returns: List[Table].
     --- Summary: Provides the stdlib with index operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function WithIndex(values : List[T], offset : Int = 0) : List[Table] {
+        return with_index(values, offset);
+    }
+
+    @deprecated("Use WithIndex instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function with_index(values : List[T], offset : Int = 0) : List[Table] {
         local mut List[Table] result;
         local mut Int index = 0;
@@ -530,6 +720,11 @@ namespace enum {
     --- Returns: List[Table].
     --- Summary: Provides the stdlib zip operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Zip(left : List[T], right : List[U]) : List[Table] {
+        return zip(left, right);
+    }
+
+    @deprecated("Use Zip instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function zip(left : List[T], right : List[U]) : List[Table] {
         local mut List[Table] result;
         local mut Int index = 0;
@@ -544,6 +739,11 @@ namespace enum {
     --- Returns: List[V].
     --- Summary: Provides the stdlib zip with operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ZipWith(left : List[T], right : List[U], zipper : Function[T, U, V]) : List[V] {
+        return zip_with(left, right, zipper);
+    }
+
+    @deprecated("Use ZipWith instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function zip_with(left : List[T], right : List[U], zipper : Function[T, U, V]) : List[V] {
         local mut List[V] result;
         local mut Int index = 0;

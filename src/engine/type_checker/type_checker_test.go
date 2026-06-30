@@ -1105,6 +1105,28 @@ function Main() : Int {
 	assertTypeWarning(t, report, "function OldValue is deprecated: use NewValue")
 }
 
+func TestCheckProgramWarnsOnDeprecatedMethodCall(t *testing.T) {
+	program := programFromSource(`
+#extend String {
+    @deprecated("use readable_name")
+    function OLD_NAME() : String {
+        return this;
+    }
+}
+
+function Main() : Int {
+    local String value = "legacy".OLD_NAME();
+    return len(value);
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected deprecated method call to pass type check, got: %v", report.Errors)
+	}
+	assertTypeWarning(t, report, "method String.OLD_NAME is deprecated: use readable_name")
+}
+
 func TestCheckProgramChecksNestedCallsThroughOperatorPrecedence(t *testing.T) {
 	program := programFromSource(`
 @deprecated("use NewFlag")
@@ -2318,6 +2340,46 @@ function Main() : Int {
 	}
 }
 
+func TestCheckProgramAcceptsStructCastAsConversions(t *testing.T) {
+	program := programFromSource(`
+alias function User(id : Int, name : String) : type = struct {}
+alias function PublicUser(name : String, active : Bool = True) : type = struct {}
+
+function Main() : Int {
+    local User user = User(1, "Ada");
+    local Table row = user.cast_as(Table);
+    local JSON document = user.cast_as(JSON);
+    local String encoded = user.cast_as(String);
+    local PublicUser view = user.cast_as(PublicUser);
+    print(row, document, encoded, view);
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected struct cast_as conversions to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsStructCastWithMissingRequiredField(t *testing.T) {
+	program := programFromSource(`
+alias function User(name : String) : type = struct {}
+alias function Account(name : String, id : Int) : type = struct {}
+
+function Main() : Int {
+    local User user = User("Ada");
+    local Account account = user.cast_as(Account);
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if report.Passed() || !strings.Contains(fmt.Sprint(report.Errors), `required field "id" is missing`) {
+		t.Fatalf("expected missing cast field diagnostic, got %#v", report.Errors)
+	}
+}
+
 func TestCheckProgramAcceptsAliasStructFieldsMethodsAndGenerics(t *testing.T) {
 	program := programFromSource(`
 alias function Boxed[T: Any](items : List[T], capacity : Int) : type = struct {
@@ -2812,6 +2874,46 @@ function Main() : Int {
 	if !report.Passed() {
 		t.Fatalf("expected table/async/iterator/coroutine program to type check, got %#v", report.Errors)
 	}
+}
+
+func TestCheckProgramAcceptsLazyIteratorPipelines(t *testing.T) {
+	program := programFromSource(`
+function IsEven(value : Int) : Bool { return value % 2 == 0; }
+function Double(value : Int) : Int { return value * 2; }
+function Add(total : Int, value : Int) : Int { return total + value; }
+
+function Main() : Int {
+    local List[Int] values = [1, 2, 3, 4];
+    local Iterator[Int] pipeline = values.filter(IsEven).map(Double).skip(1).limit(1);
+    local List[Int] result = pipeline.collect();
+    local List[Int] sorted = values.filter(IsEven).map(Double).sort();
+    local Int total = values.fold(0, Add);
+    local Option[Int] first = values.filter(IsEven).first();
+    local Map[String, Int] dictionary = {"one": 1, "two": 2};
+    local Iterator[Table] entries = dictionary.iter();
+    print(result, sorted, total, first, entries);
+    return 0;
+}
+`)
+
+	report := CheckProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected lazy iterator pipeline to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsInvalidPipelinePredicate(t *testing.T) {
+	program := programFromSource(`
+function NotAPredicate(value : Int) : Int { return value; }
+
+function Main() : Int {
+    local List[Int] values = [1, 2, 3];
+    local Iterator[Int] invalid = values.filter(NotAPredicate);
+    return 0;
+}
+`)
+
+	assertTypeError(t, CheckProgram(program), "filter callback must return Bool, got Int")
 }
 
 func TestCheckProgramAcceptsCoreTableHelpers(t *testing.T) {

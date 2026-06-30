@@ -114,35 +114,61 @@ namespace reflect {
         return json_stringify(left) == json_stringify(right);
     }
 
+    @deprecated("Use TypeOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TYPE_OF(value : Any) : String { return TypeOf(value); }
 
+    @deprecated("Use ValueOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function VALUE_OF(value : Any) : Table { return ValueOf(value); }
 
+    @deprecated("Use Kind instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function KIND(value : Any) : String { return Kind(value); }
 
+    @deprecated("Use IsZero instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function IS_ZERO(value : Any) : Bool { return IsZero(value); }
 
+    @deprecated("Use IsType instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function IS_TYPE(value : Any, typeName : String) : Bool { return IsType(value, typeName); }
 
+    @deprecated("Use CanInt instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function CAN_INT(value : Any) : Bool { return CanInt(value); }
 
+    @deprecated("Use CanString instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function CAN_STRING(value : Any) : Bool { return CanString(value); }
 
+    @deprecated("Use CanBool instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function CAN_BOOL(value : Any) : Bool { return CanBool(value); }
 
+    @deprecated("Use Field instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FIELD(value : Table, name : String) : Option[Any] { return Field(value, name); }
 
+    function SetField(value : Table, name : String, next : Any) : Table {
+        return SET_FIELD(value, name, next);
+    }
+
+    @deprecated("Use SetField instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SET_FIELD(value : Table, name : String, next : Any) : Table {
         local mut Table result = clone value;
         return Set(result, name, next);
     }
 
+    @deprecated("Use Fields instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FIELDS(value : Table) : Table { return Fields(value); }
 
+    function FieldNames(value : Table) : List[String] {
+        return FIELD_NAMES(value);
+    }
+
+    @deprecated("Use FieldNames instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FIELD_NAMES(value : Table) : List[String] { return table_keys(value); }
 
+    @deprecated("Use DeepEqual instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DEEP_EQUAL(left : Any, right : Any) : Bool { return DeepEqual(left, right); }
 
+    function Describe(value : Any) : Table {
+        return DESCRIBE(value);
+    }
+
+    @deprecated("Use Describe instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DESCRIBE(value : Any) : Table {
         return {
             "type": TypeOf(value),

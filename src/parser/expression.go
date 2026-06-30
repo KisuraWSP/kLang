@@ -122,7 +122,7 @@ func (parser *expressionParser) parsePrefix() ExpressionNode {
 
 	token := parser.advance()
 	switch token.Type {
-	case lexer.TokenIdentifier, lexer.TokenLet, lexer.TokenVar, lexer.TokenVal, lexer.TokenConst, lexer.TokenModule:
+	case lexer.TokenIdentifier, lexer.TokenLet, lexer.TokenVar, lexer.TokenVal, lexer.TokenConst, lexer.TokenModule, lexer.TokenEnum:
 		return IdentifierExpression{Name: token.Literal}
 	case lexer.TokenInt:
 		return LiteralExpression{Kind: "Int", Value: token.Literal}

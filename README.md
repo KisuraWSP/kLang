@@ -247,7 +247,7 @@ Package a checked project into a compact source bundle:
 go run . package examples/helloworld --backend=Standalone
 ```
 
-The package command writes a `klang-build.json` manifest plus source files under `dist/<project>-<backend>`. Valid backends are `Standalone`, `JS`, and `WASM`. Standalone and WASM are currently runtime packaging modes; JS is an experimental native compiler for the typed core subset and emits `program.js` plus `package.json`.
+The package command writes a `klang-build.json` manifest plus source files under `dist/<project>-<backend>`. Valid backends are `Standalone`, `JS`, and `WASM`. Standalone packages the Go interpreter, JS emits native JavaScript for its typed subset, and WASM emits bytecode for its typed core subset with a browser interpreter fallback.
 
 Compile a typed-core program to JavaScript:
 
@@ -266,7 +266,7 @@ JS-generated Maps enforce declared key/value types across literals, reads, mutat
 
 JSON serialization works directly with Tables, String-keyed Maps, Lists, primitives, Null/Option values, enums, and tagged alias structs. `json_encode`/`json_decode` and `json.serialize`/`json.deserialize` provide safe Result-based native-value round trips; generated JavaScript implements the same Table/List conversion surface.
 
-JS-generated struct aliases support constructors, typed fields, trailing defaults, field access, `#extend` methods, and value isolation. `JSON(value)` and `json_stringify(value)` serialize nested structs and Lists with declared JSON field tags and deterministic key ordering. Runtime-heavy alias hooks still produce source-positioned JS backend diagnostics.
+JS-generated struct aliases support constructors, typed fields, trailing defaults, field access, `#extend` methods, and value isolation. Struct values also support `cast_as(Table)`, `cast_as(JSON)`, `cast_as(String)`, and field-matched conversion to another struct alias with target defaults. `JSON(value)` and `json_stringify(value)` serialize nested structs and Lists with declared JSON field tags and deterministic key ordering. Runtime-heavy alias hooks still produce source-positioned JS backend diagnostics.
 
 Native JS packages include `program.js.map` with Source Map v3 mappings, portable `src/...` references, and embedded source content. `npm start` enables Node source-map stacks; direct `node program.js` execution still prints built-in kLang function frames, source excerpts, and carets for uncaught runtime errors. Backend rejections retain JS-specific rule identifiers and source spans.
 
@@ -278,7 +278,9 @@ cd examples/helloworld/dist/helloworld-wasm
 python3 -m http.server 8080
 ```
 
-Then open `http://localhost:8080`. The WASM backend compiles the Go-based kLang interpreter/runtime to `klang.wasm`, copies Go's `wasm_exec.js`, and loads resolved `.klang` sources through `klang_browser.js`. Browser code can call `KlangBrowser.runProject()` or `KlangBrowser.runSource(source, args)`.
+Then open `http://localhost:8080`. For supported programs the WASM backend lowers typed-core IR into versioned `program.kbc` bytecode and executes it with the stack VM inside `klang.wasm`. Bytecode version 3 covers primitives, recursive Lists, named callback references, fused pipelines, checked indexing and direct mutation, value isolation, `len`/`.count`, range and `for_each` loops, locals, arithmetic/comparison, short-circuit booleans, `if`, `while`, direct functions, assertions, `print`, and single returns. Packages outside that subset omit `program.kbc` and use the bundled source interpreter, with the selected path recorded in `klang-build.json`. Browser code can call `KlangBrowser.runProject()` or `KlangBrowser.runSource(source, args)`.
+
+Lists, arrays, typed Maps, Tables, Sets, Strings, Int counts, and Iterators support lazy chains such as `values.filter(Keep).map(Convert).limit(20).sort()`. Intermediate stages build a fused plan without running callbacks or creating temporary Lists. Terminals including `collect`, `sort`, `fold`, `first`, `any`, `all`, `for_each`, and Iterator `.count` execute the plan. The interpreter, generated JavaScript, and bytecode version 3 share these semantics; `sort` is the intentional materialization barrier. The lazy `limit` stage is separate from existing eager stdlib methods named `take`.
 
 Start the built-in browser server without manually preparing the bundle:
 
@@ -291,6 +293,10 @@ You can also keep the bundle and serve it in one step:
 ```sh
 go run . package examples/helloworld --backend=WASM --serve --out dist
 ```
+
+## Standard Library API
+
+Stdlib modules use lowercase import names, UpperCamelCase namespace functions, and lower_snake_case receiver methods. Older callable spellings remain available as deprecated compatibility shims with direct replacement suggestions. Import `api` for reflective module discovery, Parsable AST inspection, polling, source transforms, and migration metadata.
 
 ## HTML And Browser-Oriented Code
 

@@ -123,14 +123,22 @@ namespace interface {
         return Err(Unsupported("stat " + path));
     }
 
+    @deprecated("Use IsAvailable instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function IS_AVAILABLE() : Bool { return IsAvailable(); }
 
+    @deprecated("Use Unsupported instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function UNSUPPORTED(message : String) : String { return Unsupported(message); }
 
+    @deprecated("Use Operation instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function OPERATION(name : String, args : List[String]) : Table {
         return Operation(name, args);
     }
 
+    function Request(name : String, args : List[String]) : Result[Table, String] {
+        return REQUEST(name, args);
+    }
+
+    @deprecated("Use Request instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function REQUEST(name : String, args : List[String]) : Result[Table, String] {
         local Table operation = Operation(name, args);
         if operation.available {
@@ -139,39 +147,51 @@ namespace interface {
         return Err(Unsupported(name));
     }
 
+    @deprecated("Use Access instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ACCESS(path : String, mode : Int) : Result[Bool, String] {
         return Access(path, mode);
     }
 
+    @deprecated("Use Open instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function OPEN(path : String, mode : Int, perm : Int = 0) : Result[Table, String] {
         return Open(path, mode, perm);
     }
 
+    @deprecated("Use Close instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function CLOSE(fd : Int) : Result[Int, String] { return Close(fd); }
 
+    @deprecated("Use Read instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function READ(fd : Int, count : Int) : Result[String, String] {
         return Read(fd, count);
     }
 
+    @deprecated("Use Write instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function WRITE(fd : Int, data : String) : Result[Int, String] {
         return Write(fd, data);
     }
 
+    @deprecated("Use Getenv instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function GETENV(key : String) : Option[String] { return Getenv(key); }
 
+    @deprecated("Use Setenv instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SETENV(key : String, value : String) : Result[Int, String] {
         return Setenv(key, value);
     }
 
+    @deprecated("Use Environ instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ENVIRON() : List[String] { return Environ(); }
 
+    @deprecated("Use Getpid instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function GETPID() : Int { return Getpid(); }
 
+    @deprecated("Use Exit instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function EXIT(code : Int) : Result[Int, String] { return Exit(code); }
 
+    @deprecated("Use Socket instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SOCKET(domain : Int, typ : Int, proto : Int) : Result[Int, String] {
         return Socket(domain, typ, proto);
     }
 
+    @deprecated("Use Stat instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function STAT(path : String) : Result[Table, String] { return Stat(path); }
 }

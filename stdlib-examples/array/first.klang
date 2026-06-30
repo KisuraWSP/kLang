@@ -79,36 +79,36 @@ function ShowNamespaceBasics() : Int {
 
     local List[Int] emptyValues;
     local List[Int] values = [4, 2, 4, 8];
-    local List[Int] copied = array.copy(values);
-    local List[Int] cleared = array.clear(values);
+    local List[Int] copied = array.Copy(values);
+    local List[Int] cleared = array.Clear(values);
 
     PrintIntList("emptyValues", emptyValues);
     PrintIntList("values", values);
     PrintIntList("copied", copied);
     PrintIntList("cleared", cleared);
 
-    RequireBool("array.empty(emptyValues)", array.empty(emptyValues), True);
-    RequireBool("array.empty(values)", array.empty(values), False);
-    RequireInt("array.len(emptyValues)", array.len(emptyValues), 0);
-    RequireInt("array.len(values)", array.len(values), 4);
-    RequireInt("array.capacity(values)", array.capacity(values), 4);
-    RequireInt("array.capacity(cleared)", array.capacity(cleared), 0);
-    RequireInt("array.get(values, 0)", array.get(values, 0), 4);
-    RequireInt("array.get(values, 3)", array.get(values, 3), 8);
-    RequireSomeInt("array.fetch(values, 1)", array.fetch(values, 1), 2);
-    RequireNoneInt("array.fetch(values, -1)", array.fetch(values, -1));
-    RequireNoneInt("array.fetch(values, 99)", array.fetch(values, 99));
-    RequireSomeInt("array.front(values)", array.front(values), 4);
-    RequireSomeInt("array.back(values)", array.back(values), 8);
-    RequireNoneInt("array.front(emptyValues)", array.front(emptyValues));
-    RequireNoneInt("array.back(emptyValues)", array.back(emptyValues));
+    RequireBool("array.Empty(emptyValues)", array.Empty(emptyValues), True);
+    RequireBool("array.Empty(values)", array.Empty(values), False);
+    RequireInt("array.Len(emptyValues)", array.Len(emptyValues), 0);
+    RequireInt("array.Len(values)", array.Len(values), 4);
+    RequireInt("array.Capacity(values)", array.Capacity(values), 4);
+    RequireInt("array.Capacity(cleared)", array.Capacity(cleared), 0);
+    RequireInt("array.Get(values, 0)", array.Get(values, 0), 4);
+    RequireInt("array.Get(values, 3)", array.Get(values, 3), 8);
+    RequireSomeInt("array.Fetch(values, 1)", array.Fetch(values, 1), 2);
+    RequireNoneInt("array.Fetch(values, -1)", array.Fetch(values, -1));
+    RequireNoneInt("array.Fetch(values, 99)", array.Fetch(values, 99));
+    RequireSomeInt("array.Front(values)", array.Front(values), 4);
+    RequireSomeInt("array.Back(values)", array.Back(values), 8);
+    RequireNoneInt("array.Front(emptyValues)", array.Front(emptyValues));
+    RequireNoneInt("array.Back(emptyValues)", array.Back(emptyValues));
 
     local mut Int total = 0;
-    total += array.len(values);
-    total += array.len(copied);
-    total += array.len(cleared);
-    total += array.get(copied, 0);
-    total += array.get(copied, 3);
+    total += array.Len(values);
+    total += array.Len(copied);
+    total += array.Len(cleared);
+    total += array.Get(copied, 0);
+    total += array.Get(copied, 3);
 
     return total;
 }
@@ -117,14 +117,14 @@ function ShowNamespaceMutationReturns() : Int {
     PrintDivider("namespace helpers: mutation-style operations return new lists");
 
     local List[Int] original = [10, 20, 30];
-    local List[Int] pushed = array.push(original, 40);
-    local List[Int] appended = array.append(pushed, 50);
-    local List[Int] extended = array.extend(appended, [60, 70]);
-    local List[Int] insertedFront = array.insert(extended, 0, 5);
-    local List[Int] insertedMiddle = array.insert(insertedFront, 3, 25);
-    local List[Int] insertedBack = array.insert(insertedMiddle, 99, 80);
-    local List[Int] setFirst = array.set(insertedBack, 0, 1);
-    local List[Int] unchangedSet = array.set(setFirst, 99, 999);
+    local List[Int] pushed = array.Push(original, 40);
+    local List[Int] appended = array.Append(pushed, 50);
+    local List[Int] extended = array.Extend(appended, [60, 70]);
+    local List[Int] insertedFront = array.Insert(extended, 0, 5);
+    local List[Int] insertedMiddle = array.Insert(insertedFront, 3, 25);
+    local List[Int] insertedBack = array.Insert(insertedMiddle, 99, 80);
+    local List[Int] setFirst = array.Set(insertedBack, 0, 1);
+    local List[Int] unchangedSet = array.Set(setFirst, 99, 999);
 
     PrintIntList("original", original);
     PrintIntList("pushed", pushed);
@@ -136,25 +136,25 @@ function ShowNamespaceMutationReturns() : Int {
     PrintIntList("setFirst", setFirst);
     PrintIntList("unchangedSet", unchangedSet);
 
-    RequireInt("original length remains 3", array.len(original), 3);
-    RequireInt("pushed appends 40", array.back(pushed).value, 40);
-    RequireInt("appended appends 50", array.back(appended).value, 50);
-    RequireInt("extended appends final 70", array.back(extended).value, 70);
-    RequireInt("front insert", array.get(insertedFront, 0), 5);
-    RequireInt("middle insert", array.get(insertedMiddle, 3), 25);
-    RequireInt("back insert", array.back(insertedBack).value, 80);
-    RequireInt("set first", array.get(setFirst, 0), 1);
-    RequireInt("out-of-bounds set keeps length", array.len(unchangedSet), array.len(setFirst));
+    RequireInt("original length remains 3", array.Len(original), 3);
+    RequireInt("pushed appends 40", array.Back(pushed).value, 40);
+    RequireInt("appended appends 50", array.Back(appended).value, 50);
+    RequireInt("extended appends final 70", array.Back(extended).value, 70);
+    RequireInt("front insert", array.Get(insertedFront, 0), 5);
+    RequireInt("middle insert", array.Get(insertedMiddle, 3), 25);
+    RequireInt("back insert", array.Back(insertedBack).value, 80);
+    RequireInt("set first", array.Get(setFirst, 0), 1);
+    RequireInt("out-of-bounds set keeps length", array.Len(unchangedSet), array.Len(setFirst));
 
     local mut Int score = 0;
-    score += array.len(original);
-    score += array.len(pushed);
-    score += array.len(appended);
-    score += array.len(extended);
-    score += array.len(insertedFront);
-    score += array.len(insertedMiddle);
-    score += array.len(insertedBack);
-    score += array.get(setFirst, 0);
+    score += array.Len(original);
+    score += array.Len(pushed);
+    score += array.Len(appended);
+    score += array.Len(extended);
+    score += array.Len(insertedFront);
+    score += array.Len(insertedMiddle);
+    score += array.Len(insertedBack);
+    score += array.Get(setFirst, 0);
 
     return score;
 }
@@ -163,16 +163,16 @@ function ShowNamespaceRemovalAndSearch() : Int {
     PrintDivider("namespace helpers: removal, slicing, reversing, and searching");
 
     local List[Int] values = [1, 9, 2, 9, 3, 9, 4];
-    local List[Int] withoutIndex = array.remove_at(values, 2);
-    local List[Int] withoutMissingIndex = array.remove_at(values, 99);
-    local List[Int] withoutFirstNine = array.remove(values, 9);
-    local List[Int] withoutMissingValue = array.remove(values, 42);
-    local List[Int] popped = array.pop(values);
-    local List[Int] poppedEmpty = array.pop(array.clear(values));
-    local List[Int] sliceMiddle = array.slice(values, 1, 5);
-    local List[Int] sliceClamped = array.slice(values, -10, 3);
-    local List[Int] sliceEmpty = array.slice(values, 5, 2);
-    local List[Int] reversed = array.reverse(values);
+    local List[Int] withoutIndex = array.RemoveAt(values, 2);
+    local List[Int] withoutMissingIndex = array.RemoveAt(values, 99);
+    local List[Int] withoutFirstNine = array.Remove(values, 9);
+    local List[Int] withoutMissingValue = array.Remove(values, 42);
+    local List[Int] popped = array.Pop(values);
+    local List[Int] poppedEmpty = array.Pop(array.Clear(values));
+    local List[Int] sliceMiddle = array.Slice(values, 1, 5);
+    local List[Int] sliceClamped = array.Slice(values, -10, 3);
+    local List[Int] sliceEmpty = array.Slice(values, 5, 2);
+    local List[Int] reversed = array.Reverse(values);
 
     PrintIntList("values", values);
     PrintIntList("withoutIndex", withoutIndex);
@@ -186,34 +186,34 @@ function ShowNamespaceRemovalAndSearch() : Int {
     PrintIntList("sliceEmpty", sliceEmpty);
     PrintIntList("reversed", reversed);
 
-    RequireInt("withoutIndex length", array.len(withoutIndex), 6);
-    RequireInt("withoutIndex removed value at index 2", array.get(withoutIndex, 2), 9);
-    RequireInt("withoutMissingIndex unchanged", array.len(withoutMissingIndex), 7);
-    RequireInt("withoutFirstNine length", array.len(withoutFirstNine), 6);
-    RequireInt("withoutFirstNine new index 1", array.get(withoutFirstNine, 1), 2);
-    RequireInt("withoutMissingValue unchanged", array.len(withoutMissingValue), 7);
-    RequireInt("popped length", array.len(popped), 6);
-    RequireInt("popped last", array.back(popped).value, 9);
-    RequireInt("poppedEmpty length", array.len(poppedEmpty), 0);
-    RequireInt("sliceMiddle length", array.len(sliceMiddle), 4);
-    RequireInt("sliceMiddle first", array.get(sliceMiddle, 0), 9);
-    RequireInt("sliceClamped length", array.len(sliceClamped), 3);
-    RequireInt("sliceEmpty length", array.len(sliceEmpty), 0);
-    RequireInt("reversed first", array.get(reversed, 0), 4);
-    RequireInt("reversed last", array.back(reversed).value, 1);
-    RequireInt("index_of first nine", array.index_of(values, 9), 1);
-    RequireInt("index_of missing", array.index_of(values, 42), 0 - 1);
-    RequireBool("contains present", array.contains(values, 3), True);
-    RequireBool("contains missing", array.contains(values, 42), False);
-    RequireInt("count nines", array.count(values, 9), 3);
+    RequireInt("withoutIndex length", array.Len(withoutIndex), 6);
+    RequireInt("withoutIndex removed value at index 2", array.Get(withoutIndex, 2), 9);
+    RequireInt("withoutMissingIndex unchanged", array.Len(withoutMissingIndex), 7);
+    RequireInt("withoutFirstNine length", array.Len(withoutFirstNine), 6);
+    RequireInt("withoutFirstNine new index 1", array.Get(withoutFirstNine, 1), 2);
+    RequireInt("withoutMissingValue unchanged", array.Len(withoutMissingValue), 7);
+    RequireInt("popped length", array.Len(popped), 6);
+    RequireInt("popped last", array.Back(popped).value, 9);
+    RequireInt("poppedEmpty length", array.Len(poppedEmpty), 0);
+    RequireInt("sliceMiddle length", array.Len(sliceMiddle), 4);
+    RequireInt("sliceMiddle first", array.Get(sliceMiddle, 0), 9);
+    RequireInt("sliceClamped length", array.Len(sliceClamped), 3);
+    RequireInt("sliceEmpty length", array.Len(sliceEmpty), 0);
+    RequireInt("reversed first", array.Get(reversed, 0), 4);
+    RequireInt("reversed last", array.Back(reversed).value, 1);
+    RequireInt("index_of first nine", array.IndexOf(values, 9), 1);
+    RequireInt("index_of missing", array.IndexOf(values, 42), 0 - 1);
+    RequireBool("contains present", array.Contains(values, 3), True);
+    RequireBool("contains missing", array.Contains(values, 42), False);
+    RequireInt("count nines", array.Count(values, 9), 3);
 
     local mut Int score = 0;
-    score += array.len(withoutIndex);
-    score += array.len(withoutFirstNine);
-    score += array.len(popped);
-    score += array.len(sliceMiddle);
-    score += array.len(reversed);
-    score += array.count(values, 9);
+    score += array.Len(withoutIndex);
+    score += array.Len(withoutFirstNine);
+    score += array.Len(popped);
+    score += array.Len(sliceMiddle);
+    score += array.Len(reversed);
+    score += array.Count(values, 9);
 
     return score;
 }
@@ -222,11 +222,11 @@ function ShowStringArrays() : Int {
     PrintDivider("namespace helpers: strings and generic values");
 
     local List[String] names = ["kirin", "mango", "kirin"];
-    local List[String] withTea = array.push(names, "tea");
-    local List[String] inserted = array.insert(withTea, 1, "coconut");
-    local List[String] withoutMango = array.remove(inserted, "mango");
-    local List[String] reversed = array.reverse(withoutMango);
-    local List[String] window = array.slice(reversed, 1, 3);
+    local List[String] withTea = array.Push(names, "tea");
+    local List[String] inserted = array.Insert(withTea, 1, "coconut");
+    local List[String] withoutMango = array.Remove(inserted, "mango");
+    local List[String] reversed = array.Reverse(withoutMango);
+    local List[String] window = array.Slice(reversed, 1, 3);
 
     PrintStringList("names", names);
     PrintStringList("withTea", withTea);
@@ -235,19 +235,19 @@ function ShowStringArrays() : Int {
     PrintStringList("reversed", reversed);
     PrintStringList("window", window);
 
-    RequireString("front name", array.front(names).value, "kirin");
-    RequireString("back withTea", array.back(withTea).value, "tea");
-    RequireString("inserted coconut", array.get(inserted, 1), "coconut");
-    RequireString("withoutMango index 2", array.get(withoutMango, 2), "kirin");
-    RequireString("reversed first", array.get(reversed, 0), "tea");
-    RequireString("window first", array.get(window, 0), "kirin");
-    RequireSomeString("fetch string", array.fetch(window, 1), "coconut");
-    RequireNoneString("fetch string missing", array.fetch(window, 10));
-    RequireInt("string index_of", array.index_of(withoutMango, "kirin"), 0);
-    RequireInt("string count", array.count(withoutMango, "kirin"), 2);
-    RequireBool("string contains tea", array.contains(reversed, "tea"), True);
+    RequireString("front name", array.Front(names).value, "kirin");
+    RequireString("back withTea", array.Back(withTea).value, "tea");
+    RequireString("inserted coconut", array.Get(inserted, 1), "coconut");
+    RequireString("withoutMango index 2", array.Get(withoutMango, 2), "kirin");
+    RequireString("reversed first", array.Get(reversed, 0), "tea");
+    RequireString("window first", array.Get(window, 0), "kirin");
+    RequireSomeString("fetch string", array.Fetch(window, 1), "coconut");
+    RequireNoneString("fetch string missing", array.Fetch(window, 10));
+    RequireInt("string index_of", array.IndexOf(withoutMango, "kirin"), 0);
+    RequireInt("string count", array.Count(withoutMango, "kirin"), 2);
+    RequireBool("string contains tea", array.Contains(reversed, "tea"), True);
 
-    return array.len(names) + array.len(withTea) + array.len(inserted) + array.len(withoutMango) + array.len(reversed) + array.len(window);
+    return array.Len(names) + array.Len(withTea) + array.Len(inserted) + array.Len(withoutMango) + array.Len(reversed) + array.Len(window);
 }
 
 function ShowAliasBasics() : Int {
@@ -441,12 +441,12 @@ function ShowInteroperability() : Int {
     local List[Int] raw = [11, 22, 33, 44];
     local T object = Array(raw, len(raw), 4);
     local List[Int] objectValues = object.values();
-    local List[Int] helperPushed = array.push(objectValues, 55);
-    local Array objectAgain = Array(helperPushed, array.len(helperPushed), array.capacity(helperPushed));
+    local List[Int] helperPushed = array.Push(objectValues, 55);
+    local Array objectAgain = Array(helperPushed, array.Len(helperPushed), array.Capacity(helperPushed));
     local Array objectReversed = objectAgain.reverse();
     local List[Int] listAgain = objectReversed.values();
-    local List[Int] helperSlice = array.slice(listAgain, 1, 4);
-    local Array finalObject = Array(helperSlice, array.len(helperSlice), objectReversed.capacity_value());
+    local List[Int] helperSlice = array.Slice(listAgain, 1, 4);
+    local Array finalObject = Array(helperSlice, array.Len(helperSlice), objectReversed.capacity_value());
 
     PrintIntList("raw", raw);
     PrintIntList("objectValues", objectValues);
@@ -458,14 +458,14 @@ function ShowInteroperability() : Int {
     PrintIntList("finalObject.values", finalObject.values());
 
     RequireInt("object count", object.count(), 4);
-    RequireInt("helper pushed length", array.len(helperPushed), 5);
+    RequireInt("helper pushed length", array.Len(helperPushed), 5);
     RequireInt("objectAgain back", objectAgain.back().value, 55);
     RequireInt("objectReversed front", objectReversed.front().value, 55);
-    RequireInt("helperSlice first", array.get(helperSlice, 0), 44);
+    RequireInt("helperSlice first", array.Get(helperSlice, 0), 44);
     RequireInt("finalObject length", finalObject.len(), 3);
     RequireInt("finalObject capacity carries metadata", finalObject.capacity_value(), 5);
 
-    return object.len() + array.len(helperPushed) + objectAgain.len() + objectReversed.len() + array.len(helperSlice) + finalObject.len();
+    return object.len() + array.Len(helperPushed) + objectAgain.len() + objectReversed.len() + array.Len(helperSlice) + finalObject.len();
 }
 
 function ShowEdgeCases() : Int {
@@ -475,8 +475,8 @@ function ShowEdgeCases() : Int {
     local List[Int] numbers = [7, 8];
     local T emptyObject = Array(emptyList, 0, 0);
     local T numberObject = Array(numbers, len(numbers), 2);
-    local List[Int] sliceNegative = array.slice(numbers, 0 - 99, 1);
-    local List[Int] slicePastEnd = array.slice(numbers, 1, 99);
+    local List[Int] sliceNegative = array.Slice(numbers, 0 - 99, 1);
+    local List[Int] slicePastEnd = array.Slice(numbers, 1, 99);
     local Array objectSliceNegative = numberObject.slice(0 - 99, 1);
     local Array objectSlicePastEnd = numberObject.slice(1, 99);
 
@@ -488,15 +488,15 @@ function ShowEdgeCases() : Int {
     PrintIntList("objectSliceNegative.values", objectSliceNegative.values());
     PrintIntList("objectSlicePastEnd.values", objectSlicePastEnd.values());
 
-    RequireBool("array.empty(emptyList)", array.empty(emptyList), True);
-    RequireNoneInt("array.front(emptyList)", array.front(emptyList));
-    RequireNoneInt("array.back(emptyList)", array.back(emptyList));
-    RequireNoneInt("array.fetch(emptyList, 0)", array.fetch(emptyList, 0));
-    RequireInt("array.index_of empty", array.index_of(emptyList, 7), 0 - 1);
-    RequireBool("array.contains empty", array.contains(emptyList, 7), False);
-    RequireInt("array.count empty", array.count(emptyList, 7), 0);
-    RequireInt("sliceNegative first", array.get(sliceNegative, 0), 7);
-    RequireInt("slicePastEnd first", array.get(slicePastEnd, 0), 8);
+    RequireBool("array.Empty(emptyList)", array.Empty(emptyList), True);
+    RequireNoneInt("array.Front(emptyList)", array.Front(emptyList));
+    RequireNoneInt("array.Back(emptyList)", array.Back(emptyList));
+    RequireNoneInt("array.Fetch(emptyList, 0)", array.Fetch(emptyList, 0));
+    RequireInt("array.IndexOf empty", array.IndexOf(emptyList, 7), 0 - 1);
+    RequireBool("array.Contains empty", array.Contains(emptyList, 7), False);
+    RequireInt("array.Count empty", array.Count(emptyList, 7), 0);
+    RequireInt("sliceNegative first", array.Get(sliceNegative, 0), 7);
+    RequireInt("slicePastEnd first", array.Get(slicePastEnd, 0), 8);
     RequireBool("emptyObject.empty()", emptyObject.empty(), True);
     RequireNoneInt("emptyObject.front()", emptyObject.front());
     RequireNoneInt("emptyObject.back()", emptyObject.back());
@@ -507,11 +507,11 @@ function ShowEdgeCases() : Int {
     RequireInt("objectSliceNegative first", objectSliceNegative.get(0), 7);
     RequireInt("objectSlicePastEnd first", objectSlicePastEnd.get(0), 8);
 
-    return array.len(sliceNegative) + array.len(slicePastEnd) + objectSliceNegative.len() + objectSlicePastEnd.len();
+    return array.Len(sliceNegative) + array.Len(slicePastEnd) + objectSliceNegative.len() + objectSlicePastEnd.len();
 }
 
 function Main() : Int {
-    PrintDivider("array.klang complete example");
+    PrintDivider("array.Klang complete example");
     print("This program covers the namespace helpers and the Array alias object.");
     print("It returns 0 when every assertion succeeds.");
 

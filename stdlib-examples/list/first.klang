@@ -1,21 +1,36 @@
 load_as_script;
 import "list";
 
+global mut Int PipelineCalls = 0;
+
+function Odd(value : Int) : Bool {
+    return value % 2 != 0;
+}
+
+function DoubleTracked(value : Int) : Int {
+    PipelineCalls += 1;
+    return value * 2;
+}
+
 function Main() : Int {
     local List[Int] start = [3, 1, 2, 1];
-    local List[Int] appended = list.append(start, 4);
-    local List[Int] extended = list.extend(appended, [5, 6]);
-    local List[Int] inserted = list.insert(extended, 1, 9);
-    local Int oneCount = list.count(inserted, 1);
+    local List[Int] appended = list.Append(start, 4);
+    local List[Int] extended = list.Extend(appended, [5, 6]);
+    local List[Int] inserted = list.Insert(extended, 1, 9);
+    local Int oneCount = list.Count(inserted, 1);
     
     local T counter = extended.count;
-    local Int nineIndex = list.index(inserted, 9);
-    local List[Int] popped = list.pop(inserted, 2);
-    local List[Int] removed = list.remove(popped, 1);
-    local List[Int] reversed = list.reverse(removed);
-    local List[Int] sorted = list.sort(reversed);
-    local List[Int] copied = list.copy(sorted);
-    local List[Int] cleared = list.clear(copied);
+    local Int nineIndex = list.Index(inserted, 9);
+    local List[Int] popped = list.Pop(inserted, 2);
+    local List[Int] removed = list.Remove(popped, 1);
+    local List[Int] reversed = list.Reverse(removed);
+    local List[Int] sorted = list.Sort(reversed);
+    local List[Int] copied = list.Copy(sorted);
+    local List[Int] cleared = list.Clear(copied);
+    local Iterator[Int] pipeline = start.filter(Odd).map(DoubleTracked).limit(3);
+    local Bool lazyBeforeTerminal = PipelineCalls == 0;
+    local List[Int] pipelineValues = pipeline.collect();
+    local List[Int] pipelineSorted = pipeline.sort();
 
     print("start", start);
     print("appended", appended);
@@ -30,8 +45,11 @@ function Main() : Int {
     print("sorted", sorted);
     print("copied", copied);
     print("cleared", cleared);
+    print("pipeline lazy", lazyBeforeTerminal);
+    print("pipeline values", pipelineValues);
+    print("pipeline sorted", pipelineSorted);
 
-    if len(start) == 4 and len(appended) == 5 and len(extended) == 7 and len(inserted) == 8 and oneCount == 2 and nineIndex == 1 and len(cleared) == 0 {
+    if len(start) == 4 and len(appended) == 5 and len(extended) == 7 and len(inserted) == 8 and oneCount == 2 and nineIndex == 1 and len(cleared) == 0 and lazyBeforeTerminal and pipelineSorted[0] == 2 {
         return 0;
     }
 

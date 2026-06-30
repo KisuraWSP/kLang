@@ -10,22 +10,47 @@ alias function DATE(year : Int, month : Int, day : Int) : type = struct {
     this.day `json:"day"`;
 
     #extend {
+        function valid() : Bool {
+            return this.VALID();
+        }
+
+        @deprecated("Use valid instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function VALID() : Bool {
             return calendar.VALID_DATE(this);
         }
 
+        function days() : Int {
+            return this.DAYS();
+        }
+
+        @deprecated("Use days instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function DAYS() : Int {
             return calendar.DATE_TO_GREGORIAN_DAYS(this);
         }
 
+        function day_of_week() : Int {
+            return this.DAY_OF_WEEK();
+        }
+
+        @deprecated("Use day_of_week instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function DAY_OF_WEEK() : Int {
             return calendar.DAY_OF_THE_WEEK(this);
         }
 
+        function iso_week() : YEAR_WEEK {
+            return this.ISO_WEEK();
+        }
+
+        @deprecated("Use iso_week instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function ISO_WEEK() : YEAR_WEEK {
             return calendar.ISO_WEEK_NUMBER(this);
         }
 
+        function to_table() : Table {
+            return this.TO_TABLE();
+        }
+
+        @deprecated("Use to_table instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function TO_TABLE() : Table {
             return {
                 "year": this.year,
@@ -35,6 +60,11 @@ alias function DATE(year : Int, month : Int, day : Int) : type = struct {
             };
         }
 
+        function to_json() : String {
+            return this.TO_JSON();
+        }
+
+        @deprecated("Use to_json instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function TO_JSON() : String {
             return json_stringify(this.TO_TABLE());
         }
@@ -47,14 +77,29 @@ alias function TIME(hour : Int, minute : Int, second : Int) : type = struct {
     this.second `json:"second"`;
 
     #extend {
+        function valid() : Bool {
+            return this.VALID();
+        }
+
+        @deprecated("Use valid instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function VALID() : Bool {
             return calendar.VALID_TIME(this);
         }
 
+        function seconds() : Int {
+            return this.SECONDS();
+        }
+
+        @deprecated("Use seconds instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function SECONDS() : Int {
             return calendar.TIME_TO_SECONDS(this);
         }
 
+        function to_table() : Table {
+            return this.TO_TABLE();
+        }
+
+        @deprecated("Use to_table instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function TO_TABLE() : Table {
             return {
                 "hour": this.hour,
@@ -64,6 +109,11 @@ alias function TIME(hour : Int, minute : Int, second : Int) : type = struct {
             };
         }
 
+        function to_json() : String {
+            return this.TO_JSON();
+        }
+
+        @deprecated("Use to_json instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function TO_JSON() : String {
             return json_stringify(this.TO_TABLE());
         }
@@ -75,14 +125,32 @@ alias function DATETIME(date : DATE, time : TIME) : type = struct {
     this.time `json:"time"`;
 
     #extend {
-        function VALID() : Bool {
-            return this.date.VALID() and this.time.VALID();
+        function valid() : Bool {
+            return this.VALID();
         }
 
+        @deprecated("Use valid instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
+        function VALID() : Bool {
+            local DATE date = this.date;
+            local TIME time = this.time;
+            return calendar.VALID_DATE_PARTS(date.year, date.month, date.day) and
+                calendar.VALID_TIME_PARTS(time.hour, time.minute, time.second);
+        }
+
+        function seconds() : Int {
+            return this.SECONDS();
+        }
+
+        @deprecated("Use seconds instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function SECONDS() : Int {
             return calendar.DATETIME_TO_GREGORIAN_SECONDS(this);
         }
 
+        function to_table() : Table {
+            return this.TO_TABLE();
+        }
+
+        @deprecated("Use to_table instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function TO_TABLE() : Table {
             return {
                 "date": this.date.TO_TABLE(),
@@ -91,6 +159,11 @@ alias function DATETIME(date : DATE, time : TIME) : type = struct {
             };
         }
 
+        function to_json() : String {
+            return this.TO_JSON();
+        }
+
+        @deprecated("Use to_json instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function TO_JSON() : String {
             return json_stringify(this.TO_TABLE());
         }
@@ -102,6 +175,11 @@ alias function YEAR_WEEK(year : Int, week : Int) : type = struct {
     this.week `json:"week"`;
 
     #extend {
+        function to_table() : Table {
+            return this.TO_TABLE();
+        }
+
+        @deprecated("Use to_table instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function TO_TABLE() : Table {
             return {
                 "year": this.year,
@@ -109,6 +187,11 @@ alias function YEAR_WEEK(year : Int, week : Int) : type = struct {
             };
         }
 
+        function to_json() : String {
+            return this.TO_JSON();
+        }
+
+        @deprecated("Use to_json instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function TO_JSON() : String {
             return json_stringify(this.TO_TABLE());
         }
@@ -118,24 +201,44 @@ alias function YEAR_WEEK(year : Int, week : Int) : type = struct {
 namespace calendar {
     --- SIGNATURE: FUNCTION DATE_VALUE(YEAR : INT, MONTH : INT, DAY : INT) : DATE
     --- SUMMARY: BUILDS A STRUCTURED GREGORIAN DATE VALUE.
+    function DateValue(year : Int, month : Int, day : Int) : DATE {
+        return DATE_VALUE(year, month, day);
+    }
+
+    @deprecated("Use DateValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DATE_VALUE(year : Int, month : Int, day : Int) : DATE {
         return DATE(year, month, day);
     }
 
     --- SIGNATURE: FUNCTION TIME_VALUE(HOUR : INT, MINUTE : INT, SECOND : INT) : TIME
     --- SUMMARY: BUILDS A STRUCTURED TIME VALUE.
+    function TimeValue(hour : Int, minute : Int, second : Int) : TIME {
+        return TIME_VALUE(hour, minute, second);
+    }
+
+    @deprecated("Use TimeValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TIME_VALUE(hour : Int, minute : Int, second : Int) : TIME {
         return TIME(hour, minute, second);
     }
 
     --- SIGNATURE: FUNCTION DATETIME_VALUE(DATE_VALUE : DATE, TIME_VALUE : TIME) : DATETIME
     --- SUMMARY: BUILDS A STRUCTURED DATETIME VALUE.
+    function DatetimeValue(date : DATE, time : TIME) : DATETIME {
+        return DATETIME_VALUE(date, time);
+    }
+
+    @deprecated("Use DatetimeValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DATETIME_VALUE(date : DATE, time : TIME) : DATETIME {
         return DATETIME(date, time);
     }
 
     --- SIGNATURE: FUNCTION IS_LEAP_YEAR(YEAR : INT) : BOOL
     --- SUMMARY: RETURNS TRUE WHEN YEAR IS A GREGORIAN LEAP YEAR.
+    function IsLeapYear(year : Int) : Bool {
+        return IS_LEAP_YEAR(year);
+    }
+
+    @deprecated("Use IsLeapYear instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function IS_LEAP_YEAR(year : Int) : Bool {
         if year % 400 == 0 { return True; }
         if year % 100 == 0 { return False; }
@@ -144,14 +247,20 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION LAST_DAY_OF_THE_MONTH(YEAR : INT, MONTH : INT) : INT
     --- SUMMARY: RETURNS THE LAST VALID DAY FOR MONTH IN YEAR.
+    function LastDayOfTheMonth(year : Int, month : Int) : Int {
+        return LAST_DAY_OF_THE_MONTH(year, month);
+    }
+
+    @deprecated("Use LastDayOfTheMonth instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function LAST_DAY_OF_THE_MONTH(year : Int, month : Int) : Int {
         if month == 2 {
             if IS_LEAP_YEAR(year) { return 29; }
             return 28;
         }
-        if month == 4 or month == 6 or month == 9 or month == 11 {
-            return 30;
-        }
+        if month == 4 { return 30; }
+        if month == 6 { return 30; }
+        if month == 9 { return 30; }
+        if month == 11 { return 30; }
         if month >= 1 and month <= 12 {
             return 31;
         }
@@ -160,12 +269,22 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION VALID_DATE(DATE_VALUE : DATE) : BOOL
     --- SUMMARY: CHECKS WHETHER A DATE STRUCT IS VALID.
+    function ValidDate(date : DATE) : Bool {
+        return VALID_DATE(date);
+    }
+
+    @deprecated("Use ValidDate instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function VALID_DATE(date : DATE) : Bool {
         return VALID_DATE_PARTS(date.year, date.month, date.day);
     }
 
     --- SIGNATURE: FUNCTION VALID_DATE_PARTS(YEAR : INT, MONTH : INT, DAY : INT) : BOOL
     --- SUMMARY: CHECKS WHETHER YEAR, MONTH, AND DAY FORM A VALID DATE.
+    function ValidDateParts(year : Int, month : Int, day : Int) : Bool {
+        return VALID_DATE_PARTS(year, month, day);
+    }
+
+    @deprecated("Use ValidDateParts instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function VALID_DATE_PARTS(year : Int, month : Int, day : Int) : Bool {
         if month < 1 or month > 12 { return False; }
         return day >= 1 and day <= LAST_DAY_OF_THE_MONTH(year, month);
@@ -173,20 +292,40 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION VALID_TIME(TIME_VALUE : TIME) : BOOL
     --- SUMMARY: CHECKS WHETHER A TIME STRUCT IS VALID.
+    function ValidTime(time : TIME) : Bool {
+        return VALID_TIME(time);
+    }
+
+    @deprecated("Use ValidTime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function VALID_TIME(time : TIME) : Bool {
         return VALID_TIME_PARTS(time.hour, time.minute, time.second);
     }
 
     --- SIGNATURE: FUNCTION VALID_TIME_PARTS(HOUR : INT, MINUTE : INT, SECOND : INT) : BOOL
     --- SUMMARY: CHECKS WHETHER HOUR, MINUTE, AND SECOND FORM A VALID TIME.
+    function ValidTimeParts(hour : Int, minute : Int, second : Int) : Bool {
+        return VALID_TIME_PARTS(hour, minute, second);
+    }
+
+    @deprecated("Use ValidTimeParts instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function VALID_TIME_PARTS(hour : Int, minute : Int, second : Int) : Bool {
         return hour >= 0 and hour < 24 and minute >= 0 and minute < 60 and second >= 0 and second < 60;
     }
 
+    function DaysBeforeYear(year : Int) : Int {
+        return DAYS_BEFORE_YEAR(year);
+    }
+
+    @deprecated("Use DaysBeforeYear instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DAYS_BEFORE_YEAR(year : Int) : Int {
         return 365 * year + year / 4 - year / 100 + year / 400;
     }
 
+    function DaysBeforeMonth(year : Int, month : Int) : Int {
+        return DAYS_BEFORE_MONTH(year, month);
+    }
+
+    @deprecated("Use DaysBeforeMonth instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DAYS_BEFORE_MONTH(year : Int, month : Int) : Int {
         local mut Int total = 0;
         local mut Int index = 1;
@@ -199,12 +338,22 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION DATE_TO_GREGORIAN_DAYS(DATE_VALUE : DATE) : INT
     --- SUMMARY: RETURNS THE GREGORIAN DAY NUMBER FOR A VALID DATE.
+    function DateToGregorianDays(date : DATE) : Int {
+        return DATE_TO_GREGORIAN_DAYS(date);
+    }
+
+    @deprecated("Use DateToGregorianDays instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DATE_TO_GREGORIAN_DAYS(date : DATE) : Int {
         return DATE_PARTS_TO_GREGORIAN_DAYS(date.year, date.month, date.day);
     }
 
     --- SIGNATURE: FUNCTION DATE_PARTS_TO_GREGORIAN_DAYS(YEAR : INT, MONTH : INT, DAY : INT) : INT
     --- SUMMARY: RETURNS THE GREGORIAN DAY NUMBER FOR YEAR, MONTH, AND DAY.
+    function DatePartsToGregorianDays(year : Int, month : Int, day : Int) : Int {
+        return DATE_PARTS_TO_GREGORIAN_DAYS(year, month, day);
+    }
+
+    @deprecated("Use DatePartsToGregorianDays instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DATE_PARTS_TO_GREGORIAN_DAYS(year : Int, month : Int, day : Int) : Int {
         if not VALID_DATE_PARTS(year, month, day) {
             return 0;
@@ -214,6 +363,11 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION GREGORIAN_DAYS_TO_DATE(DAYS : INT) : DATE
     --- SUMMARY: CONVERTS A GREGORIAN DAY NUMBER BACK INTO A DATE.
+    function GregorianDaysToDate(days : Int) : DATE {
+        return GREGORIAN_DAYS_TO_DATE(days);
+    }
+
+    @deprecated("Use GregorianDaysToDate instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function GREGORIAN_DAYS_TO_DATE(days : Int) : DATE {
         if days <= 0 {
             return DATE(0, 1, 1);
@@ -239,12 +393,22 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION DAY_OF_THE_WEEK(DATE_VALUE : DATE) : INT
     --- SUMMARY: RETURNS MONDAY AS 1 THROUGH SUNDAY AS 7.
+    function DayOfTheWeek(date : DATE) : Int {
+        return DAY_OF_THE_WEEK(date);
+    }
+
+    @deprecated("Use DayOfTheWeek instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DAY_OF_THE_WEEK(date : DATE) : Int {
         return DAY_OF_THE_WEEK_PARTS(date.year, date.month, date.day);
     }
 
     --- SIGNATURE: FUNCTION DAY_OF_THE_WEEK_PARTS(YEAR : INT, MONTH : INT, DAY : INT) : INT
     --- SUMMARY: RETURNS MONDAY AS 1 THROUGH SUNDAY AS 7 FOR DATE PARTS.
+    function DayOfTheWeekParts(year : Int, month : Int, day : Int) : Int {
+        return DAY_OF_THE_WEEK_PARTS(year, month, day);
+    }
+
+    @deprecated("Use DayOfTheWeekParts instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DAY_OF_THE_WEEK_PARTS(year : Int, month : Int, day : Int) : Int {
         local Int days = DATE_PARTS_TO_GREGORIAN_DAYS(year, month, day);
         if days == 0 { return 0; }
@@ -253,12 +417,22 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION TIME_TO_SECONDS(TIME_VALUE : TIME) : INT
     --- SUMMARY: RETURNS SECONDS SINCE MIDNIGHT.
+    function TimeToSeconds(time : TIME) : Int {
+        return TIME_TO_SECONDS(time);
+    }
+
+    @deprecated("Use TimeToSeconds instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TIME_TO_SECONDS(time : TIME) : Int {
         return TIME_PARTS_TO_SECONDS(time.hour, time.minute, time.second);
     }
 
     --- SIGNATURE: FUNCTION TIME_PARTS_TO_SECONDS(HOUR : INT, MINUTE : INT, SECOND : INT) : INT
     --- SUMMARY: RETURNS SECONDS SINCE MIDNIGHT FOR TIME PARTS.
+    function TimePartsToSeconds(hour : Int, minute : Int, second : Int) : Int {
+        return TIME_PARTS_TO_SECONDS(hour, minute, second);
+    }
+
+    @deprecated("Use TimePartsToSeconds instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TIME_PARTS_TO_SECONDS(hour : Int, minute : Int, second : Int) : Int {
         if not VALID_TIME_PARTS(hour, minute, second) {
             return 0;
@@ -268,6 +442,11 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION SECONDS_TO_TIME(SECONDS : INT) : TIME
     --- SUMMARY: CONVERTS SECONDS WITHIN A DAY INTO TIME.
+    function SecondsToTime(seconds : Int) : TIME {
+        return SECONDS_TO_TIME(seconds);
+    }
+
+    @deprecated("Use SecondsToTime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SECONDS_TO_TIME(seconds : Int) : TIME {
         local mut Int value = seconds % 86400;
         if value < 0 { value += 86400; }
@@ -280,6 +459,11 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION SECONDS_TO_DAYSTIME(SECONDS : INT) : TABLE
     --- SUMMARY: SPLITS SECONDS INTO DAYS AND A NON-NEGATIVE TIME.
+    function SecondsToDaystime(seconds : Int) : Table {
+        return SECONDS_TO_DAYSTIME(seconds);
+    }
+
+    @deprecated("Use SecondsToDaystime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SECONDS_TO_DAYSTIME(seconds : Int) : Table {
         local mut Int days = seconds / 86400;
         local mut Int rest = seconds % 86400;
@@ -295,12 +479,22 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION DATETIME_TO_GREGORIAN_SECONDS(VALUE : DATETIME) : INT
     --- SUMMARY: CONVERTS A DATETIME INTO GREGORIAN SECONDS.
+    function DatetimeToGregorianSeconds(value : DATETIME) : Int {
+        return DATETIME_TO_GREGORIAN_SECONDS(value);
+    }
+
+    @deprecated("Use DatetimeToGregorianSeconds instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DATETIME_TO_GREGORIAN_SECONDS(value : DATETIME) : Int {
         return DATE_TO_GREGORIAN_DAYS(value.date) * 86400 + TIME_TO_SECONDS(value.time);
     }
 
     --- SIGNATURE: FUNCTION GREGORIAN_SECONDS_TO_DATETIME(SECONDS : INT) : DATETIME
     --- SUMMARY: CONVERTS GREGORIAN SECONDS BACK INTO A DATETIME.
+    function GregorianSecondsToDatetime(seconds : Int) : DATETIME {
+        return GREGORIAN_SECONDS_TO_DATETIME(seconds);
+    }
+
+    @deprecated("Use GregorianSecondsToDatetime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function GREGORIAN_SECONDS_TO_DATETIME(seconds : Int) : DATETIME {
         local Table split = SECONDS_TO_DAYSTIME(seconds);
         local DATE date = GREGORIAN_DAYS_TO_DATE(split.days as Int);
@@ -310,13 +504,26 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION TIME_DIFFERENCE(LEFT : DATETIME, RIGHT : DATETIME) : TABLE
     --- SUMMARY: RETURNS THE DIFFERENCE BETWEEN TWO DATETIMES.
+    function TimeDifference(left : DATETIME, right : DATETIME) : Table {
+        return TIME_DIFFERENCE(left, right);
+    }
+
+    @deprecated("Use TimeDifference instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TIME_DIFFERENCE(left : DATETIME, right : DATETIME) : Table {
         return SECONDS_TO_DAYSTIME(DATETIME_TO_GREGORIAN_SECONDS(right) - DATETIME_TO_GREGORIAN_SECONDS(left));
     }
 
+    function WeeksInIsoYear(year : Int) : Int {
+        return WEEKS_IN_ISO_YEAR(year);
+    }
+
+    @deprecated("Use WeeksInIsoYear instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function WEEKS_IN_ISO_YEAR(year : Int) : Int {
         local Int jan1 = DAY_OF_THE_WEEK_PARTS(year, 1, 1);
-        if jan1 == 4 or (jan1 == 3 and IS_LEAP_YEAR(year)) {
+        if jan1 == 4 {
+            return 53;
+        }
+        if jan1 == 3 and IS_LEAP_YEAR(year) {
             return 53;
         }
         return 52;
@@ -324,6 +531,11 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION ISO_WEEK_NUMBER(DATE_VALUE : DATE) : YEAR_WEEK
     --- SUMMARY: RETURNS THE ISO WEEK-YEAR AND WEEK NUMBER.
+    function IsoWeekNumber(date : DATE) : YEAR_WEEK {
+        return ISO_WEEK_NUMBER(date);
+    }
+
+    @deprecated("Use IsoWeekNumber instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ISO_WEEK_NUMBER(date : DATE) : YEAR_WEEK {
         local Int dayOfYear = DATE_TO_GREGORIAN_DAYS(date) - DAYS_BEFORE_YEAR(date.year);
         local Int weekday = DAY_OF_THE_WEEK(date);
@@ -346,22 +558,42 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION FORMAT_DATE(DATE_VALUE : DATE) : STRING
     --- SUMMARY: FORMATS DATE AS YEAR-MONTH-DAY WITHOUT HOST CLOCK ACCESS.
+    function FormatDate(date : DATE) : String {
+        return FORMAT_DATE(date);
+    }
+
+    @deprecated("Use FormatDate instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FORMAT_DATE(date : DATE) : String {
         return date.year as String + "-" + PAD2(date.month) + "-" + PAD2(date.day);
     }
 
     --- SIGNATURE: FUNCTION FORMAT_TIME(TIME_VALUE : TIME) : STRING
     --- SUMMARY: FORMATS TIME AS HOUR:MINUTE:SECOND.
+    function FormatTime(time : TIME) : String {
+        return FORMAT_TIME(time);
+    }
+
+    @deprecated("Use FormatTime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FORMAT_TIME(time : TIME) : String {
         return PAD2(time.hour) + ":" + PAD2(time.minute) + ":" + PAD2(time.second);
     }
 
     --- SIGNATURE: FUNCTION FORMAT_DATETIME(VALUE : DATETIME) : STRING
     --- SUMMARY: FORMATS DATETIME USING A T DESIGNATOR.
+    function FormatDatetime(value : DATETIME) : String {
+        return FORMAT_DATETIME(value);
+    }
+
+    @deprecated("Use FormatDatetime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FORMAT_DATETIME(value : DATETIME) : String {
         return FORMAT_DATE(value.date) + "T" + FORMAT_TIME(value.time);
     }
 
+    function Pad2(value : Int) : String {
+        return PAD2(value);
+    }
+
+    @deprecated("Use Pad2 instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PAD2(value : Int) : String {
         if value < 10 and value >= 0 {
             return "0" + (value as String);
@@ -371,6 +603,11 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION DESCRIBE_DATE(DATE_VALUE : DATE) : TABLE
     --- SUMMARY: RETURNS A STRUCTURED DESCRIPTION OF A DATE.
+    function DescribeDate(date : DATE) : Table {
+        return DESCRIBE_DATE(date);
+    }
+
+    @deprecated("Use DescribeDate instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DESCRIBE_DATE(date : DATE) : Table {
         local YEAR_WEEK iso = ISO_WEEK_NUMBER(date);
         return {
@@ -385,12 +622,22 @@ namespace calendar {
 
     --- SIGNATURE: FUNCTION DESCRIBE_DATE_JSON(DATE_VALUE : DATE) : STRING
     --- SUMMARY: SERIALIZES DESCRIBE_DATE AS JSON.
+    function DescribeDateJson(date : DATE) : String {
+        return DESCRIBE_DATE_JSON(date);
+    }
+
+    @deprecated("Use DescribeDateJson instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DESCRIBE_DATE_JSON(date : DATE) : String {
         return json_stringify(DESCRIBE_DATE(date));
     }
 
     --- SIGNATURE: FUNCTION API_SOURCE() : STRING
     --- SUMMARY: RETURNS A SMALL PARSEABLE CALENDAR API SAMPLE.
+    function ApiSource() : String {
+        return API_SOURCE();
+    }
+
+    @deprecated("Use ApiSource instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function API_SOURCE() : String {
         return //
 load_as_script;
@@ -402,96 +649,226 @@ print(calendar.DESCRIBE_DATE_JSON(new_year));
 
     --- SIGNATURE: FUNCTION API_PARSABLE() : PARSABLE[ANY]
     --- SUMMARY: PARSES THE CALENDAR API SAMPLE FOR METAPROGRAMMING TOOLS.
+    function ApiParsable() : Parsable[Any] {
+        return API_PARSABLE();
+    }
+
+    @deprecated("Use ApiParsable instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function API_PARSABLE() : Parsable[Any] {
         return Parsable(API_SOURCE(), []);
     }
 
     --- SIGNATURE: FUNCTION API_AST() : LIST[TABLE]
     --- SUMMARY: RETURNS THE AST FOR THE CALENDAR API SAMPLE.
+    function ApiAst() : List[Table] {
+        return API_AST();
+    }
+
+    @deprecated("Use ApiAst instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function API_AST() : List[Table] {
         return parsable_ast(API_PARSABLE());
     }
 
     --- SIGNATURE: FUNCTION LOCAL_TIME() : RESULT[DATETIME, STRING]
     --- SUMMARY: RETURNS AN HONEST ERROR UNTIL THE RUNTIME EXPOSES HOST CLOCK ACCESS.
+    function LocalTime() : Result[DATETIME, String] {
+        return LOCAL_TIME();
+    }
+
+    @deprecated("Use LocalTime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function LOCAL_TIME() : Result[DATETIME, String] {
         return Err("calendar.LOCAL_TIME requires host clock runtime support");
     }
 
     --- SIGNATURE: FUNCTION UNIVERSAL_TIME() : RESULT[DATETIME, STRING]
     --- SUMMARY: RETURNS AN HONEST ERROR UNTIL THE RUNTIME EXPOSES UTC CLOCK ACCESS.
+    function UniversalTime() : Result[DATETIME, String] {
+        return UNIVERSAL_TIME();
+    }
+
+    @deprecated("Use UniversalTime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function UNIVERSAL_TIME() : Result[DATETIME, String] {
         return Err("calendar.UNIVERSAL_TIME requires host clock runtime support");
     }
 }
 
 namespace calender {
+    function DateValue(year : Int, month : Int, day : Int) : DATE {
+        return DATE_VALUE(year, month, day);
+    }
+
+    @deprecated("Use DateValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DATE_VALUE(year : Int, month : Int, day : Int) : DATE {
         return calendar.DATE_VALUE(year, month, day);
     }
 
+    function TimeValue(hour : Int, minute : Int, second : Int) : TIME {
+        return TIME_VALUE(hour, minute, second);
+    }
+
+    @deprecated("Use TimeValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TIME_VALUE(hour : Int, minute : Int, second : Int) : TIME {
         return calendar.TIME_VALUE(hour, minute, second);
     }
 
+    function DatetimeValue(date : DATE, time : TIME) : DATETIME {
+        return DATETIME_VALUE(date, time);
+    }
+
+    @deprecated("Use DatetimeValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DATETIME_VALUE(date : DATE, time : TIME) : DATETIME {
         return calendar.DATETIME_VALUE(date, time);
     }
 
+    function ValidDate(date : DATE) : Bool {
+        return VALID_DATE(date);
+    }
+
+    @deprecated("Use ValidDate instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function VALID_DATE(date : DATE) : Bool { return calendar.VALID_DATE(date); }
 
+    function ValidDateParts(year : Int, month : Int, day : Int) : Bool {
+        return VALID_DATE_PARTS(year, month, day);
+    }
+
+    @deprecated("Use ValidDateParts instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function VALID_DATE_PARTS(year : Int, month : Int, day : Int) : Bool {
         return calendar.VALID_DATE_PARTS(year, month, day);
     }
 
+    function ValidTime(time : TIME) : Bool {
+        return VALID_TIME(time);
+    }
+
+    @deprecated("Use ValidTime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function VALID_TIME(time : TIME) : Bool { return calendar.VALID_TIME(time); }
 
+    function IsLeapYear(year : Int) : Bool {
+        return IS_LEAP_YEAR(year);
+    }
+
+    @deprecated("Use IsLeapYear instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function IS_LEAP_YEAR(year : Int) : Bool { return calendar.IS_LEAP_YEAR(year); }
 
+    function LastDayOfTheMonth(year : Int, month : Int) : Int {
+        return LAST_DAY_OF_THE_MONTH(year, month);
+    }
+
+    @deprecated("Use LastDayOfTheMonth instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function LAST_DAY_OF_THE_MONTH(year : Int, month : Int) : Int {
         return calendar.LAST_DAY_OF_THE_MONTH(year, month);
     }
 
+    function DateToGregorianDays(date : DATE) : Int {
+        return DATE_TO_GREGORIAN_DAYS(date);
+    }
+
+    @deprecated("Use DateToGregorianDays instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DATE_TO_GREGORIAN_DAYS(date : DATE) : Int {
         return calendar.DATE_TO_GREGORIAN_DAYS(date);
     }
 
+    function GregorianDaysToDate(days : Int) : DATE {
+        return GREGORIAN_DAYS_TO_DATE(days);
+    }
+
+    @deprecated("Use GregorianDaysToDate instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function GREGORIAN_DAYS_TO_DATE(days : Int) : DATE {
         return calendar.GREGORIAN_DAYS_TO_DATE(days);
     }
 
+    function DayOfTheWeek(date : DATE) : Int {
+        return DAY_OF_THE_WEEK(date);
+    }
+
+    @deprecated("Use DayOfTheWeek instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DAY_OF_THE_WEEK(date : DATE) : Int { return calendar.DAY_OF_THE_WEEK(date); }
 
+    function TimeToSeconds(time : TIME) : Int {
+        return TIME_TO_SECONDS(time);
+    }
+
+    @deprecated("Use TimeToSeconds instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TIME_TO_SECONDS(time : TIME) : Int { return calendar.TIME_TO_SECONDS(time); }
 
+    function SecondsToTime(seconds : Int) : TIME {
+        return SECONDS_TO_TIME(seconds);
+    }
+
+    @deprecated("Use SecondsToTime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SECONDS_TO_TIME(seconds : Int) : TIME { return calendar.SECONDS_TO_TIME(seconds); }
 
+    function SecondsToDaystime(seconds : Int) : Table {
+        return SECONDS_TO_DAYSTIME(seconds);
+    }
+
+    @deprecated("Use SecondsToDaystime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SECONDS_TO_DAYSTIME(seconds : Int) : Table {
         return calendar.SECONDS_TO_DAYSTIME(seconds);
     }
 
+    function DatetimeToGregorianSeconds(value : DATETIME) : Int {
+        return DATETIME_TO_GREGORIAN_SECONDS(value);
+    }
+
+    @deprecated("Use DatetimeToGregorianSeconds instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DATETIME_TO_GREGORIAN_SECONDS(value : DATETIME) : Int {
         return calendar.DATETIME_TO_GREGORIAN_SECONDS(value);
     }
 
+    function GregorianSecondsToDatetime(seconds : Int) : DATETIME {
+        return GREGORIAN_SECONDS_TO_DATETIME(seconds);
+    }
+
+    @deprecated("Use GregorianSecondsToDatetime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function GREGORIAN_SECONDS_TO_DATETIME(seconds : Int) : DATETIME {
         return calendar.GREGORIAN_SECONDS_TO_DATETIME(seconds);
     }
 
+    function IsoWeekNumber(date : DATE) : YEAR_WEEK {
+        return ISO_WEEK_NUMBER(date);
+    }
+
+    @deprecated("Use IsoWeekNumber instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ISO_WEEK_NUMBER(date : DATE) : YEAR_WEEK {
         return calendar.ISO_WEEK_NUMBER(date);
     }
 
+    function FormatDate(date : DATE) : String {
+        return FORMAT_DATE(date);
+    }
+
+    @deprecated("Use FormatDate instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FORMAT_DATE(date : DATE) : String { return calendar.FORMAT_DATE(date); }
 
+    function FormatTime(time : TIME) : String {
+        return FORMAT_TIME(time);
+    }
+
+    @deprecated("Use FormatTime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FORMAT_TIME(time : TIME) : String { return calendar.FORMAT_TIME(time); }
 
+    function FormatDatetime(value : DATETIME) : String {
+        return FORMAT_DATETIME(value);
+    }
+
+    @deprecated("Use FormatDatetime instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function FORMAT_DATETIME(value : DATETIME) : String {
         return calendar.FORMAT_DATETIME(value);
     }
 
+    function DescribeDate(date : DATE) : Table {
+        return DESCRIBE_DATE(date);
+    }
+
+    @deprecated("Use DescribeDate instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DESCRIBE_DATE(date : DATE) : Table { return calendar.DESCRIBE_DATE(date); }
 
+    function DescribeDateJson(date : DATE) : String {
+        return DESCRIBE_DATE_JSON(date);
+    }
+
+    @deprecated("Use DescribeDateJson instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DESCRIBE_DATE_JSON(date : DATE) : String {
         return calendar.DESCRIBE_DATE_JSON(date);
     }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"syscall/js"
 
+	"kLang/src/engine/bytecode"
 	"kLang/src/engine/file"
 	"kLang/src/engine/runtime"
 	typechecker "kLang/src/engine/type_checker"
@@ -15,12 +16,13 @@ import (
 )
 
 type response struct {
-	OK     bool              `json:"ok"`
-	Value  any               `json:"value,omitempty"`
-	Output []string          `json:"output,omitempty"`
-	Memory map[string]int    `json:"memory,omitempty"`
-	Errors []browserError    `json:"errors,omitempty"`
-	Meta   map[string]string `json:"meta,omitempty"`
+	OK           bool              `json:"ok"`
+	Value        any               `json:"value,omitempty"`
+	Output       []string          `json:"output,omitempty"`
+	Memory       map[string]int    `json:"memory,omitempty"`
+	Errors       []browserError    `json:"errors,omitempty"`
+	Meta         map[string]string `json:"meta,omitempty"`
+	Instructions uint64            `json:"instructions,omitempty"`
 }
 
 type browserError struct {
@@ -36,7 +38,31 @@ func main() {
 	js.Global().Set("klangCheck", js.FuncOf(checkSource))
 	js.Global().Set("klangRunProject", js.FuncOf(runProject))
 	js.Global().Set("klangCheckProject", js.FuncOf(checkProject))
+	js.Global().Set("klangRunBytecode", js.FuncOf(runBytecode))
 	select {}
+}
+
+func runBytecode(_ js.Value, args []js.Value) any {
+	if len(args) == 0 || args[0].IsUndefined() || args[0].IsNull() {
+		return jsonResponse(response{OK: false, Errors: []browserError{{Stage: "input", Message: "klangRunBytecode expects a Uint8Array"}}})
+	}
+	encoded := make([]byte, args[0].Length())
+	if copied := js.CopyBytesToGo(encoded, args[0]); copied != len(encoded) {
+		return jsonResponse(response{OK: false, Errors: []browserError{{Stage: "input", Message: "could not copy the complete bytecode buffer"}}})
+	}
+	program, err := bytecode.Decode(encoded)
+	if err != nil {
+		return jsonResponse(response{OK: false, Errors: []browserError{{Stage: "bytecode", Message: err.Error()}}})
+	}
+	result, err := bytecode.NewVM().Execute(program)
+	if err != nil {
+		return jsonResponse(response{OK: false, Errors: []browserError{{Stage: "bytecode-runtime", Message: err.Error()}}})
+	}
+	return jsonResponse(response{
+		OK: true, Value: encodeBytecodeValue(result.Value), Output: result.Output,
+		Instructions: result.Instructions,
+		Meta:         map[string]string{"executor": "bytecode-vm", "format": bytecode.Magic},
+	})
 }
 
 func runSource(_ js.Value, args []js.Value) any {
@@ -270,4 +296,30 @@ func encodeValue(value runtime.Value) any {
 		encoded["value"] = fmt.Sprintf("%v", value.Data)
 	}
 	return encoded
+}
+
+func encodeBytecodeValue(value bytecode.Value) any {
+	return map[string]any{
+		"kind":  bytecodeValueKind(value.Kind),
+		"value": value.Interface(),
+	}
+}
+
+func bytecodeValueKind(kind bytecode.ValueKind) string {
+	switch kind {
+	case bytecode.ValueNull:
+		return "Null"
+	case bytecode.ValueInt:
+		return "Int"
+	case bytecode.ValueFloat:
+		return "Float"
+	case bytecode.ValueBool:
+		return "Bool"
+	case bytecode.ValueString:
+		return "String"
+	case bytecode.ValueList:
+		return "List"
+	default:
+		return "Unknown"
+	}
 }

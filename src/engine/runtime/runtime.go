@@ -80,8 +80,17 @@ type AwaitableData struct {
 }
 
 type IteratorData struct {
-	Items []Value
-	Index int
+	Items     []Value
+	Index     int
+	Stages    []IteratorStage
+	Exhausted bool
+}
+
+type IteratorStage struct {
+	Kind     string
+	Function string
+	Count    int
+	Seen     int
 }
 
 type CoroutineData struct {
@@ -1372,7 +1381,7 @@ func (runtime *Runtime) executeLoop(stmt parser.LoopStatement, env *Environment)
 		if err != nil {
 			return signal{}, err
 		}
-		values, err := iterableValues(iterableValue)
+		values, err := runtime.iterableValues(iterableValue)
 		if err != nil {
 			return signal{}, errorAt(stmt.Pos, err.Error())
 		}
@@ -2303,6 +2312,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			return field, nil
 		}
 		if err == nil && value.Kind == ValueMap {
+			if builtinProtocolMethodExists(value, current.Field) {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
+			}
 			if runtime.extensionMethodExists(runtimeTypeName(value), current.Field) {
 				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: runtimeTypeName(value), Name: current.Field, Receiver: value}}, nil
 			}
@@ -2359,6 +2371,14 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 			return NullValue(), Error{Message: fmt.Sprintf("unknown enum field %q", current.Field)}
 		}
 		if err == nil {
+			if value.Kind == ValueIterator && current.Field == "count" {
+				iterator := cloneIteratorData(value.Data.(*IteratorData))
+				items, collectErr := runtime.collectIterator(iterator)
+				if collectErr != nil {
+					return NullValue(), collectErr
+				}
+				return IntValue(len(items)), nil
+			}
 			if field, ok := builtinProtocolField(value, current.Field); ok {
 				return field, nil
 			}
@@ -2371,6 +2391,9 @@ func (runtime *Runtime) evalExpression(expr parser.ExpressionNode, env *Environm
 		}
 		if err == nil && value.Kind == ValueObject {
 			object := value.Data.(ObjectData)
+			if object.Struct && current.Field == "cast_as" {
+				return Value{Kind: ValueBoundMethod, Data: BoundMethodData{Type: object.Type, Name: current.Field, Receiver: value}}, nil
+			}
 			if field, ok := object.Fields[current.Field]; ok {
 				return field, nil
 			}
@@ -2516,7 +2539,7 @@ func (runtime *Runtime) evalListComprehension(expr parser.ListComprehensionExpre
 		return NullValue(), err
 	}
 
-	values, err := iterableValues(iterable)
+	values, err := runtime.iterableValues(iterable)
 	if err != nil {
 		return NullValue(), err
 	}
@@ -2547,15 +2570,14 @@ func (runtime *Runtime) evalListComprehension(expr parser.ListComprehensionExpre
 	return Value{Kind: ValueList, Data: items}, nil
 }
 
-func iterableValues(value Value) ([]Value, error) {
+func (runtime *Runtime) iterableValues(value Value) ([]Value, error) {
 	switch value.Kind {
 	case ValueList:
 		return value.Data.([]Value), nil
 	case ValueSet:
 		return setValues(value.Data.(SetData)), nil
 	case ValueIterator:
-		iterator := value.Data.(*IteratorData)
-		return iterator.Items, nil
+		return runtime.collectIterator(value.Data.(*IteratorData))
 	case ValueString:
 		runes := []rune(value.Data.(string))
 		values := make([]Value, 0, len(runes))
@@ -2575,6 +2597,12 @@ func iterableValues(value Value) ([]Value, error) {
 		return values, nil
 	case ValueTable:
 		return tableEntries(value.Data.(TableData)), nil
+	case ValueMap:
+		iterator, err := runtime.iteratorFromValue(value)
+		if err != nil {
+			return nil, err
+		}
+		return runtime.collectIterator(iterator.Data.(*IteratorData))
 	default:
 		return nil, Error{Message: fmt.Sprintf("list comprehension cannot iterate over %s", value.Kind)}
 	}
@@ -3432,11 +3460,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		if len(args) != 1 {
 			return NullValue(), Error{Message: "iter expects one iterable value"}
 		}
-		values, err := iterableValues(args[0])
-		if err != nil {
-			return NullValue(), err
-		}
-		return IteratorValue(values), nil
+		return runtime.iteratorFromValue(args[0])
 	case "next":
 		if len(args) != 1 {
 			return NullValue(), Error{Message: "next expects one Iterator"}
@@ -3444,12 +3468,13 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		if args[0].Kind != ValueIterator {
 			return NullValue(), Error{Message: fmt.Sprintf("next expects Iterator, got %s", args[0].Kind)}
 		}
-		iterator := args[0].Data.(*IteratorData)
-		if iterator.Index >= len(iterator.Items) {
+		value, ok, err := runtime.nextIterator(args[0].Data.(*IteratorData))
+		if err != nil {
+			return NullValue(), err
+		}
+		if !ok {
 			return OptionNoneValue(), nil
 		}
-		value := iterator.Items[iterator.Index]
-		iterator.Index++
 		return OptionSomeValue(value), nil
 	case "coroutine":
 		if len(args) != 1 {
@@ -4306,6 +4331,9 @@ func (runtime *Runtime) extensionMethodExists(typeName string, methodName string
 }
 
 func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parser.ExpressionNode, env *Environment) (Value, error) {
+	if method.Name == "cast_as" {
+		return runtime.callStructCast(method.Receiver, argNodes)
+	}
 	args := make([]Value, 0, len(argNodes))
 	for _, arg := range argNodes {
 		value, err := runtime.evalExpression(arg, env)
@@ -4318,6 +4346,74 @@ func (runtime *Runtime) callBoundMethod(method BoundMethodData, argNodes []parse
 		return runtime.callBuiltinProtocolMethod(method, args)
 	}
 	return runtime.callAliasMethodValues(method, args, env)
+}
+
+func (runtime *Runtime) callStructCast(receiver Value, argNodes []parser.ExpressionNode) (Value, error) {
+	if receiver.Kind != ValueObject || !receiver.Data.(ObjectData).Struct {
+		return NullValue(), Error{Message: fmt.Sprintf("cast_as requires a struct alias receiver, got %s", runtimeTypeName(receiver))}
+	}
+	if len(argNodes) != 1 {
+		return NullValue(), Error{Message: fmt.Sprintf("cast_as expects exactly 1 target type, got %d", len(argNodes))}
+	}
+	target, ok := argNodes[0].(parser.IdentifierExpression)
+	if !ok {
+		return NullValue(), Error{Message: "cast_as target must be a type name"}
+	}
+	targetType := normalizeRuntimeType(target.Name)
+	object := receiver.Data.(ObjectData)
+	switch targetType {
+	case object.Type:
+		return cloneValue(receiver), nil
+	case "Table":
+		alias := runtime.aliasFunctions[object.Type]
+		entries := make([]TableEntryData, 0, len(alias.Params))
+		for _, param := range alias.Params {
+			if value, exists := object.Fields[param.Name]; exists {
+				entries = append(entries, TableEntryData{Key: StringValue(param.Name), Value: value})
+			}
+		}
+		return TableValueFromEntries(entries), nil
+	case "JSON":
+		converted, err := runtimeValueToJSON(receiver)
+		if err != nil {
+			return NullValue(), err
+		}
+		return JSONValue(converted), nil
+	case "String":
+		encoded, err := runtimeValueJSONString(receiver)
+		if err != nil {
+			return NullValue(), err
+		}
+		return StringValue(encoded), nil
+	}
+	targetAlias, exists := runtime.aliasFunctions[targetType]
+	if !exists || !targetAlias.Struct {
+		return NullValue(), Error{Message: fmt.Sprintf("cast_as target %s must be Table, JSON, String, or a struct alias", targetType)}
+	}
+	args := make([]Value, 0, len(targetAlias.Params))
+	for _, param := range targetAlias.Params {
+		if value, found := object.Fields[param.Name]; found {
+			if !valueMatchesType(value, param.Type) {
+				return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to %s: field %q expects %s, got %s", object.Type, targetType, param.Name, param.Type, runtimeTypeName(value))}
+			}
+			args = append(args, cloneValue(value))
+			continue
+		}
+		if isDefaultAllocator(param.Default) {
+			args = append(args, allocatorObject("HeapAllocator", nil))
+			continue
+		}
+		if param.Default.Node != nil {
+			value, err := runtime.evalExpression(param.Default.Node, runtime.global)
+			if err != nil {
+				return NullValue(), err
+			}
+			args = append(args, value)
+			continue
+		}
+		return NullValue(), Error{Message: fmt.Sprintf("cannot cast %s to %s: required field %q is missing", object.Type, targetType, param.Name)}
+	}
+	return runtime.callAliasFunction(targetType, args)
 }
 
 func (runtime *Runtime) callAliasMethodValues(method BoundMethodData, args []Value, env *Environment) (Value, error) {
@@ -4394,6 +4490,12 @@ func builtinProtocolField(value Value, field string) (Value, bool) {
 }
 
 func builtinProtocolMethodExists(value Value, method string) bool {
+	if pipelineMethodName(method) {
+		switch value.Kind {
+		case ValueList, ValueSet, ValueString, ValueInt, ValueMap, ValueTable, ValueIterator:
+			return true
+		}
+	}
 	switch value.Kind {
 	case ValueString, ValueChar:
 		return method == "uppercase" || method == "lowercase"
@@ -4425,6 +4527,9 @@ func (runtime *Runtime) callBuiltinProtocolMethod(method BoundMethodData, args [
 	}
 	if isObjectType(method.Receiver, "OS") {
 		return runtime.callOSBuiltin("os_"+method.Name, append([]Value{method.Receiver}, args...))
+	}
+	if pipelineMethodName(method.Name) {
+		return runtime.callPipelineMethod(method, args)
 	}
 	switch method.Name {
 	case "uppercase":
@@ -4469,6 +4574,143 @@ func (runtime *Runtime) callBuiltinProtocolMethod(method BoundMethodData, args [
 		return result, nil
 	}
 	return NullValue(), Error{Message: fmt.Sprintf("unknown method %s.%s", method.Type, method.Name)}
+}
+
+func pipelineMethodName(name string) bool {
+	switch name {
+	case "iter", "filter", "map", "skip", "limit", "collect", "sort", "fold", "first", "any", "all", "for_each":
+		return true
+	default:
+		return false
+	}
+}
+
+func (runtime *Runtime) callPipelineMethod(method BoundMethodData, args []Value) (Value, error) {
+	switch method.Name {
+	case "iter":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: "iter() expects no arguments"}
+		}
+		return runtime.iteratorFromValue(method.Receiver)
+	case "filter", "map":
+		if len(args) != 1 || args[0].Kind != ValueFunction {
+			return NullValue(), Error{Message: fmt.Sprintf("%s expects one Function callback", method.Name)}
+		}
+		return runtime.appendIteratorStage(method.Receiver, IteratorStage{Kind: method.Name, Function: args[0].Data.(string)})
+	case "skip", "limit":
+		if len(args) != 1 || args[0].Kind != ValueInt {
+			return NullValue(), Error{Message: fmt.Sprintf("%s expects one non-negative Int", method.Name)}
+		}
+		count := args[0].Data.(int)
+		if count < 0 {
+			return NullValue(), Error{Message: fmt.Sprintf("%s expects a non-negative Int", method.Name)}
+		}
+		stageKind := method.Name
+		if stageKind == "limit" {
+			stageKind = iteratorStageTake
+		}
+		return runtime.appendIteratorStage(method.Receiver, IteratorStage{Kind: stageKind, Count: count})
+	}
+	iterator, err := runtime.iteratorFromValue(method.Receiver)
+	if err != nil {
+		return NullValue(), err
+	}
+	data := iterator.Data.(*IteratorData)
+	switch method.Name {
+	case "collect":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: "collect expects no arguments"}
+		}
+		items, err := runtime.collectIterator(data)
+		if err != nil {
+			return NullValue(), err
+		}
+		return Value{Kind: ValueList, Data: items}, nil
+	case "sort":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: "sort expects no arguments"}
+		}
+		items, err := runtime.sortIterator(data)
+		if err != nil {
+			return NullValue(), err
+		}
+		return Value{Kind: ValueList, Data: items}, nil
+	case "first":
+		if len(args) != 0 {
+			return NullValue(), Error{Message: "first expects no arguments"}
+		}
+		value, ok, err := runtime.nextIterator(data)
+		if err != nil {
+			return NullValue(), err
+		}
+		if !ok {
+			return OptionNoneValue(), nil
+		}
+		return OptionSomeValue(value), nil
+	case "fold":
+		if len(args) != 2 || args[1].Kind != ValueFunction {
+			return NullValue(), Error{Message: "fold expects an initial value and Function[U,T,U]"}
+		}
+		result := cloneValue(args[0])
+		for {
+			value, ok, err := runtime.nextIterator(data)
+			if err != nil {
+				return NullValue(), err
+			}
+			if !ok {
+				return result, nil
+			}
+			result, err = runtime.callFunction(args[1].Data.(string), []Value{result, value})
+			if err != nil {
+				return NullValue(), err
+			}
+		}
+	case "any", "all":
+		if len(args) != 1 || args[0].Kind != ValueFunction {
+			return NullValue(), Error{Message: fmt.Sprintf("%s expects Function[T,Bool]", method.Name)}
+		}
+		for {
+			value, ok, err := runtime.nextIterator(data)
+			if err != nil {
+				return NullValue(), err
+			}
+			if !ok {
+				return BoolValue(method.Name == "all"), nil
+			}
+			result, err := runtime.callFunction(args[0].Data.(string), []Value{value})
+			if err != nil {
+				return NullValue(), err
+			}
+			if result.Kind != ValueBool {
+				return NullValue(), Error{Message: fmt.Sprintf("%s callback must return Bool", method.Name)}
+			}
+			matched := result.Data.(bool)
+			if method.Name == "any" && matched {
+				return BoolValue(true), nil
+			}
+			if method.Name == "all" && !matched {
+				return BoolValue(false), nil
+			}
+		}
+	case "for_each":
+		if len(args) != 1 || args[0].Kind != ValueFunction {
+			return NullValue(), Error{Message: "for_each expects Function[T,U]"}
+		}
+		for {
+			value, ok, err := runtime.nextIterator(data)
+			if err != nil {
+				return NullValue(), err
+			}
+			if !ok {
+				return NullValue(), nil
+			}
+			if _, err := runtime.callFunction(args[0].Data.(string), []Value{value}); err != nil {
+				return NullValue(), err
+			}
+		}
+	default:
+		return NullValue(), Error{Message: fmt.Sprintf("unknown pipeline method %s", method.Name)}
+	}
 }
 
 func (runtime *Runtime) regionArrayCapacity(typeName string) (int, bool) {

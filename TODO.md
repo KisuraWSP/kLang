@@ -8,7 +8,6 @@
 - add a keyword called go_to to go to a specific scope, label, loop
 - add new keyword called "foreign" if its a ffi based function for any backend or language interop
 
-- for structs we do the .cast_as() method for if we want to convert a struct to a specific types we want
 - remove any unnecessary features that we dont need
 
 - once language is more powerful u should be able to do powerful commands via default program like the below
@@ -118,10 +117,6 @@ complex programs that we will be able to run with whatever user created code and
 - Improve Loops <broken right now>
 - Improve Functions, Function Aliases, Structs <broken right now>
 - Improve Data Types <broken right now>
-    -   Zero-Cost Iterators and Functional Pipelines
-        Data types like arrays, lists, and dictionaries have been upgraded to support functional programming concepts out of the box.
-        Chaining: Instead of writing complex for loops with temporary variables, you can chain operations directly on the list: users.filter(...).map(...).sort(...).
-        Lazy Evaluation: In languages like Rust or C# (LINQ), chaining these methods together doesn't actually process the array immediately. The language builds a highly optimized execution plan behind the scenes and processes the data in one ultra-fast pass, meaning you get the readability of functional programming without sacrificing the performance of a raw C-style for loop.
 - Improve Error Reporting, Error Handling, Errors System <broken right now>
 (**improve errors system and error handling, error reporting should be proper and helpful not vague
 **)

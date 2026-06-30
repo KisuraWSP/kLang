@@ -782,6 +782,10 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 		checker.checkScopeExpression(current.Left, scope, namespace, source, line)
 		checker.checkScopeExpression(current.Right, scope, namespace, source, line)
 	case parser.CallExpression:
+		if selector, ok := current.Callee.(parser.SelectorExpression); ok && selector.Field == "cast_as" {
+			checker.checkScopeExpression(selector.Target, scope, namespace, source, line)
+			return
+		}
 		checker.checkCallScope(current.Callee, scope, namespace, source, line)
 		for _, arg := range current.Arguments {
 			checker.checkScopeExpression(arg, scope, namespace, source, line)

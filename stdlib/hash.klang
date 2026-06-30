@@ -172,17 +172,22 @@ namespace hash {
         --- Returns: Table.
         --- Summary: Provides the stdlib run operation using current Klang data types and runtime helpers.
         --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
-        function run(data : String) : Table {
+        function apply_digest(data : String) : Table {
             return Digest(algorithm, data, size, usedforsecurity);
         }
 
-        return run;
+        return apply_digest;
     }
 
     --- Signature: function md5(data : String = "", usedforsecurity : Bool = True) : Table
     --- Returns: Table.
     --- Summary: Provides the stdlib md5 operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Md5(data : String = "", usedforsecurity : Bool = True) : Table {
+        return md5(data, usedforsecurity);
+    }
+
+    @deprecated("Use Md5 instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function md5(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("md5", data, 16, usedforsecurity);
     }
@@ -191,6 +196,11 @@ namespace hash {
     --- Returns: Table.
     --- Summary: Provides the stdlib sha1 operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sha1(data : String = "", usedforsecurity : Bool = True) : Table {
+        return sha1(data, usedforsecurity);
+    }
+
+    @deprecated("Use Sha1 instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sha1(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha1", data, 20, usedforsecurity);
     }
@@ -199,6 +209,11 @@ namespace hash {
     --- Returns: Table.
     --- Summary: Provides the stdlib sha224 operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sha224(data : String = "", usedforsecurity : Bool = True) : Table {
+        return sha224(data, usedforsecurity);
+    }
+
+    @deprecated("Use Sha224 instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sha224(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha224", data, 28, usedforsecurity);
     }
@@ -207,6 +222,11 @@ namespace hash {
     --- Returns: Table.
     --- Summary: Provides the stdlib sha256 operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sha256(data : String = "", usedforsecurity : Bool = True) : Table {
+        return sha256(data, usedforsecurity);
+    }
+
+    @deprecated("Use Sha256 instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sha256(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha256", data, 32, usedforsecurity);
     }
@@ -215,6 +235,11 @@ namespace hash {
     --- Returns: Table.
     --- Summary: Provides the stdlib sha384 operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sha384(data : String = "", usedforsecurity : Bool = True) : Table {
+        return sha384(data, usedforsecurity);
+    }
+
+    @deprecated("Use Sha384 instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sha384(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha384", data, 48, usedforsecurity);
     }
@@ -223,6 +248,11 @@ namespace hash {
     --- Returns: Table.
     --- Summary: Provides the stdlib sha512 operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sha512(data : String = "", usedforsecurity : Bool = True) : Table {
+        return sha512(data, usedforsecurity);
+    }
+
+    @deprecated("Use Sha512 instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sha512(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha512", data, 64, usedforsecurity);
     }
@@ -231,6 +261,11 @@ namespace hash {
     --- Returns: Table.
     --- Summary: Provides the stdlib sha3 224 operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sha3224(data : String = "", usedforsecurity : Bool = True) : Table {
+        return sha3_224(data, usedforsecurity);
+    }
+
+    @deprecated("Use Sha3224 instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sha3_224(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha3_224", data, 28, usedforsecurity);
     }
@@ -239,6 +274,11 @@ namespace hash {
     --- Returns: Table.
     --- Summary: Provides the stdlib sha3 256 operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sha3256(data : String = "", usedforsecurity : Bool = True) : Table {
+        return sha3_256(data, usedforsecurity);
+    }
+
+    @deprecated("Use Sha3256 instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sha3_256(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha3_256", data, 32, usedforsecurity);
     }
@@ -247,6 +287,11 @@ namespace hash {
     --- Returns: Table.
     --- Summary: Provides the stdlib sha3 384 operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sha3384(data : String = "", usedforsecurity : Bool = True) : Table {
+        return sha3_384(data, usedforsecurity);
+    }
+
+    @deprecated("Use Sha3384 instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sha3_384(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha3_384", data, 48, usedforsecurity);
     }
@@ -255,6 +300,11 @@ namespace hash {
     --- Returns: Table.
     --- Summary: Provides the stdlib sha3 512 operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Sha3512(data : String = "", usedforsecurity : Bool = True) : Table {
+        return sha3_512(data, usedforsecurity);
+    }
+
+    @deprecated("Use Sha3512 instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sha3_512(data : String = "", usedforsecurity : Bool = True) : Table {
         return Digest("sha3_512", data, 64, usedforsecurity);
     }
@@ -263,6 +313,11 @@ namespace hash {
     --- Returns: List[String].
     --- Summary: Provides the stdlib algorithms available operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function AlgorithmsAvailable() : List[String] {
+        return algorithms_available();
+    }
+
+    @deprecated("Use AlgorithmsAvailable instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function algorithms_available() : List[String] {
         return ["md5", "sha1", "sha224", "sha256", "sha384", "sha512", "sha3_224", "sha3_256", "sha3_384", "sha3_512"];
     }
@@ -271,6 +326,11 @@ namespace hash {
     --- Returns: Bool.
     --- Summary: Checks whether is available is true for the provided Klang value(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function IsAvailable(name : String) : Bool {
+        return is_available(name);
+    }
+
+    @deprecated("Use IsAvailable instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function is_available(name : String) : Bool {
         local List[String] names = algorithms_available();
         local mut Int index = 0;
@@ -289,6 +349,11 @@ namespace hash {
     --- Returns: Result[Table, String].
     --- Summary: Creates or initializes new with the supplied Klang value(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function New(name : String, data : String = "", usedforsecurity : Bool = True) : Result[Table, String] {
+        return new(name, data, usedforsecurity);
+    }
+
+    @deprecated("Use New instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function new(name : String, data : String = "", usedforsecurity : Bool = True) : Result[Table, String] {
         if name == "md5" {
             return Ok(md5(data, usedforsecurity));

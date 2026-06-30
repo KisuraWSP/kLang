@@ -140,58 +140,80 @@ namespace runtime {
         return workspace_manifest(workspace);
     }
 
+    @deprecated("Use TypeOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function TYPE_OF(value : Any) : String { return TypeOf(value); }
 
+    @deprecated("Use Debug instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DEBUG(value : T) : T { return Debug(value); }
 
+    @deprecated("Use Stack instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function STACK() : List[String] { return Stack(); }
 
+    @deprecated("Use Breakpoint instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function BREAKPOINT(label : String = "breakpoint") : Int { return Breakpoint(label); }
 
+    @deprecated("Use Spawn instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function SPAWN(worker : Function[T, U], value : T) : Thread[U] {
         return Spawn(worker, value);
     }
 
+    @deprecated("Use Join instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function JOIN(worker : Thread[T]) : T { return Join(worker); }
 
+    @deprecated("Use Status instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function STATUS(worker : Thread[T]) : String { return Status(worker); }
 
+    @deprecated("Use AtomicValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ATOMIC_VALUE(value : T) : Atomic[T] { return AtomicValue(value); }
 
+    @deprecated("Use AtomicLoadValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ATOMIC_LOAD_VALUE(value : Atomic[T]) : T { return AtomicLoadValue(value); }
 
+    @deprecated("Use AtomicStoreValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ATOMIC_STORE_VALUE(value : Atomic[T], next : T) : Atomic[T] {
         return AtomicStoreValue(value, next);
     }
 
+    @deprecated("Use AtomicAddInt instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ATOMIC_ADD_INT(value : Atomic[Int], amount : Int) : Int {
         return AtomicAddInt(value, amount);
     }
 
+    @deprecated("Use ProgramDescriptor instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function PROGRAM_DESCRIPTOR(modules : List[String]) : Program {
         return ProgramDescriptor(modules);
     }
 
+    @deprecated("Use BuildDescriptor instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function BUILD_DESCRIPTOR(name : String, files : List[String], backend : String = "Standalone") : BuildSystem {
         return BuildDescriptor(name, files, backend);
     }
 
+    @deprecated("Use Workspace instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function WORKSPACE(program : Program, build : BuildSystem) : WorkSpace {
         return Workspace(program, build);
     }
 
+    @deprecated("Use WorkspaceBackend instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function WORKSPACE_BACKEND(workspace : WorkSpace) : String {
         return WorkspaceBackend(workspace);
     }
 
+    @deprecated("Use WorkspaceFiles instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function WORKSPACE_FILES(workspace : WorkSpace) : List[String] {
         return WorkspaceFiles(workspace);
     }
 
+    @deprecated("Use WorkspaceManifest instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function WORKSPACE_MANIFEST(workspace : WorkSpace) : String {
         return WorkspaceManifest(workspace);
     }
 
+    function DescribeWorkspace(workspace : WorkSpace) : Table {
+        return DESCRIBE_WORKSPACE(workspace);
+    }
+
+    @deprecated("Use DescribeWorkspace instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function DESCRIBE_WORKSPACE(workspace : WorkSpace) : Table {
         local List[String] files = WorkspaceFiles(workspace);
         return {
@@ -207,6 +229,7 @@ namespace runtime {
         --- Returns: String.
         --- Summary: Returns a formatted location for this call site.
         --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        @deprecated("Use Loc instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function __LOC__() : String {
             return runtime_debug_loc();
         }
@@ -215,6 +238,7 @@ namespace runtime {
         --- Returns: String.
         --- Summary: Returns the source file for this call site.
         --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        @deprecated("Use File instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function __FILE__() : String {
             return runtime_debug_file();
         }
@@ -223,6 +247,7 @@ namespace runtime {
         --- Returns: Int.
         --- Summary: Returns the source line for this call site.
         --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        @deprecated("Use Line instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function __LINE__() : Int {
             return runtime_debug_line();
         }
@@ -231,6 +256,7 @@ namespace runtime {
         --- Returns: String.
         --- Summary: Returns the module name for this call site.
         --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        @deprecated("Use Module instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function __MODULE__() : String {
             return runtime_debug_module();
         }
@@ -239,6 +265,7 @@ namespace runtime {
         --- Returns: Table.
         --- Summary: Returns file, line, start_column, and end_column for this call site.
         --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        @deprecated("Use Pos instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function __POS__() : Table {
             return runtime_debug_pos();
         }
@@ -247,6 +274,11 @@ namespace runtime {
         --- Returns: String.
         --- Summary: Returns the current function name for this call site.
         --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        function Function() : String {
+            return __FUNCTION__();
+        }
+
+        @deprecated("Use Function instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function __FUNCTION__() : String {
             return runtime_debug_function();
         }
@@ -255,6 +287,7 @@ namespace runtime {
         --- Returns: Table.
         --- Summary: Returns a table containing loc and value for this call site.
         --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        @deprecated("Use LocOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function __LOC_OF__(value : T) : Table {
             return runtime_debug_loc_of(value);
         }
@@ -263,6 +296,7 @@ namespace runtime {
         --- Returns: Table.
         --- Summary: Returns a table containing line and value for this call site.
         --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        @deprecated("Use LineOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function __LINE_OF__(value : T) : Table {
             return runtime_debug_line_of(value);
         }
@@ -271,6 +305,7 @@ namespace runtime {
         --- Returns: Table.
         --- Summary: Returns a table containing pos and value for this call site.
         --- Contract: Runtime-backed magic name that preserves user call-site metadata.
+        @deprecated("Use PosOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function __POS_OF__(value : T) : Table {
             return runtime_debug_pos_of(value);
         }
@@ -347,22 +382,31 @@ namespace runtime {
             return runtime_debug_pos_of(value);
         }
 
+        @deprecated("Use Loc instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function LOC() : String { return Loc(); }
 
+        @deprecated("Use File instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function FILE() : String { return File(); }
 
+        @deprecated("Use Line instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function LINE() : Int { return Line(); }
 
+        @deprecated("Use Module instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function MODULE() : String { return Module(); }
 
+        @deprecated("Use Pos instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function POS() : Table { return Pos(); }
 
+        @deprecated("Use FunctionName instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function FUNCTION_NAME() : String { return FunctionName(); }
 
+        @deprecated("Use LocOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function LOC_OF(value : T) : Table { return LocOf(value); }
 
+        @deprecated("Use LineOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function LINE_OF(value : T) : Table { return LineOf(value); }
 
+        @deprecated("Use PosOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
         function POS_OF(value : T) : Table { return PosOf(value); }
     }
 }

@@ -1,26 +1,34 @@
 -- Ergonomic operations for values that may be absent.
 
 namespace option {
+    @deprecated("Use Some instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function some[T Any](value : T) : Option[T] { return Some(value); }
 
+    @deprecated("Use None instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function none[T Any]() : Option[T] { return None(); }
 
+    @deprecated("Use IsSome instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function is_some[T Any](value : Option[T]) : Bool { return value.some; }
 
+    @deprecated("Use IsNone instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function is_none[T Any](value : Option[T]) : Bool { return not value.some; }
 
+    @deprecated("Use Map instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function map[T Any, U Any](value : Option[T], mapper : Function[T, U]) : Option[U] {
         return option_map(value, mapper);
     }
 
+    @deprecated("Use AndThen instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function and_then[T Any, U Any](value : Option[T], mapper : Function[T, Option[U]]) : Option[U] {
         return option_and_then(value, mapper);
     }
 
+    @deprecated("Use UnwrapOr instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function unwrap_or[T Any](value : Option[T], fallback : T) : T {
         return option_unwrap_or(value, fallback);
     }
 
+    @deprecated("Use Expect instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function expect[T Any](value : Option[T], message : String) : T {
         if value == {
             case Some(item): return item;
@@ -29,11 +37,13 @@ namespace option {
         throw message;
     }
 
+    @deprecated("Use OkOr instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function ok_or[T Any, E Any](value : Option[T], error : E) : Result[T, E] {
         if value.some { return Ok(value.value); }
         return Err(error);
     }
 
+    @deprecated("Use Flatten instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function flatten[T Any](value : Option[Option[T]]) : Option[T] {
         if value == {
             case Some(item): return item;

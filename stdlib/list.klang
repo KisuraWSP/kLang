@@ -2,14 +2,17 @@
 -- These functions return new lists instead of mutating the input list in place.
 
 namespace list {
+    @deprecated("Use Empty instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function empty(values : List[T]) : Bool {
         return list.len(values) == 0;
     }
 
+    @deprecated("Use Len instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function len(values : List[T]) : Int {
         return values.count;
     }
 
+    @deprecated("Use Get instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function get(values : List[T], position : Int) : Option[T] {
         if position < 0 or position >= list.len(values) {
             return None();
@@ -17,10 +20,12 @@ namespace list {
         return Some(values[position]);
     }
 
+    @deprecated("Use First instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function first(values : List[T]) : Option[T] {
         return list.get(values, 0);
     }
 
+    @deprecated("Use Last instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function last(values : List[T]) : Option[T] {
         return list.get(values, list.len(values) - 1);
     }
@@ -29,6 +34,7 @@ namespace list {
     --- Returns: List[T].
     --- Summary: Adds value at the end of values and returns the resulting list.
     --- Contract: Preserve this function-style API; list operations are not methods.
+    @deprecated("Use Append instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function append(values : List[T], value : T) : List[T] {
         local mut List[T] result = clone values;
         result[len(result)] = value;
@@ -39,6 +45,7 @@ namespace list {
     --- Returns: List[T].
     --- Summary: Returns an empty list with the same element type.
     --- Contract: Preserve this function-style API; list operations are not methods.
+    @deprecated("Use Clear instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function clear(values : List[T]) : List[T] {
         local List[T] result;
         return result;
@@ -56,6 +63,7 @@ namespace list {
     --- Returns: Int.
     --- Summary: Counts how many elements equal value.
     --- Contract: Preserve this function-style API; list operations are not methods.
+    @deprecated("Use Count instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function count(values : List[T], value : T) : Int {
         local mut Int total = 0;
         local mut Int index = 0;
@@ -68,6 +76,7 @@ namespace list {
         return total;
     }
 
+    @deprecated("Use Contains instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function contains(values : List[T], value : T) : Bool {
         return list.index(values, value) >= 0;
     }
@@ -76,6 +85,7 @@ namespace list {
     --- Returns: List[T].
     --- Summary: Adds every element from extra to the end of values.
     --- Contract: Preserve this function-style API; list operations are not methods.
+    @deprecated("Use Extend instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function extend(values : List[T], extra : List[T]) : List[T] {
         local mut List[T] result = clone values;
         local mut Int index = 0;
@@ -90,6 +100,7 @@ namespace list {
     --- Returns: Int.
     --- Summary: Returns the first index containing value, or -1 when missing.
     --- Contract: Preserve this function-style API; list operations are not methods.
+    @deprecated("Use Index instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function index(values : List[T], value : T) : Int {
         local mut Int index = 0;
         while index < len(values) {
@@ -105,6 +116,7 @@ namespace list {
     --- Returns: List[T].
     --- Summary: Adds value at position and returns the resulting list.
     --- Contract: Preserve this function-style API; list operations are not methods.
+    @deprecated("Use Insert instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function insert(values : List[T], position : Int, value : T) : List[T] {
         local mut List[T] result;
         local mut Bool inserted = False;
@@ -135,6 +147,7 @@ namespace list {
     --- Returns: List[T].
     --- Summary: Returns a list without the element at position.
     --- Contract: Preserve this function-style API; list operations are not methods.
+    @deprecated("Use Pop instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function pop(values : List[T], position : Int) : List[T] {
         local mut List[T] result;
         local mut Int index = 0;
@@ -151,6 +164,7 @@ namespace list {
     --- Returns: List[T].
     --- Summary: Removes the first element equal to value.
     --- Contract: Preserve this function-style API; list operations are not methods.
+    @deprecated("Use Remove instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function remove(values : List[T], value : T) : List[T] {
         local mut List[T] result;
         local mut Bool removed = False;
@@ -170,6 +184,7 @@ namespace list {
     --- Returns: List[T].
     --- Summary: Reverses the order of values.
     --- Contract: Preserve this function-style API; list operations are not methods.
+    @deprecated("Use Reverse instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function reverse(values : List[T]) : List[T] {
         local mut List[T] result;
         local mut Int index = len(values) - 1;
@@ -180,6 +195,7 @@ namespace list {
         return result;
     }
 
+    @deprecated("Use Slice instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function slice(values : List[T], start : Int, stop : Int) : List[T] {
         local mut List[T] result;
         local mut Int index = start;
@@ -193,6 +209,7 @@ namespace list {
         return result;
     }
 
+    @deprecated("Use Map instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function map[T Any, U Any](values : List[T], mapper : Function[T, U]) : List[U] {
         local mut List[U] result;
         local mut Int index = 0;
@@ -203,6 +220,7 @@ namespace list {
         return result;
     }
 
+    @deprecated("Use Filter instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function filter[T Any](values : List[T], predicate : Function[T, Bool]) : List[T] {
         local mut List[T] result;
         local mut Int index = 0;
@@ -213,6 +231,7 @@ namespace list {
         return result;
     }
 
+    @deprecated("Use Fold instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function fold[T Any, U Any](values : List[T], initial : U, reducer : Function[U, T, U]) : U {
         local mut U result = initial;
         local mut Int index = 0;
@@ -223,10 +242,26 @@ namespace list {
         return result;
     }
 
+    @deprecated("Use Pipeline instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
+    function pipeline[T Any](values : List[T]) : Iterator[T] {
+        return values.iter();
+    }
+
+    @deprecated("Use LazyFilter instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
+    function lazy_filter[T Any](values : List[T], predicate : Function[T, Bool]) : Iterator[T] {
+        return values.filter(predicate);
+    }
+
+    @deprecated("Use LazyMap instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
+    function lazy_map[T Any, U Any](values : List[T], mapper : Function[T, U]) : Iterator[U] {
+        return values.map(mapper);
+    }
+
     --- Signature: function sort[T comparable](values : List[T]) : List[T]
     --- Returns: List[T].
     --- Summary: Sorts comparable lists in ascending order.
     --- Contract: Preserve this function-style API; list operations are not methods.
+    @deprecated("Use Sort instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function sort[T comparable](values : List[T]) : List[T] {
         local mut List[T] result = clone values;
         local mut Int i = 0;
@@ -284,16 +319,26 @@ namespace list {
     }
 
     function Map[T Any, U Any](values : List[T], mapper : Function[T, U]) : List[U] {
-        return list.map(values, mapper);
+        return values.map(mapper).collect();
     }
 
     function Filter[T Any](values : List[T], predicate : Function[T, Bool]) : List[T] {
-        return list.filter(values, predicate);
+        return values.filter(predicate).collect();
     }
 
     function Fold[T Any, U Any](values : List[T], initial : U, reducer : Function[U, T, U]) : U {
-        return list.fold(values, initial, reducer);
+        return values.fold(initial, reducer);
     }
 
     function Sort[T comparable](values : List[T]) : List[T] { return list.sort(values); }
+
+    function Pipeline[T Any](values : List[T]) : Iterator[T] { return values.iter(); }
+
+    function LazyFilter[T Any](values : List[T], predicate : Function[T, Bool]) : Iterator[T] {
+        return values.filter(predicate);
+    }
+
+    function LazyMap[T Any, U Any](values : List[T], mapper : Function[T, U]) : Iterator[U] {
+        return values.map(mapper);
+    }
 }

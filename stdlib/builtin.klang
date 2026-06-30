@@ -48,6 +48,11 @@ namespace builtin {
     --- Returns: List[T].
     --- Summary: Combines or extends Klang value(s) for the append operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Append(values : List[T], value : T) : List[T] {
+        return append(values, value);
+    }
+
+    @deprecated("Use Append instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function append(values : List[T], value : T) : List[T] {
         local mut List[T] result = clone values;
         result[len(result)] = value;
@@ -58,6 +63,11 @@ namespace builtin {
     --- Returns: List[T].
     --- Summary: Combines or extends Klang value(s) for the append all operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function AppendAll(left : List[T], right : List[T]) : List[T] {
+        return append_all(left, right);
+    }
+
+    @deprecated("Use AppendAll instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function append_all(left : List[T], right : List[T]) : List[T] {
         local mut List[T] result = clone left;
         local mut Int index = 0;
@@ -74,6 +84,11 @@ namespace builtin {
     --- Returns: Int.
     --- Summary: Provides the stdlib cap operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Cap(values : List[T]) : Int {
+        return cap(values);
+    }
+
+    @deprecated("Use Cap instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function cap(values : List[T]) : Int {
         return len(values);
     }
@@ -82,6 +97,11 @@ namespace builtin {
     --- Returns: List[T].
     --- Summary: Removes or normalizes Klang value(s) for the clear operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Clear(values : List[T]) : List[T] {
+        return clear(values);
+    }
+
+    @deprecated("Use Clear instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function clear(values : List[T]) : List[T] {
         local List[T] empty;
         return empty;
@@ -91,6 +111,11 @@ namespace builtin {
     --- Returns: Table.
     --- Summary: Removes or normalizes Klang value(s) for the clear table operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ClearTable(value : Table) : Table {
+        return clear_table(value);
+    }
+
+    @deprecated("Use ClearTable instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function clear_table(value : Table) : Table {
         return {};
     }
@@ -99,6 +124,11 @@ namespace builtin {
     --- Returns: Bool.
     --- Summary: Provides the stdlib close operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Close(value : T) : Bool {
+        return close(value);
+    }
+
+    @deprecated("Use Close instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function close(value : T) : Bool {
         return value?;
     }
@@ -107,6 +137,11 @@ namespace builtin {
     --- Returns: Complex.
     --- Summary: Provides the stdlib complex operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Complex(realPart : Float, imaginaryPart : Float) : Complex {
+        return complex(realPart, imaginaryPart);
+    }
+
+    @deprecated("Use Complex instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function complex(realPart : Float, imaginaryPart : Float) : Complex {
         return Complex(realPart, imaginaryPart);
     }
@@ -115,6 +150,11 @@ namespace builtin {
     --- Returns: Complex.
     --- Summary: Provides the stdlib complex int operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function ComplexInt(realPart : Int, imaginaryPart : Int) : Complex {
+        return complex_int(realPart, imaginaryPart);
+    }
+
+    @deprecated("Use ComplexInt instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function complex_int(realPart : Int, imaginaryPart : Int) : Complex {
         return Complex(realPart, imaginaryPart);
     }
@@ -139,6 +179,11 @@ namespace builtin {
     --- Returns: Table.
     --- Summary: Removes or normalizes Klang value(s) for the delete operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Delete(mut value : Table, key : String) : Table {
+        return delete(value, key);
+    }
+
+    @deprecated("Use Delete instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function delete(mut value : Table, key : String) : Table {
         return table_delete(value, key);
     }
@@ -147,6 +192,11 @@ namespace builtin {
     --- Returns: Float.
     --- Summary: Provides the stdlib imag operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Imag(value : Complex) : Float {
+        return imag(value);
+    }
+
+    @deprecated("Use Imag instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function imag(value : Complex) : Float {
         return 0.0;
     }
@@ -155,6 +205,11 @@ namespace builtin {
     --- Returns: Int.
     --- Summary: Provides the stdlib len value operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function LenValue(value : T) : Int {
+        return len_value(value);
+    }
+
+    @deprecated("Use LenValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function len_value(value : T) : Int {
         if debug_type(value) == "String" {
             return len(value as String);
@@ -167,6 +222,11 @@ namespace builtin {
     --- Returns: List[Int].
     --- Summary: Creates or initializes make int list with the supplied Klang value(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function MakeIntList(size : Int, defaultValue : Int = 0) : List[Int] {
+        return make_int_list(size, defaultValue);
+    }
+
+    @deprecated("Use MakeIntList instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function make_int_list(size : Int, defaultValue : Int = 0) : List[Int] {
         local mut List[Int] result;
         local mut Int index = 0;
@@ -183,6 +243,11 @@ namespace builtin {
     --- Returns: List[String].
     --- Summary: Creates or initializes make string list with the supplied Klang value(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function MakeStringList(size : Int, defaultValue : String = "") : List[String] {
+        return make_string_list(size, defaultValue);
+    }
+
+    @deprecated("Use MakeStringList instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function make_string_list(size : Int, defaultValue : String = "") : List[String] {
         local mut List[String] result;
         local mut Int index = 0;
@@ -199,6 +264,11 @@ namespace builtin {
     --- Returns: Table.
     --- Summary: Creates or initializes make table with the supplied Klang value(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function MakeTable() : Table {
+        return make_table();
+    }
+
+    @deprecated("Use MakeTable instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function make_table() : Table {
         return {};
     }
@@ -207,6 +277,11 @@ namespace builtin {
     --- Returns: T.
     --- Summary: Provides the stdlib max operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Max[T comparable](left : T, right : T) : T {
+        return max(left, right);
+    }
+
+    @deprecated("Use Max instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function max[T comparable](left : T, right : T) : T {
         if left > right {
             return left;
@@ -219,6 +294,11 @@ namespace builtin {
     --- Returns: T.
     --- Summary: Provides the stdlib min operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Min[T comparable](left : T, right : T) : T {
+        return min(left, right);
+    }
+
+    @deprecated("Use Min instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function min[T comparable](left : T, right : T) : T {
         if left < right {
             return left;
@@ -231,6 +311,11 @@ namespace builtin {
     --- Returns: Box.
     --- Summary: Creates or initializes new with the supplied Klang value(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function New(value : T) : Box {
+        return new(value);
+    }
+
+    @deprecated("Use New instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function new(value : T) : Box {
         return Box(value);
     }
@@ -239,6 +324,11 @@ namespace builtin {
     --- Returns: No explicit return value.
     --- Summary: Performs the panic control-flow or runtime I/O operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Panic(value : Any) {
+        return panic(value);
+    }
+
+    @deprecated("Use Panic instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function panic(value : Any) {
         throw value;
     }
@@ -247,6 +337,11 @@ namespace builtin {
     --- Returns: Int.
     --- Summary: Performs the print value control-flow or runtime I/O operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function PrintValue(value : T) : Int {
+        return print_value(value);
+    }
+
+    @deprecated("Use PrintValue instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function print_value(value : T) : Int {
         print(value);
         return 0;
@@ -256,6 +351,11 @@ namespace builtin {
     --- Returns: Int.
     --- Summary: Performs the println control-flow or runtime I/O operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Println(value : T) : Int {
+        return println(value);
+    }
+
+    @deprecated("Use Println instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function println(value : T) : Int {
         print(value);
         return 0;
@@ -265,6 +365,11 @@ namespace builtin {
     --- Returns: Float.
     --- Summary: Provides the stdlib real operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Real(value : Complex) : Float {
+        return real(value);
+    }
+
+    @deprecated("Use Real instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function real(value : Complex) : Float {
         return 0.0;
     }
@@ -273,6 +378,11 @@ namespace builtin {
     --- Returns: T.
     --- Summary: Provides the stdlib recover operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function Recover(fallback : T) : T {
+        return recover(fallback);
+    }
+
+    @deprecated("Use Recover instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function recover(fallback : T) : T {
         return fallback;
     }
@@ -281,6 +391,11 @@ namespace builtin {
     --- Returns: T.
     --- Summary: Performs the try or control-flow or runtime I/O operation.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function TryOr(action : Function[T], fallback : T) : T {
+        return try_or(action, fallback);
+    }
+
+    @deprecated("Use TryOr instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function try_or(action : Function[T], fallback : T) : T {
         try {
             return action();
@@ -293,6 +408,11 @@ namespace builtin {
     --- Returns: String.
     --- Summary: Provides the stdlib type of operation using current Klang data types and runtime helpers.
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function TypeOf(value : T) : String {
+        return type_of(value);
+    }
+
+    @deprecated("Use TypeOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function type_of(value : T) : String {
         return debug_type(value);
     }
@@ -301,6 +421,11 @@ namespace builtin {
     --- Returns: Bool.
     --- Summary: Checks whether is present is true for the provided Klang value(s).
     --- Contract: Preserve this typed interface when upgrading to a runtime-backed implementation.
+    function IsPresent(value : T) : Bool {
+        return is_present(value);
+    }
+
+    @deprecated("Use IsPresent instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function is_present(value : T) : Bool {
         return value?;
     }

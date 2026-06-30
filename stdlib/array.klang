@@ -212,51 +212,106 @@ alias function Array[T](items : List[T], length : Int, capacity : Int, allocator
             return total;
         }
 
+        function pipeline() : Iterator[T] {
+            return iter(this.items);
+        }
+
+        function filter(predicate : Function[T, Bool]) : Iterator[T] {
+            return iter(this.items).filter(predicate);
+        }
+
+        function map(mapper : Function[T, T]) : Iterator[T] {
+            return iter(this.items).map(mapper);
+        }
+
+        function sort() : List[T] {
+            return iter(this.items).sort();
+        }
+
+        @deprecated("Use count instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Count() : Int { return this.count(); }
 
+        @deprecated("Use len instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Len() : Int { return this.len(); }
 
+        @deprecated("Use capacity_value instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function CapacityValue() : Int { return this.capacity_value(); }
 
+        @deprecated("Use empty instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Empty() : Bool { return this.empty(); }
 
+        @deprecated("Use values instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Values() : List[T] { return this.values(); }
 
+        @deprecated("Use get instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Get(index : Int) : T { return this.get(index); }
 
+        @deprecated("Use fetch instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Fetch(index : Int) : Option[T] { return this.fetch(index); }
 
+        @deprecated("Use front instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Front() : Option[T] { return this.front(); }
 
+        @deprecated("Use back instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Back() : Option[T] { return this.back(); }
 
+        @deprecated("Use clear instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Clear() : Array { return this.clear(); }
 
+        @deprecated("Use set instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Set(index : Int, value : T) : Array { return this.set(index, value); }
 
+        @deprecated("Use push instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Push(value : T) : Array { return this.push(value); }
 
+        @deprecated("Use append instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Append(value : T) : Array { return this.append(value); }
 
+        @deprecated("Use extend instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Extend(extra : List[T]) : Array { return this.extend(extra); }
 
+        @deprecated("Use insert instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Insert(index : Int, value : T) : Array { return this.insert(index, value); }
 
+        @deprecated("Use remove_at instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function RemoveAt(index : Int) : Array { return this.remove_at(index); }
 
+        @deprecated("Use remove instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Remove(value : T) : Array { return this.remove(value); }
 
+        @deprecated("Use pop instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Pop() : Array { return this.pop(); }
 
+        @deprecated("Use slice instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Slice(start : Int, stop : Int) : Array { return this.slice(start, stop); }
 
+        @deprecated("Use reverse instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Reverse() : Array { return this.reverse(); }
 
+        @deprecated("Use index_of instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function IndexOf(value : T) : Int { return this.index_of(value); }
 
+        @deprecated("Use contains instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Contains(value : T) : Bool { return this.contains(value); }
 
+        @deprecated("Use occurrences instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Occurrences(value : T) : Int { return this.occurrences(value); }
+
+        @deprecated("Use pipeline instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
+        function Pipeline() : Iterator[T] { return this.pipeline(); }
+
+        @deprecated("Use filter instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
+        function Filter(predicate : Function[T, Bool]) : Iterator[T] {
+            return this.filter(predicate);
+        }
+
+        @deprecated("Use map instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
+        function Map(mapper : Function[T, T]) : Iterator[T] {
+            return this.map(mapper);
+        }
+
+        @deprecated("Use sort instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
+        function Sort() : List[T] { return this.sort(); }
     }
 }
 
@@ -265,6 +320,7 @@ namespace array {
     --- Returns: Bool.
     --- Summary: Returns True when values has no elements.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Empty instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function empty(values : List[T]) : Bool {
         _ = values;
         return len(values) == 0;
@@ -274,6 +330,7 @@ namespace array {
     --- Returns: Int.
     --- Summary: Returns the number of elements in values.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Len instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function len(values : List[T]) : Int {
         return values.count;
     }
@@ -282,6 +339,7 @@ namespace array {
     --- Returns: Int.
     --- Summary: Returns the usable capacity for the List-backed array.
     --- Contract: List-backed arrays expose their current length as capacity.
+    @deprecated("Use Capacity instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function capacity(values : List[T]) : Int {
         _ = values;
         return len(values);
@@ -300,6 +358,7 @@ namespace array {
     --- Returns: List[T].
     --- Summary: Returns an empty array with the same element type.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Clear instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function clear(values : List[T]) : List[T] {
         _ = values;
         local List[T] result;
@@ -310,6 +369,7 @@ namespace array {
     --- Returns: T.
     --- Summary: Returns the element at index.
     --- Contract: Caller must pass an in-bounds zero-based index.
+    @deprecated("Use Get instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function get(values : List[T], index : Int) : T {
         return values[index];
     }
@@ -318,6 +378,7 @@ namespace array {
     --- Returns: Option[T].
     --- Summary: Returns Some(element) for an in-bounds index, otherwise None.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Fetch instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function fetch(values : List[T], index : Int) : Option[T] {
         if index < 0 or index >= len(values) {
             return None();
@@ -329,6 +390,7 @@ namespace array {
     --- Returns: Option[T].
     --- Summary: Returns the first element when present.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Front instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function front(values : List[T]) : Option[T] {
         return fetch(values, 0);
     }
@@ -337,6 +399,7 @@ namespace array {
     --- Returns: Option[T].
     --- Summary: Returns the last element when present.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Back instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function back(values : List[T]) : Option[T] {
         return fetch(values, len(values) - 1);
     }
@@ -345,6 +408,7 @@ namespace array {
     --- Returns: List[T].
     --- Summary: Returns a copy of values with index set to value.
     --- Contract: Out-of-bounds indexes leave the array unchanged.
+    @deprecated("Use Set instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function set(values : List[T], index : Int, value : T) : List[T] {
         local mut List[T] result = clone values;
         if index >= 0 and index < len(result) {
@@ -357,6 +421,7 @@ namespace array {
     --- Returns: List[T].
     --- Summary: Appends value and returns the resulting array.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Push instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function push(values : List[T], value : T) : List[T] {
         local mut List[T] result = clone values;
         result[len(result)] = value;
@@ -367,6 +432,7 @@ namespace array {
     --- Returns: List[T].
     --- Summary: Appends value and returns the resulting array.
     --- Contract: Alias-compatible spelling for push.
+    @deprecated("Use Append instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function append(values : List[T], value : T) : List[T] {
         return push(values, value);
     }
@@ -375,6 +441,7 @@ namespace array {
     --- Returns: List[T].
     --- Summary: Appends every element from extra.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Extend instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function extend(values : List[T], extra : List[T]) : List[T] {
         local mut List[T] result = clone values;
         local mut Int index = 0;
@@ -389,6 +456,7 @@ namespace array {
     --- Returns: List[T].
     --- Summary: Inserts value before index.
     --- Contract: Negative indexes insert at the front; indexes after the end append.
+    @deprecated("Use Insert instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function insert(values : List[T], index : Int, value : T) : List[T] {
         local mut List[T] result;
         local mut Bool inserted = False;
@@ -419,6 +487,7 @@ namespace array {
     --- Returns: List[T].
     --- Summary: Returns values without the element at index.
     --- Contract: Out-of-bounds indexes leave the array unchanged.
+    @deprecated("Use RemoveAt instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function remove_at(values : List[T], index : Int) : List[T] {
         local mut List[T] result;
         local mut Int current = 0;
@@ -435,6 +504,7 @@ namespace array {
     --- Returns: List[T].
     --- Summary: Removes the first element equal to value.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Remove instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function remove(values : List[T], value : T) : List[T] {
         local mut List[T] result;
         local mut Bool removed = False;
@@ -454,6 +524,7 @@ namespace array {
     --- Returns: List[T].
     --- Summary: Returns values without the final element.
     --- Contract: Empty arrays remain empty.
+    @deprecated("Use Pop instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function pop(values : List[T]) : List[T] {
         if len(values) == 0 {
             return clear(values);
@@ -465,6 +536,7 @@ namespace array {
     --- Returns: List[T].
     --- Summary: Returns the half-open range [start, stop).
     --- Contract: Bounds are clamped to the valid array range.
+    @deprecated("Use Slice instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function slice(values : List[T], start : Int, stop : Int) : List[T] {
         local mut List[T] result;
         local mut Int index = start;
@@ -486,6 +558,7 @@ namespace array {
     --- Returns: List[T].
     --- Summary: Returns values in reverse order.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Reverse instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function reverse(values : List[T]) : List[T] {
         local mut List[T] result;
         local mut Int index = len(values) - 1;
@@ -500,6 +573,7 @@ namespace array {
     --- Returns: Int.
     --- Summary: Returns the first index containing value, or -1 when missing.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use IndexOf instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function index_of(values : List[T], value : T) : Int {
         local mut Int index = 0;
         while index < len(values) {
@@ -515,6 +589,7 @@ namespace array {
     --- Returns: Bool.
     --- Summary: Returns True when value exists in values.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Contains instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function contains(values : List[T], value : T) : Bool {
         return index_of(values, value) >= 0;
     }
@@ -523,6 +598,7 @@ namespace array {
     --- Returns: Int.
     --- Summary: Counts elements equal to value.
     --- Contract: Preserve this function-style API; array operations are not methods.
+    @deprecated("Use Count instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function count(values : List[T], value : T) : Int {
         local mut Int total = 0;
         local mut Int index = 0;
@@ -535,6 +611,7 @@ namespace array {
         return total;
     }
 
+    @deprecated("Use Map instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function map[T Any, U Any](values : List[T], mapper : Function[T, U]) : List[U] {
         local mut List[U] result;
         local mut Int index = 0;
@@ -545,6 +622,7 @@ namespace array {
         return result;
     }
 
+    @deprecated("Use Filter instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function filter[T Any](values : List[T], predicate : Function[T, Bool]) : List[T] {
         local mut List[T] result;
         local mut Int index = 0;
@@ -555,6 +633,7 @@ namespace array {
         return result;
     }
 
+    @deprecated("Use Fold instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
     function fold[T Any, U Any](values : List[T], initial : U, reducer : Function[U, T, U]) : U {
         local mut U result = initial;
         local mut Int index = 0;
@@ -563,6 +642,21 @@ namespace array {
             index += 1;
         }
         return result;
+    }
+
+    @deprecated("Use Pipeline instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
+    function pipeline[T Any](values : List[T]) : Iterator[T] {
+        return values.iter();
+    }
+
+    @deprecated("Use LazyFilter instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
+    function lazy_filter[T Any](values : List[T], predicate : Function[T, Bool]) : Iterator[T] {
+        return values.filter(predicate);
+    }
+
+    @deprecated("Use LazyMap instead. Public stdlib functions now use UpperCamelCase for readability; this legacy spelling is retained only for source compatibility.")
+    function lazy_map[T Any, U Any](values : List[T], mapper : Function[T, U]) : Iterator[U] {
+        return values.map(mapper);
     }
 
     function Empty(values : List[T]) : Bool { return array.empty(values); }
@@ -618,14 +712,24 @@ namespace array {
     function Count(values : List[T], value : T) : Int { return array.count(values, value); }
 
     function Map[T Any, U Any](values : List[T], mapper : Function[T, U]) : List[U] {
-        return array.map(values, mapper);
+        return values.map(mapper).collect();
     }
 
     function Filter[T Any](values : List[T], predicate : Function[T, Bool]) : List[T] {
-        return array.filter(values, predicate);
+        return values.filter(predicate).collect();
     }
 
     function Fold[T Any, U Any](values : List[T], initial : U, reducer : Function[U, T, U]) : U {
-        return array.fold(values, initial, reducer);
+        return values.fold(initial, reducer);
+    }
+
+    function Pipeline[T Any](values : List[T]) : Iterator[T] { return array.pipeline(values); }
+
+    function LazyFilter[T Any](values : List[T], predicate : Function[T, Bool]) : Iterator[T] {
+        return array.lazy_filter(values, predicate);
+    }
+
+    function LazyMap[T Any, U Any](values : List[T], mapper : Function[T, U]) : Iterator[U] {
+        return array.lazy_map(values, mapper);
     }
 }

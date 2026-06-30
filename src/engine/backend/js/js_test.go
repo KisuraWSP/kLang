@@ -486,6 +486,45 @@ function Main() : Int {
 	}
 }
 
+func TestJavaScriptBackendExecutesStructCastAsConversions(t *testing.T) {
+	request := requestFromSource(`
+alias function User(id : Int, name : String) : type = struct {}
+alias function PublicUser(name : String, active : Bool = True) : type = struct {}
+
+function Main() : Int {
+    local User user = User(7, "Ada");
+    local Table row = user.cast_as(Table);
+    local PublicUser view = user.cast_as(PublicUser);
+    print(row["id"], view.name, view.active, user.cast_as(String));
+    return 0;
+}
+`)
+	compiler := New()
+	if diagnostics := compiler.Check(request); len(diagnostics) != 0 {
+		t.Fatalf("unexpected struct cast diagnostics: %#v", diagnostics)
+	}
+	output, err := compiler.Emit(request)
+	if err != nil {
+		t.Fatalf("emit struct cast operations: %v", err)
+	}
+	source := string(output.Artifacts[0].Content)
+	if !strings.Contains(source, "__klang_struct_cast") {
+		t.Fatalf("generated JS missing struct cast helper:\n%s", source)
+	}
+	if node, lookupErr := exec.LookPath("node"); lookupErr == nil {
+		bundle := t.TempDir()
+		if err := compiler.Package(output, bundle); err != nil {
+			t.Fatalf("package struct cast program: %v", err)
+		}
+		command := exec.Command(node, filepath.Join(bundle, "program.js"))
+		printed, runErr := command.CombinedOutput()
+		expected := `7 Ada True {"id":7,"name":"Ada"}`
+		if runErr != nil || strings.TrimSpace(string(printed)) != expected {
+			t.Fatalf("generated struct cast program failed: %v\n%s", runErr, printed)
+		}
+	}
+}
+
 func TestJavaScriptBackendExecutesStandaloneExtensionMethods(t *testing.T) {
 	request := requestFromSource(`
 alias function Duration(value : Int) : type = struct {
@@ -536,6 +575,72 @@ function Main() : Int {
 		printed, runErr := command.CombinedOutput()
 		if runErr != nil || strings.TrimSpace(string(printed)) != "[core] -10" {
 			t.Fatalf("generated extension program failed: %v\n%s", runErr, printed)
+		}
+	}
+}
+
+func TestJavaScriptBackendExecutesLazyFusedPipelines(t *testing.T) {
+	request := requestFromSource(`
+global mut Int Calls = 0;
+
+function Even(value : Int) : Bool {
+    return value % 2 == 0;
+}
+
+function Track(value : Int) : Int {
+    Calls += 1;
+    return value * 10;
+}
+
+function Add(total : Int, value : Int) : Int {
+    return total + value;
+}
+
+function EntryValue(entry : Table) : Int {
+    return entry.value as Int;
+}
+
+function OnlyFirst(value : Int) : Int {
+    assert value == 1;
+    return value;
+}
+
+function Main() : Int {
+    local List[Int] values = [6, 1, 4, 3, 2];
+    local Iterator[Int] pipeline = values.filter(Even).limit(3).map(Track);
+    assert Calls == 0;
+    local List[Int] sorted = pipeline.sort();
+    local Int total = values.filter(Even).fold(0, Add);
+    local Int count = values.filter(Even).count;
+    local Int limitedCount = [1, 2].map(OnlyFirst).limit(1).count;
+    local Map[String, Int] dictionary = {"b": 2, "a": 1};
+    local List[Int] dictionaryValues = dictionary.map(EntryValue).sort();
+    print(sorted, total, Calls, count, limitedCount, dictionaryValues);
+    return sorted[2];
+}
+`)
+	compiler := New()
+	if diagnostics := compiler.Check(request); len(diagnostics) != 0 {
+		t.Fatalf("unexpected pipeline diagnostics: %#v", diagnostics)
+	}
+	output, err := compiler.Emit(request)
+	if err != nil {
+		t.Fatalf("emit pipeline program: %v", err)
+	}
+	source := string(output.Artifacts[0].Content)
+	if !strings.Contains(source, "__klang_pipeline_next") || !strings.Contains(source, "__klang_pipeline_method") {
+		t.Fatalf("generated JS missing lazy pipeline runtime:\n%s", source)
+	}
+	if node, lookupErr := exec.LookPath("node"); lookupErr == nil {
+		bundle := t.TempDir()
+		if err := compiler.Package(output, bundle); err != nil {
+			t.Fatalf("package pipeline program: %v", err)
+		}
+		command := exec.Command(node, filepath.Join(bundle, "program.js"))
+		printed, runErr := command.CombinedOutput()
+		expected := "[20, 40, 60] 12 3 3 1 [1, 2]"
+		if runErr != nil || strings.TrimSpace(string(printed)) != expected {
+			t.Fatalf("generated pipeline program failed: %v\n%s", runErr, printed)
 		}
 	}
 }

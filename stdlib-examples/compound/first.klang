@@ -37,11 +37,11 @@ function JSONStrings(values : JSON) : names {
     local mut names result;
     local mut Int index = 0;
     while index < values.count {
-        local maybe_json item = json.get_index(values, index);
+        local maybe_json item = json.GetIndex(values, index);
         if item.some {
-            local maybe_string value = json.as_string(item.value);
+            local maybe_string value = json.AsString(item.value);
             if value.some {
-                result = list.append(result, value.value);
+                result = list.Append(result, value.value);
             }
         }
         index += 1;
@@ -101,20 +101,20 @@ function Main() : Int {
 }
 //;
 
-    local Result[JSON, String] parsed = json.parse(source);
+    local Result[JSON, String] parsed = json.Parse(source);
     assert parsed.ok;
-    local JSON document = result_unwrap_or(parsed, json.null_json());
+    local JSON document = result_unwrap_or(parsed, json.NullJson());
     local JSON project = document.project;
     local JSON tasks = document.tasks;
-    local String rawProjectName = option_unwrap_or(json.as_string(project.name), "unknown");
+    local String rawProjectName = option_unwrap_or(json.AsString(project.name), "unknown");
     local String projectName = strings.TrimPrefix(rawProjectName, "project:");
     local String displayProject = DisplayName(projectName);
-    local String backend = option_unwrap_or(json.as_string(project.backend), "Standalone");
+    local String backend = option_unwrap_or(json.AsString(project.backend), "Standalone");
     local names modules = JSONStrings(document.modules);
     local names files = JSONStrings(document.files);
 
-    assert json.kind(document) == "object";
-    assert json.valid(source);
+    assert json.Kind(document) == "object";
+    assert json.Valid(source);
     assert tasks.count == 4;
     assert projectName == "klang-toolkit";
     print("project", displayProject);
@@ -132,15 +132,15 @@ function Main() : Int {
     local mut Int taskIndex = 0;
 
     while taskIndex < tasks.count {
-        local JSON task = option_unwrap_or(json.get_index(tasks, taskIndex), json.null_json());
-        local String taskName = option_unwrap_or(json.as_string(task.name), "unnamed");
-        local String owner = option_unwrap_or(json.as_string(task.owner), "unassigned");
-        local Int priority = option_unwrap_or(json.as_int(task.priority), 0);
-        local Bool done = option_unwrap_or(json.as_bool(task.done), False);
+        local JSON task = option_unwrap_or(json.GetIndex(tasks, taskIndex), json.NullJson());
+        local String taskName = option_unwrap_or(json.AsString(task.name), "unnamed");
+        local String owner = option_unwrap_or(json.AsString(task.owner), "unassigned");
+        local Int priority = option_unwrap_or(json.AsInt(task.priority), 0);
+        local Bool done = option_unwrap_or(json.AsBool(task.done), False);
 
-        taskNames = list.append(taskNames, taskName);
-        owners = list.append(owners, owner);
-        taskPriorities = list.append(taskPriorities, priority);
+        taskNames = list.Append(taskNames, taskName);
+        owners = list.Append(owners, owner);
+        taskPriorities = list.Append(taskPriorities, priority);
         if done {
             completed = dsa.StackPush(completed, taskName);
             statuses = dsa.OrderedMapPut(statuses, taskName, "done");
@@ -151,17 +151,17 @@ function Main() : Int {
         taskIndex += 1;
     }
 
-    local names displayTasks = list.map(taskNames, DisplayName);
-    local priorities highPriorities = list.filter(taskPriorities, IsHighPriority);
-    local Int priorityTotal = list.fold(taskPriorities, 0, AddPriority);
+    local names displayTasks = list.Map(taskNames, DisplayName);
+    local priorities highPriorities = list.Filter(taskPriorities, IsHighPriority);
+    local Int priorityTotal = list.Fold(taskPriorities, 0, AddPriority);
     local names uniqueOwners =[owners[0], owners[1], owners[3]];
-    local names sortedOwners = list.sort(uniqueOwners);
+    local names sortedOwners = list.Sort(uniqueOwners);
     local names pendingSnapshot = dsa.QueueValues(pending);
 
-    assert list.first(taskNames).some;
-    assert option_unwrap_or(list.last(taskNames), "") == "emit-report";
-    assert list.contains(taskNames, "build-index");
-    assert list.index(taskNames, "normalize-names") == 1;
+    assert list.First(taskNames).some;
+    assert option_unwrap_or(list.Last(taskNames), "") == "emit-report";
+    assert list.Contains(taskNames, "build-index");
+    assert list.Index(taskNames, "normalize-names") == 1;
     assert len(highPriorities) == 3;
     assert priorityTotal == 14;
     assert dsa.QueueCount(pending) == 2;
@@ -202,12 +202,12 @@ function Main() : Int {
     );
     local Result[WorkSpace, String] validation = metasystem.workspace.Validate(workspace);
     local Table summary = metasystem.workspace.Summary(workspace);
-    local names flags = list.append(["check"], "run");
+    local names flags = list.Append(["check"], "run");
     local Table plan = metasystem.build.BuildPlan(workspace, flags);
     local Table indexedMessage = metasystem.build.ToolMessage("INDEXED", workspace, dsa.OrderedMapPairs(statuses));
     local Table completeMessage = metasystem.build.CompleteMessage(workspace, summary);
     local rows messages =[indexedMessage, completeMessage];
-    local Table messageResult = metasystem.build.message_loop(workspace, messages);
+    local Table messageResult = metasystem.build.MessageLoop(workspace, messages);
     local Table ast = metasystem.build.GetAstFromEntireProject(Some(workspace));
 
     assert validation.ok;
@@ -270,7 +270,7 @@ function GeneratedProject() : String {
     assert appendedResult.ok;
     local Parsable[T] appendedSource = result_unwrap_or(appendedResult, replacedSource);
     local rows appendedAST = parsable_ast(appendedSource);
-    local names astLabels = list.map(appendedAST, ASTLabel);
+    local names astLabels = list.Map(appendedAST, ASTLabel);
     local T astQueue = dsa.QueueNew(astLabels);
     local Result[Parsable[T], String] rejectedEdit = parsable_append(appendedSource, "\nlocal");
 
@@ -327,18 +327,18 @@ function GeneratedProject() : String {
         "build" : buildSummary,
         "source_program" : parsableSummary
     };
-    local Result[String, String] encodedResult = json.serialize(outputReport);
+    local Result[String, String] encodedResult = json.Serialize(outputReport);
     assert encodedResult.ok;
     local String encoded = result_unwrap_or(encodedResult, "{}");
-    local Result[JSON, String] reportDocument = json.parse(encoded);
+    local Result[JSON, String] reportDocument = json.Parse(encoded);
     assert reportDocument.ok;
-    local JSON verifiedReport = result_unwrap_or(reportDocument, json.null_json());
-    local JSON verifiedTasks = option_unwrap_or(json.get_field(verifiedReport, "tasks"), json.null_json());
-    local JSON verifiedTotal = option_unwrap_or(json.get_field(verifiedTasks, "total"), json.null_json());
-    assert option_unwrap_or(json.as_string(verifiedReport.project), "") == projectName;
-    assert option_unwrap_or(json.as_int(verifiedTotal), 0) == 4;
+    local JSON verifiedReport = result_unwrap_or(reportDocument, json.NullJson());
+    local JSON verifiedTasks = option_unwrap_or(json.GetField(verifiedReport, "tasks"), json.NullJson());
+    local JSON verifiedTotal = option_unwrap_or(json.GetField(verifiedTasks, "total"), json.NullJson());
+    assert option_unwrap_or(json.AsString(verifiedReport.project), "") == projectName;
+    assert option_unwrap_or(json.AsInt(verifiedTotal), 0) == 4;
 
-    print("report valid", json.valid(encoded));
+    print("report valid", json.Valid(encoded));
     print("report", encoded);
     print("");
     print("compound pipeline completed", len(taskNames), "tasks across", len(modules), "stdlib modules plus Parsable");

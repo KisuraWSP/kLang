@@ -1430,6 +1430,49 @@ func TestParseStandaloneExtensionMethods(t *testing.T) {
 	}
 }
 
+func TestParseDeprecatedExtensionMethod(t *testing.T) {
+	program, errors := Parse(`
+#extend String {
+    @deprecated("use readable_name")
+    function OLD_NAME() : String {
+        return this;
+    }
+}
+`)
+	if len(errors) != 0 {
+		t.Fatalf("unexpected parse errors: %#v", errors)
+	}
+	extension := program.Statements[0].(ExtensionStatement)
+	if len(extension.Methods) != 1 {
+		t.Fatalf("expected one extension method, got %d", len(extension.Methods))
+	}
+	method := extension.Methods[0]
+	if !method.Deprecated || method.DeprecationMessage != "use readable_name" {
+		t.Fatalf("expected deprecated method metadata, got %#v", method)
+	}
+}
+
+func TestParseContextualEnumNamespace(t *testing.T) {
+	program, errors := Parse(`
+namespace enum {
+    function Count(values : List[Int]) : Int {
+        return len(values);
+    }
+}
+
+function Main() : Int {
+    return enum.Count([1, 2, 3]);
+}
+`)
+	if len(errors) != 0 {
+		t.Fatalf("unexpected parse errors: %#v", errors)
+	}
+	namespace, ok := program.Statements[0].(NamespaceStatement)
+	if !ok || namespace.Name != "enum" {
+		t.Fatalf("expected contextual enum namespace, got %#v", program.Statements[0])
+	}
+}
+
 func TestParseAliasOperatorOverloads(t *testing.T) {
 	program, errors := Parse(`
 alias function Vector(x : Int, y : Int) : type = struct {

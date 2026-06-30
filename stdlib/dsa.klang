@@ -11,10 +11,12 @@ alias function Stack[T](items : List[T]) : type = struct {
             return len(this.items) == 0;
         }
 
+        @deprecated("Use count instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Count() : Int {
             return this.count();
         }
 
+        @deprecated("Use empty instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Empty() : Bool {
             return this.empty();
         }
@@ -31,10 +33,12 @@ alias function Queue[T](items : List[T]) : type = struct {
             return len(this.items) == 0;
         }
 
+        @deprecated("Use count instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Count() : Int {
             return this.count();
         }
 
+        @deprecated("Use empty instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Empty() : Bool {
             return this.empty();
         }
@@ -51,10 +55,12 @@ alias function OrderedMap[T hashable](keys : List[T], values : List[T]) : type =
             return len(this.keys) == 0;
         }
 
+        @deprecated("Use count instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Count() : Int {
             return this.count();
         }
 
+        @deprecated("Use empty instead. Receiver methods now use lower_snake_case consistently; this legacy spelling is retained only for source compatibility.")
         function Empty() : Bool {
             return this.empty();
         }

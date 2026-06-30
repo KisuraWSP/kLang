@@ -14,7 +14,7 @@ import (
 	"kLang/src/lexer"
 )
 
-const Version = "klang-program-cache-v8-operator-overloads"
+const Version = "klang-program-cache-v10-lazy-pipelines"
 
 type Warning struct {
 	File    string `json:"file"`
