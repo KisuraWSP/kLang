@@ -6,9 +6,14 @@
 --
 --     kLang run first.klang --quiet
 --
--- Coming soon: this example role will be formalized as default_program.klang,
--- allowing kLang to ship a discoverable default program that demonstrates the
--- language and can eventually participate in its self-hosting story.
+-- this is just an example program for any user who wants to use this program
+-- when all features are implemented a klang.project file will exist in root which will point to "default_program.klang"
+-- which is the defined main program of our programming language
+-- any change done to this file will occur to entire language cli
+-- this wont replace the original go source code but will coexist with it
+-- actually go will actually point to this file as this is the first workspace
+-- if this file fails so does whole cli, basically we want users to have the full control of the language via this file
+-- basically we want to introduce more metaprogramming features as this programming language gets powerful
 
 load_as_script;
 no_cache;
