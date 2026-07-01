@@ -845,6 +845,8 @@ func collectNamespaceAliases(statements []parser.Statement) map[string]string {
 			case parser.TryCatchStatement:
 				collect(current.TryBody)
 				collect(current.CatchBody)
+			case parser.TransactionStatement:
+				collect(current.Body)
 			case parser.DeferStatement:
 				if current.Stmt != nil {
 					collect([]parser.Statement{current.Stmt})
@@ -978,6 +980,8 @@ func collectStatementCalls(statements []parser.Statement, add func(string)) {
 		case parser.TryCatchStatement:
 			collectStatementCalls(current.TryBody, add)
 			collectStatementCalls(current.CatchBody, add)
+		case parser.TransactionStatement:
+			collectStatementCalls(current.Body, add)
 		case parser.DeferStatement:
 			if current.Stmt != nil {
 				collectStatementCalls([]parser.Statement{current.Stmt}, add)

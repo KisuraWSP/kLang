@@ -364,10 +364,24 @@ This tour is ordinary executable source.
     local Thread[Int] worker = spawn(CountWorker, [shared, 5]);
     local Int workerResult = join(worker);
     local String workerStatus = thread_status(worker);
+
+    -- transaction composes changes to several Atomic cells into one commit.
+    -- Its body can retry, so it allows immutable calculation and Atomic
+    -- operations while rejecting effects such as print, spawn, and host I/O.
+    local Atomic[Int] checking = Atomic(100);
+    local Atomic[Int] savings = Atomic(50);
+    transaction {
+        local Int amount = 20;
+        local Int available = atomic_load(checking);
+        assert available >= amount;
+        atomic_store(checking, available - amount);
+        atomic_add(savings, amount);
+    }
     atomic_add(completedSections, 1);
 
     assert resumed.some and resumedValue == 7;
     assert workerResult == 5 and atomic_load(shared) == 5;
+    assert atomic_load(checking) + atomic_load(savings) == 150;
     print("execution models:", loaded, resumedValue, workerResult, workerStatus, atomic_load(completedSections));
 
     -- Native descriptors expose safe metadata without performing destructive

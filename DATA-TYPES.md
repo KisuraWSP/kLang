@@ -30,7 +30,7 @@
 29. Thread[$Item] // Non-transferable worker handle returned by spawn; join returns a snapshot of the worker result
 30. Args // Builtin immutable List[String] containing command line arguments passed to the program workspace
 31. Any // Fully dynamic wildcard type; unlike T, it cannot be restricted and accepts any value
-32. Atomic[$Item] // Shared synchronized cell; Item must itself be thread-transfer-safe
+32. Atomic[$Item] // Shared synchronized cell; Item must itself be thread-transfer-safe; multiple cells can participate in a transaction
 33. Program // Meta-programming descriptor containing module : List[String]
 34. BuildSystem // Compact build descriptor containing project_name, number_of_files, files, and backend; JS selects native JavaScript code generation and WASM selects bytecode VM packaging with interpreter fallback
 35. WorkSpace // Meta workspace combining Program and BuildSystem
@@ -38,7 +38,7 @@
 37. JSCall // Filesystem-only JavaScript API call descriptor
 38. Enum // User-defined typed ordinal enum values declared with `enum`
 39. Context // Compiler/runtime source context for a workspace, including files, entry point, backend, and diagnostics
-40. ErrorContext // Source-aware diagnostic containing phase, file, line, column span, rule, message, hint, source line, suggestions, and type context
+40. ErrorContext // Structured source diagnostic containing a stable code, severity, phase, primary span, labels, rule, message, hints, notes, suggestions, fixes, expected/found types, and stack frames
 41. Type // Runtime metadata for every language type, returned by `SomeType.get_runtime_type_info()`
 42. JSON // Immutable parsed JSON value with object, array, string, number, bool, and null variants
 43. Parsable[$Item] // Immutable source, AST, runtime argument, Program, BuildSystem, and WorkSpace metadata for one Klang program
@@ -77,6 +77,8 @@ Alias functions may overload binary operators with `operator SYMBOL(other : Type
 
 `Atom` is an immutable symbolic value identified only by its name. Literal atoms use adjacent colon syntax such as `:not_found`; `Atom("not_found")` creates a name dynamically. Atom names follow identifier rules, `.name` returns the unprefixed String, `Atom as String` and `String as Atom` provide explicit conversion, and an uninitialized Atom has the zero value `:undefined`. Atoms compare by name and are valid Table keys, Set items, pattern values, Result error values, and thrown/caught values.
 
+Compiler and runtime diagnostics share one structured model. A diagnostic has a stable `K`-prefixed code, severity, phase, primary source span, optional related labels, notes, help text, suggested replacements, expected/found types, and structured runtime frames. Compatibility fields such as `file`, `line`, and `column` mirror the primary span. This diagnostic metadata is separate from Atom propagation: thrown Atoms remain small immutable identities, while rich context is assembled at the reporting boundary.
+
 Builtin values expose a small shared protocol surface through selector syntax:
 - `String`, `List[T]`, `Set[T]`, `Map[K, V]`, `Table`, `JSON`, `SIMD[T]`, and `Iterator[T]` provide `.count : Int`. JSON count is defined for object, array, and string values.
 - `String` and `Char` provide `.uppercase()` and `.lowercase()`.
@@ -105,6 +107,8 @@ User-defined `enum` declarations create typed ordinal values inspired by Go `con
 Aggregate collection values use copy-on-write storage for ordinary assignment. Shared `List`, `Set`, `Map`, `Table`, and `SIMD` storage is detached when a mutable binding is written, while explicit `copy` and `clone` still create eager clones.
 
 Thread transfer is stricter than ordinary assignment. `spawn` accepts a named synchronous workspace function and deep-snapshots each argument before the worker starts. Primitive values, enums, JSON, File and OS descriptors, recursively safe typed aggregates (`List`, `Set`, `Map`, `Option`, `Result`, and `SIMD`), and recursively safe struct aliases can cross the boundary. `Atomic[T]` crosses by shared identity rather than by snapshot, and `T` must satisfy the same transfer rules. Dynamic `Table`/`Any` values, functions and captured closures, Awaitable/Iterator/Coroutine/Thread handles, Parsable values, reference and allocator wrappers, and aggregates containing any such value cannot cross a thread boundary.
+
+`transaction { ... }` groups operations on one or more `Atomic[T]` cells into one optimistic software transaction. `atomic_load` observes a consistent versioned snapshot, while `atomic_store` and `atomic_add` stage writes until commit. Conflicting transactions retry automatically. Nested transactions flatten into the outer transaction. Transaction-local values are recreated on every attempt; they must be immutable, and ordinary binding mutation or retry-unsafe effects are rejected.
 
 `Set[T]` stores unique primitive values in deterministic insertion order. `Set([items...])` builds a set from a list and deduplicates repeated values. Set items use the same safe primitive key space as `Table`: `String`, `Atom`, `Int`, `UInt`, `Float`, `Bool`, and `Char`. `set_has(set, value)` tests membership, and `iter(set)` yields the unique values in insertion order.
 

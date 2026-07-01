@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"kLang/src/diagnostic"
 	"kLang/src/engine/backend"
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
@@ -14,17 +15,17 @@ import (
 	"kLang/src/parser"
 )
 
-type Phase string
+type Phase = diagnostic.Phase
 
 const (
-	PhaseSource  Phase = "SOURCE"
-	PhaseModule  Phase = "MODULE"
-	PhaseParse   Phase = "PARSE"
-	PhaseType    Phase = "TYPE"
-	PhaseRuntime Phase = "RUNTIME"
-	PhaseBackend Phase = "BACKEND"
-	PhaseJS      Phase = "JS"
-	PhaseWASM    Phase = "WASM"
+	PhaseSource  = diagnostic.PhaseSource
+	PhaseModule  = diagnostic.PhaseModule
+	PhaseParse   = diagnostic.PhaseParse
+	PhaseType    = diagnostic.PhaseType
+	PhaseRuntime = diagnostic.PhaseRuntime
+	PhaseBackend = diagnostic.PhaseBackend
+	PhaseJS      = diagnostic.PhaseJS
+	PhaseWASM    = diagnostic.PhaseWASM
 )
 
 type SourceContext struct {
@@ -32,17 +33,7 @@ type SourceContext struct {
 	Lines []string
 }
 
-type ErrorContext struct {
-	Phase      Phase
-	File       string
-	Line       int
-	Column     int
-	EndColumn  int
-	Message    string
-	Rule       string
-	Hint       string
-	SourceLine string
-}
+type ErrorContext = diagnostic.Diagnostic
 
 type Context struct {
 	ProgramName string
@@ -88,8 +79,10 @@ func (ctx *Context) SourceLines(path string) []string {
 }
 
 func (ctx *Context) WithSource(err ErrorContext) ErrorContext {
+	err = diagnostic.Normalize(err)
 	if err.Column <= 0 {
 		err.Column = 1
+		err.Primary.StartColumn = 1
 	}
 	if err.EndColumn > 0 && err.EndColumn < err.Column {
 		err.EndColumn = err.Column
@@ -97,6 +90,13 @@ func (ctx *Context) WithSource(err ErrorContext) ErrorContext {
 	lines := ctx.SourceLines(err.File)
 	if err.Line > 0 && err.Line <= len(lines) {
 		err.SourceLine = lines[err.Line-1]
+	}
+	err.Primary = diagnostic.Span{
+		File:        err.File,
+		StartLine:   err.Line,
+		StartColumn: err.Column,
+		EndLine:     err.EndLine,
+		EndColumn:   err.EndColumn,
 	}
 	return err
 }
@@ -106,13 +106,15 @@ func ModuleErrors(program file.Program, report modulesystem.Report) []ErrorConte
 	errors := make([]ErrorContext, 0, len(report.Errors))
 	for _, err := range report.Errors {
 		errors = append(errors, ctx.WithSource(ErrorContext{
-			Phase:   PhaseModule,
-			File:    err.File,
-			Line:    err.Line,
-			Column:  err.Column,
-			Message: err.Message,
-			Rule:    "import resolution",
-			Hint:    "Check that the imported module exists, is spelled correctly, and is reachable from this workspace.",
+			Code:     diagnostic.CodeImportResolution,
+			Severity: diagnostic.SeverityError,
+			Phase:    PhaseModule,
+			File:     err.File,
+			Line:     err.Line,
+			Column:   err.Column,
+			Message:  err.Message,
+			Rule:     "import resolution",
+			Hint:     "Check that the imported module exists, is spelled correctly, and is reachable from this workspace.",
 		}))
 	}
 	return errors
@@ -124,13 +126,15 @@ func ParseErrors(program file.Program, parsed parser.ParsedProgram) []ErrorConte
 	for _, source := range parsed.Sources {
 		for _, err := range source.Errors {
 			errors = append(errors, ctx.WithSource(ErrorContext{
-				Phase:   PhaseParse,
-				File:    source.Path,
-				Line:    err.Line,
-				Column:  err.Column,
-				Message: err.Message,
-				Rule:    "syntax",
-				Hint:    "The parser could not understand this part of the program. Check the syntax around the marked code.",
+				Code:     diagnostic.CodeSyntax,
+				Severity: diagnostic.SeverityError,
+				Phase:    PhaseParse,
+				File:     source.Path,
+				Line:     err.Line,
+				Column:   err.Column,
+				Message:  err.Message,
+				Rule:     "syntax",
+				Hint:     "The parser could not understand this part of the program. Check the syntax around the marked code.",
 			}))
 		}
 	}
@@ -142,15 +146,48 @@ func TypeErrors(program file.Program, report typechecker.Report) []ErrorContext 
 	errors := make([]ErrorContext, 0, len(report.Errors))
 	candidates := diagnosticCandidates(program)
 	for _, err := range report.Errors {
-		diag := ErrorContext{
-			Phase:   PhaseType,
-			File:    err.File,
-			Line:    err.Line,
-			Message: HumanTypeMessage(err.Message),
-			Rule:    typeErrorRule(err.Message),
-			Hint:    typeErrorHint(err.Message, candidates),
+		message := err.Message
+		if err.ExpectedType != "" && err.FoundType != "" {
+			message = humanExpectedFoundMessage(message, err.ExpectedType, err.FoundType)
+		} else {
+			message = HumanTypeMessage(message)
 		}
-		diag.Column, diag.EndColumn = diagnosticSpan(ctx.SourceLines(err.File), err.Line, err.Message)
+		rule := err.Rule
+		if rule == "" {
+			rule = typeErrorRule(err.Message)
+		}
+		hint := err.Hint
+		if hint == "" {
+			hint = typeErrorHint(err.Message, candidates)
+		}
+		code := err.Code
+		if code == "" {
+			code = legacyTypeErrorCode(err.Message)
+		}
+		diag := ErrorContext{
+			Code:         code,
+			Severity:     diagnostic.SeverityError,
+			Phase:        PhaseType,
+			File:         err.File,
+			Line:         err.Line,
+			Column:       err.Column,
+			EndLine:      err.EndLine,
+			EndColumn:    err.EndColumn,
+			Message:      message,
+			Rule:         rule,
+			Hint:         hint,
+			Primary:      err.Primary,
+			Labels:       err.Labels,
+			Notes:        err.Notes,
+			Helps:        err.Helps,
+			Suggestions:  err.Suggestions,
+			Fixes:        err.Fixes,
+			ExpectedType: err.ExpectedType,
+			FoundType:    err.FoundType,
+		}
+		if diag.Column <= 0 {
+			diag.Column, diag.EndColumn = diagnosticSpan(ctx.SourceLines(err.File), err.Line, err.Message)
+		}
 		errors = append(errors, ctx.WithSource(diag))
 	}
 	return errors
@@ -158,15 +195,29 @@ func TypeErrors(program file.Program, report typechecker.Report) []ErrorContext 
 
 func RuntimeError(program file.Program, err error) ErrorContext {
 	ctx := New(program)
+	if carrier, ok := err.(diagnostic.Carrier); ok {
+		value := carrier.Diagnostic()
+		value.Phase = PhaseRuntime
+		value.Severity = diagnostic.SeverityError
+		if value.Code == "" {
+			value.Code = diagnostic.CodeRuntimeFailure
+		}
+		if value.File == "" {
+			value.File = program.EntryPoint
+		}
+		return ctx.WithSource(value)
+	}
 	line, column, message := RuntimeErrorParts(err)
 	return ctx.WithSource(ErrorContext{
-		Phase:   PhaseRuntime,
-		File:    program.EntryPoint,
-		Line:    line,
-		Column:  column,
-		Message: message,
-		Rule:    "runtime semantics",
-		Hint:    "The program reached this code while running and could not continue safely.",
+		Code:     diagnostic.CodeRuntimeFailure,
+		Severity: diagnostic.SeverityError,
+		Phase:    PhaseRuntime,
+		File:     program.EntryPoint,
+		Line:     line,
+		Column:   column,
+		Message:  message,
+		Rule:     "runtime semantics",
+		Hint:     "The program reached this code while running and could not continue safely.",
 	})
 }
 
@@ -179,13 +230,15 @@ func BackendError(program file.Program, backend string, err error) ErrorContext 
 		phase = PhaseJS
 	}
 	return ctx.WithSource(ErrorContext{
-		Phase:   phase,
-		File:    program.EntryPoint,
-		Line:    0,
-		Column:  1,
-		Message: err.Error(),
-		Rule:    "backend contract",
-		Hint:    fmt.Sprintf("Check the %s backend configuration and any generated bundle requirements.", backend),
+		Code:     diagnostic.CodeBackendFailure,
+		Severity: diagnostic.SeverityError,
+		Phase:    phase,
+		File:     program.EntryPoint,
+		Line:     0,
+		Column:   1,
+		Message:  err.Error(),
+		Rule:     "backend contract",
+		Hint:     fmt.Sprintf("Check the %s backend configuration and any generated bundle requirements.", backend),
 	})
 }
 
@@ -198,18 +251,25 @@ func BackendDiagnostics(program file.Program, backendName string, diagnostics []
 		phase = PhaseWASM
 	}
 	errors := make([]ErrorContext, 0, len(diagnostics))
-	for _, diagnostic := range diagnostics {
-		hint := diagnostic.Hint
+	for _, backendDiagnostic := range diagnostics {
+		hint := backendDiagnostic.Hint
 		if hint == "" {
 			hint = fmt.Sprintf("Use syntax supported by the %s backend or select a runtime packaging backend.", backendName)
 		}
-		rule := diagnostic.Rule
+		rule := backendDiagnostic.Rule
 		if rule == "" {
 			rule = "backend feature support"
 		}
+		code := backendDiagnostic.Code
+		if code == "" {
+			code = diagnostic.CodeBackendUnsupported
+		}
 		errors = append(errors, ctx.WithSource(ErrorContext{
-			Phase: phase, File: diagnostic.File, Line: diagnostic.Line, Column: diagnostic.Column, EndColumn: diagnostic.EndColumn,
-			Message: diagnostic.Message, Rule: rule, Hint: hint,
+			Code: code, Severity: diagnostic.SeverityError,
+			Phase: phase, File: backendDiagnostic.File, Line: backendDiagnostic.Line, Column: backendDiagnostic.Column,
+			EndLine: backendDiagnostic.EndLine, EndColumn: backendDiagnostic.EndColumn, Primary: backendDiagnostic.Primary,
+			Message: backendDiagnostic.Message, Rule: rule, Hint: hint, Labels: backendDiagnostic.Labels,
+			Notes: backendDiagnostic.Notes, Helps: backendDiagnostic.Helps, Suggestions: backendDiagnostic.Suggestions, Fixes: backendDiagnostic.Fixes,
 		}))
 	}
 	return errors
@@ -229,7 +289,7 @@ func RuntimeErrorParts(err error) (int, int, string) {
 
 func HumanTypeMessage(message string) string {
 	if expected, found, ok := expectedFoundTypes(message); ok {
-		return message + "\n\nExpected type:\n" + formatTypeTree(expected, "  ") + "\nFound type:\n" + formatTypeTree(found, "  ") + "\nThis value does not have the type declared for the variable."
+		return humanExpectedFoundMessage(message, expected, found)
 	}
 	switch {
 	case strings.Contains(message, "cannot assign"):
@@ -240,6 +300,29 @@ func HumanTypeMessage(message string) string {
 		return message + "\n\nThis name has not been declared in the current scope."
 	default:
 		return message
+	}
+}
+
+func humanExpectedFoundMessage(message string, expected string, found string) string {
+	return message + "\n\nExpected type:\n" + formatTypeTree(expected, "  ") +
+		"\nFound type:\n" + formatTypeTree(found, "  ") +
+		"\nThis value does not have the type declared for the variable."
+}
+
+func legacyTypeErrorCode(message string) string {
+	switch {
+	case strings.Contains(message, "unknown identifier"):
+		return diagnostic.CodeUnknownIdentifier
+	case strings.Contains(message, "unknown function"):
+		return diagnostic.CodeUnknownFunction
+	case strings.Contains(message, "unknown type"):
+		return diagnostic.CodeUnknownType
+	case strings.Contains(message, "transaction"):
+		return diagnostic.CodeTransactionSafety
+	case strings.Contains(message, "cannot assign"), strings.Contains(message, "expects"), strings.Contains(message, "return expression"):
+		return diagnostic.CodeTypeMismatch
+	default:
+		return diagnostic.CodeStaticSemantics
 	}
 }
 

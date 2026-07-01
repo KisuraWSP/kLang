@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode"
 
+	"kLang/src/diagnostic"
 	"kLang/src/engine/file"
 	"kLang/src/lexer"
 	"kLang/src/parser"
@@ -16,17 +17,8 @@ const anyType = "T"
 const dynamicAnyType = "Any"
 const movedType = "<moved>"
 
-type Error struct {
-	File    string
-	Line    int
-	Message string
-}
-
-type Warning struct {
-	File    string
-	Line    int
-	Message string
-}
+type Error = diagnostic.Diagnostic
+type Warning = diagnostic.Diagnostic
 
 type State struct {
 	Phase    string
@@ -1071,7 +1063,14 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 				typeName = exprType
 			}
 			if !checker.isAssignable(typeName, exprType) {
-				checker.addError(fn.File, line, fmt.Sprintf("cannot assign %s to local %s %s", exprType, typeName, current.Name))
+				checker.addStructuredError(
+					fn.File, line, 0, 0,
+					diagnostic.CodeTypeMismatch,
+					"type compatibility",
+					fmt.Sprintf("cannot assign %s to local %s %s", exprType, typeName, current.Name),
+					fmt.Sprintf("Expected %s but found %s. Change the expression, add an explicit cast, or adjust the declared type.", typeName, exprType),
+					typeName, exprType,
+				)
 			}
 			if !childTypeLiteralFits(typeName, exprSource) {
 				checker.addError(fn.File, line, fmt.Sprintf("literal %s does not fit in %s", exprSource, typeName))
@@ -1166,7 +1165,14 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		checker.checkSemanticExpression(fn, current.Expression, locals, line)
 		exprType := checker.inferParsedExpression(current.Expression, locals, fn.File, line)
 		if len(fn.ReturnTypes) == 0 && !checker.isAssignable(fn.ReturnType, exprType) {
-			checker.addError(fn.File, line, fmt.Sprintf("function %s returns %s but return expression is %s", fn.Name, fn.ReturnType, exprType))
+			checker.addStructuredError(
+				fn.File, line, 0, 0,
+				diagnostic.CodeTypeMismatch,
+				"type compatibility",
+				fmt.Sprintf("function %s returns %s but return expression is %s", fn.Name, fn.ReturnType, exprType),
+				fmt.Sprintf("Return a %s value or change the function return type.", fn.ReturnType),
+				fn.ReturnType, exprType,
+			)
 		}
 	case parser.ThrowStatement:
 		checker.checkSemanticExpression(fn, current.Expression, locals, line)
@@ -1210,6 +1216,8 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		catchLocals := copyLocals(locals)
 		catchLocals[current.ErrorName] = variableSymbol{Name: current.ErrorName, Type: "Atom", File: fn.File, Line: line}
 		checker.checkSemanticChildBlockWithLocals(fn, current.CatchBody, locals, catchLocals, map[string]bool{current.ErrorName: true})
+	case parser.TransactionStatement:
+		checker.checkSemanticChildBlock(fn, current.Body, locals)
 	case parser.DeferStatement:
 		if current.Stmt != nil {
 			checker.checkSemanticChildBlock(fn, []parser.Statement{current.Stmt}, locals)
@@ -1832,6 +1840,8 @@ func (checker *TypeChecker) checkNullSafetyStatements(statements []parser.Statem
 			catchEnv := copyNullSafetyEnv(env)
 			catchEnv[current.ErrorName] = nullSafetySymbol{Type: "Atom"}
 			checker.checkNullSafetyStatements(current.CatchBody, catchEnv, source, baseLine)
+		case parser.TransactionStatement:
+			checker.checkNullSafetyStatements(current.Body, copyNullSafetyEnv(env), source, baseLine)
 		case parser.DeferStatement:
 			checker.checkNullSafetyStatements(current.Body, copyNullSafetyEnv(env), source, baseLine)
 			if current.Stmt != nil {
@@ -4768,6 +4778,8 @@ func collectThreadWorkerLocals(statements []parser.Statement, locals map[string]
 			locals[current.ErrorName] = true
 			collectThreadWorkerLocals(current.TryBody, locals)
 			collectThreadWorkerLocals(current.CatchBody, locals)
+		case parser.TransactionStatement:
+			collectThreadWorkerLocals(current.Body, locals)
 		case parser.DeferStatement:
 			if current.Stmt != nil {
 				collectThreadWorkerLocals([]parser.Statement{current.Stmt}, locals)
@@ -5278,18 +5290,45 @@ func longestAliasPath(name string, aliases map[string]string) (string, string, b
 }
 
 func (checker *TypeChecker) addError(source string, line int, message string) {
+	checker.addStructuredError(source, line, 0, 0, "", "", message, "", "", "")
+}
+
+func (checker *TypeChecker) addStructuredError(
+	source string,
+	line int,
+	column int,
+	endColumn int,
+	code string,
+	rule string,
+	message string,
+	hint string,
+	expectedType string,
+	foundType string,
+) {
 	checker.errors = append(checker.errors, Error{
-		File:    filepath.Clean(source),
-		Line:    line,
-		Message: message,
+		Code:         code,
+		Severity:     diagnostic.SeverityError,
+		Phase:        diagnostic.PhaseType,
+		File:         filepath.Clean(source),
+		Line:         line,
+		Column:       column,
+		EndLine:      line,
+		EndColumn:    endColumn,
+		Message:      message,
+		Rule:         rule,
+		Hint:         hint,
+		ExpectedType: expectedType,
+		FoundType:    foundType,
 	})
 }
 
 func (checker *TypeChecker) addWarning(source string, line int, message string) {
 	checker.warnings = append(checker.warnings, Warning{
-		File:    filepath.Clean(source),
-		Line:    line,
-		Message: message,
+		Severity: diagnostic.SeverityWarning,
+		Phase:    diagnostic.PhaseType,
+		File:     filepath.Clean(source),
+		Line:     line,
+		Message:  message,
 	})
 }
 

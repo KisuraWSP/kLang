@@ -103,6 +103,8 @@ func collectCustomEntryPoints(statements []Statement, namespace string, source s
 			collectCustomEntryPoints(current.Body, namespace, source, candidates, diagnostics)
 		case ScopeStatement:
 			collectCustomEntryPoints(current.Body, namespace, source, candidates, diagnostics)
+		case TransactionStatement:
+			collectCustomEntryPoints(current.Body, namespace, source, candidates, diagnostics)
 		}
 	}
 }

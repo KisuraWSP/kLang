@@ -68,6 +68,9 @@ func (lowerer *destructuringLowerer) lowerStatement(stmt Statement) []Statement 
 		current.TryBody = lowerer.lowerStatements(current.TryBody)
 		current.CatchBody = lowerer.lowerStatements(current.CatchBody)
 		return []Statement{current}
+	case TransactionStatement:
+		current.Body = lowerer.lowerStatements(current.Body)
+		return []Statement{current}
 	case DeferStatement:
 		current.Body = lowerer.lowerStatements(current.Body)
 		if current.Stmt != nil {

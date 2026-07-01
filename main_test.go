@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"kLang/src/diagnostic"
 	langcontext "kLang/src/engine/context"
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
@@ -29,6 +31,116 @@ func TestHumanTypeMessageAddsHelpfulContext(t *testing.T) {
 	if !strings.Contains(message, "This value does not have the type declared") {
 		t.Fatalf("expected helpful type context, got %q", message)
 	}
+}
+
+func TestPrintDiagnosticUsesRedWhenColorIsForced(t *testing.T) {
+	originalNoColor, hadNoColor := os.LookupEnv("NO_COLOR")
+	if err := os.Unsetenv("NO_COLOR"); err != nil {
+		t.Fatalf("unset NO_COLOR: %v", err)
+	}
+	defer func() {
+		if hadNoColor {
+			_ = os.Setenv("NO_COLOR", originalNoColor)
+		} else {
+			_ = os.Unsetenv("NO_COLOR")
+		}
+	}()
+	t.Setenv("KLANG_COLOR", "always")
+
+	output := captureDiagnostic(t, langcontext.ErrorContext{
+		Code:     diagnostic.CodeTypeMismatch,
+		Severity: diagnostic.SeverityError,
+		Phase:    langcontext.PhaseType,
+		File:     "main.klang",
+		Line:     2,
+		Column:   5,
+		Message:  "bad type",
+	})
+	if !strings.Contains(output, "\x1b[31m") || !strings.Contains(output, "\x1b[0m") {
+		t.Fatalf("expected red ANSI rendering, got %q", output)
+	}
+	if !strings.Contains(output, "[K2101]") {
+		t.Fatalf("expected stable diagnostic code, got %q", output)
+	}
+}
+
+func TestPrintDiagnosticHonorsNoColor(t *testing.T) {
+	t.Setenv("KLANG_COLOR", "always")
+	t.Setenv("NO_COLOR", "1")
+
+	output := captureDiagnostic(t, langcontext.ErrorContext{
+		Code:     diagnostic.CodeSyntax,
+		Severity: diagnostic.SeverityError,
+		Phase:    langcontext.PhaseParse,
+		File:     "main.klang",
+		Message:  "bad syntax",
+	})
+	if strings.Contains(output, "\x1b[") {
+		t.Fatalf("expected NO_COLOR output without ANSI escapes, got %q", output)
+	}
+}
+
+func captureDiagnostic(t *testing.T, value langcontext.ErrorContext) string {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create diagnostic pipe: %v", err)
+	}
+	printDiagnostic(writer, value)
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close diagnostic writer: %v", err)
+	}
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read diagnostic output: %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("close diagnostic reader: %v", err)
+	}
+	return string(content)
+}
+
+func TestMascotRendersFriendlySuccessAndErrorMessages(t *testing.T) {
+	t.Setenv("KLANG_MASCOT", "always")
+
+	success := captureMascot(t, mascotSuccess)
+	if !strings.Contains(success, "[^_^]") ||
+		!strings.Contains(success, "Kibi: Nice work! Your program finished safely.") {
+		t.Fatalf("unexpected success mascot: %q", success)
+	}
+
+	failure := captureMascot(t, mascotError)
+	if !strings.Contains(failure, "[o_o]") ||
+		!strings.Contains(failure, "the diagnostic above points the way") {
+		t.Fatalf("unexpected error mascot: %q", failure)
+	}
+}
+
+func TestMascotCanBeDisabled(t *testing.T) {
+	t.Setenv("KLANG_MASCOT", "never")
+	if output := captureMascot(t, mascotHelp); output != "" {
+		t.Fatalf("expected disabled mascot to stay silent, got %q", output)
+	}
+}
+
+func captureMascot(t *testing.T, mood mascotMood) string {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create mascot pipe: %v", err)
+	}
+	printMascot(writer, mood)
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close mascot writer: %v", err)
+	}
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read mascot output: %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("close mascot reader: %v", err)
+	}
+	return string(content)
 }
 
 func TestParseEntryFlagIsDeprecatedNoop(t *testing.T) {

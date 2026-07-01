@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"kLang/src/diagnostic"
 	"kLang/src/engine/file"
 	typechecker "kLang/src/engine/type_checker"
 )
@@ -143,5 +144,38 @@ func TestRuntimeErrorContextParsesLineColumn(t *testing.T) {
 
 	if err.Phase != PhaseRuntime || err.Line != 3 || err.Column != 9 || err.Message != "cannot index value" {
 		t.Fatalf("unexpected runtime context: %#v", err)
+	}
+}
+
+func TestTypeErrorsPreserveStructuredDiagnosticData(t *testing.T) {
+	program := file.Program{
+		Name:       "demo",
+		EntryPoint: "main.klang",
+		Files: []file.SourceFile{{
+			Path:  "main.klang",
+			Lines: []string{`local Int value = "bad";`},
+		}},
+	}
+	report := typechecker.Report{Errors: []typechecker.Error{{
+		Code:         diagnostic.CodeTypeMismatch,
+		File:         "main.klang",
+		Line:         1,
+		Column:       7,
+		EndColumn:    9,
+		Message:      "cannot assign String to Int",
+		Rule:         "type compatibility",
+		Hint:         "Use an Int value.",
+		ExpectedType: "Int",
+		FoundType:    "String",
+	}}}
+
+	errors := TypeErrors(program, report)
+	if len(errors) != 1 {
+		t.Fatalf("expected one error, got %#v", errors)
+	}
+	err := errors[0]
+	if err.Code != diagnostic.CodeTypeMismatch || err.Primary.StartColumn != 7 ||
+		err.ExpectedType != "Int" || err.FoundType != "String" {
+		t.Fatalf("structured diagnostic data was not preserved: %#v", err)
 	}
 }

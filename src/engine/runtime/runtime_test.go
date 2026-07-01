@@ -3426,6 +3426,30 @@ function Main() : Int {
 	assertRuntimeErrorContains(t, err, "Main")
 }
 
+func TestRuntimeErrorExposesStructuredStackFrames(t *testing.T) {
+	_, err := runSourceWithError(`
+function Inner() : Int {
+    assert False;
+    return 0;
+}
+
+function Main() : Int {
+    return Inner();
+}
+`)
+	runtimeError, ok := err.(Error)
+	if !ok {
+		t.Fatalf("expected structured runtime Error, got %T: %v", err, err)
+	}
+	diag := runtimeError.Diagnostic()
+	if diag.Code != "K4002" {
+		t.Fatalf("expected assertion diagnostic code, got %#v", diag)
+	}
+	if len(diag.Frames) == 0 || diag.Frames[0].Function == "" {
+		t.Fatalf("expected structured stack frames, got %#v", diag.Frames)
+	}
+}
+
 func TestRuntimeExecutesAliasFunctionExtensionMethod(t *testing.T) {
 	result := runParsedSource(t, `
 alias function ArrayList[T: Any](data: T, length: int, capacity: int, allocator = .DEFAULT) -> type
@@ -4153,6 +4177,95 @@ function Main() : Int {
 }
 `)
 	assertRuntimeErrorContains(t, err, `invalid Atom name "not found"`)
+}
+
+func TestRuntimeTransactionCommitsMultipleAtomicCells(t *testing.T) {
+	result := runSource(t, `
+function Main() : Int {
+    local Atomic[Int] left = Atomic(10);
+    local Atomic[Int] right = Atomic(20);
+    transaction {
+        local Int amount = atomic_load(left);
+        atomic_store(left, amount - 4);
+        atomic_add(right, 4);
+    }
+    assert atomic_load(left) == 6;
+    assert atomic_load(right) == 24;
+    return atomic_load(left) + atomic_load(right);
+}
+`)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 30 {
+		t.Fatalf("expected committed total 30, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeTransactionRollsBackOnThrow(t *testing.T) {
+	result := runSource(t, `
+function Main() : Int {
+    local Atomic[Int] value = Atomic(10);
+    try {
+        transaction {
+            atomic_store(value, 99);
+            throw :abort;
+        }
+    } catch error {
+        assert error == :abort;
+    }
+    return atomic_load(value);
+}
+`)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 10 {
+		t.Fatalf("expected transaction rollback to preserve 10, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeNestedTransactionsFlattenIntoOuterCommit(t *testing.T) {
+	result := runSource(t, `
+function Main() : Int {
+    local Atomic[Int] value = Atomic(1);
+    transaction {
+        atomic_add(value, 1);
+        transaction {
+            atomic_add(value, 2);
+        }
+    }
+    return atomic_load(value);
+}
+`)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 4 {
+		t.Fatalf("expected nested transaction result 4, got %#v", result.Value)
+	}
+}
+
+func TestRuntimeTransactionsResolveThreadContention(t *testing.T) {
+	result := runSource(t, `
+function IncrementBoth(left : Atomic[Int], right : Atomic[Int]) : Int {
+    local mut Int index = 0;
+    while index < 100 {
+        transaction {
+            atomic_add(left, 1);
+            atomic_add(right, 1);
+        }
+        index += 1;
+    }
+    return 0;
+}
+
+function Main() : Int {
+    local Atomic[Int] left = Atomic(0);
+    local Atomic[Int] right = Atomic(0);
+    local Thread[Int] first = spawn(IncrementBoth, [left, right]);
+    local Thread[Int] second = spawn(IncrementBoth, [left, right]);
+    _ = join(first);
+    _ = join(second);
+    assert atomic_load(left) == 200;
+    assert atomic_load(right) == 200;
+    return atomic_load(left) + atomic_load(right);
+}
+`)
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 400 {
+		t.Fatalf("expected contended transactions to return 400, got %#v", result.Value)
+	}
 }
 
 func TestRuntimeExecutesOSStdlibFacade(t *testing.T) {

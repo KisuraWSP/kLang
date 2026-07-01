@@ -3558,3 +3558,47 @@ function Main() : Int {
 `))
 	assertTypeError(t, report, "Atom name expects String, got Int")
 }
+
+func TestCheckProgramAcceptsRetrySafeTransaction(t *testing.T) {
+	report := CheckProgram(programFromSource(`
+function Main() : Int {
+    local Atomic[Int] left = Atomic(10);
+    local Atomic[Int] right = Atomic(20);
+    transaction {
+        local Int amount = atomic_load(left);
+        atomic_store(left, amount - 5);
+        atomic_add(right, 5);
+    }
+    return atomic_load(left) + atomic_load(right);
+}
+`))
+	if !report.Passed() {
+		t.Fatalf("expected transaction to type check, got %#v", report.Errors)
+	}
+}
+
+func TestCheckProgramRejectsTransactionSideEffects(t *testing.T) {
+	report := CheckProgram(programFromSource(`
+function Main() : Int {
+    local Atomic[Int] value = Atomic(1);
+    transaction {
+        print(atomic_load(value));
+    }
+    return 0;
+}
+`))
+	assertTypeError(t, report, "print call is not proven retry-safe inside transaction")
+}
+
+func TestCheckProgramRejectsOrdinaryTransactionMutation(t *testing.T) {
+	report := CheckProgram(programFromSource(`
+function Main() : Int {
+    local mut Int value = 1;
+    transaction {
+        value = 2;
+    }
+    return value;
+}
+`))
+	assertTypeError(t, report, "transaction cannot mutate ordinary bindings")
+}

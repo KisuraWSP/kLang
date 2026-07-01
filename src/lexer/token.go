@@ -65,67 +65,68 @@ const (
 	TokenScopeEnd   // }
 
 	// Keywords
-	TokenAnd        // and
-	TokenOr         // or
-	TokenXor        // xor
-	TokenNot        // not
-	TokenFunc       // function
-	TokenFuncGroup  // function_group
-	TokenIf         // if
-	TokenThen       // then
-	TokenElse       // else
-	TokenTry        // try
-	TokenCatch      // catch
-	TokenThrow      // throw
-	TokenEnd        // end
-	TokenRegion     // region
-	TokenUnless     // unless
-	TokenFor        // for
-	TokenForEach    // for_each
-	TokenWhile      // while
-	TokenDo         // do
-	TokenIs         // is
-	TokenAs         // as
-	TokenIn         // in
-	TokenImport     // import
-	TokenAlias      // alias
-	TokenLazy       // lazy
-	TokenTemp       // temp
-	TokenAsync      // async
-	TokenAwait      // await
-	TokenInline     // inline
-	TokenPrivate    // private
-	TokenDefer      // defer
-	TokenRun        // run
-	TokenScope      // scope
-	TokenAssert     // assert
-	TokenReport     // report
-	TokenInner      // inner
-	TokenTrait      // trait
-	TokenImpl       // impl
-	TokenEnum       // enum
-	TokenStruct     // struct
-	TokenMove       // move
-	TokenCopy       // copy
-	TokenClone      // clone
-	TokenLambdaFunc // fun
-	TokenGlobal     // global
-	TokenMut        // mut
-	TokenLocal      // local
-	TokenLet        // let
-	TokenVar        // var
-	TokenVal        // val
-	TokenConst      // const
-	TokenCall       // call
-	TokenModule     // module
-	TokenNameSpace  // namespace
-	TokenReturn     // return
-	TokenBreak      // break
-	TokenContinue   // continue
-	TokenCase       // case
-	TokenPartial    // partial
-	TokenDoWhile    // do_while
-	TokenExport     // export
+	TokenAnd         // and
+	TokenOr          // or
+	TokenXor         // xor
+	TokenNot         // not
+	TokenFunc        // function
+	TokenFuncGroup   // function_group
+	TokenIf          // if
+	TokenThen        // then
+	TokenElse        // else
+	TokenTry         // try
+	TokenCatch       // catch
+	TokenThrow       // throw
+	TokenTransaction // transaction
+	TokenEnd         // end
+	TokenRegion      // region
+	TokenUnless      // unless
+	TokenFor         // for
+	TokenForEach     // for_each
+	TokenWhile       // while
+	TokenDo          // do
+	TokenIs          // is
+	TokenAs          // as
+	TokenIn          // in
+	TokenImport      // import
+	TokenAlias       // alias
+	TokenLazy        // lazy
+	TokenTemp        // temp
+	TokenAsync       // async
+	TokenAwait       // await
+	TokenInline      // inline
+	TokenPrivate     // private
+	TokenDefer       // defer
+	TokenRun         // run
+	TokenScope       // scope
+	TokenAssert      // assert
+	TokenReport      // report
+	TokenInner       // inner
+	TokenTrait       // trait
+	TokenImpl        // impl
+	TokenEnum        // enum
+	TokenStruct      // struct
+	TokenMove        // move
+	TokenCopy        // copy
+	TokenClone       // clone
+	TokenLambdaFunc  // fun
+	TokenGlobal      // global
+	TokenMut         // mut
+	TokenLocal       // local
+	TokenLet         // let
+	TokenVar         // var
+	TokenVal         // val
+	TokenConst       // const
+	TokenCall        // call
+	TokenModule      // module
+	TokenNameSpace   // namespace
+	TokenReturn      // return
+	TokenBreak       // break
+	TokenContinue    // continue
+	TokenCase        // case
+	TokenPartial     // partial
+	TokenDoWhile     // do_while
+	TokenExport      // export
 )
 
 type Token struct {
@@ -148,6 +149,7 @@ var Keywords = map[string]TokenType{
 	"try":            TokenTry,
 	"catch":          TokenCatch,
 	"throw":          TokenThrow,
+	"transaction":    TokenTransaction,
 	"end":            TokenEnd,
 	"region":         TokenRegion,
 	"unless":         TokenUnless,

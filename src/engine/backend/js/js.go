@@ -401,6 +401,9 @@ func (lower *lowerer) lowerStatement(statement parser.Statement, inLoop bool) (i
 		return ir.Statement{Pos: position, Kind: ir.StatementBlock, Body: body}, ok
 	case parser.TypeAliasStatement:
 		return ir.Statement{}, true
+	case parser.TransactionStatement:
+		lower.unsupported(current.Pos, "transaction (software transactional memory is currently interpreter-only)")
+		return ir.Statement{}, false
 	default:
 		lower.unsupported(statement.Position(), fmt.Sprintf("statement %T", statement))
 		return ir.Statement{}, false

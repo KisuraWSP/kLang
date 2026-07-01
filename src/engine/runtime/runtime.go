@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"kLang/src/diagnostic"
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
 	programcache "kLang/src/engine/program_cache"
@@ -107,8 +108,10 @@ type ThreadData struct {
 }
 
 type AtomicData struct {
-	Mutex sync.Mutex
-	Value Value
+	Mutex   sync.Mutex
+	Value   Value
+	Version atomicUint64
+	ID      uint64
 }
 
 type TableKey struct {
@@ -191,23 +194,91 @@ type TestResult struct {
 }
 
 type Error struct {
-	Message string
-	Line    int
-	Column  int
+	Code      string
+	Message   string
+	Rule      string
+	Hint      string
+	File      string
+	Line      int
+	Column    int
+	EndLine   int
+	EndColumn int
+	Labels    []diagnostic.Label
+	Notes     []string
+	Helps     []string
+	Fixes     []diagnostic.TextEdit
+	Frames    []diagnostic.StackFrame
 }
 
 func (err Error) Error() string {
+	message := err.Message
 	if err.Line > 0 {
-		return fmt.Sprintf("line %d:%d: %s", err.Line, err.Column, err.Message)
+		message = fmt.Sprintf("line %d:%d: %s", err.Line, err.Column, message)
 	}
-	return err.Message
+	if len(err.Frames) != 0 {
+		var frames []string
+		for _, frame := range err.Frames {
+			rendered := frame.Function
+			if frame.File != "" {
+				rendered += " (" + frame.File + ")"
+			}
+			if frame.Line > 0 {
+				rendered += fmt.Sprintf(":%d:%d", frame.Line, frame.Column)
+			}
+			frames = append(frames, rendered)
+		}
+		message += "\nStack trace:\n  at " + strings.Join(frames, "\n  at ")
+	}
+	return message
+}
+
+func (err Error) Diagnostic() diagnostic.Diagnostic {
+	code := err.Code
+	if code == "" {
+		code = diagnostic.CodeRuntimeFailure
+	}
+	rule := err.Rule
+	if rule == "" {
+		rule = "runtime semantics"
+	}
+	hint := err.Hint
+	if hint == "" {
+		hint = "The program reached this code while running and could not continue safely."
+	}
+	return diagnostic.Normalize(diagnostic.Diagnostic{
+		Code:      code,
+		Severity:  diagnostic.SeverityError,
+		Phase:     diagnostic.PhaseRuntime,
+		File:      err.File,
+		Line:      err.Line,
+		Column:    err.Column,
+		EndLine:   err.EndLine,
+		EndColumn: err.EndColumn,
+		Message:   err.Message,
+		Rule:      rule,
+		Hint:      hint,
+		Labels:    err.Labels,
+		Notes:     err.Notes,
+		Helps:     err.Helps,
+		Fixes:     err.Fixes,
+		Frames:    err.Frames,
+	})
 }
 
 func errorAt(pos parser.Position, message string) error {
+	return errorAtCode(pos, diagnostic.CodeRuntimeFailure, "runtime semantics", message, "")
+}
+
+func errorAtCode(pos parser.Position, code string, rule string, message string, hint string) error {
 	if pos.Line > 0 {
-		return Error{Line: pos.Line, Column: pos.Column, Message: message}
+		return Error{
+			Code: code, Rule: rule, Hint: hint,
+			Line: pos.Line, Column: pos.Column,
+			EndLine: pos.Line, EndColumn: pos.Column,
+			Message: message,
+		}
 	}
-	return Error{Message: message}
+	return Error{Code: code, Rule: rule, Hint: hint, Message: message}
 }
 
 type thrownError struct {
@@ -253,6 +324,7 @@ type Runtime struct {
 	parsableArgs    [][]Value
 	states          []StateRecord
 	worker          bool
+	transaction     *transactionContext
 }
 
 type RuntimeOutput struct {
@@ -605,36 +677,64 @@ func (runtime *Runtime) errorWithStack(err error) error {
 	if _, ok := thrownValue(err); ok {
 		return err
 	}
-	message := err.Error()
-	if strings.Contains(message, "Stack trace:") {
-		return err
-	}
-	frames := runtime.stackTraceLines(parser.Position{})
+	frames := runtime.stackTraceFrames(parser.Position{})
 	if len(frames) == 0 {
 		return err
 	}
-	return Error{Message: message + "\nStack trace:\n  at " + strings.Join(frames, "\n  at ")}
+	if current, ok := err.(Error); ok {
+		if len(current.Frames) != 0 {
+			return current
+		}
+		if current.File == "" && len(runtime.callStack) > 0 {
+			current.File = runtime.functionFiles[runtime.callStack[len(runtime.callStack)-1]]
+		}
+		current.Frames = frames
+		return current
+	}
+	return Error{Code: diagnostic.CodeRuntimeFailure, Message: err.Error(), Frames: frames}
 }
 
 func (runtime *Runtime) stackTraceLines(pos parser.Position) []string {
-	frames := make([]string, 0, len(runtime.callStack)+1)
+	structured := runtime.stackTraceFrames(pos)
+	frames := make([]string, 0, len(structured))
+	for _, frame := range structured {
+		rendered := frame.Function
+		if frame.File != "" {
+			rendered += " (" + frame.File + ")"
+		}
+		if frame.Line > 0 {
+			rendered += fmt.Sprintf(":%d:%d", frame.Line, frame.Column)
+		}
+		frames = append(frames, rendered)
+	}
+	return frames
+}
+
+func (runtime *Runtime) stackTraceFrames(pos parser.Position) []diagnostic.StackFrame {
+	frames := make([]diagnostic.StackFrame, 0, len(runtime.callStack)+1)
 	if len(runtime.callStack) == 0 {
 		if pos.Line > 0 {
-			frames = append(frames, fmt.Sprintf("<top-level>:%d:%d", pos.Line, pos.Column))
+			frames = append(frames, diagnostic.StackFrame{Function: "<top-level>", Line: pos.Line, Column: pos.Column})
 		}
 		return frames
 	}
 	for index := len(runtime.callStack) - 1; index >= 0; index-- {
 		name := runtime.callStack[index]
 		file := runtime.functionFiles[name]
-		frame := name
-		if file != "" {
-			frame += " (" + file + ")"
+		frame := diagnostic.StackFrame{Function: name, File: file}
+		siteIndex := len(runtime.callSites) - (len(runtime.callStack) - index)
+		if siteIndex >= 0 && siteIndex < len(runtime.callSites) {
+			site := runtime.callSites[siteIndex]
+			if site.File != "" {
+				frame.File = site.File
+			}
+			frame.Line = site.Line
+			frame.Column = site.Column
 		}
 		frames = append(frames, frame)
 	}
 	if pos.Line > 0 {
-		frames = append(frames, fmt.Sprintf("<report>:%d:%d", pos.Line, pos.Column))
+		frames = append(frames, diagnostic.StackFrame{Function: "<report>", Line: pos.Line, Column: pos.Column})
 	}
 	return frames
 }
@@ -851,6 +951,12 @@ func (runtime *Runtime) collectFunctions(stmt parser.Statement, namespace string
 			}
 		}
 		for _, nested := range current.CatchBody {
+			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
+				return err
+			}
+		}
+	case parser.TransactionStatement:
+		for _, nested := range current.Body {
 			if err := runtime.collectFunctions(nested, namespace, filter, sourcePath, globalNamespace); err != nil {
 				return err
 			}
@@ -1211,7 +1317,13 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 			return signal{}, errorAt(current.Pos, fmt.Sprintf("assert expects Bool, got %s", value.Kind))
 		}
 		if !value.Data.(bool) {
-			return signal{}, errorAt(current.Pos, "assertion failed")
+			return signal{}, errorAtCode(
+				current.Pos,
+				diagnostic.CodeRuntimeAssertion,
+				"runtime assertion",
+				"assertion failed",
+				"Inspect the asserted condition and the values used to compute it.",
+			)
 		}
 		return signal{kind: signalNone}, nil
 	case parser.ReportStatement:
@@ -1253,6 +1365,8 @@ func (runtime *Runtime) executeStatement(stmt parser.Statement, env *Environment
 		return runtime.executeLoop(current, env)
 	case parser.TryCatchStatement:
 		return runtime.executeTryCatch(current, env, inLoop)
+	case parser.TransactionStatement:
+		return runtime.executeTransaction(current, env, inLoop)
 	default:
 		return signal{}, Error{Message: fmt.Sprintf("unsupported statement %T", stmt)}
 	}
@@ -3608,12 +3722,15 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		if err != nil {
 			return NullValue(), Error{Message: fmt.Sprintf("Atomic value is not thread-transfer-safe: %v", err)}
 		}
-		return Value{Kind: ValueAtomic, Data: &AtomicData{Value: value}}, nil
+		return newAtomicValue(value), nil
 	case "atomic_load":
 		if len(args) != 1 || args[0].Kind != ValueAtomic {
 			return NullValue(), Error{Message: "atomic_load expects one Atomic value"}
 		}
 		atomic := args[0].Data.(*AtomicData)
+		if runtime.transaction != nil {
+			return runtime.transaction.load(atomic)
+		}
 		atomic.Mutex.Lock()
 		defer atomic.Mutex.Unlock()
 		return cloneValue(atomic.Value), nil
@@ -3626,8 +3743,13 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			return NullValue(), Error{Message: fmt.Sprintf("atomic_store value is not thread-transfer-safe: %v", err)}
 		}
 		atomic := args[0].Data.(*AtomicData)
+		if runtime.transaction != nil {
+			runtime.transaction.store(atomic, value)
+			return args[0], nil
+		}
 		atomic.Mutex.Lock()
 		atomic.Value = value
+		atomic.Version.Store(stmClock.Add(1))
 		atomic.Mutex.Unlock()
 		return args[0], nil
 	case "atomic_add":
@@ -3635,6 +3757,18 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			return NullValue(), Error{Message: "atomic_add expects Atomic and numeric value"}
 		}
 		atomic := args[0].Data.(*AtomicData)
+		if runtime.transaction != nil {
+			current, err := runtime.transaction.load(atomic)
+			if err != nil {
+				return NullValue(), err
+			}
+			next, err := numericBinary(current, args[1], func(a, b float64) float64 { return a + b })
+			if err != nil {
+				return NullValue(), err
+			}
+			runtime.transaction.store(atomic, next)
+			return cloneValue(next), nil
+		}
 		atomic.Mutex.Lock()
 		defer atomic.Mutex.Unlock()
 		next, err := numericBinary(atomic.Value, args[1], func(a, b float64) float64 { return a + b })
@@ -3642,6 +3776,7 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 			return NullValue(), err
 		}
 		atomic.Value = next
+		atomic.Version.Store(stmClock.Add(1))
 		return cloneValue(atomic.Value), nil
 	case "Program":
 		if len(args) != 1 || args[0].Kind != ValueList {

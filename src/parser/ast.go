@@ -318,6 +318,11 @@ type TryCatchStatement struct {
 	CatchBody []Statement
 }
 
+type TransactionStatement struct {
+	Pos  Position
+	Body []Statement
+}
+
 type DeferStatement struct {
 	Pos  Position
 	Stmt Statement
@@ -462,20 +467,21 @@ func (stmt VariableStatement) statementNode()      {}
 func (stmt MultiVariableStatement) statementNode() {}
 func (stmt DestructuringStatement) statementNode() {
 }
-func (stmt ReturnStatement) statementNode()     {}
-func (stmt ThrowStatement) statementNode()      {}
-func (stmt AssertStatement) statementNode()     {}
-func (stmt ReportStatement) statementNode()     {}
-func (stmt BreakStatement) statementNode()      {}
-func (stmt ContinueStatement) statementNode()   {}
-func (stmt AssignmentStatement) statementNode() {}
-func (stmt ExpressionStatement) statementNode() {}
-func (stmt IfStatement) statementNode()         {}
-func (stmt MatchStatement) statementNode()      {}
-func (stmt LoopStatement) statementNode()       {}
-func (stmt TryCatchStatement) statementNode()   {}
-func (stmt DeferStatement) statementNode()      {}
-func (stmt RunStatement) statementNode()        {}
+func (stmt ReturnStatement) statementNode()      {}
+func (stmt ThrowStatement) statementNode()       {}
+func (stmt AssertStatement) statementNode()      {}
+func (stmt ReportStatement) statementNode()      {}
+func (stmt BreakStatement) statementNode()       {}
+func (stmt ContinueStatement) statementNode()    {}
+func (stmt AssignmentStatement) statementNode()  {}
+func (stmt ExpressionStatement) statementNode()  {}
+func (stmt IfStatement) statementNode()          {}
+func (stmt MatchStatement) statementNode()       {}
+func (stmt LoopStatement) statementNode()        {}
+func (stmt TryCatchStatement) statementNode()    {}
+func (stmt TransactionStatement) statementNode() {}
+func (stmt DeferStatement) statementNode()       {}
+func (stmt RunStatement) statementNode()         {}
 func (stmt PrivateBlockStatement) statementNode() {
 }
 func (stmt ScopeStatement) statementNode() {}
@@ -507,20 +513,21 @@ func (stmt MultiVariableStatement) Position() Position { return stmt.Pos }
 func (stmt DestructuringStatement) Position() Position {
 	return stmt.Pos
 }
-func (stmt ReturnStatement) Position() Position     { return stmt.Pos }
-func (stmt ThrowStatement) Position() Position      { return stmt.Pos }
-func (stmt AssertStatement) Position() Position     { return stmt.Pos }
-func (stmt ReportStatement) Position() Position     { return stmt.Pos }
-func (stmt BreakStatement) Position() Position      { return stmt.Pos }
-func (stmt ContinueStatement) Position() Position   { return stmt.Pos }
-func (stmt AssignmentStatement) Position() Position { return stmt.Pos }
-func (stmt ExpressionStatement) Position() Position { return stmt.Pos }
-func (stmt IfStatement) Position() Position         { return stmt.Pos }
-func (stmt MatchStatement) Position() Position      { return stmt.Pos }
-func (stmt LoopStatement) Position() Position       { return stmt.Pos }
-func (stmt TryCatchStatement) Position() Position   { return stmt.Pos }
-func (stmt DeferStatement) Position() Position      { return stmt.Pos }
-func (stmt RunStatement) Position() Position        { return stmt.Pos }
+func (stmt ReturnStatement) Position() Position      { return stmt.Pos }
+func (stmt ThrowStatement) Position() Position       { return stmt.Pos }
+func (stmt AssertStatement) Position() Position      { return stmt.Pos }
+func (stmt ReportStatement) Position() Position      { return stmt.Pos }
+func (stmt BreakStatement) Position() Position       { return stmt.Pos }
+func (stmt ContinueStatement) Position() Position    { return stmt.Pos }
+func (stmt AssignmentStatement) Position() Position  { return stmt.Pos }
+func (stmt ExpressionStatement) Position() Position  { return stmt.Pos }
+func (stmt IfStatement) Position() Position          { return stmt.Pos }
+func (stmt MatchStatement) Position() Position       { return stmt.Pos }
+func (stmt LoopStatement) Position() Position        { return stmt.Pos }
+func (stmt TryCatchStatement) Position() Position    { return stmt.Pos }
+func (stmt TransactionStatement) Position() Position { return stmt.Pos }
+func (stmt DeferStatement) Position() Position       { return stmt.Pos }
+func (stmt RunStatement) Position() Position         { return stmt.Pos }
 func (stmt PrivateBlockStatement) Position() Position {
 	return stmt.Pos
 }

@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"kLang/src/diagnostic"
 	"kLang/src/engine/file"
 	"kLang/src/parser"
 )
@@ -10,15 +11,7 @@ type Request struct {
 	Parsed  parser.ParsedProgram
 }
 
-type Diagnostic struct {
-	File      string
-	Line      int
-	Column    int
-	EndColumn int
-	Rule      string
-	Message   string
-	Hint      string
-}
+type Diagnostic = diagnostic.Diagnostic
 
 type Artifact struct {
 	Path    string

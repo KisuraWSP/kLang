@@ -7,6 +7,7 @@
 - `kLang fmt file.klang` prints formatted source to stdout.
 - `kLang fmt file.klang --write` rewrites one file, and `kLang fmt src --write` rewrites every `.klang` file in a folder.
 - `kLang fmt src --check` fails when any source file would change, which is suitable for CI.
+- Interactive CLI help, successful runs/tests, and fatal errors include a short message from Kibi, the kLang robot companion. Redirected output suppresses Kibi by default, and `--quiet` suppresses successful completion messages. Use `KLANG_MASCOT=always` or `KLANG_MASCOT=never` to override terminal detection.
 
 3. Grua subset
 - `.grua` files are validated by the Grua frontend and lowered into the kLang toolchain.
@@ -913,12 +914,35 @@ local Int workerBResult = join(workerB);
 local Int threadedTotal = atomic_load(sharedCounter);
 
 -- atomic race-safe cells
--- Keep the Atomic binding itself immutable. Each operation is linearizable,
--- but atomic_load followed by atomic_store is not a combined transaction.
+-- Keep the Atomic binding itself immutable. Each operation is linearizable.
 local Atomic[Int] counter = Atomic(1);
 atomic_add(counter, 2);
 atomic_store(counter, atomic_load(counter) + 1);
 local Int counterValue = atomic_load(counter);
+
+-- Software transactions atomically compose operations across Atomic cells.
+-- Conflicts retry, so locals must be immutable and effects such as print,
+-- spawn, await, file/OS access, defer, report, and user-function calls are
+-- rejected inside the body.
+local Atomic[Int] checking = Atomic(100);
+local Atomic[Int] savings = Atomic(50);
+transaction {
+    local Int amount = 20;
+    local Int available = atomic_load(checking);
+    assert available >= amount;
+    atomic_store(checking, available - amount);
+    atomic_add(savings, amount);
+}
+assert atomic_load(checking) + atomic_load(savings) == 150;
+
+-- Nested transactions join the outer transaction. A throw or runtime failure
+-- aborts all staged writes; no partial update becomes visible.
+transaction {
+    atomic_add(checking, 1);
+    transaction {
+        atomic_add(savings, 1);
+    }
+}
 
 -- Not transferable: Table/Any, functions and captures, Awaitable, Iterator,
 -- Coroutine, Thread, Parsable, Ref/RefMut/RefCell, allocator wrappers, or any
@@ -1027,9 +1051,13 @@ breakpoint("after manifest");
 -- source context diagnostics
 -- The engine builds Context and ErrorContext descriptors while checking,
 -- running, packaging, and generating WASM bundles. ErrorContext reports include
--- phase, file, line, column span, source line, violated rule, message, and hint.
+-- stable code, severity, phase, primary/related spans, source line, violated
+-- rule, message, hints, notes, suggestions, replacement fixes, and stack frames.
 -- Type diagnostics can include did-you-mean suggestions, import hints, and
 -- expected/found type trees.
+--
+-- Interactive console errors are rendered in red. NO_COLOR disables ANSI
+-- color; KLANG_COLOR=always or KLANG_COLOR=never overrides terminal detection.
 
 -- JavaScript filesystem-only FFI
 -- js_import reads a local .js file and returns a descriptor.

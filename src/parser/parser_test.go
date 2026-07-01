@@ -1794,3 +1794,20 @@ func TestParserBuildsAtomLiteralExpressions(t *testing.T) {
 		t.Fatalf("expected Atom literal, got %#v", declaration.Expression.Node)
 	}
 }
+
+func TestParseTransactionStatement(t *testing.T) {
+	program, errors := Parse(`
+transaction {
+    local Int current = atomic_load(balance);
+    atomic_store(balance, current + 1);
+}
+`)
+	assertNoParseErrors(t, errors)
+	transaction, ok := program.Statements[0].(TransactionStatement)
+	if !ok {
+		t.Fatalf("expected transaction statement, got %T", program.Statements[0])
+	}
+	if len(transaction.Body) != 2 {
+		t.Fatalf("expected two transaction statements, got %d", len(transaction.Body))
+	}
+}

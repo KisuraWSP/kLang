@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"kLang/src/diagnostic"
 	"kLang/src/lexer"
 	"kLang/src/parser"
 )
@@ -65,6 +66,8 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 		case parser.TryCatchStatement:
 			checker.collectASTGlobalsFromStatements(current.TryBody, source, false)
 			checker.collectASTGlobalsFromStatements(current.CatchBody, source, false)
+		case parser.TransactionStatement:
+			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		case parser.MatchStatement:
 			for _, matchCase := range current.Cases {
 				checker.collectASTGlobalsFromStatements(matchCase.Body, source, false)
@@ -303,6 +306,9 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 		catchScope := newLexicalScope(scope)
 		catchScope.define(variableSymbol{Name: current.ErrorName, Type: "Atom", File: source, Line: current.Pos.Line})
 		checker.checkScopeStatements(current.CatchBody, catchScope, namespace, source, inLoop, false)
+	case parser.TransactionStatement:
+		checker.checkTransactionSafety(functionSymbol{File: source, Line: 2}, current.Body)
+		checker.checkScopeStatements(current.Body, newLexicalScope(scope), namespace, source, inLoop, false)
 	case parser.DeferStatement:
 		if current.Stmt != nil {
 			checker.checkScopeStatement(current.Stmt, scope, namespace, source, inLoop, topLevel)
@@ -773,7 +779,14 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 			checker.namespaceExists(current.Name) || checker.aliasExists(current.Name) || checker.enumExists(current.Name) {
 			return
 		}
-		checker.addError(source, line, fmt.Sprintf("unknown identifier %q", current.Name))
+		checker.addStructuredError(
+			source, line, 0, 0,
+			diagnostic.CodeUnknownIdentifier,
+			"name resolution",
+			fmt.Sprintf("unknown identifier %q", current.Name),
+			"",
+			"", "",
+		)
 	case parser.LiteralExpression:
 		return
 	case parser.UnaryExpression:
@@ -862,7 +875,14 @@ func (checker *TypeChecker) checkCallScope(callee parser.ExpressionNode, scope *
 			checker.functionGroupExistsInNamespace(current.Name, namespace) || checker.keywordMacroExists(current.Name) {
 			return
 		}
-		checker.addError(source, line, fmt.Sprintf("unknown function %q", current.Name))
+		checker.addStructuredError(
+			source, line, 0, 0,
+			diagnostic.CodeUnknownFunction,
+			"function resolution",
+			fmt.Sprintf("unknown function %q", current.Name),
+			"",
+			"", "",
+		)
 	case parser.SelectorExpression:
 		if checker.selectorFunctionExists(current) {
 			return

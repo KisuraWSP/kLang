@@ -101,6 +101,7 @@ type klangTestCase struct {
 func main() {
 	if err := runCLI(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		printMascot(os.Stderr, mascotError)
 		os.Exit(1)
 	}
 }
@@ -1322,6 +1323,7 @@ func executeProgram(resolver *modulesystem.Resolver, program file.Program, optio
 			result.Memory.StackObjects, result.Memory.StackBytes,
 			result.Memory.HeapObjects, result.Memory.HeapBytes)
 	}
+	printMascot(os.Stdout, mascotSuccess)
 	return nil
 }
 
@@ -1434,6 +1436,9 @@ func executeTestProgram(resolver *modulesystem.Resolver, program file.Program, o
 	}
 	fmt.Printf("  tests: ok (%d test(s))\n", len(results))
 	fmt.Printf("  time: %s\n", elapsed.Round(time.Microsecond))
+	if !options.Quiet {
+		printMascot(os.Stdout, mascotSuccess)
+	}
 	return nil
 }
 
@@ -1653,11 +1658,23 @@ func printContextErrors(errors []langcontext.ErrorContext) {
 }
 
 func printDiagnostic(out *os.File, diag langcontext.ErrorContext) {
+	color := diagnosticColorEnabled(out)
+	if color {
+		fmt.Fprint(out, "\x1b[31m")
+		defer fmt.Fprint(out, "\x1b[0m")
+	}
 	location := diag.File
 	if diag.Line > 0 {
 		location = fmt.Sprintf("%s:%d:%d", diag.File, diag.Line, maxInt(diag.Column, 1))
 	}
-	kind := string(diag.Phase) + " ERROR"
+	severity := string(diag.Severity)
+	if severity == "" {
+		severity = "ERROR"
+	}
+	kind := string(diag.Phase) + " " + severity
+	if diag.Code != "" {
+		kind += " [" + diag.Code + "]"
+	}
 	fmt.Fprintf(out, "\n-- %s %s\n\n", kind, strings.Repeat("-", maxInt(1, 72-len(kind))))
 	fmt.Fprintf(out, "%s\n\n", location)
 	if diag.Rule != "" {
@@ -1677,6 +1694,73 @@ func printDiagnostic(out *os.File, diag langcontext.ErrorContext) {
 	if diag.Hint != "" {
 		fmt.Fprintf(out, "Hint: %s\n\n", diag.Hint)
 	}
+	for _, label := range diag.Labels {
+		if label.Primary {
+			continue
+		}
+		fmt.Fprintf(out, "Related: %s", diagnosticSpanLocation(label.Span.File, label.Span.StartLine, label.Span.StartColumn))
+		if label.Message != "" {
+			fmt.Fprintf(out, ": %s", label.Message)
+		}
+		fmt.Fprintln(out)
+	}
+	for _, note := range diag.Notes {
+		fmt.Fprintf(out, "Note: %s\n", note)
+	}
+	for _, help := range diag.Helps {
+		fmt.Fprintf(out, "Help: %s\n", help)
+	}
+	for _, suggestion := range diag.Suggestions {
+		fmt.Fprintf(out, "Suggestion: %s\n", suggestion)
+	}
+	for _, fix := range diag.Fixes {
+		fmt.Fprintf(out, "Fix: %s", diagnosticSpanLocation(fix.Span.File, fix.Span.StartLine, fix.Span.StartColumn))
+		if fix.Message != "" {
+			fmt.Fprintf(out, ": %s", fix.Message)
+		}
+		if fix.Replacement != "" {
+			fmt.Fprintf(out, " -> %q", fix.Replacement)
+		}
+		fmt.Fprintln(out)
+	}
+	if len(diag.Frames) != 0 {
+		fmt.Fprintln(out, "Stack trace:")
+		for _, frame := range diag.Frames {
+			fmt.Fprintf(out, "  at %s", frame.Function)
+			if frame.File != "" {
+				fmt.Fprintf(out, " (%s)", frame.File)
+			}
+			if frame.Line > 0 {
+				fmt.Fprintf(out, ":%d:%d", frame.Line, maxInt(frame.Column, 1))
+			}
+			fmt.Fprintln(out)
+		}
+		fmt.Fprintln(out)
+	}
+}
+
+func diagnosticColorEnabled(out *os.File) bool {
+	if _, disabled := os.LookupEnv("NO_COLOR"); disabled {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("KLANG_COLOR"))) {
+	case "always", "1", "true", "yes":
+		return true
+	case "never", "0", "false", "no":
+		return false
+	}
+	if strings.EqualFold(os.Getenv("TERM"), "dumb") {
+		return false
+	}
+	info, err := out.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
+
+func diagnosticSpanLocation(file string, line int, column int) string {
+	if line <= 0 {
+		return file
+	}
+	return fmt.Sprintf("%s:%d:%d", file, line, maxInt(column, 1))
 }
 
 func diagnosticUnderline(width int) string {
@@ -2028,6 +2112,7 @@ func hasFlag(args []string, flag string) bool {
 
 func printUsage() {
 	fmt.Print(usageText())
+	printMascot(os.Stdout, mascotHelp)
 }
 
 func usageText() string {
