@@ -114,10 +114,16 @@ go run . check examples/helloworld --raw-lang
 Build a local binary:
 
 ```sh
-go build -o kLang .
-./kLang check examples/helloworld
-./kLang run examples/helloworld
+./build.sh
+./build/native/$(go env GOOS)-$(go env GOARCH)/kLang check examples/helloworld
+./build/native/$(go env GOOS)-$(go env GOARCH)/kLang run examples/helloworld
 ```
+
+The portable build script runs on macOS, Linux, WSL, MSYS2, and Git Bash.
+Use `./build.sh --all` to cross-compile the Linux, macOS, and Windows release
+matrix plus the browser WASM runtime, `./build.sh --target windows/amd64` for
+one target, or `./build.sh --test` to test before building. Run
+`./build.sh --help` for artifact paths and all options.
 
 ## A Small Program
 
