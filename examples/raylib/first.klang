@@ -5,6 +5,7 @@ function Main() : Int {
     local Int screenHeight = 450;
 
     raylib.InitWindow(screenWidth, screenHeight, "Kibi Catch");
+    defer raylib.CloseWindow();
     raylib.SetTargetFPS(60);
     raylib.SetExitKey(raylib.KeyEscape());
 
@@ -30,7 +31,7 @@ function Main() : Int {
     let textColor = raylib.RayWhite();
     let mutedText = raylib.LightGray();
 
-    while raylib.WindowShouldClose() == False {
+    while not raylib.WindowShouldClose() {
         if gameOver {
             if raylib.IsKeyPressed(raylib.KeyEnter()) {
                 playerX =(screenWidth - playerWidth) / 2;
@@ -91,6 +92,7 @@ function Main() : Int {
         }
 
         raylib.BeginDrawing();
+        defer raylib.EndDrawing();
         raylib.ClearBackground(background);
 
         raylib.DrawCircle(90, 90, 2, mutedText);
@@ -125,10 +127,6 @@ function Main() : Int {
             mutedText
             );
         }
-
-        raylib.EndDrawing();
     }
-
-    raylib.CloseWindow();
     return score;
 }
