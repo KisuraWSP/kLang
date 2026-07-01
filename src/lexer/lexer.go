@@ -10,6 +10,7 @@ type Lexer struct {
 	line            int
 	column          int
 	lastSignificant TokenType
+	tokenOffset     int
 }
 
 func New(input string) *Lexer {
@@ -38,9 +39,13 @@ func (lexer *Lexer) NextToken() Token {
 
 	line := lexer.line
 	column := lexer.column
+	lexer.tokenOffset = lexer.position
 
 	if lexer.ch == 0 {
-		return Token{Type: TokenEOFDescriptor, Literal: "", Line: line, Column: column}
+		return Token{
+			Type: TokenEOFDescriptor, Literal: "", Line: line, Column: column,
+			EndLine: line, EndColumn: column, Offset: lexer.position, EndOffset: lexer.position,
+		}
 	}
 
 	if lexer.ch == '/' && lexer.peekChar() == '/' && lexer.canStartHereString() {
@@ -113,10 +118,29 @@ func (lexer *Lexer) NextToken() Token {
 }
 
 func (lexer *Lexer) emit(token Token) Token {
+	token.Offset = lexer.tokenOffset
+	token.EndOffset = lexer.position
+	token.EndLine, token.EndColumn = tokenEndPosition(
+		token.Line, token.Column, lexer.input[token.Offset:token.EndOffset],
+	)
 	if token.Type != TokenWhiteSpace && token.Type != TokenComment && token.Type != TokenEOFDescriptor {
 		lexer.lastSignificant = token.Type
 	}
 	return token
+}
+
+func tokenEndPosition(line int, column int, source string) (int, int) {
+	endLine := line
+	endColumn := column
+	for _, current := range source {
+		if current == '\n' {
+			endLine++
+			endColumn = 1
+			continue
+		}
+		endColumn++
+	}
+	return endLine, endColumn
 }
 
 func tokenTypeForHereString(ok bool) TokenType {
@@ -143,7 +167,9 @@ func (lexer *Lexer) readChar() {
 		lexer.column = 0
 		return
 	}
-	lexer.column++
+	if lexer.ch&0xC0 != 0x80 {
+		lexer.column++
+	}
 }
 
 func (lexer *Lexer) peekChar() byte {

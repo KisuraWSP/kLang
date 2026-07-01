@@ -126,15 +126,17 @@ func ParseErrors(program file.Program, parsed parser.ParsedProgram) []ErrorConte
 	for _, source := range parsed.Sources {
 		for _, err := range source.Errors {
 			errors = append(errors, ctx.WithSource(ErrorContext{
-				Code:     diagnostic.CodeSyntax,
-				Severity: diagnostic.SeverityError,
-				Phase:    PhaseParse,
-				File:     source.Path,
-				Line:     err.Line,
-				Column:   err.Column,
-				Message:  err.Message,
-				Rule:     "syntax",
-				Hint:     "The parser could not understand this part of the program. Check the syntax around the marked code.",
+				Code:      diagnostic.CodeSyntax,
+				Severity:  diagnostic.SeverityError,
+				Phase:     PhaseParse,
+				File:      source.Path,
+				Line:      err.Line,
+				Column:    err.Column,
+				EndLine:   err.EndLine,
+				EndColumn: err.EndColumn,
+				Message:   err.Message,
+				Rule:      "syntax",
+				Hint:      "The parser could not understand this part of the program. Check the syntax around the marked code.",
 			}))
 		}
 	}
@@ -175,6 +177,7 @@ func TypeErrors(program file.Program, report typechecker.Report) []ErrorContext 
 			EndColumn:    err.EndColumn,
 			Message:      message,
 			Rule:         rule,
+			FeatureID:    err.FeatureID,
 			Hint:         hint,
 			Primary:      err.Primary,
 			Labels:       err.Labels,
@@ -268,7 +271,7 @@ func BackendDiagnostics(program file.Program, backendName string, diagnostics []
 			Code: code, Severity: diagnostic.SeverityError,
 			Phase: phase, File: backendDiagnostic.File, Line: backendDiagnostic.Line, Column: backendDiagnostic.Column,
 			EndLine: backendDiagnostic.EndLine, EndColumn: backendDiagnostic.EndColumn, Primary: backendDiagnostic.Primary,
-			Message: backendDiagnostic.Message, Rule: rule, Hint: hint, Labels: backendDiagnostic.Labels,
+			Message: backendDiagnostic.Message, Rule: rule, FeatureID: backendDiagnostic.FeatureID, Hint: hint, Labels: backendDiagnostic.Labels,
 			Notes: backendDiagnostic.Notes, Helps: backendDiagnostic.Helps, Suggestions: backendDiagnostic.Suggestions, Fixes: backendDiagnostic.Fixes,
 		}))
 	}

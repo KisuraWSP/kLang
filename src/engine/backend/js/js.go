@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"kLang/src/engine/backend"
+	"kLang/src/engine/conformance"
 	"kLang/src/engine/file"
 	"kLang/src/engine/ir"
 	"kLang/src/lexer"
@@ -102,6 +103,7 @@ func lowerProgram(request backend.Request) (ir.Program, []backend.Diagnostic) {
 			File: diagnostic.File, Line: diagnostic.Line, Column: diagnostic.Column,
 			EndColumn: diagnostic.Column + 1,
 			Rule:      "JS_ENTRY_POINT",
+			FeatureID: string(conformance.FeatureDirectFunctions),
 			Message:   diagnostic.Message,
 			Hint:      "Define function Main() : Int or mark one () : Int function with #set_entry_point_to_here.",
 		})
@@ -570,7 +572,7 @@ func (lower *lowerer) lowerExpression(node parser.ExpressionNode, position parse
 			}
 		}
 		if !ok || !resolved {
-			lower.unsupported(position, "builtin, method, or dynamic call")
+			lower.unsupported(position, "builtin, method, or dynamic call "+calleePath)
 			return ir.Expression{}, false
 		}
 		arguments := make([]ir.Expression, 0, len(current.Arguments))
@@ -671,10 +673,52 @@ func jsPipelineMethod(name string) bool {
 func (lower *lowerer) unsupported(position parser.Position, feature string) {
 	lower.diagnostics = append(lower.diagnostics, backend.Diagnostic{
 		File: lower.file, Line: position.Line, Column: position.Column, EndColumn: position.Column + 1,
-		Rule:    "js-backend/unsupported-feature",
-		Message: "JS backend does not yet support " + feature,
-		Hint:    "Use the typed JS core subset or package with Standalone/WASM runtime mode for this feature.",
+		Rule:      "js-backend/unsupported-feature",
+		FeatureID: string(jsUnsupportedFeatureID(feature)),
+		Message:   "JS backend does not yet support " + feature,
+		Hint:      "Use the typed JS core subset or package with Standalone/WASM runtime mode for this feature.",
 	})
+}
+
+func jsUnsupportedFeatureID(feature string) conformance.FeatureID {
+	switch {
+	case strings.Contains(feature, "transaction"):
+		return conformance.FeatureTransactions
+	case strings.Contains(feature, "TryCatch"), strings.Contains(feature, "catch"):
+		return conformance.FeatureExceptions
+	case strings.Contains(feature, "spawn"), strings.Contains(feature, "join"), strings.Contains(feature, "thread_"),
+		strings.Contains(feature, "Thread["):
+		return conformance.FeatureThreads
+	case strings.Contains(feature, "Atomic"), strings.Contains(feature, "atomic_"):
+		return conformance.FeatureAtomic
+	case strings.Contains(feature, "file_"), strings.Contains(feature, "call File"), strings.Contains(feature, "type File"):
+		return conformance.FeatureFiles
+	case strings.Contains(feature, "os_"), strings.Contains(feature, "call OS"), strings.Contains(feature, "type OS"):
+		return conformance.FeatureOS
+	case strings.Contains(feature, "js_"), strings.Contains(feature, "JSModule"), strings.Contains(feature, "JSCall"):
+		return conformance.FeatureJavaScriptInterop
+	case strings.Contains(feature, "async"):
+		return conformance.FeatureAsyncFunctions
+	case strings.Contains(feature, "struct"), strings.Contains(feature, "alias"):
+		return conformance.FeatureStructAliases
+	case strings.Contains(feature, "loop"), strings.Contains(feature, "break"), strings.Contains(feature, "continue"):
+		return conformance.FeatureLoops
+	case strings.Contains(feature, "pipeline"):
+		return conformance.FeatureIteratorPipelines
+	case strings.Contains(feature, "Map"):
+		return conformance.FeatureValuesMap
+	case strings.Contains(feature, "Set"):
+		return conformance.FeatureValuesSet
+	case strings.Contains(feature, "Table"):
+		return conformance.FeatureValuesTable
+	case strings.Contains(feature, "List"), strings.Contains(feature, "index"):
+		return conformance.FeatureValuesList
+	case strings.Contains(feature, "function"), strings.Contains(feature, "parameter"),
+		strings.Contains(feature, "return"), strings.Contains(feature, "call"):
+		return conformance.FeatureDirectFunctions
+	default:
+		return conformance.FeatureValuesPrimitives
+	}
 }
 
 func jsSourceMapPath(root string, source string) string {

@@ -17,6 +17,16 @@ import (
 	typechecker "kLang/src/engine/type_checker"
 )
 
+func TestParseDiagnosticFormat(t *testing.T) {
+	format, err := parseDiagnosticFormat([]string{"check", "main.klang", "--diagnostic-format=json"})
+	if err != nil || format != "json" {
+		t.Fatalf("expected JSON diagnostic format, got %q, %v", format, err)
+	}
+	if _, err := parseDiagnosticFormat([]string{"check", "main.klang", "--diagnostic-format=xml"}); err == nil {
+		t.Fatal("expected unsupported diagnostic format to fail")
+	}
+}
+
 func TestRuntimeErrorPartsExtractsLineColumnAndMessage(t *testing.T) {
 	line, column, message := langcontext.RuntimeErrorParts(errors.New("runtime failed: line 3:9: cannot assign String to Int"))
 

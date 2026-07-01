@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"kLang/src/engine/conformance"
 	"kLang/src/engine/ir"
 )
 
@@ -606,6 +607,36 @@ func (current *compiler) intern(value string) int {
 
 func (current *compiler) addDiagnostic(position ir.Position, message string, hint string) {
 	current.diagnostics = append(current.diagnostics, Diagnostic{
-		File: position.File, Line: position.Line, Column: position.Column, Message: message, Hint: hint,
+		File: position.File, Line: position.Line, Column: position.Column,
+		Message: message, FeatureID: bytecodeFeatureID(message), Hint: hint,
 	})
+}
+
+func bytecodeFeatureID(message string) string {
+	switch {
+	case strings.Contains(message, "global"):
+		return string(conformance.FeatureModules)
+	case strings.Contains(message, "struct"):
+		return string(conformance.FeatureStructAliases)
+	case strings.Contains(message, "extension"):
+		return string(conformance.FeatureExtensions)
+	case strings.Contains(message, "pipeline"):
+		return string(conformance.FeatureIteratorPipelines)
+	case strings.Contains(message, "Table"):
+		return string(conformance.FeatureValuesTable)
+	case strings.Contains(message, "Map"):
+		return string(conformance.FeatureValuesMap)
+	case strings.Contains(message, "Set"):
+		return string(conformance.FeatureValuesSet)
+	case strings.Contains(message, "JSON"):
+		return string(conformance.FeatureValuesJSON)
+	case strings.Contains(message, "loop"), strings.Contains(message, "break"), strings.Contains(message, "continue"):
+		return string(conformance.FeatureLoops)
+	case strings.Contains(message, "List"), strings.Contains(message, "indexed"):
+		return string(conformance.FeatureValuesList)
+	case strings.Contains(message, "function"), strings.Contains(message, "call"), strings.Contains(message, "return"):
+		return string(conformance.FeatureDirectFunctions)
+	default:
+		return string(conformance.FeatureValuesPrimitives)
+	}
 }

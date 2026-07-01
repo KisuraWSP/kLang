@@ -40,11 +40,11 @@ const (
 )
 
 type Span struct {
-	File        string
-	StartLine   int
-	StartColumn int
-	EndLine     int
-	EndColumn   int
+	File        string `json:"file,omitempty"`
+	StartLine   int    `json:"start_line,omitempty"`
+	StartColumn int    `json:"start_column,omitempty"`
+	EndLine     int    `json:"end_line,omitempty"`
+	EndColumn   int    `json:"end_column,omitempty"`
 }
 
 func (span Span) Valid() bool {
@@ -52,52 +52,53 @@ func (span Span) Valid() bool {
 }
 
 type Label struct {
-	Span    Span
-	Message string
-	Primary bool
+	Span    Span   `json:"span"`
+	Message string `json:"message,omitempty"`
+	Primary bool   `json:"primary,omitempty"`
 }
 
 type TextEdit struct {
-	Span        Span
-	Replacement string
-	Message     string
+	Span        Span   `json:"span"`
+	Replacement string `json:"replacement,omitempty"`
+	Message     string `json:"message,omitempty"`
 }
 
 type StackFrame struct {
-	Function string
-	File     string
-	Line     int
-	Column   int
+	Function string `json:"function"`
+	File     string `json:"file,omitempty"`
+	Line     int    `json:"line,omitempty"`
+	Column   int    `json:"column,omitempty"`
 }
 
 // Diagnostic is shared by source loading, parsing, type checking, runtime
 // execution, and compiler backends. The flat location fields are retained for
 // API compatibility; Primary is the canonical structured representation.
 type Diagnostic struct {
-	Code      string
-	Severity  Severity
-	Phase     Phase
-	File      string
-	Line      int
-	Column    int
-	EndLine   int
-	EndColumn int
+	Code      string   `json:"code"`
+	Severity  Severity `json:"severity"`
+	Phase     Phase    `json:"phase"`
+	File      string   `json:"file,omitempty"`
+	Line      int      `json:"line,omitempty"`
+	Column    int      `json:"column,omitempty"`
+	EndLine   int      `json:"end_line,omitempty"`
+	EndColumn int      `json:"end_column,omitempty"`
 
-	Message    string
-	Rule       string
-	Hint       string
-	SourceLine string
+	Message    string `json:"message"`
+	Rule       string `json:"rule,omitempty"`
+	FeatureID  string `json:"feature_id,omitempty"`
+	Hint       string `json:"hint,omitempty"`
+	SourceLine string `json:"source_line,omitempty"`
 
-	Primary     Span
-	Labels      []Label
-	Notes       []string
-	Helps       []string
-	Suggestions []string
-	Fixes       []TextEdit
-	Frames      []StackFrame
+	Primary     Span         `json:"primary"`
+	Labels      []Label      `json:"labels,omitempty"`
+	Notes       []string     `json:"notes,omitempty"`
+	Helps       []string     `json:"helps,omitempty"`
+	Suggestions []string     `json:"suggestions,omitempty"`
+	Fixes       []TextEdit   `json:"fixes,omitempty"`
+	Frames      []StackFrame `json:"frames,omitempty"`
 
-	ExpectedType string
-	FoundType    string
+	ExpectedType string `json:"expected_type,omitempty"`
+	FoundType    string `json:"found_type,omitempty"`
 }
 
 func Normalize(value Diagnostic) Diagnostic {

@@ -3469,6 +3469,18 @@ function Main() : Int {
 	assertTypeError(t, CheckProgram(program), "cannot assign Status to local Color color")
 }
 
+func TestErrorTypeSuppressesDependentTypeMismatch(t *testing.T) {
+	report := CheckProgram(programFromSource(`
+function Main() : Int {
+    local Int value = MissingFunction();
+    return value;
+}
+`))
+	if len(report.Errors) != 1 || !strings.Contains(report.Errors[0].Message, "unknown function") {
+		t.Fatalf("expected one root unknown-function diagnostic, got %#v", report.Errors)
+	}
+}
+
 func programFromSource(source string) file.Program {
 	lines := strings.Split(strings.TrimSpace(source), "\n")
 	return file.Program{

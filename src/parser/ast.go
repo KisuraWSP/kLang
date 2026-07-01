@@ -11,8 +11,10 @@ type Program struct {
 }
 
 type Position struct {
-	Line   int
-	Column int
+	Line      int
+	Column    int
+	EndLine   int
+	EndColumn int
 }
 
 type Node interface {

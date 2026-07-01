@@ -277,41 +277,6 @@ closure diagnostics instead.
 
 Each item below is designed to be implementable one prompt at a time.
 
-### P0 — Correctness and conformance before new syntax
-
-Why:
-
-The cleanup note identifies loops, functions, aliases, structs, types, errors,
-and runtime behavior as unreliable. New syntax multiplies those failure modes.
-
-Scope:
-
-1. Create a feature/backend matrix for Standalone, JS, WASM, and bytecode.
-2. Convert known “broken” claims into minimal failing tests.
-3. Add differential tests that run supported programs through every backend.
-4. Add fuzzing for lexer/parser, bytecode decoding, collection indexing, and
-   type-string parsing.
-5. Track performance separately from correctness.
-6. Define deprecation and removal policy:
-   - announce;
-   - warn with replacement;
-   - provide migration tooling;
-   - retain for at least one language-version boundary;
-   - remove only with conformance tests updated.
-
-Done when:
-
-- every claimed core defect has a reproducible test;
-- the feature matrix is test-enforced;
-- no backend silently accepts unsupported semantics; and
-- removals follow a documented compatibility process.
-
-Suggested first prompt:
-
-> Build a test-enforced kLang feature/backend matrix. Do not add syntax. Record
-> Standalone, JS, WASM, and bytecode support for core values, control flow,
-> functions, errors, async, threads, transactions, files, and interop.
-
 ### P1 — Finish structured diagnostics
 
 Why:
@@ -916,8 +881,8 @@ This remains important, but its detailed authoritative plan is already in
 
 Immediate next action:
 
-> Implement P0.1 from `JS-INTEROP-AND-PORTABLE-VM-ROADMAP.md`: the test-enforced
-> feature/backend matrix.
+> Implement P0.2 from `JS-INTEROP-AND-PORTABLE-VM-ROADMAP.md`: approve the JS
+> interop syntax ADR before parser work.
 
 The `foreign` and capability work in P2 must remain compatible with that plan.
 
@@ -1010,22 +975,21 @@ limit are defined.
 
 Use one prompt per item:
 
-1. P0 feature/backend matrix.
-2. P1 complete source spans.
-3. P1 diagnostic producer migration and cascade suppression.
-4. P2 `foreign`/target/capability ADR.
-5. P3 `Display` protocol.
-6. P14 stdlib API/effect inventory.
-7. P4 Channel semantic ADR.
-8. P5 cancellation core.
-9. P6 resource-scope ADR.
-10. P7 benchmark harness.
-11. P8 minimal LSP.
-12. P9 destructuring parameters.
-13. P10 macro limits.
-14. P11 CallSite.
-15. P12 restart-based watch mode.
-16. Continue the JS/portable VM roadmap.
+1. P1 complete source spans.
+2. P1 diagnostic producer migration and cascade suppression.
+3. P2 `foreign`/target/capability ADR.
+4. P3 `Display` protocol.
+5. P14 stdlib API/effect inventory.
+6. P4 Channel semantic ADR.
+7. P5 cancellation core.
+8. P6 resource-scope ADR.
+9. P7 benchmark harness.
+10. P8 minimal LSP.
+11. P9 destructuring parameters.
+12. P10 macro limits.
+13. P11 CallSite.
+14. P12 restart-based watch mode.
+15. Continue the JS/portable VM roadmap.
 
 This order deliberately builds correctness and observability before adding more
 runtime power.

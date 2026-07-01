@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"kLang/src/engine/backend"
+	"kLang/src/engine/conformance"
 	"kLang/src/engine/file"
 	"kLang/src/parser"
 )
@@ -85,6 +86,12 @@ function Main() : Int {
 	}
 	if diagnostics[0].Rule != "js-backend/unsupported-feature" || diagnostics[0].EndColumn <= diagnostics[0].Column {
 		t.Fatalf("expected rich JS diagnostic metadata, got %#v", diagnostics[0])
+	}
+	if diagnostics[0].FeatureID != string(conformance.FeatureValuesSet) {
+		t.Fatalf("expected stable Set feature id, got %#v", diagnostics[0])
+	}
+	if status, ok := conformance.Lookup(conformance.FeatureValuesSet, conformance.BackendJS); !ok || status != conformance.StatusRejected {
+		t.Fatalf("matrix does not record JS Set rejection: %q, %v", status, ok)
 	}
 }
 

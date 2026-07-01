@@ -10,9 +10,11 @@ import (
 )
 
 type Error struct {
-	Line    int
-	Column  int
-	Message string
+	Line      int
+	Column    int
+	EndLine   int
+	EndColumn int
+	Message   string
 }
 
 type Parser struct {
@@ -2305,9 +2307,11 @@ func (parser *Parser) atEnd() bool {
 
 func (parser *Parser) addError(token lexer.Token, message string) {
 	parser.errors = append(parser.errors, Error{
-		Line:    token.Line,
-		Column:  token.Column,
-		Message: message,
+		Line:      token.Line,
+		Column:    token.Column,
+		EndLine:   token.EndLine,
+		EndColumn: token.EndColumn,
+		Message:   message,
 	})
 }
 
@@ -2336,7 +2340,10 @@ func scopeToken(scope string) lexer.TokenType {
 }
 
 func positionFromToken(token lexer.Token) Position {
-	return Position{Line: token.Line, Column: token.Column}
+	return Position{
+		Line: token.Line, Column: token.Column,
+		EndLine: token.EndLine, EndColumn: token.EndColumn,
+	}
 }
 
 func tokenTypeIn(tokenType lexer.TokenType, tokenTypes []lexer.TokenType) bool {

@@ -34,6 +34,8 @@ import (
 
 const cliName = "kLang"
 
+var diagnosticFormat = "console"
+
 type commandOptions struct {
 	Run                bool
 	Verbose            bool
@@ -107,6 +109,11 @@ func main() {
 }
 
 func runCLI(args []string) error {
+	format, err := parseDiagnosticFormat(args)
+	if err != nil {
+		return err
+	}
+	diagnosticFormat = format
 	if len(args) == 0 || hasFlag(args, "--help") || hasFlag(args, "-h") {
 		printUsage()
 		return nil
@@ -1652,9 +1659,31 @@ func printTypeWarnings(report typechecker.Report) {
 }
 
 func printContextErrors(errors []langcontext.ErrorContext) {
+	if diagnosticFormat == "json" {
+		encoder := json.NewEncoder(os.Stderr)
+		encoder.SetEscapeHTML(false)
+		if err := encoder.Encode(errors); err != nil {
+			fmt.Fprintf(os.Stderr, `{"code":"K0001","severity":"ERROR","phase":"SOURCE","message":%q}`+"\n", err.Error())
+		}
+		return
+	}
 	for _, err := range errors {
 		printDiagnostic(os.Stderr, err)
 	}
+}
+
+func parseDiagnosticFormat(args []string) (string, error) {
+	format := "console"
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "--diagnostic-format=") {
+			continue
+		}
+		format = strings.TrimSpace(strings.TrimPrefix(arg, "--diagnostic-format="))
+	}
+	if format != "console" && format != "json" {
+		return "", fmt.Errorf("--diagnostic-format must be console or json")
+	}
+	return format, nil
 }
 
 func printDiagnostic(out *os.File, diag langcontext.ErrorContext) {

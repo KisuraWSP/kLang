@@ -245,10 +245,10 @@ Each numbered work item below is intended to fit one focused implementation prom
 
 ### P0.1 — Add a generated feature and backend matrix
 
-- [ ] Create a test-owned matrix of language features against `Standalone`, `VM`, `JS`, and `WASM`.
-- [ ] Record whether each feature is interpreted, compiled, host-provided, rejected, or awaiting implementation.
-- [ ] Include Atom/Result, Table/Map, JSON, exceptions, globals, functions, async, threads, OS calls, and JS calls.
-- [ ] Make backend diagnostics reference stable feature identifiers.
+- [x] Create a test-owned matrix of language features against `Standalone`, `JS`, `WASM`, and bytecode.
+- [x] Record whether each feature is interpreted, compiled, host-provided, rejected, or awaiting implementation.
+- [x] Include Atom/Result, Table/Map, JSON, exceptions, globals, functions, async, threads, OS calls, and JS calls.
+- [x] Make backend diagnostics reference stable feature identifiers.
 
 Done when:
 

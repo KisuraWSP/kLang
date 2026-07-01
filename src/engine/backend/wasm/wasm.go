@@ -76,6 +76,7 @@ func (compiler *Compiler) lower(request backend.Request) (bytecode.Program, []ba
 			File: diagnostic.File, Line: diagnostic.Line, Column: diagnostic.Column,
 			EndColumn: diagnostic.Column + 1,
 			Rule:      "WASM_BYTECODE_UNSUPPORTED",
+			FeatureID: diagnostic.FeatureID,
 			Message:   diagnostic.Message,
 			Hint:      diagnostic.Hint,
 		})

@@ -778,6 +778,24 @@ func TestLexerTracksLineAndColumn(t *testing.T) {
 	}
 }
 
+func TestLexerTracksUTF8AwareCompleteTokenSpans(t *testing.T) {
+	tokens := New("local String නම = \"😀\";").Tokenize()
+	name := tokens[2]
+	if name.Literal != "නම" {
+		t.Fatalf("expected Unicode identifier, got %#v", name)
+	}
+	if name.Line != 1 || name.Column != 14 || name.EndLine != 1 || name.EndColumn != 16 {
+		t.Fatalf("unexpected Unicode identifier span: %#v", name)
+	}
+	value := tokens[4]
+	if value.Literal != "😀" || value.Column != 19 || value.EndColumn != 22 {
+		t.Fatalf("unexpected Unicode string span: %#v", value)
+	}
+	if name.Offset >= name.EndOffset || value.Offset >= value.EndOffset {
+		t.Fatalf("expected non-empty byte offsets: name=%#v value=%#v", name, value)
+	}
+}
+
 func TestLexerTracksPositionAfterSkippedComment(t *testing.T) {
 	tokens := New("-- ignored\n  local Int x = 1;").Tokenize()
 

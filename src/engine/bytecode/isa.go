@@ -106,9 +106,10 @@ type Program struct {
 }
 
 type Diagnostic struct {
-	File    string
-	Line    int
-	Column  int
-	Message string
-	Hint    string
+	File      string
+	Line      int
+	Column    int
+	Message   string
+	FeatureID string
+	Hint      string
 }

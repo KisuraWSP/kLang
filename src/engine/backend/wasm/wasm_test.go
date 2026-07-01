@@ -6,6 +6,7 @@ import (
 
 	"kLang/src/engine/backend"
 	"kLang/src/engine/bytecode"
+	"kLang/src/engine/conformance"
 	"kLang/src/engine/file"
 	"kLang/src/parser"
 )
@@ -128,5 +129,11 @@ function Main() : Int {
 	diagnostics := New().Check(request)
 	if len(diagnostics) == 0 || diagnostics[0].Rule != "WASM_BYTECODE_UNSUPPORTED" {
 		t.Fatalf("expected bytecode fallback diagnostics, got %#v", diagnostics)
+	}
+	if diagnostics[0].FeatureID != string(conformance.FeatureValuesTable) {
+		t.Fatalf("expected stable Table feature id, got %#v", diagnostics[0])
+	}
+	if status, ok := conformance.Lookup(conformance.FeatureValuesTable, conformance.BackendWASM); !ok || status != conformance.StatusFallback {
+		t.Fatalf("matrix does not record WASM Table fallback: %q, %v", status, ok)
 	}
 }

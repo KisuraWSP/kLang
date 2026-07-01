@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "backends": ["Standalone", "JS", "WASM", "bytecode"],
+  "statuses": ["interpreted", "compiled", "host-provided", "fallback", "rejected"],
+  "features": [
+    {
+      "id": "values.primitives",
+      "description": "Null, Bool, Int, UInt, Float, String, and Char values",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "compiled", "bytecode": "compiled"}
+    },
+    {
+      "id": "values.list",
+      "description": "Typed List values, checked indexing, and isolated mutation",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "compiled", "bytecode": "compiled"}
+    },
+    {
+      "id": "values.set",
+      "description": "Typed insertion-ordered Set values",
+      "support": {"Standalone": "interpreted", "JS": "rejected", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "values.map",
+      "description": "Typed Map values",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "values.table",
+      "description": "Dynamic insertion-ordered Table values",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "values.json",
+      "description": "JSON parsing, conversion, and serialization",
+      "support": {"Standalone": "host-provided", "JS": "compiled", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "errors.atom-result",
+      "description": "Atom identities and generic Result values",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "errors.exceptions",
+      "description": "Complete Atom throw/catch semantics and structured runtime frames",
+      "support": {"Standalone": "interpreted", "JS": "rejected", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "control.conditionals",
+      "description": "if, unless, and short-circuit boolean control flow",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "compiled", "bytecode": "compiled"}
+    },
+    {
+      "id": "control.loops",
+      "description": "while, range, and supported for_each loops",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "compiled", "bytecode": "compiled"}
+    },
+    {
+      "id": "functions.direct",
+      "description": "Named synchronous functions and direct calls",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "compiled", "bytecode": "compiled"}
+    },
+    {
+      "id": "functions.async",
+      "description": "Lazy async functions and await",
+      "support": {"Standalone": "interpreted", "JS": "rejected", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "structs.alias",
+      "description": "Struct-style alias constructors, fields, and methods",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "functions.extensions",
+      "description": "Standalone and alias-owned extension methods",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "iterators.pipeline",
+      "description": "Lazy fused iterator pipelines",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "compiled", "bytecode": "compiled"}
+    },
+    {
+      "id": "concurrency.threads",
+      "description": "spawn, join, and transfer-safe worker snapshots",
+      "support": {"Standalone": "host-provided", "JS": "rejected", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "concurrency.atomic",
+      "description": "Atomic cells and linearizable individual operations",
+      "support": {"Standalone": "host-provided", "JS": "rejected", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "concurrency.transactions",
+      "description": "Optimistic multi-cell software transactions",
+      "support": {"Standalone": "host-provided", "JS": "rejected", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "host.files",
+      "description": "Native File descriptors and filesystem operations",
+      "support": {"Standalone": "host-provided", "JS": "rejected", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "host.os",
+      "description": "Native OS metadata, environment, and subprocess operations",
+      "support": {"Standalone": "host-provided", "JS": "rejected", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "interop.javascript",
+      "description": "JavaScript module and call descriptors",
+      "support": {"Standalone": "host-provided", "JS": "rejected", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "modules.imports",
+      "description": "Local, directory, and selective standard-library imports",
+      "support": {"Standalone": "interpreted", "JS": "compiled", "WASM": "fallback", "bytecode": "rejected"}
+    },
+    {
+      "id": "diagnostics.structured",
+      "description": "Stable diagnostics with source locations and backend rejection",
+      "support": {"Standalone": "host-provided", "JS": "host-provided", "WASM": "host-provided", "bytecode": "host-provided"}
+    }
+  ]
+}

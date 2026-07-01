@@ -16,6 +16,7 @@ import (
 const anyType = "T"
 const dynamicAnyType = "Any"
 const movedType = "<moved>"
+const errorType = "<error>"
 
 type Error = diagnostic.Diagnostic
 type Warning = diagnostic.Diagnostic
@@ -213,7 +214,27 @@ func CheckProgramForBackend(program file.Program, backend string) Report {
 	}
 	checker.checkLexicalScopes(program.EntryPoint, parsed)
 
-	return Report{Errors: checker.errors, Warnings: checker.warnings, States: checker.states}
+	return Report{
+		Errors: deduplicateDiagnostics(checker.errors), Warnings: deduplicateDiagnostics(checker.warnings),
+		States: checker.states,
+	}
+}
+
+func deduplicateDiagnostics(values []diagnostic.Diagnostic) []diagnostic.Diagnostic {
+	result := make([]diagnostic.Diagnostic, 0, len(values))
+	positions := map[string]int{}
+	for _, value := range values {
+		key := fmt.Sprintf("%s\x00%d\x00%d\x00%s", value.File, value.Line, value.Column, value.Message)
+		if index, exists := positions[key]; exists {
+			if result[index].Code == "" && value.Code != "" {
+				result[index] = value
+			}
+			continue
+		}
+		positions[key] = len(result)
+		result = append(result, value)
+	}
+	return result
 }
 
 func (checker *TypeChecker) applyASTFunctionMetadata(parsed parser.ParsedProgram) {
@@ -2810,7 +2831,7 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		target := strings.TrimSpace(strings.TrimPrefix(expr, "move"))
 		if !isSimpleIdentifier(target) {
 			checker.addError(source, line, "move expects a variable")
-			return anyType
+			return errorType
 		}
 		return checker.inferExpression(target, locals, source, line)
 	}
@@ -3047,7 +3068,7 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	}
 
 	checker.addError(source, line, fmt.Sprintf("unknown expression %q", expr))
-	return anyType
+	return errorType
 }
 
 func (checker *TypeChecker) aliasMethodType(typeName string, methodName string) (string, bool) {
@@ -4720,7 +4741,7 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 					}
 				}
 				checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
-				return anyType
+				return errorType
 			}
 			targetType := targetSymbol.Type
 			if targetSymbol.InferredType != "" {
@@ -4769,7 +4790,7 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			}
 		}
 		checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
-		return anyType
+		return errorType
 	}
 	if fn.Deprecated && !isStdlibImplementationSource(source) {
 		message := fmt.Sprintf("function %s is deprecated", fn.Name)
@@ -6584,6 +6605,9 @@ func isTableKeyType(typeName string) bool {
 func isAssignable(target string, source string) bool {
 	target = normalizeType(target)
 	source = normalizeType(source)
+	if target == errorType || source == errorType {
+		return true
+	}
 	if targetParts, ok := tupleTypeParts(target); ok {
 		sourceParts, sourceOK := tupleTypeParts(source)
 		if !sourceOK || len(targetParts) != len(sourceParts) {
