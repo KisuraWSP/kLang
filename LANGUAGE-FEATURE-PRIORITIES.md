@@ -28,7 +28,7 @@ audit, a deprecation period, migration guidance, and compatibility tests.
 | `go_to` keyword | Remove | Unstructured jumps complicate scopes, cleanup, transactions, ownership, and control-flow analysis. |
 | `foreign` keyword | Keep, redesign | A typed, capability-aware interop declaration is important, but must not be a generic escape hatch. |
 | Remove unnecessary language features | Reframe | Use a formal feature audit and deprecation process; do not remove features based only on apparent usage. |
-| `default_program.klang` controls the toolchain | Defer and reframe | Valuable as a long-term driver/plugin layer, but it must not run implicitly before every user program. |
+| `default_program.klang` controls the toolchain | Keep, staged | Make it the shared policy layer only after the typed driver ABI, trusted boot artifact, isolation, capabilities, rescue mode, and parity gates in `DEFAULT-PROGRAM-FIRST-BOOT-GAP-ANALYSIS.md` exist. |
 | Add `Null` | Already implemented | `Null` exists in the interpreter, JS output, bytecode VM, JSON, Tables, and zero-value behavior. |
 | Add bounds checking | Already implemented | List, String, VM, and region-backed indexing already perform checks. |
 | Disable bounds checks | Remove from safe language | Keep checks mandatory. A future explicitly unsafe optimization may be considered only after proof and profiling. |
@@ -52,8 +52,8 @@ audit, a deprecation period, migration guidance, and compatibility tests.
 | `--new_std_lib` command | Remove | User code must not mutate the shipped stdlib. Use normal modules, packages, or plugins. |
 | Hot/cold programs | Reframe as hot reload | “Cold program” has no useful language meaning; hot reload is valid development tooling. |
 | VS Code LSP | Keep, high priority | Structured diagnostics and parser data now provide a viable foundation. |
-| Always run `default_program.klang` first | Remove | Hidden startup code harms determinism, security, startup time, and reproducibility. |
-| Default program as first workspace | Defer and redesign | A visible driver workspace may be useful for toolchain scripting, but must be explicitly selected. |
+| Always run the shipped `default_program.klang` first | Adopt after readiness gates | The normal toolchain may boot a verified embedded driver first; it must never trust a same-named current-directory file and must retain a host-kernel rescue path. |
+| Default program as first workspace | Keep, isolated | Run it in a trusted boot workspace separated from user globals, imports, mutable state, handles, and capabilities. |
 | Expose call-site information | Keep | Useful for diagnostics, logging, macros, testing, and tracing when immutable and source-aware. |
 | Function aliases behave like callbacks | Remove | Function aliases are constructor/type declarations; callbacks are represented by `Function[...]` and lambdas. |
 | Advent of Code examples | Keep, low priority | Good conformance and performance examples after core behavior stabilizes. |
@@ -245,19 +245,24 @@ User extensions should use:
 - explicitly installed Codex/toolchain plugins; or
 - standalone extension declarations owned by the project.
 
-### 4.7 Do not run hidden default code before every program
+### 4.7 Do not boot an unverified project-local driver
 
-Automatically running `default_program.klang` would:
+The normal toolchain may eventually boot the shipped, versioned
+`default_program.klang` driver before dispatching a command. That is toolchain
+policy execution, not an implicit prelude added to every user program.
 
-- change user semantics invisibly;
-- add startup overhead;
-- create a privileged injection point;
-- complicate caching and reproducible builds;
-- make source-level debugging misleading; and
-- couple the toolchain implementation to ordinary user code.
+The boot design must:
 
-`Main()` remains the user-program ABI. A future kLang-authored driver should be
-an explicit command or project manifest choice.
+- load a verified embedded artifact rather than `./default_program.klang`;
+- isolate the trusted driver workspace from the user workspace;
+- grant only declared host capabilities;
+- preserve deterministic caching and reproducible builds;
+- report driver and user frames distinctly;
+- retain a minimal `--no-driver` rescue kernel; and
+- leave the ordinary user `Main() : Int` ABI unchanged.
+
+The complete prerequisites and migration gates are defined in
+`DEFAULT-PROGRAM-FIRST-BOOT-GAP-ANALYSIS.md`.
 
 ### 4.8 Keep callbacks and alias functions separate
 
@@ -916,53 +921,49 @@ Immediate next action:
 
 The `foreign` and capability work in P2 must remain compatible with that plan.
 
-### P16 — Explicit kLang-authored toolchain driver
+### P16 — Default-program first boot
 
 Long-term goal:
 
-kLang may eventually express parts of its own build orchestration. This should
-be an explicit driver, not hidden startup behavior.
-
-Possible user surface:
-
-```text
-kLang driver default_program.klang -- check stdlib/args.klang
-```
-
-or:
-
-```toml
-[toolchain]
-driver = "default_program.klang"
-```
+kLang should express shared command policy through its shipped
+`default_program.klang`. Native, Node, and browser/WASM launchers remain small
+host kernels and boot the same verified driver for normal toolchain
+invocations.
 
 Required prerequisites:
 
-- stable File/OS/process APIs;
+- a versioned typed driver protocol;
+- an embedded, verified boot artifact;
+- a reusable toolchain service extracted from root `main.go`;
+- isolated driver and user workspaces;
 - capabilities and sandboxing;
-- robust module/package resolution;
-- structured diagnostics;
-- cancellation and resource cleanup;
-- deterministic caching;
-- a stable compiler service API; and
-- enough self-hosted parser/checker functionality to justify the layer.
+- structured diagnostics and events;
+- cancellation, limits, and resource cleanup;
+- deterministic caching and recovery;
+- a portable VM value and host-call model; and
+- cross-host parity tests.
 
 Rules:
 
-- never run the driver unless the user/project explicitly selects it;
-- driver permissions are declared and reviewable;
+- never resolve the privileged driver from the current directory;
+- driver permissions are explicit, minimal, and reviewable;
 - driver failure cannot corrupt the Go implementation or stdlib;
-- compiler source updates require an explicit rebuild/reload boundary;
+- the host kernel provides a `--no-driver` rescue path;
 - workspaces remain isolated unless a typed API connects them; and
-- ordinary `Main()` programs remain unaffected.
+- ordinary `Main()` programs remain unaffected and do not recursively boot the
+  driver.
 
 This is not full self-hosting. Full self-hosting would require the compiler,
 runtime, package system, and bootstrap process to be specified independently.
 
-Suggested first prompt, much later:
+The authoritative implementation sequence, DP0 through DP24, is in
+`DEFAULT-PROGRAM-FIRST-BOOT-GAP-ANALYSIS.md`.
 
-> Design the compiler-service API that an explicit kLang toolchain driver would
-> consume. Do not make the driver run automatically and do not modify startup.
+Suggested first prompt:
+
+> Implement DP0 from `DEFAULT-PROGRAM-FIRST-BOOT-GAP-ANALYSIS.md`. Freeze the
+> current CLI behavior in machine-readable parity fixtures before changing
+> startup.
 
 ### P17 — Examples and conformance corpus
 
