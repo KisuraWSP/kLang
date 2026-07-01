@@ -1,0 +1,134 @@
+import "raylib";
+
+function Main() : Int {
+    local Int screenWidth = 800;
+    local Int screenHeight = 450;
+
+    raylib.InitWindow(screenWidth, screenHeight, "Kibi Catch");
+    raylib.SetTargetFPS(60);
+    raylib.SetExitKey(raylib.KeyEscape());
+
+    local Int playerWidth = 110;
+    local Int playerHeight = 18;
+    local Int playerY = screenHeight - 42;
+    local mut Int playerX =(screenWidth - playerWidth) / 2;
+
+    local Int orbRadius = 13;
+    local mut Int orbX = raylib.GetRandomValue(orbRadius, screenWidth - orbRadius);
+    local mut Int orbY = 0 - orbRadius;
+    local mut Int orbSpeed = 4;
+
+    local mut Int score = 0;
+    local mut Int lives = 3;
+    local mut Bool gameOver = False;
+
+    let background = raylib.RGBA(12, 18, 38, 255);
+    let panel = raylib.RGBA(25, 38, 70, 255);
+    let playerColor = raylib.SkyBlue();
+    let orbColor = raylib.Gold();
+    let dangerColor = raylib.Red();
+    let textColor = raylib.RayWhite();
+    let mutedText = raylib.LightGray();
+
+    while raylib.WindowShouldClose() == False {
+        if gameOver {
+            if raylib.IsKeyPressed(raylib.KeyEnter()) {
+                playerX =(screenWidth - playerWidth) / 2;
+                orbX = raylib.GetRandomValue(orbRadius, screenWidth - orbRadius);
+                orbY = 0 - orbRadius;
+                orbSpeed = 4;
+                score = 0;
+                lives = 3;
+                gameOver = False;
+            }
+        } else {
+            if raylib.IsKeyDown(raylib.KeyA()) or raylib.IsKeyDown(raylib.KeyLeft()) {
+                playerX -= 7;
+            }
+            if raylib.IsKeyDown(raylib.KeyD()) or raylib.IsKeyDown(raylib.KeyRight()) {
+                playerX += 7;
+            }
+
+            if raylib.IsMouseButtonDown(raylib.MouseButtonLeft()) {
+                playerX = raylib.GetMouseX() -(playerWidth / 2);
+            }
+
+            if playerX < 0 {
+                playerX = 0;
+            }
+            if playerX + playerWidth > screenWidth {
+                playerX = screenWidth - playerWidth;
+            }
+
+            orbY += orbSpeed;
+
+            if raylib.CheckCollisionRecs(
+            playerX,
+            playerY,
+            playerWidth,
+            playerHeight,
+            orbX - orbRadius,
+            orbY - orbRadius,
+            orbRadius * 2,
+            orbRadius * 2
+            ) {
+                score += 1;
+                if orbSpeed < 12 {
+                    orbSpeed += 1;
+                }
+                orbX = raylib.GetRandomValue(orbRadius, screenWidth - orbRadius);
+                orbY = 0 - orbRadius;
+            }
+
+            if orbY - orbRadius > screenHeight {
+                lives -= 1;
+                orbX = raylib.GetRandomValue(orbRadius, screenWidth - orbRadius);
+                orbY = 0 - orbRadius;
+                if lives <= 0 {
+                    gameOver = True;
+                }
+            }
+        }
+
+        raylib.BeginDrawing();
+        raylib.ClearBackground(background);
+
+        raylib.DrawCircle(90, 90, 2, mutedText);
+        raylib.DrawCircle(210, 145, 2, mutedText);
+        raylib.DrawCircle(365, 75, 2, mutedText);
+        raylib.DrawCircle(530, 125, 2, mutedText);
+        raylib.DrawCircle(690, 65, 2, mutedText);
+        raylib.DrawCircle(740, 190, 2, mutedText);
+
+        raylib.DrawRectangle(0, 0, screenWidth, 54, panel);
+        raylib.DrawLine(0, 54, screenWidth, 54, raylib.Blue());
+        raylib.DrawText("KIBI CATCH", 24, 16, 24, textColor);
+        raylib.DrawText("Score: " + score, 560, 17, 20, orbColor);
+        raylib.DrawText("Lives: " + lives, 680, 17, 20, dangerColor);
+
+        if gameOver {
+            raylib.DrawRectangle(170, 145, 460, 155, panel);
+            raylib.DrawRectangleLines(170, 145, 460, 155, dangerColor);
+            raylib.DrawText("GAME OVER", 315, 175, 32, dangerColor);
+            raylib.DrawText("Final score: " + score, 325, 222, 22, textColor);
+            raylib.DrawText("Press ENTER to play again", 255, 260, 20, mutedText);
+        } else {
+            raylib.DrawCircle(orbX, orbY, orbRadius, orbColor);
+            raylib.DrawCircleLines(orbX, orbY, orbRadius + 3, raylib.Orange());
+            raylib.DrawRectangle(playerX, playerY, playerWidth, playerHeight, playerColor);
+            raylib.DrawRectangleLines(playerX, playerY, playerWidth, playerHeight, textColor);
+            raylib.DrawText(
+            "Move: A/D or arrows  |  Hold left mouse to drag  |  ESC quits",
+            105,
+            screenHeight - 18,
+            14,
+            mutedText
+            );
+        }
+
+        raylib.EndDrawing();
+    }
+
+    raylib.CloseWindow();
+    return score;
+}

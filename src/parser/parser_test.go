@@ -766,6 +766,46 @@ function OldAdd(left : Int, right : Int) : Int {
 	}
 }
 
+func TestParseBackendFunctionMarkerTagWithOptionalSemicolon(t *testing.T) {
+	program, errors := Parse(`
+@backend("JS");
+function ConsoleLog() {}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function statement, got %T", program.Statements[0])
+	}
+	if fn.Backend != "JS" {
+		t.Fatalf("expected JS backend marker, got %#v", fn)
+	}
+}
+
+func TestParseStackedBackendAndDeprecatedFunctionMarkers(t *testing.T) {
+	program, errors := Parse(`
+@backend("WASM")
+@deprecated("use ConsoleWrite")
+function ConsolePrint() {}
+`)
+	assertNoParseErrors(t, errors)
+
+	fn := program.Statements[0].(FunctionStatement)
+	if fn.Backend != "WASM" || !fn.Deprecated || fn.DeprecationMessage != "use ConsoleWrite" {
+		t.Fatalf("unexpected stacked markers: %#v", fn)
+	}
+}
+
+func TestParseRejectsUnknownBackendFunctionMarker(t *testing.T) {
+	_, errors := Parse(`
+@backend("Native")
+function Run() {}
+`)
+	if len(errors) == 0 || !strings.Contains(errors[0].Message, `@backend must be "JS", "WASM", or "Standalone"`) {
+		t.Fatalf("expected invalid backend marker error, got %#v", errors)
+	}
+}
+
 func TestParseGlobalGenericVariableDeclaration(t *testing.T) {
 	program, errors := Parse(`global mut Map[String, List[Int]] table = {};`)
 	assertNoParseErrors(t, errors)

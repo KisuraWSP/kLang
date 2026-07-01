@@ -1,39 +1,8 @@
--- Web-oriented Raylib-style command descriptors.
--- These helpers do not open a native graphics window. They build deterministic
--- Tables that JS/WASM tooling can serialize and interpret later.
+-- Native raylib facade. The Go runtime compiles raylib into the kLang
+-- executable and these typed wrappers dispatch directly to it.
 
 namespace raylib {
-    alias function COLOR(r : Int, g : Int, b : Int, a : Int = 255) : type = struct {
-        #extend {
-            function TO_TABLE() : Table {
-                return {
-                    "r": this.r,
-                    "g": this.g,
-                    "b": this.b,
-                    "a": this.a
-                };
-            }
-
-            function TO_JSON() : String {
-                return json_stringify(this.TO_TABLE());
-            }
-        }
-    }
-
-    alias function COMMAND(kind : String, payload : Table) : type = struct {
-        #extend {
-            function TO_TABLE() : Table {
-                return {
-                    "kind": this.kind,
-                    "payload": this.payload
-                };
-            }
-
-            function TO_JSON() : String {
-                return json_stringify(this.TO_TABLE());
-            }
-        }
-    }
+    alias function COLOR(r : Int, g : Int, b : Int, a : Int = 255) : type = struct {}
 
     function RGB(r : Int, g : Int, b : Int) : COLOR {
         return COLOR(r, g, b, 255);
@@ -43,67 +12,385 @@ namespace raylib {
         return COLOR(r, g, b, a);
     }
 
-    function INIT_WINDOW(width : Int, height : Int, title : String) : COMMAND {
-        return COMMAND("INIT_WINDOW", {
-            "width": width,
-            "height": height,
-            "title": title
-        });
+    function Black() : COLOR { return COLOR(0, 0, 0, 255); }
+    function White() : COLOR { return COLOR(255, 255, 255, 255); }
+    function RayWhite() : COLOR { return COLOR(245, 245, 245, 255); }
+    function LightGray() : COLOR { return COLOR(200, 200, 200, 255); }
+    function Red() : COLOR { return COLOR(230, 41, 55, 255); }
+    function Green() : COLOR { return COLOR(0, 228, 48, 255); }
+    function Blue() : COLOR { return COLOR(0, 121, 241, 255); }
+    function Yellow() : COLOR { return COLOR(253, 249, 0, 255); }
+    function Orange() : COLOR { return COLOR(255, 161, 0, 255); }
+    function Purple() : COLOR { return COLOR(200, 122, 255, 255); }
+    function Pink() : COLOR { return COLOR(255, 109, 194, 255); }
+    function Brown() : COLOR { return COLOR(127, 106, 79, 255); }
+    function DarkGray() : COLOR { return COLOR(80, 80, 80, 255); }
+    function DarkBlue() : COLOR { return COLOR(0, 82, 172, 255); }
+    function SkyBlue() : COLOR { return COLOR(102, 191, 255, 255); }
+    function Lime() : COLOR { return COLOR(0, 158, 47, 255); }
+    function Gold() : COLOR { return COLOR(255, 203, 0, 255); }
+    function Magenta() : COLOR { return COLOR(255, 0, 255, 255); }
+    function Blank() : COLOR { return COLOR(0, 0, 0, 0); }
+
+    @backend("Standalone");
+    function InitWindow(width : Int, height : Int, title : String) {
+        raylib_init_window(width, height, title);
     }
 
-    function CLEAR_BACKGROUND(color : COLOR) : COMMAND {
-        return COMMAND("CLEAR_BACKGROUND", color.TO_TABLE());
+    @backend("Standalone");
+    function CloseWindow() {
+        raylib_close_window();
     }
 
-    function DRAW_TEXT(text : String, x : Int, y : Int, size : Int, color : COLOR) : COMMAND {
-        return COMMAND("DRAW_TEXT", {
-            "text": text,
-            "x": x,
-            "y": y,
-            "size": size,
-            "color": color.TO_TABLE()
-        });
+    @backend("Standalone");
+    function WindowShouldClose() : Bool {
+        return raylib_window_should_close();
     }
 
-    function DRAW_RECTANGLE(x : Int, y : Int, width : Int, height : Int, color : COLOR) : COMMAND {
-        return COMMAND("DRAW_RECTANGLE", {
-            "x": x,
-            "y": y,
-            "width": width,
-            "height": height,
-            "color": color.TO_TABLE()
-        });
+    @backend("Standalone");
+    function IsWindowReady() : Bool {
+        return raylib_is_window_ready();
     }
 
-    function DRAW_CIRCLE(x : Int, y : Int, radius : Int, color : COLOR) : COMMAND {
-        return COMMAND("DRAW_CIRCLE", {
-            "x": x,
-            "y": y,
-            "radius": radius,
-            "color": color.TO_TABLE()
-        });
+    @backend("Standalone");
+    function SetTargetFPS(fps : Int) {
+        raylib_set_target_fps(fps);
     }
 
-    function SCENE(commands : List[COMMAND]) : Table {
-        local mut List[Table] encoded;
-        local mut Int index = 0;
-        while index < len(commands) {
-            encoded[len(encoded)] = commands[index].TO_TABLE();
-            index += 1;
-        }
-        return {
-            "backend": "web",
-            "library": "raylib",
-            "commands": encoded,
-            "command_count": len(encoded)
-        };
+    @backend("Standalone");
+    function GetFPS() : Int {
+        return raylib_get_fps();
     }
 
-    function SCENE_JSON(commands : List[COMMAND]) : String {
-        return json_stringify(SCENE(commands));
+    @backend("Standalone");
+    function GetFrameTime() : Float {
+        return raylib_get_frame_time();
     }
 
-    function UNSUPPORTED_NATIVE_REASON() : String {
-        return "raylib stdlib currently emits web command descriptors; native graphics bindings are not implemented";
+    @backend("Standalone");
+    function BeginDrawing() {
+        raylib_begin_drawing();
+    }
+
+    @backend("Standalone");
+    function EndDrawing() {
+        raylib_end_drawing();
+    }
+
+    @backend("Standalone");
+    function ClearBackground(color : COLOR) {
+        raylib_clear_background(color.r, color.g, color.b, color.a);
+    }
+
+    @backend("Standalone");
+    function DrawText(text : String, x : Int, y : Int, size : Int, color : COLOR) {
+        raylib_draw_text(text, x, y, size, color.r, color.g, color.b, color.a);
+    }
+
+    @backend("Standalone");
+    function DrawRectangle(x : Int, y : Int, width : Int, height : Int, color : COLOR) {
+        raylib_draw_rectangle(x, y, width, height, color.r, color.g, color.b, color.a);
+    }
+
+    @backend("Standalone");
+    function DrawCircle(x : Int, y : Int, radius : Int, color : COLOR) {
+        raylib_draw_circle(x, y, radius, color.r, color.g, color.b, color.a);
+    }
+
+    @backend("Standalone");
+    function IsKeyPressed(key : Int) : Bool {
+        return raylib_is_key_pressed(key);
+    }
+
+    @backend("Standalone");
+    function IsKeyDown(key : Int) : Bool {
+        return raylib_is_key_down(key);
+    }
+
+    @backend("Standalone");
+    function GetScreenWidth() : Int {
+        return raylib_get_screen_width();
+    }
+
+    @backend("Standalone");
+    function GetScreenHeight() : Int {
+        return raylib_get_screen_height();
+    }
+
+    @backend("Standalone");
+    function SetWindowTitle(title : String) {
+        raylib_set_window_title(title);
+    }
+
+    @backend("Standalone");
+    function SetWindowSize(width : Int, height : Int) {
+        raylib_set_window_size(width, height);
+    }
+
+    @backend("Standalone");
+    function SetWindowPosition(x : Int, y : Int) {
+        raylib_set_window_position(x, y);
+    }
+
+    @backend("Standalone");
+    function ToggleFullscreen() {
+        raylib_toggle_fullscreen();
+    }
+
+    @backend("Standalone");
+    function MaximizeWindow() {
+        raylib_maximize_window();
+    }
+
+    @backend("Standalone");
+    function MinimizeWindow() {
+        raylib_minimize_window();
+    }
+
+    @backend("Standalone");
+    function RestoreWindow() {
+        raylib_restore_window();
+    }
+
+    @backend("Standalone");
+    function IsWindowFullscreen() : Bool {
+        return raylib_is_window_fullscreen();
+    }
+
+    @backend("Standalone");
+    function IsWindowHidden() : Bool {
+        return raylib_is_window_hidden();
+    }
+
+    @backend("Standalone");
+    function IsWindowMinimized() : Bool {
+        return raylib_is_window_minimized();
+    }
+
+    @backend("Standalone");
+    function IsWindowMaximized() : Bool {
+        return raylib_is_window_maximized();
+    }
+
+    @backend("Standalone");
+    function IsWindowFocused() : Bool {
+        return raylib_is_window_focused();
+    }
+
+    @backend("Standalone");
+    function GetTime() : Float {
+        return raylib_get_time();
+    }
+
+    @backend("Standalone");
+    function SetExitKey(key : Int) {
+        raylib_set_exit_key(key);
+    }
+
+    @backend("Standalone");
+    function IsKeyPressedRepeat(key : Int) : Bool {
+        return raylib_is_key_pressed_repeat(key);
+    }
+
+    @backend("Standalone");
+    function IsKeyReleased(key : Int) : Bool {
+        return raylib_is_key_released(key);
+    }
+
+    @backend("Standalone");
+    function IsKeyUp(key : Int) : Bool {
+        return raylib_is_key_up(key);
+    }
+
+    @backend("Standalone");
+    function GetKeyPressed() : Int {
+        return raylib_get_key_pressed();
+    }
+
+    @backend("Standalone");
+    function GetCharPressed() : Int {
+        return raylib_get_char_pressed();
+    }
+
+    @backend("Standalone");
+    function IsMouseButtonPressed(button : Int) : Bool {
+        return raylib_is_mouse_button_pressed(button);
+    }
+
+    @backend("Standalone");
+    function IsMouseButtonDown(button : Int) : Bool {
+        return raylib_is_mouse_button_down(button);
+    }
+
+    @backend("Standalone");
+    function IsMouseButtonReleased(button : Int) : Bool {
+        return raylib_is_mouse_button_released(button);
+    }
+
+    @backend("Standalone");
+    function GetMouseX() : Int {
+        return raylib_get_mouse_x();
+    }
+
+    @backend("Standalone");
+    function GetMouseY() : Int {
+        return raylib_get_mouse_y();
+    }
+
+    @backend("Standalone");
+    function SetMousePosition(x : Int, y : Int) {
+        raylib_set_mouse_position(x, y);
+    }
+
+    @backend("Standalone");
+    function GetMouseWheelMove() : Float {
+        return raylib_get_mouse_wheel_move();
+    }
+
+    @backend("Standalone");
+    function DrawPixel(x : Int, y : Int, color : COLOR) {
+        raylib_draw_pixel(x, y, color.r, color.g, color.b, color.a);
+    }
+
+    @backend("Standalone");
+    function DrawLine(startX : Int, startY : Int, endX : Int, endY : Int, color : COLOR) {
+        raylib_draw_line(startX, startY, endX, endY, color.r, color.g, color.b, color.a);
+    }
+
+    @backend("Standalone");
+    function DrawRectangleLines(x : Int, y : Int, width : Int, height : Int, color : COLOR) {
+        raylib_draw_rectangle_lines(x, y, width, height, color.r, color.g, color.b, color.a);
+    }
+
+    @backend("Standalone");
+    function DrawCircleLines(x : Int, y : Int, radius : Int, color : COLOR) {
+        raylib_draw_circle_lines(x, y, radius, color.r, color.g, color.b, color.a);
+    }
+
+    @backend("Standalone");
+    function DrawEllipse(x : Int, y : Int, horizontalRadius : Int, verticalRadius : Int, color : COLOR) {
+        raylib_draw_ellipse(x, y, horizontalRadius, verticalRadius, color.r, color.g, color.b, color.a);
+    }
+
+    @backend("Standalone");
+    function MeasureText(text : String, fontSize : Int) : Int {
+        return raylib_measure_text(text, fontSize);
+    }
+
+    @backend("Standalone");
+    function TakeScreenshot(fileName : String) {
+        raylib_take_screenshot(fileName);
+    }
+
+    @backend("Standalone");
+    function GetRandomValue(minimum : Int, maximum : Int) : Int {
+        return raylib_get_random_value(minimum, maximum);
+    }
+
+    @backend("Standalone");
+    function CheckCollisionRecs(
+        leftX : Int,
+        leftY : Int,
+        leftWidth : Int,
+        leftHeight : Int,
+        rightX : Int,
+        rightY : Int,
+        rightWidth : Int,
+        rightHeight : Int
+    ) : Bool {
+        return raylib_check_collision_recs(
+            leftX,
+            leftY,
+            leftWidth,
+            leftHeight,
+            rightX,
+            rightY,
+            rightWidth,
+            rightHeight
+        );
+    }
+
+    @backend("Standalone");
+    function CheckCollisionCircles(
+        firstX : Int,
+        firstY : Int,
+        firstRadius : Int,
+        secondX : Int,
+        secondY : Int,
+        secondRadius : Int
+    ) : Bool {
+        return raylib_check_collision_circles(firstX, firstY, firstRadius, secondX, secondY, secondRadius);
+    }
+
+    @backend("Standalone");
+    function CheckCollisionPointRec(
+        pointX : Int,
+        pointY : Int,
+        rectangleX : Int,
+        rectangleY : Int,
+        rectangleWidth : Int,
+        rectangleHeight : Int
+    ) : Bool {
+        return raylib_check_collision_point_rec(
+            pointX,
+            pointY,
+            rectangleX,
+            rectangleY,
+            rectangleWidth,
+            rectangleHeight
+        );
+    }
+
+    function KeyEscape() : Int { return 256; }
+    function KeyEnter() : Int { return 257; }
+    function KeyTab() : Int { return 258; }
+    function KeyBackspace() : Int { return 259; }
+    function KeyDelete() : Int { return 261; }
+    function KeySpace() : Int { return 32; }
+    function KeyRight() : Int { return 262; }
+    function KeyLeft() : Int { return 263; }
+    function KeyDown() : Int { return 264; }
+    function KeyUp() : Int { return 265; }
+    function KeyW() : Int { return 87; }
+    function KeyA() : Int { return 65; }
+    function KeyS() : Int { return 83; }
+    function KeyD() : Int { return 68; }
+
+    function MouseButtonLeft() : Int { return 0; }
+    function MouseButtonRight() : Int { return 1; }
+    function MouseButtonMiddle() : Int { return 2; }
+    function MouseButtonSide() : Int { return 3; }
+    function MouseButtonExtra() : Int { return 4; }
+    function MouseButtonForward() : Int { return 5; }
+    function MouseButtonBack() : Int { return 6; }
+
+    @backend("Standalone")
+    @deprecated("Use InitWindow instead.")
+    function INIT_WINDOW(width : Int, height : Int, title : String) {
+        InitWindow(width, height, title);
+    }
+
+    @backend("Standalone")
+    @deprecated("Use ClearBackground instead.")
+    function CLEAR_BACKGROUND(color : COLOR) {
+        ClearBackground(color);
+    }
+
+    @backend("Standalone")
+    @deprecated("Use DrawText instead.")
+    function DRAW_TEXT(text : String, x : Int, y : Int, size : Int, color : COLOR) {
+        DrawText(text, x, y, size, color);
+    }
+
+    @backend("Standalone")
+    @deprecated("Use DrawRectangle instead.")
+    function DRAW_RECTANGLE(x : Int, y : Int, width : Int, height : Int, color : COLOR) {
+        DrawRectangle(x, y, width, height, color);
+    }
+
+    @backend("Standalone")
+    @deprecated("Use DrawCircle instead.")
+    function DRAW_CIRCLE(x : Int, y : Int, radius : Int, color : COLOR) {
+        DrawCircle(x, y, radius, color);
     }
 }

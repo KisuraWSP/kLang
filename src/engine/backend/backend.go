@@ -9,6 +9,7 @@ import (
 type Request struct {
 	Program file.Program
 	Parsed  parser.ParsedProgram
+	Backend string
 }
 
 type Diagnostic = diagnostic.Diagnostic

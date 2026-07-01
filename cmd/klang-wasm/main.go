@@ -108,7 +108,7 @@ func run(program file.Program, args []string) response {
 		return checked
 	}
 	parsed := parser.ParseLoadedProgram(program)
-	result, err := runtime.NewWithArgs(args).Run(parsed)
+	result, err := runtime.NewWithArgsForBackend(args, "WASM").Run(parsed)
 	if err != nil {
 		return response{OK: false, Errors: []browserError{{Stage: "runtime", File: program.EntryPoint, Message: err.Error()}}}
 	}
@@ -132,7 +132,7 @@ func run(program file.Program, args []string) response {
 }
 
 func check(program file.Program) response {
-	typeReport := typechecker.CheckProgram(program)
+	typeReport := typechecker.CheckProgramForBackend(program, "WASM")
 	if !typeReport.Passed() {
 		errors := make([]browserError, 0, len(typeReport.Errors))
 		for _, err := range typeReport.Errors {

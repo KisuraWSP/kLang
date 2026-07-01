@@ -81,15 +81,21 @@ type lowerer struct {
 	file            string
 	namespace       string
 	returnType      string
+	backend         string
 }
 
 func lowerProgram(request backend.Request) (ir.Program, []backend.Diagnostic) {
+	targetBackend := request.Backend
+	if targetBackend == "" {
+		targetBackend = "JS"
+	}
 	entry, entryDiagnostics := parser.ResolveEntryPoint(request.Parsed)
 	lower := &lowerer{
 		functions:       map[string]bool{},
 		globalFunctions: map[string][]string{},
 		structs:         map[string]parser.AliasFunctionStatement{},
 		aliases:         map[string]string{},
+		backend:         targetBackend,
 	}
 	for _, diagnostic := range entryDiagnostics {
 		lower.diagnostics = append(lower.diagnostics, backend.Diagnostic{
@@ -134,6 +140,9 @@ func (lower *lowerer) collectSymbols(statements []parser.Statement, namespace st
 			if filter != nil && !filter[name] {
 				continue
 			}
+			if current.Backend != "" && current.Backend != lower.backend {
+				continue
+			}
 			lower.functions[name] = true
 			if globalNamespace {
 				lower.globalFunctions[current.Name] = append(lower.globalFunctions[current.Name], name)
@@ -166,6 +175,9 @@ func (lower *lowerer) lowerTopLevel(statements []parser.Statement, namespace str
 			if filter != nil && !filter[name] {
 				continue
 			}
+			if current.Backend != "" && current.Backend != lower.backend {
+				continue
+			}
 			if function, ok := lower.lowerFunction(current, name, namespace); ok {
 				program.Functions = append(program.Functions, function)
 			}
@@ -178,6 +190,9 @@ func (lower *lowerer) lowerTopLevel(statements []parser.Statement, namespace str
 			}
 		case parser.ExtensionStatement:
 			for _, method := range current.Methods {
+				if method.Backend != "" && method.Backend != lower.backend {
+					continue
+				}
 				name := current.Target + "." + method.Name
 				function, ok := lower.lowerFunction(method, name, namespace)
 				function.Params = append([]ir.Binding{{Name: "this", Type: current.Target}}, function.Params...)
@@ -281,6 +296,9 @@ func (lower *lowerer) lowerStruct(alias parser.AliasFunctionStatement, name stri
 	}
 	var methods []ir.Function
 	for _, method := range alias.Methods {
+		if method.Backend != "" && method.Backend != lower.backend {
+			continue
+		}
 		function, ok := lower.lowerFunction(method, name+"."+method.Name, namespace)
 		function.Params = append([]ir.Binding{{Name: "this", Type: name}}, function.Params...)
 		result.Methods = append(result.Methods, ir.StructMethod{Name: method.Name, Function: function.Name})

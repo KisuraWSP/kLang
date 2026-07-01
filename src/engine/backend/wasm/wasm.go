@@ -61,6 +61,7 @@ func (compiler *Compiler) Package(output backend.Output, bundleDir string) error
 }
 
 func (compiler *Compiler) lower(request backend.Request) (bytecode.Program, []backend.Diagnostic) {
+	request.Backend = "WASM"
 	program, diagnostics := jsbackend.LowerIR(request)
 	for index := range diagnostics {
 		diagnostics[index].Rule = "WASM_BYTECODE_UNSUPPORTED"

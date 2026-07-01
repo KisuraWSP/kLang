@@ -10,6 +10,7 @@ import (
 	"kLang/src/engine/file"
 	"kLang/src/grua"
 	"kLang/src/parser"
+	embeddedstdlib "kLang/stdlib"
 )
 
 const DefaultStdlibRoot = "stdlib"
@@ -377,6 +378,26 @@ func (resolver *Resolver) resolveImport(importedBy string, importPath string) (f
 					ImportedBy: importedBy,
 				}, nil
 			}
+		}
+		if lines, ok := embeddedstdlib.Source(importPath); ok {
+			name := strings.TrimSuffix(filepath.Base(importPath), file.KlangExtension)
+			virtualPath := filepath.Join("<embedded-stdlib>", name+file.KlangExtension)
+			return file.Program{
+					Name:       name,
+					Root:       "<embedded-stdlib>",
+					EntryPoint: virtualPath,
+					Files: []file.SourceFile{{
+						Path:          virtualPath,
+						Lines:         lines,
+						OriginalLines: append([]string(nil), lines...),
+						Language:      file.LanguageKlang,
+					}},
+				}, Module{
+					Name:       importPath,
+					Path:       virtualPath,
+					Kind:       ImportStdlib,
+					ImportedBy: importedBy,
+				}, nil
 		}
 	}
 

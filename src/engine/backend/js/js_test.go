@@ -342,6 +342,38 @@ func TestJavaScriptBackendHonorsImportedModuleFunctionFilter(t *testing.T) {
 	}
 }
 
+func TestJavaScriptBackendEmitsOnlyMatchingBackendFunctions(t *testing.T) {
+	program := file.Program{
+		Name:       "backend-functions",
+		Root:       ".",
+		EntryPoint: "main.klang",
+		Files: []file.SourceFile{{
+			Path: "main.klang",
+			Lines: strings.Split(strings.TrimSpace(`
+@backend("JS")
+function BrowserValue() : Int { return 1; }
+
+@backend("WASM")
+function WasmValue() : Int { return 2; }
+
+function Main() : Int { return BrowserValue(); }
+`), "\n"),
+		}},
+	}
+	parsed := parser.ParseLoadedProgram(program)
+	lowered, diagnostics := LowerIR(backend.Request{Program: program, Parsed: parsed, Backend: "JS"})
+	if len(diagnostics) != 0 {
+		t.Fatalf("expected backend-specific lowering to pass, got %#v", diagnostics)
+	}
+	names := map[string]bool{}
+	for _, function := range lowered.Functions {
+		names[function.Name] = true
+	}
+	if !names["BrowserValue"] || !names["Main"] || names["WasmValue"] {
+		t.Fatalf("unexpected backend-filtered functions: %#v", names)
+	}
+}
+
 func TestJavaScriptBackendEmitsUnicodeStringOperationsAndLen(t *testing.T) {
 	request := requestFromSource(`
 function Main() : Int {

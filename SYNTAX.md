@@ -1285,6 +1285,18 @@ function ParseNumber(value : String) : Int {
     return value as Int;
 }
 
+-- Backend markers are reserved for standard-library functions and methods.
+-- The semicolon after the marker is optional.
+@backend("JS");
+function ConsoleLog() {}
+
+@backend("WASM")
+function ConsolePrint() {}
+
+@backend("Standalone")
+@deprecated("use RunDirectory")
+function OSRunDir() {}
+
 #extend String {
     @deprecated("use normalized")
     function NORMALIZED() : String {

@@ -482,7 +482,7 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 		printModuleErrors(resolvedProgram, moduleReport)
 		return fmt.Errorf("module resolution failed")
 	}
-	typeReport := typechecker.CheckProgram(resolvedProgram)
+	typeReport := typechecker.CheckProgramForBackend(resolvedProgram, backend)
 	if !typeReport.Passed() {
 		printTypeErrors(resolvedProgram, typeReport)
 		return fmt.Errorf("type check failed")
@@ -498,7 +498,7 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 	if backend == "JS" {
 		compiler := jsbackend.New()
 		compilerBackend = compiler
-		request := backendRequest(resolvedProgram, parsedProgram)
+		request := backendRequest(resolvedProgram, parsedProgram, backend)
 		diagnostics := compiler.Check(request)
 		if len(diagnostics) != 0 {
 			printContextErrors(langcontext.BackendDiagnostics(resolvedProgram, backend, diagnostics))
@@ -512,7 +512,7 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 		compiledOutput = &output
 	} else if backend == "WASM" {
 		compiler := wasmbackend.New()
-		request := backendRequest(resolvedProgram, parsedProgram)
+		request := backendRequest(resolvedProgram, parsedProgram, backend)
 		diagnostics := compiler.Check(request)
 		if len(diagnostics) == 0 {
 			output, err := compiler.Emit(request)
@@ -624,8 +624,8 @@ func packageProgram(program file.Program, packageOptions packageOptions, options
 	return nil
 }
 
-func backendRequest(program file.Program, parsed parser.ParsedProgram) enginebackend.Request {
-	return enginebackend.Request{Program: program, Parsed: parsed}
+func backendRequest(program file.Program, parsed parser.ParsedProgram, backend string) enginebackend.Request {
+	return enginebackend.Request{Program: program, Parsed: parsed, Backend: backend}
 }
 
 func backendMode(name string, wasmBytecodeStatus string) string {

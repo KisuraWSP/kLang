@@ -27,17 +27,6 @@
    - provide a valid reason why the error occured
    - tell the user what they expect from them to correct the error
    - provide suggestions into helping user to fix the error
-- add a special annotation for which we can mark which functions are running on which backend when in stdlib modules
-   ```lua
-      @backend("JS");
-      function console_log(){}
-
-      @backend("WASM");
-      function console_print(){}
-
-      @backend("Standalone");
-      function os_run_dir(){}
-   ```
 - we need a system in which when user passes any sort of flags or arguments in the 
    command line of the go executable it should be passed to the builtin Args array in 
    the langauge and then only the respective operations can be done

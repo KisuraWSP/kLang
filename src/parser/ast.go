@@ -157,6 +157,7 @@ type FunctionStatement struct {
 	Inner              bool
 	Deprecated         bool
 	DeprecationMessage string
+	Backend            string
 	Body               []Statement
 }
 

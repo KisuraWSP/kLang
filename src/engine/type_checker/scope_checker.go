@@ -73,6 +73,9 @@ func (checker *TypeChecker) collectASTGlobalsFromStatements(statements []parser.
 				checker.collectASTGlobalsFromStatements(matchCase.Body, source, false)
 			}
 		case parser.FunctionStatement:
+			if current.Backend != "" && current.Backend != checker.backend {
+				continue
+			}
 			checker.collectASTGlobalsFromStatements(current.Body, source, false)
 		case parser.IfStatement:
 			checker.collectASTGlobalsFromStatements(current.Consequence, source, false)
@@ -191,6 +194,9 @@ func (checker *TypeChecker) predeclareLocalFunctions(statements []parser.Stateme
 		if !ok {
 			continue
 		}
+		if fn.Backend != "" && fn.Backend != checker.backend {
+			continue
+		}
 		if _, globalFunction := checker.functions[namespace+fn.Name]; globalFunction {
 			continue
 		}
@@ -232,6 +238,9 @@ func (checker *TypeChecker) checkScopeStatement(stmt parser.Statement, scope *le
 	case parser.FunctionGroupStatement:
 		return
 	case parser.FunctionStatement:
+		if current.Backend != "" && current.Backend != checker.backend {
+			return
+		}
 		checker.checkFunctionScope(current, scope, namespace, source)
 	case parser.VariableStatement:
 		checker.checkScopeExpression(current.Expression.Node, scope, namespace, source, current.Pos.Line)
@@ -647,6 +656,9 @@ func (checker *TypeChecker) checkFunctionScope(fn parser.FunctionStatement, pare
 func (checker *TypeChecker) checkAliasFunctionScope(alias parser.AliasFunctionStatement, parent *lexicalScope, namespace string, source string) {
 	checker.checkScopeStatements(alias.Body, newLexicalScope(parent), namespace, source, false, false)
 	for _, method := range alias.Methods {
+		if method.Backend != "" && method.Backend != checker.backend {
+			continue
+		}
 		methodScope := newLexicalScope(parent)
 		methodScope.define(variableSymbol{Name: "this", Type: alias.Name, File: source, Line: method.Pos.Line})
 		for _, param := range method.Params {
@@ -661,6 +673,9 @@ func (checker *TypeChecker) checkAliasFunctionScope(alias parser.AliasFunctionSt
 func (checker *TypeChecker) checkExtensionScope(extension parser.ExtensionStatement, parent *lexicalScope, namespace string, source string) {
 	target := checker.resolveTypeAlias(normalizeType(extension.Target))
 	for _, method := range extension.Methods {
+		if method.Backend != "" && method.Backend != checker.backend {
+			continue
+		}
 		methodScope := newLexicalScope(parent)
 		methodScope.define(variableSymbol{Name: "this", Type: target, File: source, Line: method.Pos.Line})
 		for _, param := range method.Params {
@@ -1011,6 +1026,19 @@ func isBuiltinFunctionName(name string) bool {
 		"file_read", "file_read_lines", "file_write", "file_append", "file_exists", "file_size", "file_create", "file_remove",
 		"os_current_dir", "os_change_dir", "os_temp_dir", "os_home_dir", "os_hostname", "os_process_id",
 		"os_get_env", "os_set_env", "os_unset_env", "os_environment", "os_execute",
+		"raylib_init_window", "raylib_close_window", "raylib_window_should_close", "raylib_is_window_ready",
+		"raylib_set_target_fps", "raylib_get_fps", "raylib_get_frame_time", "raylib_begin_drawing", "raylib_end_drawing",
+		"raylib_clear_background", "raylib_draw_text", "raylib_draw_rectangle", "raylib_draw_circle",
+		"raylib_is_key_pressed", "raylib_is_key_down", "raylib_get_screen_width", "raylib_get_screen_height",
+		"raylib_set_window_title", "raylib_set_window_size", "raylib_set_window_position", "raylib_toggle_fullscreen",
+		"raylib_maximize_window", "raylib_minimize_window", "raylib_restore_window", "raylib_is_window_fullscreen",
+		"raylib_is_window_hidden", "raylib_is_window_minimized", "raylib_is_window_maximized", "raylib_is_window_focused",
+		"raylib_get_time", "raylib_set_exit_key", "raylib_is_key_pressed_repeat", "raylib_is_key_released", "raylib_is_key_up",
+		"raylib_get_key_pressed", "raylib_get_char_pressed", "raylib_is_mouse_button_pressed", "raylib_is_mouse_button_down",
+		"raylib_is_mouse_button_released", "raylib_get_mouse_x", "raylib_get_mouse_y", "raylib_set_mouse_position",
+		"raylib_get_mouse_wheel_move", "raylib_draw_pixel", "raylib_draw_line", "raylib_draw_rectangle_lines",
+		"raylib_draw_circle_lines", "raylib_draw_ellipse", "raylib_measure_text", "raylib_take_screenshot",
+		"raylib_get_random_value", "raylib_check_collision_recs", "raylib_check_collision_circles", "raylib_check_collision_point_rec",
 		"json_parse", "json_decode", "json_encode", "json_stringify", "json_get", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null",
 		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",

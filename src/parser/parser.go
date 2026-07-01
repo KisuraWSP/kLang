@@ -613,20 +613,9 @@ func (parser *Parser) parseAliasExtensionMethodsBlock() []FunctionStatement {
 }
 
 func (parser *Parser) parseDeprecatedExtensionMethod(blockStyle bool) (FunctionStatement, bool) {
-	parser.consume(lexer.TokenAt, "expected '@'")
-	tag := parser.consume(lexer.TokenIdentifier, "expected marker tag name")
-	message := ""
-	if parser.match(lexer.TokenLeftBrace) {
-		value := parser.consume(lexer.TokenString, "expected marker tag message string")
-		message = value.Literal
-		parser.consume(lexer.TokenRightBrace, "expected ')' after marker tag message")
-	}
-	if tag.Literal != "deprecated" {
-		parser.addError(tag, fmt.Sprintf("unknown marker tag @%s", tag.Literal))
-		return FunctionStatement{}, false
-	}
+	deprecated, message, backend := parser.parseFunctionMarkers()
 	if !parser.check(lexer.TokenFunc) {
-		parser.addError(parser.current(), "@deprecated must be followed by a function declaration")
+		parser.addError(parser.current(), "function marker must be followed by a function declaration")
 		return FunctionStatement{}, false
 	}
 	var method FunctionStatement
@@ -635,8 +624,9 @@ func (parser *Parser) parseDeprecatedExtensionMethod(blockStyle bool) (FunctionS
 	} else {
 		method = parser.parseAliasExtensionMethod()
 	}
-	method.Deprecated = true
+	method.Deprecated = deprecated
 	method.DeprecationMessage = message
+	method.Backend = backend
 	return method, true
 }
 
@@ -1062,23 +1052,63 @@ func (parser *Parser) parseFunctionGroupMembers() []string {
 }
 
 func (parser *Parser) parseTag() Statement {
-	parser.consume(lexer.TokenAt, "expected '@'")
-	tag := parser.consume(lexer.TokenIdentifier, "expected marker tag name")
-	message := ""
-	if parser.match(lexer.TokenLeftBrace) {
-		value := parser.consume(lexer.TokenString, "expected marker tag message string")
-		message = value.Literal
-		parser.consume(lexer.TokenRightBrace, "expected ')' after marker tag message")
-	}
-	if tag.Literal != "deprecated" {
-		parser.addError(tag, fmt.Sprintf("unknown marker tag @%s", tag.Literal))
-		return nil
-	}
+	deprecated, message, backend := parser.parseFunctionMarkers()
 	if !parser.check(lexer.TokenFunc) {
-		parser.addError(parser.current(), "@deprecated must be followed by a function declaration")
+		parser.addError(parser.current(), "function marker must be followed by a function declaration")
 		return nil
 	}
-	return parser.parseFunction(true, message, false, false, false, false, false)
+	statement := parser.parseFunction(deprecated, message, false, false, false, false, false)
+	function := statement.(FunctionStatement)
+	function.Backend = backend
+	return function
+}
+
+func (parser *Parser) parseFunctionMarkers() (bool, string, string) {
+	deprecated := false
+	message := ""
+	backend := ""
+	for parser.check(lexer.TokenAt) {
+		parser.consume(lexer.TokenAt, "expected '@'")
+		tag := parser.consume(lexer.TokenIdentifier, "expected marker tag name")
+		value := ""
+		hasValue := false
+		if parser.match(lexer.TokenLeftBrace) {
+			hasValue = true
+			argument := parser.consume(lexer.TokenString, "expected marker tag string argument")
+			value = argument.Literal
+			parser.consume(lexer.TokenRightBrace, "expected ')' after marker tag argument")
+		}
+		parser.match(lexer.TokenSemicolon)
+
+		switch tag.Literal {
+		case "deprecated":
+			if deprecated {
+				parser.addError(tag, "@deprecated cannot be repeated on one function")
+			}
+			deprecated = true
+			message = value
+		case "backend":
+			if !hasValue {
+				parser.addError(tag, "@backend requires one backend name string")
+				continue
+			}
+			if backend != "" {
+				parser.addError(tag, "@backend cannot be repeated on one function")
+			}
+			if !isFunctionBackend(value) {
+				parser.addError(tag, `@backend must be "JS", "WASM", or "Standalone"`)
+				continue
+			}
+			backend = value
+		default:
+			parser.addError(tag, fmt.Sprintf("unknown marker tag @%s", tag.Literal))
+		}
+	}
+	return deprecated, message, backend
+}
+
+func isFunctionBackend(value string) bool {
+	return value == "JS" || value == "WASM" || value == "Standalone"
 }
 
 func (parser *Parser) parseLazy() Statement {

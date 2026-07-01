@@ -636,6 +636,38 @@ function Main() : Int {
 	}
 }
 
+func TestResolveProgramLoadsEmbeddedRaylibWithoutStdlibDirectory(t *testing.T) {
+	root := t.TempDir()
+	programPath := writeModuleTestFile(t, root, "main.klang", `
+import "raylib";
+
+function Main() : Int {
+    let color = raylib.RGB(10, 20, 30);
+    raylib.DrawRectangle(0, 0, 20, 20, color);
+    raylib.DrawLine(0, 0, 20, 20, color);
+    if raylib.CheckCollisionRecs(0, 0, 10, 10, 5, 5, 10, 10) {
+        return raylib.MouseButtonLeft();
+    }
+    return raylib.KeyEscape();
+}
+`)
+	program, err := file.LoadModuleProgram(programPath)
+	if err != nil {
+		t.Fatalf("failed to load raylib program: %v", err)
+	}
+
+	resolved, report := NewResolver(filepath.Join(root, "missing-stdlib")).ResolveProgram(program)
+	if !report.Passed() {
+		t.Fatalf("expected embedded raylib resolution to pass, got %#v", report.Errors)
+	}
+	if len(resolved.Files) != 2 || !strings.Contains(resolved.Files[1].Path, "<embedded-stdlib>") {
+		t.Fatalf("expected embedded raylib source, got %#v", resolved.Files)
+	}
+	if typeReport := typechecker.CheckProgram(resolved); !typeReport.Passed() {
+		t.Fatalf("expected embedded raylib program to type check, got %#v", typeReport.Errors)
+	}
+}
+
 func TestResolveProgramRawLangStillAllowsLocalImports(t *testing.T) {
 	root := t.TempDir()
 	appRoot := filepath.Join(root, "app")

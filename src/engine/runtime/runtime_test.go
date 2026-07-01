@@ -4027,6 +4027,35 @@ function Main() : Int {
 	}
 }
 
+func TestRuntimeEnforcesFunctionBackendMarker(t *testing.T) {
+	source := `
+@backend("JS");
+function ConsoleLog() : Int { return 7; }
+
+function Main() : Int {
+    return ConsoleLog();
+}
+`
+	parsedProgram, errors := parser.Parse(source)
+	if len(errors) != 0 {
+		t.Fatalf("parse failed: %#v", errors)
+	}
+	program := parser.ParsedProgram{
+		Name:    "backend-runtime",
+		Sources: []parser.ParsedSource{{Path: "stdlib/backend.klang", Program: parsedProgram}},
+	}
+	if _, err := New().Run(program); err == nil || !strings.Contains(err.Error(), "requires backend JS") {
+		t.Fatalf("expected Standalone runtime backend error, got %v", err)
+	}
+	result, err := NewForBackend("JS").Run(program)
+	if err != nil {
+		t.Fatalf("expected JS runtime to accept JS function, got %v", err)
+	}
+	if result.Value.Kind != ValueInt || result.Value.Data.(int) != 7 {
+		t.Fatalf("expected JS function result 7, got %#v", result.Value)
+	}
+}
+
 func runSource(t *testing.T, source string) Result {
 	t.Helper()
 

@@ -3602,3 +3602,65 @@ function Main() : Int {
 `))
 	assertTypeError(t, report, "transaction cannot mutate ordinary bindings")
 }
+
+func TestCheckProgramBackendMarkerSelectsStdlibFunction(t *testing.T) {
+	program := file.Program{
+		Name:       "backend-marker",
+		Root:       ".",
+		EntryPoint: "app.klang",
+		Files: []file.SourceFile{
+			{Path: "app.klang", Lines: strings.Split(strings.TrimSpace(`
+function Main() : Int {
+    platform.ConsoleLog();
+    return 0;
+}
+`), "\n")},
+			{Path: "stdlib/platform.klang", Lines: strings.Split(strings.TrimSpace(`
+namespace platform {
+    @backend("JS");
+    function ConsoleLog() {}
+}
+`), "\n")},
+		},
+	}
+
+	if report := CheckProgramForBackend(program, "JS"); !report.Passed() {
+		t.Fatalf("expected JS backend call to pass, got %#v", report.Errors)
+	}
+	assertTypeError(t, CheckProgramForBackend(program, "Standalone"), "requires backend JS")
+}
+
+func TestCheckProgramRejectsBackendMarkerOutsideStdlib(t *testing.T) {
+	report := CheckProgramForBackend(programFromSource(`
+@backend("Standalone");
+function NativeOnly() {}
+
+function Main() : Int {
+    NativeOnly();
+    return 0;
+}
+`), "Standalone")
+	assertTypeError(t, report, "@backend is only allowed on standard library functions")
+}
+
+func TestCheckProgramSkipsInactiveBackendFunctionBody(t *testing.T) {
+	program := file.Program{
+		Name:       "inactive-backend",
+		Root:       ".",
+		EntryPoint: "app.klang",
+		Files: []file.SourceFile{
+			{Path: "app.klang", Lines: strings.Split(strings.TrimSpace(`
+function Main() : Int { return 0; }
+`), "\n")},
+			{Path: "stdlib/platform.klang", Lines: strings.Split(strings.TrimSpace(`
+@backend("JS")
+function BrowserOnly() {
+    missing_js_host_builtin();
+}
+`), "\n")},
+		},
+	}
+	if report := CheckProgramForBackend(program, "Standalone"); !report.Passed() {
+		t.Fatalf("expected inactive JS function body to be skipped, got %#v", report.Errors)
+	}
+}

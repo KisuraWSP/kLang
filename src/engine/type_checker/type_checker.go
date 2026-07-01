@@ -59,6 +59,7 @@ type TypeChecker struct {
 	warnings        []Warning
 	states          []State
 	namespace       string
+	backend         string
 }
 
 type functionSymbol struct {
@@ -72,6 +73,7 @@ type functionSymbol struct {
 	Private            bool
 	Deprecated         bool
 	DeprecationMessage string
+	Backend            string
 	File               string
 	Line               int
 	Body               string
@@ -139,6 +141,13 @@ type sourceUnit struct {
 }
 
 func CheckProgram(program file.Program) Report {
+	return CheckProgramForBackend(program, "Standalone")
+}
+
+func CheckProgramForBackend(program file.Program, backend string) Report {
+	if !isBuildBackendName(backend) {
+		backend = "Standalone"
+	}
 	checker := &TypeChecker{
 		functions:       map[string]functionSymbol{},
 		globalFunctions: map[string][]string{},
@@ -153,6 +162,7 @@ func CheckProgram(program file.Program) Report {
 		traits:          map[string]traitSymbol{},
 		traitImpls:      map[string]map[string]bool{},
 		enums:           map[string]enumSymbol{},
+		backend:         backend,
 	}
 
 	units := make([]sourceUnit, 0, len(program.Files))
@@ -164,6 +174,7 @@ func CheckProgram(program file.Program) Report {
 		})
 	}
 	parsed := parser.ParseLoadedProgram(program)
+	checker.validateBackendMarkers(parsed)
 	entryPoint, entryDiagnostics := parser.ResolveEntryPoint(parsed)
 	parsed.EntryPoint = entryPoint
 	for _, diagnostic := range entryDiagnostics {
@@ -174,6 +185,7 @@ func CheckProgram(program file.Program) Report {
 	for _, unit := range units {
 		checker.collectFunctions(unit, "", false)
 	}
+	checker.applyASTFunctionMetadata(parsed)
 	checker.collectTraits(parsed)
 	checker.collectEnums(parsed)
 	checker.collectAliases(parsed)
@@ -190,6 +202,9 @@ func CheckProgram(program file.Program) Report {
 		checker.checkTopLevelCalls(unit)
 	}
 	for _, fn := range checker.functions {
+		if fn.Backend != "" && fn.Backend != checker.backend {
+			continue
+		}
 		checker.checkFunction(fn)
 	}
 	for _, source := range parsed.Sources {
@@ -199,6 +214,69 @@ func CheckProgram(program file.Program) Report {
 	checker.checkLexicalScopes(program.EntryPoint, parsed)
 
 	return Report{Errors: checker.errors, Warnings: checker.warnings, States: checker.states}
+}
+
+func (checker *TypeChecker) applyASTFunctionMetadata(parsed parser.ParsedProgram) {
+	var visit func([]parser.Statement, string)
+	visit = func(statements []parser.Statement, namespace string) {
+		for _, statement := range statements {
+			switch current := statement.(type) {
+			case parser.FunctionStatement:
+				name := namespace + current.Name
+				if symbol, ok := checker.functions[name]; ok {
+					symbol.Backend = current.Backend
+					symbol.Deprecated = current.Deprecated
+					symbol.DeprecationMessage = current.DeprecationMessage
+					checker.functions[name] = symbol
+				}
+			case parser.NamespaceStatement:
+				visit(current.Body, namespace+current.Name+".")
+			case parser.ScopeStatement:
+				visit(current.Body, namespace)
+			case parser.PrivateBlockStatement:
+				visit(current.Body, namespace)
+			}
+		}
+	}
+	for _, source := range parsed.Sources {
+		visit(source.Program.Statements, "")
+	}
+}
+
+func (checker *TypeChecker) validateBackendMarkers(parsed parser.ParsedProgram) {
+	var visit func([]parser.Statement, string)
+	visit = func(statements []parser.Statement, source string) {
+		for _, statement := range statements {
+			switch current := statement.(type) {
+			case parser.FunctionStatement:
+				if current.Backend != "" && !isStdlibImplementationSource(source) {
+					checker.addError(source, current.Pos.Line, "@backend is only allowed on standard library functions")
+				}
+			case parser.NamespaceStatement:
+				visit(current.Body, source)
+			case parser.ScopeStatement:
+				visit(current.Body, source)
+			case parser.PrivateBlockStatement:
+				visit(current.Body, source)
+			case parser.AliasFunctionStatement:
+				for _, method := range current.Methods {
+					if method.Backend != "" && !isStdlibImplementationSource(source) {
+						checker.addError(source, method.Pos.Line, "@backend is only allowed on standard library functions")
+					}
+				}
+				visit(current.Body, source)
+			case parser.ExtensionStatement:
+				for _, method := range current.Methods {
+					if method.Backend != "" && !isStdlibImplementationSource(source) {
+						checker.addError(source, method.Pos.Line, "@backend is only allowed on standard library functions")
+					}
+				}
+			}
+		}
+	}
+	for _, source := range parsed.Sources {
+		visit(source.Program.Statements, source.Path)
+	}
 }
 
 func (checker *TypeChecker) collectTypeAliases(parsed parser.ParsedProgram) {
@@ -878,6 +956,9 @@ func (checker *TypeChecker) checkAliasFunctionMethods(statements []parser.Statem
 			receiverType := checker.aliasConstructedType(current, nil)
 			seenMethods := map[string]bool{}
 			for _, method := range current.Methods {
+				if method.Backend != "" && method.Backend != checker.backend {
+					continue
+				}
 				if seenMethods[method.Name] {
 					checker.addError(source, method.Pos.Line, fmt.Sprintf("method %s.%s is already defined", current.Name, method.Name))
 					continue
@@ -939,6 +1020,9 @@ func (checker *TypeChecker) checkExtensionMethods(statements []parser.Statement,
 		case parser.ExtensionStatement:
 			target := checker.resolveTypeAlias(normalizeType(current.Target))
 			for _, method := range current.Methods {
+				if method.Backend != "" && method.Backend != checker.backend {
+					continue
+				}
 				symbol, ok := checker.extensions[target][method.Name]
 				if !ok || symbol.File != source || symbol.Method.Pos != method.Pos {
 					continue
@@ -2135,7 +2219,7 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 		returnTypes[index].Type = applyFunctionTypeRestrictions(returnTypes[index].Type, typeRestrictions)
 	}
 	fullName := namespace + name
-	deprecated, deprecationMessage := functionDeprecatedMarker(unit.Text, start)
+	deprecated, deprecationMessage, backend := functionMarkers(unit.Text, start)
 	return functionSymbol{
 		Name:               fullName,
 		Namespace:          namespace,
@@ -2147,6 +2231,7 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 		Private:            private,
 		Deprecated:         deprecated,
 		DeprecationMessage: deprecationMessage,
+		Backend:            backend,
 		File:               unit.Path,
 		Line:               lineAt(unit.Text, start),
 		Body:               unit.Text[openBrace+1 : closeBrace],
@@ -2154,29 +2239,46 @@ func parseFunction(unit sourceUnit, start int, namespace string) (functionSymbol
 	}, closeBrace + 1, nil
 }
 
-func functionDeprecatedMarker(input string, functionStart int) (bool, string) {
+func functionMarkers(input string, functionStart int) (bool, string, string) {
 	prefix := strings.TrimSpace(input[:functionStart])
 	if prefix == "" {
-		return false, ""
+		return false, "", ""
 	}
-
-	lineStart := strings.LastIndex(prefix, "\n")
-	marker := strings.TrimSpace(prefix[lineStart+1:])
-	if marker == "@deprecated" {
-		return true, ""
-	}
-	if strings.HasPrefix(marker, "@deprecated(") && strings.HasSuffix(marker, ")") {
-		message := strings.TrimSpace(marker[len("@deprecated(") : len(marker)-1])
-		if strings.HasPrefix(message, "\"") && strings.HasSuffix(message, "\"") && len(message) >= 2 {
-			return true, message[1 : len(message)-1]
+	deprecated := false
+	message := ""
+	backend := ""
+	lines := strings.Split(prefix, "\n")
+	for index := len(lines) - 1; index >= 0; index-- {
+		marker := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(lines[index]), ";"))
+		if !strings.HasPrefix(marker, "@") {
+			break
+		}
+		if marker == "@deprecated" {
+			deprecated = true
+			continue
+		}
+		if strings.HasPrefix(marker, "@deprecated(") && strings.HasSuffix(marker, ")") {
+			deprecated = true
+			value := strings.TrimSpace(marker[len("@deprecated(") : len(marker)-1])
+			if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2 {
+				message = value[1 : len(value)-1]
+			}
+			continue
+		}
+		if strings.HasPrefix(marker, "@backend(") && strings.HasSuffix(marker, ")") {
+			value := strings.TrimSpace(marker[len("@backend(") : len(marker)-1])
+			if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2 {
+				backend = value[1 : len(value)-1]
+			}
 		}
 	}
-	return false, ""
+	return deprecated, message, backend
 }
 
 func isStdlibImplementationSource(source string) bool {
 	cleaned := filepath.ToSlash(filepath.Clean(source))
-	return strings.HasPrefix(cleaned, "stdlib/") || strings.Contains(cleaned, "/stdlib/")
+	return strings.HasPrefix(cleaned, "stdlib/") || strings.Contains(cleaned, "/stdlib/") ||
+		strings.Contains(cleaned, "<embedded-stdlib>")
 }
 
 func parseReturnSignatureText(input string) (string, []returnValueSymbol, error) {
@@ -3792,6 +3894,20 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 	case "os_execute":
 		checker.checkOSArguments(name, args, []string{"OS", "String", "List[String]"}, locals, source, line)
 		return "Result[Table,String]"
+	case "raylib_init_window", "raylib_close_window", "raylib_window_should_close", "raylib_is_window_ready",
+		"raylib_set_target_fps", "raylib_get_fps", "raylib_get_frame_time", "raylib_begin_drawing", "raylib_end_drawing",
+		"raylib_clear_background", "raylib_draw_text", "raylib_draw_rectangle", "raylib_draw_circle",
+		"raylib_is_key_pressed", "raylib_is_key_down", "raylib_get_screen_width", "raylib_get_screen_height",
+		"raylib_set_window_title", "raylib_set_window_size", "raylib_set_window_position", "raylib_toggle_fullscreen",
+		"raylib_maximize_window", "raylib_minimize_window", "raylib_restore_window", "raylib_is_window_fullscreen",
+		"raylib_is_window_hidden", "raylib_is_window_minimized", "raylib_is_window_maximized", "raylib_is_window_focused",
+		"raylib_get_time", "raylib_set_exit_key", "raylib_is_key_pressed_repeat", "raylib_is_key_released", "raylib_is_key_up",
+		"raylib_get_key_pressed", "raylib_get_char_pressed", "raylib_is_mouse_button_pressed", "raylib_is_mouse_button_down",
+		"raylib_is_mouse_button_released", "raylib_get_mouse_x", "raylib_get_mouse_y", "raylib_set_mouse_position",
+		"raylib_get_mouse_wheel_move", "raylib_draw_pixel", "raylib_draw_line", "raylib_draw_rectangle_lines",
+		"raylib_draw_circle_lines", "raylib_draw_ellipse", "raylib_measure_text", "raylib_take_screenshot",
+		"raylib_get_random_value", "raylib_check_collision_recs", "raylib_check_collision_circles", "raylib_check_collision_point_rec":
+		return checker.checkRaylibCall(name, args, locals, source, line)
 	case "parsable_source":
 		checker.checkParsableArguments(name, args, 1, locals, source, line)
 		return "String"
@@ -4632,6 +4748,13 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			if methodType, methodOK := checker.aliasMethodType(targetType, methodName); methodOK {
 				if method, ok := checker.aliasMethod(targetType, methodName); ok {
 					checker.warnDeprecatedMethod(source, line, targetType, method)
+					if method.Backend != "" && method.Backend != checker.backend {
+						checker.addError(source, line, fmt.Sprintf(
+							"method %s requires backend %s, but the selected backend is %s",
+							name, method.Backend, checker.backend,
+						))
+						return anyType
+					}
 				}
 				paramTypes, returnType, _ := functionValueType(methodType)
 				return checker.checkCallbackCall(name, paramTypes, returnType, args, locals, source, line)
@@ -4654,6 +4777,13 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			message += ": " + fn.DeprecationMessage
 		}
 		checker.addWarning(source, line, message)
+	}
+	if fn.Backend != "" && fn.Backend != checker.backend {
+		checker.addError(source, line, fmt.Sprintf(
+			"function %s requires backend %s, but the selected backend is %s",
+			fn.Name, fn.Backend, checker.backend,
+		))
+		return fn.ReturnType
 	}
 	if fn.Private && filepath.Clean(source) != filepath.Clean(fn.File) {
 		checker.addError(source, line, fmt.Sprintf("function %s is private to %s", fn.Name, fn.File))
@@ -5090,6 +5220,80 @@ func (checker *TypeChecker) checkOSArguments(name string, args []string, expecte
 	}
 }
 
+func (checker *TypeChecker) checkRaylibCall(name string, args []string, locals map[string]variableSymbol, source string, line int) string {
+	signatures := map[string]struct {
+		Parameters []string
+		Return     string
+	}{
+		"raylib_init_window":               {[]string{"Int", "Int", "String"}, anyType},
+		"raylib_close_window":              {nil, anyType},
+		"raylib_window_should_close":       {nil, "Bool"},
+		"raylib_is_window_ready":           {nil, "Bool"},
+		"raylib_set_target_fps":            {[]string{"Int"}, anyType},
+		"raylib_get_fps":                   {nil, "Int"},
+		"raylib_get_frame_time":            {nil, "Float"},
+		"raylib_begin_drawing":             {nil, anyType},
+		"raylib_end_drawing":               {nil, anyType},
+		"raylib_clear_background":          {[]string{"Int", "Int", "Int", "Int"}, anyType},
+		"raylib_draw_text":                 {[]string{"String", "Int", "Int", "Int", "Int", "Int", "Int", "Int"}, anyType},
+		"raylib_draw_rectangle":            {[]string{"Int", "Int", "Int", "Int", "Int", "Int", "Int", "Int"}, anyType},
+		"raylib_draw_circle":               {[]string{"Int", "Int", "Int", "Int", "Int", "Int", "Int"}, anyType},
+		"raylib_is_key_pressed":            {[]string{"Int"}, "Bool"},
+		"raylib_is_key_down":               {[]string{"Int"}, "Bool"},
+		"raylib_get_screen_width":          {nil, "Int"},
+		"raylib_get_screen_height":         {nil, "Int"},
+		"raylib_set_window_title":          {[]string{"String"}, anyType},
+		"raylib_set_window_size":           {[]string{"Int", "Int"}, anyType},
+		"raylib_set_window_position":       {[]string{"Int", "Int"}, anyType},
+		"raylib_toggle_fullscreen":         {nil, anyType},
+		"raylib_maximize_window":           {nil, anyType},
+		"raylib_minimize_window":           {nil, anyType},
+		"raylib_restore_window":            {nil, anyType},
+		"raylib_is_window_fullscreen":      {nil, "Bool"},
+		"raylib_is_window_hidden":          {nil, "Bool"},
+		"raylib_is_window_minimized":       {nil, "Bool"},
+		"raylib_is_window_maximized":       {nil, "Bool"},
+		"raylib_is_window_focused":         {nil, "Bool"},
+		"raylib_get_time":                  {nil, "Float"},
+		"raylib_set_exit_key":              {[]string{"Int"}, anyType},
+		"raylib_is_key_pressed_repeat":     {[]string{"Int"}, "Bool"},
+		"raylib_is_key_released":           {[]string{"Int"}, "Bool"},
+		"raylib_is_key_up":                 {[]string{"Int"}, "Bool"},
+		"raylib_get_key_pressed":           {nil, "Int"},
+		"raylib_get_char_pressed":          {nil, "Int"},
+		"raylib_is_mouse_button_pressed":   {[]string{"Int"}, "Bool"},
+		"raylib_is_mouse_button_down":      {[]string{"Int"}, "Bool"},
+		"raylib_is_mouse_button_released":  {[]string{"Int"}, "Bool"},
+		"raylib_get_mouse_x":               {nil, "Int"},
+		"raylib_get_mouse_y":               {nil, "Int"},
+		"raylib_set_mouse_position":        {[]string{"Int", "Int"}, anyType},
+		"raylib_get_mouse_wheel_move":      {nil, "Float"},
+		"raylib_draw_pixel":                {[]string{"Int", "Int", "Int", "Int", "Int", "Int"}, anyType},
+		"raylib_draw_line":                 {[]string{"Int", "Int", "Int", "Int", "Int", "Int", "Int", "Int"}, anyType},
+		"raylib_draw_rectangle_lines":      {[]string{"Int", "Int", "Int", "Int", "Int", "Int", "Int", "Int"}, anyType},
+		"raylib_draw_circle_lines":         {[]string{"Int", "Int", "Int", "Int", "Int", "Int", "Int"}, anyType},
+		"raylib_draw_ellipse":              {[]string{"Int", "Int", "Int", "Int", "Int", "Int", "Int", "Int"}, anyType},
+		"raylib_measure_text":              {[]string{"String", "Int"}, "Int"},
+		"raylib_take_screenshot":           {[]string{"String"}, anyType},
+		"raylib_get_random_value":          {[]string{"Int", "Int"}, "Int"},
+		"raylib_check_collision_recs":      {[]string{"Int", "Int", "Int", "Int", "Int", "Int", "Int", "Int"}, "Bool"},
+		"raylib_check_collision_circles":   {[]string{"Int", "Int", "Int", "Int", "Int", "Int"}, "Bool"},
+		"raylib_check_collision_point_rec": {[]string{"Int", "Int", "Int", "Int", "Int", "Int"}, "Bool"},
+	}
+	signature := signatures[name]
+	if len(args) != len(signature.Parameters) {
+		checker.addError(source, line, fmt.Sprintf("%s expects %d argument(s)", name, len(signature.Parameters)))
+		return signature.Return
+	}
+	for index, expected := range signature.Parameters {
+		actual := checker.inferExpression(args[index], locals, source, line)
+		if !isAssignable(expected, actual) {
+			checker.addError(source, line, fmt.Sprintf("%s argument %d expects %s, got %s", name, index+1, expected, actual))
+		}
+	}
+	return signature.Return
+}
+
 func (checker *TypeChecker) checkParsableMessageArguments(name string, args []string, locals map[string]variableSymbol, source string, line int) {
 	if len(args) != 2 {
 		checker.addError(source, line, fmt.Sprintf("%s expects 2 argument(s)", name))
@@ -5156,6 +5360,13 @@ func (checker *TypeChecker) checkCallbackCall(name string, paramTypes []string, 
 
 func (checker *TypeChecker) checkExtensionCall(name string, receiverType string, symbol extensionMethodSymbol, args []string, locals map[string]variableSymbol, source string, line int) string {
 	paramTypes, returnType := extensionMethodSignature(receiverType, symbol)
+	if symbol.Method.Backend != "" && symbol.Method.Backend != checker.backend {
+		checker.addError(source, line, fmt.Sprintf(
+			"method %s requires backend %s, but the selected backend is %s",
+			name, symbol.Method.Backend, checker.backend,
+		))
+		return returnType
+	}
 	required := requiredAliasParamCount(symbol.Method.Params)
 	if len(args) < required || len(args) > len(symbol.Method.Params) {
 		checker.addError(source, line, fmt.Sprintf("method %s expects %d to %d argument(s), got %d", name, required, len(symbol.Method.Params), len(args)))

@@ -298,33 +298,36 @@ func thrownValue(err error) (Value, bool) {
 }
 
 type Runtime struct {
-	mu              sync.Mutex
-	input           *RuntimeInput
-	memory          *Memory
-	global          *Environment
-	functions       map[string]parser.FunctionStatement
-	functionFiles   map[string]string
-	globalFunctions map[string][]string
-	aliasFunctions  map[string]parser.AliasFunctionStatement
-	extensions      map[string]map[string]parser.FunctionStatement
-	keywordMacros   map[string]parser.AliasStatement
-	enums           map[string]parser.EnumStatement
-	regions         map[string]RegionData
-	groups          map[string][]string
-	closures        map[string]*Environment
-	aliases         map[string]string
-	output          *RuntimeOutput
-	callDepth       int
-	maxDepth        int
-	callStack       []string
-	callSites       []callSite
-	nextFunc        int
-	innerSets       []map[string]Value
-	args            []string
-	parsableArgs    [][]Value
-	states          []StateRecord
-	worker          bool
-	transaction     *transactionContext
+	mu                 sync.Mutex
+	input              *RuntimeInput
+	memory             *Memory
+	global             *Environment
+	functions          map[string]parser.FunctionStatement
+	functionFiles      map[string]string
+	globalFunctions    map[string][]string
+	aliasFunctions     map[string]parser.AliasFunctionStatement
+	extensions         map[string]map[string]parser.FunctionStatement
+	keywordMacros      map[string]parser.AliasStatement
+	enums              map[string]parser.EnumStatement
+	regions            map[string]RegionData
+	groups             map[string][]string
+	closures           map[string]*Environment
+	aliases            map[string]string
+	output             *RuntimeOutput
+	callDepth          int
+	maxDepth           int
+	callStack          []string
+	callSites          []callSite
+	nextFunc           int
+	innerSets          []map[string]Value
+	args               []string
+	parsableArgs       [][]Value
+	states             []StateRecord
+	worker             bool
+	transaction        *transactionContext
+	raylibWindowOpen   bool
+	raylibThreadLocked bool
+	backend            string
 }
 
 type RuntimeOutput struct {
@@ -352,6 +355,13 @@ type StateRecord struct {
 const defaultMaxCallDepth = 1024
 
 func New() *Runtime {
+	return NewForBackend("Standalone")
+}
+
+func NewForBackend(backend string) *Runtime {
+	if backend != "JS" && backend != "WASM" && backend != "Standalone" {
+		backend = "Standalone"
+	}
 	return &Runtime{
 		input:           &RuntimeInput{Reader: bufio.NewReaderSize(os.Stdin, 1<<20)},
 		memory:          NewMemory(),
@@ -369,11 +379,16 @@ func New() *Runtime {
 		aliases:         map[string]string{},
 		output:          &RuntimeOutput{},
 		maxDepth:        defaultMaxCallDepth,
+		backend:         backend,
 	}
 }
 
 func NewWithArgs(args []string) *Runtime {
-	runtime := New()
+	return NewWithArgsForBackend(args, "Standalone")
+}
+
+func NewWithArgsForBackend(args []string, backend string) *Runtime {
+	runtime := NewForBackend(backend)
 	runtime.args = append([]string(nil), args...)
 	return runtime
 }
@@ -409,6 +424,7 @@ func RunProgramWithArgs(program file.Program, args []string) (Result, error) {
 }
 
 func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
+	defer runtime.closeRaylib()
 	entryName, entryDiagnostics := parser.ResolveEntryPoint(program)
 	if len(entryDiagnostics) != 0 {
 		diagnostic := entryDiagnostics[0]
@@ -440,6 +456,7 @@ func (runtime *Runtime) Run(program parser.ParsedProgram) (Result, error) {
 }
 
 func (runtime *Runtime) RunTests(program parser.ParsedProgram, names []string) ([]TestResult, error) {
+	defer runtime.closeRaylib()
 	if err := runtime.prepareProgram(program); err != nil {
 		return nil, err
 	}
@@ -759,6 +776,7 @@ func (runtime *Runtime) childRuntime() *Runtime {
 		maxDepth:        runtime.maxDepth,
 		args:            append([]string(nil), runtime.args...),
 		worker:          true,
+		backend:         runtime.backend,
 	}
 	return child
 }
@@ -3156,6 +3174,20 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 	case "OS", "os_current_dir", "os_change_dir", "os_temp_dir", "os_home_dir", "os_hostname", "os_process_id",
 		"os_get_env", "os_set_env", "os_unset_env", "os_environment", "os_execute":
 		return runtime.callOSBuiltin(name, args)
+	case "raylib_init_window", "raylib_close_window", "raylib_window_should_close", "raylib_is_window_ready",
+		"raylib_set_target_fps", "raylib_get_fps", "raylib_get_frame_time", "raylib_begin_drawing", "raylib_end_drawing",
+		"raylib_clear_background", "raylib_draw_text", "raylib_draw_rectangle", "raylib_draw_circle",
+		"raylib_is_key_pressed", "raylib_is_key_down", "raylib_get_screen_width", "raylib_get_screen_height",
+		"raylib_set_window_title", "raylib_set_window_size", "raylib_set_window_position", "raylib_toggle_fullscreen",
+		"raylib_maximize_window", "raylib_minimize_window", "raylib_restore_window", "raylib_is_window_fullscreen",
+		"raylib_is_window_hidden", "raylib_is_window_minimized", "raylib_is_window_maximized", "raylib_is_window_focused",
+		"raylib_get_time", "raylib_set_exit_key", "raylib_is_key_pressed_repeat", "raylib_is_key_released", "raylib_is_key_up",
+		"raylib_get_key_pressed", "raylib_get_char_pressed", "raylib_is_mouse_button_pressed", "raylib_is_mouse_button_down",
+		"raylib_is_mouse_button_released", "raylib_get_mouse_x", "raylib_get_mouse_y", "raylib_set_mouse_position",
+		"raylib_get_mouse_wheel_move", "raylib_draw_pixel", "raylib_draw_line", "raylib_draw_rectangle_lines",
+		"raylib_draw_circle_lines", "raylib_draw_ellipse", "raylib_measure_text", "raylib_take_screenshot",
+		"raylib_get_random_value", "raylib_check_collision_recs", "raylib_check_collision_circles", "raylib_check_collision_point_rec":
+		return runtime.callRaylibBuiltin(name, args)
 	case "parsable_source", "parsable_ast", "parsable_args", "parsable_runtime_info", "parsable_workspace":
 		return runtime.parsableField(name, args)
 	case "parsable_with_source", "parsable_replace", "parsable_append":
@@ -4022,6 +4054,12 @@ func (runtime *Runtime) callFunctionMode(name string, args []Value, callArgs []c
 		}
 		return NullValue(), Error{Message: fmt.Sprintf("unknown function %q", name)}
 	}
+	if function := runtime.functions[resolvedName]; function.Backend != "" && function.Backend != runtime.backend {
+		return NullValue(), Error{Message: fmt.Sprintf(
+			"function %s requires backend %s, but the active runtime backend is %s",
+			resolvedName, function.Backend, runtime.backend,
+		)}
+	}
 	if wrapAsync && runtime.functions[resolvedName].Async {
 		return AwaitableValue(resolvedName, args), nil
 	}
@@ -4621,6 +4659,12 @@ func (runtime *Runtime) callAliasMethodValues(method BoundMethodData, args []Val
 		if fn.Name != method.Name {
 			continue
 		}
+		if fn.Backend != "" && fn.Backend != runtime.backend {
+			return NullValue(), Error{Message: fmt.Sprintf(
+				"method %s.%s requires backend %s, but the active runtime backend is %s",
+				method.Type, method.Name, fn.Backend, runtime.backend,
+			)}
+		}
 		required := requiredRuntimeParamCount(fn.Params)
 		if len(args) < required || len(args) > len(fn.Params) {
 			return NullValue(), Error{Message: fmt.Sprintf("method %s.%s expects %d to %d argument(s), got %d", method.Type, method.Name, required, len(fn.Params), len(args))}
@@ -5067,6 +5111,19 @@ func isBuiltinFunction(name string) bool {
 		"file_read", "file_read_lines", "file_write", "file_append", "file_exists", "file_size", "file_create", "file_remove",
 		"os_current_dir", "os_change_dir", "os_temp_dir", "os_home_dir", "os_hostname", "os_process_id",
 		"os_get_env", "os_set_env", "os_unset_env", "os_environment", "os_execute",
+		"raylib_init_window", "raylib_close_window", "raylib_window_should_close", "raylib_is_window_ready",
+		"raylib_set_target_fps", "raylib_get_fps", "raylib_get_frame_time", "raylib_begin_drawing", "raylib_end_drawing",
+		"raylib_clear_background", "raylib_draw_text", "raylib_draw_rectangle", "raylib_draw_circle",
+		"raylib_is_key_pressed", "raylib_is_key_down", "raylib_get_screen_width", "raylib_get_screen_height",
+		"raylib_set_window_title", "raylib_set_window_size", "raylib_set_window_position", "raylib_toggle_fullscreen",
+		"raylib_maximize_window", "raylib_minimize_window", "raylib_restore_window", "raylib_is_window_fullscreen",
+		"raylib_is_window_hidden", "raylib_is_window_minimized", "raylib_is_window_maximized", "raylib_is_window_focused",
+		"raylib_get_time", "raylib_set_exit_key", "raylib_is_key_pressed_repeat", "raylib_is_key_released", "raylib_is_key_up",
+		"raylib_get_key_pressed", "raylib_get_char_pressed", "raylib_is_mouse_button_pressed", "raylib_is_mouse_button_down",
+		"raylib_is_mouse_button_released", "raylib_get_mouse_x", "raylib_get_mouse_y", "raylib_set_mouse_position",
+		"raylib_get_mouse_wheel_move", "raylib_draw_pixel", "raylib_draw_line", "raylib_draw_rectangle_lines",
+		"raylib_draw_circle_lines", "raylib_draw_ellipse", "raylib_measure_text", "raylib_take_screenshot",
+		"raylib_get_random_value", "raylib_check_collision_recs", "raylib_check_collision_circles", "raylib_check_collision_point_rec",
 		"json_parse", "json_decode", "json_encode", "json_stringify", "json_get", "json_kind", "json_string", "json_int", "json_float", "json_bool", "json_is_null",
 		"table_has", "has_key", "set_has", "table_delete", "table_keys", "table_values", "table_entries", "table_sequence_count", "table_set_fallback",
 		"Atomic", "atomic_load", "atomic_store", "atomic_add",
