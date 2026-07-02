@@ -79,6 +79,8 @@ Alias functions may overload binary operators with `operator SYMBOL(other : Type
 
 Compiler and runtime diagnostics share one structured model. A diagnostic has a stable `K`-prefixed code, severity, phase, primary source span, optional related labels, notes, help text, suggested replacements, expected/found types, and structured runtime frames. Compatibility fields such as `file`, `line`, and `column` mirror the primary span. This diagnostic metadata is separate from Atom propagation: thrown Atoms remain small immutable identities, while rich context is assembled at the reporting boundary.
 
+Source spans are UTF-8-aware, half-open ranges carried by lexer tokens, parser statements, expressions, and expression nodes. Diagnostic producers assign their own code, rule, hint, and span; renderers never recover metadata by parsing the human message. The checker uses an internal non-user-visible `ErrorType` after a root failure so dependent expressions remain checkable without producing misleading type cascades.
+
 Builtin values expose a small shared protocol surface through selector syntax:
 - `String`, `List[T]`, `Set[T]`, `Map[K, V]`, `Table`, `JSON`, `SIMD[T]`, and `Iterator[T]` provide `.count : Int`. JSON count is defined for object, array, and string values.
 - `String` and `Char` provide `.uppercase()` and `.lowercase()`.

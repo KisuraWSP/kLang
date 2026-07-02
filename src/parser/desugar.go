@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"strconv"
 
 	"kLang/src/lexer"
 )
@@ -204,32 +203,17 @@ func tempVariable(pos Position, name string, value Expression, lazy bool) Variab
 }
 
 func identifierExpression(name string) Expression {
-	return Expression{
-		Tokens: expressionTokens(name),
-		Node:   IdentifierExpression{Name: name},
-	}
+	return expressionFromTokens(expressionTokens(name))
 }
 
 func indexExpression(target Expression, index int) Expression {
 	source := fmt.Sprintf("%s[%d]", target.Literal(), index)
-	return Expression{
-		Tokens: expressionTokens(source),
-		Node: IndexExpression{
-			Target: target.Node,
-			Index:  LiteralExpression{Kind: "Int", Value: strconv.Itoa(index)},
-		},
-	}
+	return expressionFromTokens(expressionTokens(source))
 }
 
 func selectorExpression(target Expression, field string) Expression {
 	source := target.Literal() + "." + field
-	return Expression{
-		Tokens: expressionTokens(source),
-		Node: SelectorExpression{
-			Target: target.Node,
-			Field:  field,
-		},
-	}
+	return expressionFromTokens(expressionTokens(source))
 }
 
 func expressionTokens(source string) []lexer.Token {

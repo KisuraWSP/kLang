@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode"
 
+	langdiagnostic "kLang/src/diagnostic"
 	"kLang/src/engine/backend"
 	"kLang/src/engine/conformance"
 	"kLang/src/engine/file"
@@ -100,6 +101,7 @@ func lowerProgram(request backend.Request) (ir.Program, []backend.Diagnostic) {
 	}
 	for _, diagnostic := range entryDiagnostics {
 		lower.diagnostics = append(lower.diagnostics, backend.Diagnostic{
+			Code: langdiagnostic.CodeBackendUnsupported, Severity: langdiagnostic.SeverityError, Phase: langdiagnostic.PhaseJS,
 			File: diagnostic.File, Line: diagnostic.Line, Column: diagnostic.Column,
 			EndColumn: diagnostic.Column + 1,
 			Rule:      "JS_ENTRY_POINT",
@@ -208,18 +210,18 @@ func (lower *lowerer) lowerTopLevel(statements []parser.Statement, namespace str
 			}
 		case parser.VariableStatement:
 			if namespace != "" {
-				lower.unsupported(current.Pos, "namespace-scoped global variables")
+				lower.unsupported(current.Pos, conformance.FeatureModules, "namespace-scoped global variables")
 				continue
 			}
 			if current.Scope != "global" && current.Scope != "const" && !current.Exported {
-				lower.unsupported(current.Pos, "top-level local variables")
+				lower.unsupported(current.Pos, conformance.FeatureModules, "top-level local variables")
 				continue
 			}
 			if statement, ok := lower.lowerVariable(current); ok {
 				program.Globals = append(program.Globals, statement)
 			}
 		default:
-			lower.unsupported(statement.Position(), fmt.Sprintf("top-level %T", statement))
+			lower.unsupported(statement.Position(), conformance.FeatureValuesPrimitives, fmt.Sprintf("top-level %T", statement))
 		}
 	}
 }
@@ -235,21 +237,21 @@ func (lower *lowerer) lowerFunction(function parser.FunctionStatement, name stri
 	}()
 	valid := true
 	if function.Async || function.Lazy || function.Inner {
-		lower.unsupported(function.Pos, "async, lazy, and inner functions")
+		lower.unsupported(function.Pos, conformance.FeatureAsyncFunctions, "async, lazy, and inner functions")
 		valid = false
 	}
 	if len(function.ReturnValues) != 0 {
-		lower.unsupported(function.Pos, "multiple return values")
+		lower.unsupported(function.Pos, conformance.FeatureDirectFunctions, "multiple return values")
 		valid = false
 	}
 	if !lower.supportedType(function.ReturnType, true) {
-		lower.unsupported(function.Pos, "function return type "+function.ReturnType)
+		lower.unsupported(function.Pos, jsTypeFeatureID(function.ReturnType), "function return type "+function.ReturnType)
 		valid = false
 	}
 	result := ir.Function{Pos: lower.position(function.Pos), Name: name, ReturnType: function.ReturnType}
 	for _, param := range function.Params {
 		if param.ByRef || param.Default.Node != nil || !lower.supportedType(param.Type, true) {
-			lower.unsupported(function.Pos, fmt.Sprintf("parameter %s with type %s, ref, or default semantics", param.Name, param.Type))
+			lower.unsupported(function.Pos, jsTypeFeatureID(param.Type), fmt.Sprintf("parameter %s with type %s, ref, or default semantics", param.Name, param.Type))
 			valid = false
 		}
 		result.Params = append(result.Params, ir.Binding{Name: param.Name, Type: param.Type, Mutable: param.Mutable})
@@ -263,10 +265,10 @@ func (lower *lowerer) lowerStruct(alias parser.AliasFunctionStatement, name stri
 	result := ir.Struct{Pos: lower.position(alias.Pos), Name: name}
 	valid := alias.Struct
 	if !alias.Struct {
-		lower.unsupported(alias.Pos, "non-struct alias function "+name)
+		lower.unsupported(alias.Pos, conformance.FeatureStructAliases, "non-struct alias function "+name)
 	}
 	if len(alias.Hooks) != 0 || len(alias.Body) != 0 {
-		lower.unsupported(alias.Pos, "struct alias hooks, nested traits, or implementations")
+		lower.unsupported(alias.Pos, conformance.FeatureStructAliases, "struct alias hooks, nested traits, or implementations")
 		valid = false
 	}
 	tags := map[string]string{}
@@ -278,7 +280,7 @@ func (lower *lowerer) lowerStruct(alias parser.AliasFunctionStatement, name stri
 	seenDefault := false
 	for _, param := range alias.Params {
 		if param.ByRef || !lower.supportedType(param.Type, true) {
-			lower.unsupported(alias.Pos, fmt.Sprintf("struct field %s with type %s or ref semantics", param.Name, param.Type))
+			lower.unsupported(alias.Pos, jsTypeFeatureID(param.Type), fmt.Sprintf("struct field %s with type %s or ref semantics", param.Name, param.Type))
 			valid = false
 		}
 		field := ir.StructField{
@@ -338,7 +340,7 @@ func (lower *lowerer) lowerStatement(statement parser.Statement, inLoop bool) (i
 		switch current.Target.Node.(type) {
 		case parser.IdentifierExpression, parser.IndexExpression:
 		default:
-			lower.unsupported(current.Pos, "selected or dynamic assignment")
+			lower.unsupported(current.Pos, conformance.FeatureValuesPrimitives, "selected or dynamic assignment")
 			return ir.Statement{}, false
 		}
 		target, targetOK := lower.lowerExpression(current.Target.Node, current.Pos)
@@ -349,7 +351,7 @@ func (lower *lowerer) lowerStatement(statement parser.Statement, inLoop bool) (i
 		return ir.Statement{Pos: position, Kind: ir.StatementExpression, Value: value}, ok
 	case parser.ReturnStatement:
 		if len(current.Values) != 0 {
-			lower.unsupported(current.Pos, "multiple return values")
+			lower.unsupported(current.Pos, conformance.FeatureDirectFunctions, "multiple return values")
 			return ir.Statement{}, false
 		}
 		value, ok := lower.lowerExpression(current.Expression.Node, current.Pos)
@@ -371,7 +373,7 @@ func (lower *lowerer) lowerStatement(statement parser.Statement, inLoop bool) (i
 		if current.Kind == "for_each" {
 			iterator, iterableNode, ok := parseForEachLoopHeader(current.Header)
 			if !ok {
-				lower.unsupported(current.Pos, "for_each loops without 'name in iterable'")
+				lower.unsupported(current.Pos, conformance.FeatureLoops, "for_each loops without 'name in iterable'")
 				return ir.Statement{}, false
 			}
 			iterable, iterableOK := lower.lowerExpression(iterableNode, current.Pos)
@@ -381,7 +383,7 @@ func (lower *lowerer) lowerStatement(statement parser.Statement, inLoop bool) (i
 		if current.Kind == "for" {
 			iterator, countNode, ok := parseRangeLoopHeader(current.Header)
 			if !ok {
-				lower.unsupported(current.Pos, "for loops other than range(count)")
+				lower.unsupported(current.Pos, conformance.FeatureLoops, "for loops other than range(count)")
 				return ir.Statement{}, false
 			}
 			count, countOK := lower.lowerExpression(countNode, current.Pos)
@@ -389,7 +391,7 @@ func (lower *lowerer) lowerStatement(statement parser.Statement, inLoop bool) (i
 			return ir.Statement{Pos: position, Kind: ir.StatementRange, Binding: ir.Binding{Name: iterator, Type: "Int"}, Value: count, Body: body}, countOK && bodyOK
 		}
 		if current.Kind != "while" {
-			lower.unsupported(current.Pos, current.Kind+" loops")
+			lower.unsupported(current.Pos, conformance.FeatureLoops, current.Kind+" loops")
 			return ir.Statement{}, false
 		}
 		condition, conditionOK := lower.lowerExpression(current.Header.Node, current.Pos)
@@ -397,13 +399,13 @@ func (lower *lowerer) lowerStatement(statement parser.Statement, inLoop bool) (i
 		return ir.Statement{Pos: position, Kind: ir.StatementWhile, Condition: condition, Body: body}, conditionOK && bodyOK
 	case parser.BreakStatement:
 		if !inLoop {
-			lower.unsupported(current.Pos, "break outside a loop")
+			lower.unsupported(current.Pos, conformance.FeatureLoops, "break outside a loop")
 			return ir.Statement{}, false
 		}
 		return ir.Statement{Pos: position, Kind: ir.StatementBreak}, true
 	case parser.ContinueStatement:
 		if !inLoop {
-			lower.unsupported(current.Pos, "continue outside a loop")
+			lower.unsupported(current.Pos, conformance.FeatureLoops, "continue outside a loop")
 			return ir.Statement{}, false
 		}
 		return ir.Statement{Pos: position, Kind: ir.StatementContinue}, true
@@ -422,17 +424,17 @@ func (lower *lowerer) lowerStatement(statement parser.Statement, inLoop bool) (i
 	case parser.TypeAliasStatement:
 		return ir.Statement{}, true
 	case parser.TransactionStatement:
-		lower.unsupported(current.Pos, "transaction (software transactional memory is currently interpreter-only)")
+		lower.unsupported(current.Pos, conformance.FeatureTransactions, "transaction (software transactional memory is currently interpreter-only)")
 		return ir.Statement{}, false
 	default:
-		lower.unsupported(statement.Position(), fmt.Sprintf("statement %T", statement))
+		lower.unsupported(statement.Position(), conformance.FeatureValuesPrimitives, fmt.Sprintf("statement %T", statement))
 		return ir.Statement{}, false
 	}
 }
 
 func (lower *lowerer) lowerVariable(variable parser.VariableStatement) (ir.Statement, bool) {
 	if variable.Lazy || variable.Temporary || !lower.supportedType(variable.Type, true) {
-		lower.unsupported(variable.Pos, fmt.Sprintf("variable %s with type %s, lazy, or temporary semantics", variable.Name, variable.Type))
+		lower.unsupported(variable.Pos, jsTypeFeatureID(variable.Type), fmt.Sprintf("variable %s with type %s, lazy, or temporary semantics", variable.Name, variable.Type))
 		return ir.Statement{}, false
 	}
 	value, ok := lower.lowerExpression(variable.Expression.Node, variable.Pos)
@@ -445,7 +447,7 @@ func (lower *lowerer) lowerExpression(node parser.ExpressionNode, position parse
 		return ir.Expression{}, true
 	case parser.LiteralExpression:
 		if !supportedType(current.Kind, false) {
-			lower.unsupported(position, "literal type "+current.Kind)
+			lower.unsupported(position, jsTypeFeatureID(current.Kind), "literal type "+current.Kind)
 			return ir.Expression{}, false
 		}
 		return ir.Expression{Kind: ir.ExpressionLiteral, Type: current.Kind, Value: current.Value}, true
@@ -455,14 +457,14 @@ func (lower *lowerer) lowerExpression(node parser.ExpressionNode, position parse
 		return lower.lowerExpression(current.Inner, position)
 	case parser.UnaryExpression:
 		if current.Operator != "-" && current.Operator != "not" {
-			lower.unsupported(position, "unary operator "+current.Operator)
+			lower.unsupported(position, conformance.FeatureValuesPrimitives, "unary operator "+current.Operator)
 			return ir.Expression{}, false
 		}
 		right, ok := lower.lowerExpression(current.Right, position)
 		return ir.Expression{Kind: ir.ExpressionUnary, Operator: current.Operator, Right: expressionPointer(right)}, ok
 	case parser.BinaryExpression:
 		if !supportedBinaryOperator(current.Operator) {
-			lower.unsupported(position, "binary operator "+current.Operator)
+			lower.unsupported(position, conformance.FeatureValuesPrimitives, "binary operator "+current.Operator)
 			return ir.Expression{}, false
 		}
 		left, leftOK := lower.lowerExpression(current.Left, position)
@@ -519,17 +521,17 @@ func (lower *lowerer) lowerExpression(node parser.ExpressionNode, position parse
 		}
 		if selector, ok := current.Callee.(parser.SelectorExpression); ok && selector.Field == "cast_as" {
 			if len(current.Arguments) != 1 {
-				lower.unsupported(position, "cast_as calls without exactly one target type")
+				lower.unsupported(position, conformance.FeatureStructAliases, "cast_as calls without exactly one target type")
 				return ir.Expression{}, false
 			}
 			target, ok := current.Arguments[0].(parser.IdentifierExpression)
 			if !ok {
-				lower.unsupported(position, "non-identifier cast_as target")
+				lower.unsupported(position, conformance.FeatureStructAliases, "non-identifier cast_as target")
 				return ir.Expression{}, false
 			}
 			targetType := lower.resolveAliasPath(target.Name)
 			if targetType != "Table" && targetType != "JSON" && targetType != "String" && !lower.structs[targetType].Struct {
-				lower.unsupported(position, "cast_as target "+targetType)
+				lower.unsupported(position, jsTypeFeatureID(targetType), "cast_as target "+targetType)
 				return ir.Expression{}, false
 			}
 			receiver, receiverOK := lower.lowerExpression(selector.Target, position)
@@ -537,7 +539,7 @@ func (lower *lowerer) lowerExpression(node parser.ExpressionNode, position parse
 		}
 		if selector, ok := current.Callee.(parser.SelectorExpression); ok && (selector.Field == "uppercase" || selector.Field == "lowercase") {
 			if len(current.Arguments) != 0 {
-				lower.unsupported(position, "arguments to String."+selector.Field)
+				lower.unsupported(position, conformance.FeatureValuesPrimitives, "arguments to String."+selector.Field)
 				return ir.Expression{}, false
 			}
 			receiver, receiverOK := lower.lowerExpression(selector.Target, position)
@@ -572,7 +574,7 @@ func (lower *lowerer) lowerExpression(node parser.ExpressionNode, position parse
 			}
 		}
 		if !ok || !resolved {
-			lower.unsupported(position, "builtin, method, or dynamic call "+calleePath)
+			lower.unsupported(position, conformance.FeatureDirectFunctions, "builtin, method, or dynamic call "+calleePath)
 			return ir.Expression{}, false
 		}
 		arguments := make([]ir.Expression, 0, len(current.Arguments))
@@ -590,13 +592,13 @@ func (lower *lowerer) lowerExpression(node parser.ExpressionNode, position parse
 		return ir.Expression{Kind: ir.ExpressionConditional, Condition: expressionPointer(condition), Consequence: expressionPointer(consequence), Alternative: expressionPointer(alternative)}, conditionOK && consequenceOK && alternativeOK
 	case parser.CastExpression:
 		if !lower.supportedType(current.Type, true) {
-			lower.unsupported(position, "cast target "+current.Type)
+			lower.unsupported(position, jsTypeFeatureID(current.Type), "cast target "+current.Type)
 			return ir.Expression{}, false
 		}
 		value, ok := lower.lowerExpression(current.Value, position)
 		return ir.Expression{Kind: ir.ExpressionCast, Type: current.Type, Left: expressionPointer(value)}, ok
 	default:
-		lower.unsupported(position, fmt.Sprintf("expression %T", node))
+		lower.unsupported(position, jsExpressionFeatureID(node), fmt.Sprintf("expression %T", node))
 		return ir.Expression{}, false
 	}
 }
@@ -670,51 +672,60 @@ func jsPipelineMethod(name string) bool {
 	}
 }
 
-func (lower *lowerer) unsupported(position parser.Position, feature string) {
+func (lower *lowerer) unsupported(position parser.Position, featureID conformance.FeatureID, feature string) {
 	lower.diagnostics = append(lower.diagnostics, backend.Diagnostic{
-		File: lower.file, Line: position.Line, Column: position.Column, EndColumn: position.Column + 1,
+		Code: langdiagnostic.CodeBackendUnsupported, Severity: langdiagnostic.SeverityError, Phase: langdiagnostic.PhaseJS,
+		File: lower.file, Line: position.Line, Column: position.Column,
+		EndLine: position.EndLine, EndColumn: position.EndColumn,
 		Rule:      "js-backend/unsupported-feature",
-		FeatureID: string(jsUnsupportedFeatureID(feature)),
+		FeatureID: string(featureID),
 		Message:   "JS backend does not yet support " + feature,
 		Hint:      "Use the typed JS core subset or package with Standalone/WASM runtime mode for this feature.",
 	})
 }
 
-func jsUnsupportedFeatureID(feature string) conformance.FeatureID {
+func jsTypeFeatureID(typeName string) conformance.FeatureID {
 	switch {
-	case strings.Contains(feature, "transaction"):
-		return conformance.FeatureTransactions
-	case strings.Contains(feature, "TryCatch"), strings.Contains(feature, "catch"):
-		return conformance.FeatureExceptions
-	case strings.Contains(feature, "spawn"), strings.Contains(feature, "join"), strings.Contains(feature, "thread_"),
-		strings.Contains(feature, "Thread["):
-		return conformance.FeatureThreads
-	case strings.Contains(feature, "Atomic"), strings.Contains(feature, "atomic_"):
-		return conformance.FeatureAtomic
-	case strings.Contains(feature, "file_"), strings.Contains(feature, "call File"), strings.Contains(feature, "type File"):
-		return conformance.FeatureFiles
-	case strings.Contains(feature, "os_"), strings.Contains(feature, "call OS"), strings.Contains(feature, "type OS"):
-		return conformance.FeatureOS
-	case strings.Contains(feature, "js_"), strings.Contains(feature, "JSModule"), strings.Contains(feature, "JSCall"):
-		return conformance.FeatureJavaScriptInterop
-	case strings.Contains(feature, "async"):
-		return conformance.FeatureAsyncFunctions
-	case strings.Contains(feature, "struct"), strings.Contains(feature, "alias"):
-		return conformance.FeatureStructAliases
-	case strings.Contains(feature, "loop"), strings.Contains(feature, "break"), strings.Contains(feature, "continue"):
-		return conformance.FeatureLoops
-	case strings.Contains(feature, "pipeline"):
-		return conformance.FeatureIteratorPipelines
-	case strings.Contains(feature, "Map"):
+	case strings.HasPrefix(typeName, "Map["):
 		return conformance.FeatureValuesMap
-	case strings.Contains(feature, "Set"):
+	case strings.HasPrefix(typeName, "Set["):
 		return conformance.FeatureValuesSet
-	case strings.Contains(feature, "Table"):
+	case strings.HasPrefix(typeName, "Table"):
 		return conformance.FeatureValuesTable
-	case strings.Contains(feature, "List"), strings.Contains(feature, "index"):
+	case strings.HasPrefix(typeName, "JSON"):
+		return conformance.FeatureValuesJSON
+	case strings.HasPrefix(typeName, "List["):
 		return conformance.FeatureValuesList
-	case strings.Contains(feature, "function"), strings.Contains(feature, "parameter"),
-		strings.Contains(feature, "return"), strings.Contains(feature, "call"):
+	case strings.HasPrefix(typeName, "Function["):
+		return conformance.FeatureDirectFunctions
+	case strings.HasPrefix(typeName, "Thread["):
+		return conformance.FeatureThreads
+	case strings.HasPrefix(typeName, "Atomic["):
+		return conformance.FeatureAtomic
+	case typeName == "File":
+		return conformance.FeatureFiles
+	case typeName == "OS":
+		return conformance.FeatureOS
+	case typeName == "JSModule" || typeName == "JSCall":
+		return conformance.FeatureJavaScriptInterop
+	case strings.HasPrefix(typeName, "Awaitable["):
+		return conformance.FeatureAsyncFunctions
+	case strings.HasPrefix(typeName, "Iterator["):
+		return conformance.FeatureIteratorPipelines
+	default:
+		return conformance.FeatureValuesPrimitives
+	}
+}
+
+func jsExpressionFeatureID(node parser.ExpressionNode) conformance.FeatureID {
+	switch node.(type) {
+	case parser.ListExpression, parser.ListComprehensionExpression, parser.IndexExpression:
+		return conformance.FeatureValuesList
+	case parser.MapExpression:
+		return conformance.FeatureValuesMap
+	case parser.CallExpression:
+		return conformance.FeatureDirectFunctions
+	case parser.LambdaExpression:
 		return conformance.FeatureDirectFunctions
 	default:
 		return conformance.FeatureValuesPrimitives

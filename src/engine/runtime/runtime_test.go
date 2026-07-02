@@ -8,11 +8,27 @@ import (
 	"strings"
 	"testing"
 
+	"kLang/src/diagnostic"
 	"kLang/src/engine/file"
 	modulesystem "kLang/src/engine/module_system"
 	typechecker "kLang/src/engine/type_checker"
 	"kLang/src/parser"
 )
+
+func TestThrownAtomRemainsSeparateFromDiagnosticMetadata(t *testing.T) {
+	atom, err := AtomValue("not_found")
+	if err != nil {
+		t.Fatalf("create Atom: %v", err)
+	}
+	thrown := thrownError{Value: atom}
+	recovered, ok := thrownValue(thrown)
+	if !ok || recovered.Kind != "Atom" || recovered.Data != "not_found" {
+		t.Fatalf("Atom identity changed during propagation: %#v, %v", recovered, ok)
+	}
+	if _, carriesDiagnostic := any(thrown).(diagnostic.Carrier); carriesDiagnostic {
+		t.Fatal("thrown Atom must not carry rich diagnostic metadata")
+	}
+}
 
 func TestImplementedStdlibUsesAtomErrorPropagation(t *testing.T) {
 	stdlibRoot := filepath.Join("..", "..", "..", "stdlib")

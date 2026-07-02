@@ -1,0 +1,16 @@
+{
+  "code": "K2101",
+  "severity": "ERROR",
+  "phase": "TYPE",
+  "rule": "type compatibility",
+  "line": 3,
+  "column": 23,
+  "end_line": 3,
+  "end_column": 28,
+  "message": "cannot assign String to local Int value\n\nExpected type:\n  Int\n\nFound type:\n  String\n\nThis value does not have the type declared for the variable.",
+  "hint": "Expected Int but found String. Change the expression, add an explicit cast, or adjust the declared type.",
+  "expected_type": "Int",
+  "found_type": "String",
+  "label_count": 2,
+  "frame_count": 0
+}

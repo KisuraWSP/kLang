@@ -1,0 +1,15 @@
+{
+  "code": "K5001",
+  "severity": "ERROR",
+  "phase": "WASM",
+  "rule": "WASM_BYTECODE_UNSUPPORTED",
+  "feature_id": "values.table",
+  "line": 2,
+  "column": 5,
+  "end_line": 2,
+  "end_column": 6,
+  "message": "variable values uses unsupported bytecode type Table",
+  "hint": "Use syntax supported by the WASM backend or select a runtime packaging backend.",
+  "label_count": 0,
+  "frame_count": 0
+}

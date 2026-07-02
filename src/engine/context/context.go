@@ -3,8 +3,6 @@ package context
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"kLang/src/diagnostic"
@@ -84,7 +82,12 @@ func (ctx *Context) WithSource(err ErrorContext) ErrorContext {
 		err.Column = 1
 		err.Primary.StartColumn = 1
 	}
-	if err.EndColumn > 0 && err.EndColumn < err.Column {
+	if err.EndLine <= 0 && err.Line > 0 {
+		err.EndLine = err.Line
+	}
+	if err.EndColumn <= 0 {
+		err.EndColumn = err.Column
+	} else if err.EndColumn < err.Column {
 		err.EndColumn = err.Column
 	}
 	lines := ctx.SourceLines(err.File)
@@ -106,15 +109,17 @@ func ModuleErrors(program file.Program, report modulesystem.Report) []ErrorConte
 	errors := make([]ErrorContext, 0, len(report.Errors))
 	for _, err := range report.Errors {
 		errors = append(errors, ctx.WithSource(ErrorContext{
-			Code:     diagnostic.CodeImportResolution,
-			Severity: diagnostic.SeverityError,
-			Phase:    PhaseModule,
-			File:     err.File,
-			Line:     err.Line,
-			Column:   err.Column,
-			Message:  err.Message,
-			Rule:     "import resolution",
-			Hint:     "Check that the imported module exists, is spelled correctly, and is reachable from this workspace.",
+			Code:      err.Code,
+			Severity:  diagnostic.SeverityError,
+			Phase:     PhaseModule,
+			File:      err.File,
+			Line:      err.Line,
+			Column:    err.Column,
+			EndLine:   err.EndLine,
+			EndColumn: err.EndColumn,
+			Message:   err.Message,
+			Rule:      err.Rule,
+			Hint:      err.Hint,
 		}))
 	}
 	return errors
@@ -126,7 +131,7 @@ func ParseErrors(program file.Program, parsed parser.ParsedProgram) []ErrorConte
 	for _, source := range parsed.Sources {
 		for _, err := range source.Errors {
 			errors = append(errors, ctx.WithSource(ErrorContext{
-				Code:      diagnostic.CodeSyntax,
+				Code:      err.Code,
 				Severity:  diagnostic.SeverityError,
 				Phase:     PhaseParse,
 				File:      source.Path,
@@ -135,8 +140,8 @@ func ParseErrors(program file.Program, parsed parser.ParsedProgram) []ErrorConte
 				EndLine:   err.EndLine,
 				EndColumn: err.EndColumn,
 				Message:   err.Message,
-				Rule:      "syntax",
-				Hint:      "The parser could not understand this part of the program. Check the syntax around the marked code.",
+				Rule:      err.Rule,
+				Hint:      err.Hint,
 			}))
 		}
 	}
@@ -146,25 +151,22 @@ func ParseErrors(program file.Program, parsed parser.ParsedProgram) []ErrorConte
 func TypeErrors(program file.Program, report typechecker.Report) []ErrorContext {
 	ctx := New(program)
 	errors := make([]ErrorContext, 0, len(report.Errors))
-	candidates := diagnosticCandidates(program)
 	for _, err := range report.Errors {
 		message := err.Message
 		if err.ExpectedType != "" && err.FoundType != "" {
 			message = humanExpectedFoundMessage(message, err.ExpectedType, err.FoundType)
-		} else {
-			message = HumanTypeMessage(message)
 		}
 		rule := err.Rule
 		if rule == "" {
-			rule = typeErrorRule(err.Message)
+			rule = "static semantics"
 		}
 		hint := err.Hint
 		if hint == "" {
-			hint = typeErrorHint(err.Message, candidates)
+			hint = "Fix the marked construct so it satisfies the language's static rules."
 		}
 		code := err.Code
 		if code == "" {
-			code = legacyTypeErrorCode(err.Message)
+			code = diagnostic.CodeStaticSemantics
 		}
 		diag := ErrorContext{
 			Code:         code,
@@ -188,9 +190,6 @@ func TypeErrors(program file.Program, report typechecker.Report) []ErrorContext 
 			ExpectedType: err.ExpectedType,
 			FoundType:    err.FoundType,
 		}
-		if diag.Column <= 0 {
-			diag.Column, diag.EndColumn = diagnosticSpan(ctx.SourceLines(err.File), err.Line, err.Message)
-		}
 		errors = append(errors, ctx.WithSource(diag))
 	}
 	return errors
@@ -210,15 +209,14 @@ func RuntimeError(program file.Program, err error) ErrorContext {
 		}
 		return ctx.WithSource(value)
 	}
-	line, column, message := RuntimeErrorParts(err)
 	return ctx.WithSource(ErrorContext{
 		Code:     diagnostic.CodeRuntimeFailure,
 		Severity: diagnostic.SeverityError,
 		Phase:    PhaseRuntime,
 		File:     program.EntryPoint,
-		Line:     line,
-		Column:   column,
-		Message:  message,
+		Line:     0,
+		Column:   1,
+		Message:  err.Error(),
 		Rule:     "runtime semantics",
 		Hint:     "The program reached this code while running and could not continue safely.",
 	})
@@ -278,150 +276,10 @@ func BackendDiagnostics(program file.Program, backendName string, diagnostics []
 	return errors
 }
 
-func RuntimeErrorParts(err error) (int, int, string) {
-	message := err.Error()
-	pattern := regexp.MustCompile(`line ([0-9]+):([0-9]+): (.*)`)
-	matches := pattern.FindStringSubmatch(message)
-	if len(matches) != 4 {
-		return 0, 1, message
-	}
-	line, _ := strconv.Atoi(matches[1])
-	column, _ := strconv.Atoi(matches[2])
-	return line, column, matches[3]
-}
-
-func HumanTypeMessage(message string) string {
-	if expected, found, ok := expectedFoundTypes(message); ok {
-		return humanExpectedFoundMessage(message, expected, found)
-	}
-	switch {
-	case strings.Contains(message, "cannot assign"):
-		return message + "\n\nThis value does not have the type declared for the variable."
-	case strings.Contains(message, "argument") && strings.Contains(message, "expects"):
-		return message + "\n\nThis function call is passing a value with an unexpected type."
-	case strings.Contains(message, "unknown identifier"):
-		return message + "\n\nThis name has not been declared in the current scope."
-	default:
-		return message
-	}
-}
-
 func humanExpectedFoundMessage(message string, expected string, found string) string {
 	return message + "\n\nExpected type:\n" + formatTypeTree(expected, "  ") +
 		"\nFound type:\n" + formatTypeTree(found, "  ") +
 		"\nThis value does not have the type declared for the variable."
-}
-
-func legacyTypeErrorCode(message string) string {
-	switch {
-	case strings.Contains(message, "unknown identifier"):
-		return diagnostic.CodeUnknownIdentifier
-	case strings.Contains(message, "unknown function"):
-		return diagnostic.CodeUnknownFunction
-	case strings.Contains(message, "unknown type"):
-		return diagnostic.CodeUnknownType
-	case strings.Contains(message, "transaction"):
-		return diagnostic.CodeTransactionSafety
-	case strings.Contains(message, "cannot assign"), strings.Contains(message, "expects"), strings.Contains(message, "return expression"):
-		return diagnostic.CodeTypeMismatch
-	default:
-		return diagnostic.CodeStaticSemantics
-	}
-}
-
-func typeErrorRule(message string) string {
-	switch {
-	case strings.Contains(message, "unknown identifier"):
-		return "name resolution"
-	case strings.Contains(message, "unknown function"):
-		return "function resolution"
-	case strings.Contains(message, "unknown type"):
-		return "type resolution"
-	case strings.Contains(message, "cannot assign"), strings.Contains(message, "expects"):
-		return "type compatibility"
-	default:
-		return "static semantics"
-	}
-}
-
-func typeErrorHint(message string, candidates map[string]bool) string {
-	if name, ok := quotedPayload(message, `unknown identifier "([^"]+)"`); ok {
-		if suggestion, found := closestCandidate(name, candidates); found {
-			return fmt.Sprintf("Did you mean %q? Declare the name before this point, or qualify it if it comes from a namespace.", suggestion)
-		}
-		return "Declare this name in the current scope before using it, or qualify it with the namespace that defines it."
-	}
-	if name, ok := quotedPayload(message, `unknown function "([^"]+)"`); ok {
-		if suggestion, found := closestCandidate(name, candidates); found {
-			return fmt.Sprintf("Did you mean %q? If the function lives in another module, import that module or call it with its namespace.", suggestion)
-		}
-		return "Check the function spelling. If it lives in another module, import that module or use a qualified module call."
-	}
-	if name, ok := barePayload(message, `unknown type ([A-Za-z_][A-Za-z0-9_:\.\[\],]*)`); ok {
-		if suggestion, found := closestCandidate(name, candidates); found {
-			return fmt.Sprintf("Did you mean %q? Builtin and user-defined type names are case-sensitive.", suggestion)
-		}
-		return "Check the type spelling, import/declare the type, or use one of the builtin type names."
-	}
-	if expected, found, ok := expectedFoundTypes(message); ok {
-		return fmt.Sprintf("Expected %s but found %s. Change the expression, add an explicit cast, or adjust the declared type.", expected, found)
-	}
-	return "I found a conflict between what this code produces and what the surrounding program expects."
-}
-
-func diagnosticSpan(lines []string, line int, message string) (int, int) {
-	column := 1
-	endColumn := 1
-	if line <= 0 || line > len(lines) {
-		return column, endColumn
-	}
-	source := lines[line-1]
-	target := diagnosticTarget(message)
-	if target == "" {
-		return column, endColumn
-	}
-	if index := strings.Index(source, target); index != -1 {
-		column = index + 1
-		endColumn = column + len([]rune(target)) - 1
-	}
-	return column, endColumn
-}
-
-func diagnosticTarget(message string) string {
-	patterns := []string{
-		`unknown identifier "([^"]+)"`,
-		`unknown function "([^"]+)"`,
-		`unknown type ([A-Za-z_][A-Za-z0-9_:\.\[\],]*)`,
-		`cannot assign [^ ]+ to (?:local |global )?[^ ]+ ([A-Za-z_][A-Za-z0-9_]*)`,
-	}
-	for _, pattern := range patterns {
-		if value, ok := quotedPayload(message, pattern); ok {
-			return value
-		}
-		if value, ok := barePayload(message, pattern); ok {
-			return value
-		}
-	}
-	return ""
-}
-
-func expectedFoundTypes(message string) (string, string, bool) {
-	patterns := []string{
-		`cannot assign ([^ ]+) to (?:local |global )?([^ ]+) [^ ]+`,
-		`cannot assign ([^ ]+) to ([^ ]+)$`,
-		`expects ([^,]+), got ([^ ]+)`,
-		`returns ([^ ]+) but return expression is ([^ ]+)`,
-	}
-	for _, pattern := range patterns {
-		matches := regexp.MustCompile(pattern).FindStringSubmatch(message)
-		if len(matches) == 3 {
-			if strings.HasPrefix(pattern, "cannot assign") {
-				return strings.TrimSpace(matches[2]), strings.TrimSpace(matches[1]), true
-			}
-			return strings.TrimSpace(matches[1]), strings.TrimSpace(matches[2]), true
-		}
-	}
-	return "", "", false
 }
 
 func formatTypeTree(typeName string, indent string) string {
@@ -464,126 +322,4 @@ func splitTypeArguments(input string) []string {
 	}
 	parts = append(parts, strings.TrimSpace(input[start:]))
 	return parts
-}
-
-func diagnosticCandidates(program file.Program) map[string]bool {
-	candidates := map[string]bool{
-		"Int": true, "UInt": true, "String": true, "Float": true, "Bool": true, "Char": true,
-		"List": true, "Map": true, "Set": true, "Option": true, "Result": true, "Table": true,
-		"Any": true, "Type": true, "Context": true, "ErrorContext": true, "Function": true,
-		"Some": true, "None": true, "Ok": true, "Err": true, "len": true, "print": true,
-	}
-	identifier := regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
-	for _, source := range program.Files {
-		for _, line := range source.Lines {
-			for _, match := range identifier.FindAllString(line, -1) {
-				if !diagnosticKeyword(match) {
-					candidates[match] = true
-				}
-			}
-		}
-	}
-	return candidates
-}
-
-func diagnosticKeyword(value string) bool {
-	switch value {
-	case "function", "return", "local", "global", "mut", "let", "var", "val", "const", "if", "case", "else", "for", "while", "true", "false", "True", "False", "import", "namespace", "enum", "trait", "impl":
-		return true
-	default:
-		return false
-	}
-}
-
-func closestCandidate(target string, candidates map[string]bool) (string, bool) {
-	targetLower := strings.ToLower(target)
-	best := ""
-	bestDistance := 99
-	for candidate := range candidates {
-		if candidate == target {
-			continue
-		}
-		distance := levenshtein(targetLower, strings.ToLower(candidate))
-		if betterDiagnosticCandidate(target, candidate, best, distance, bestDistance) {
-			best = candidate
-			bestDistance = distance
-		}
-	}
-	limit := 2
-	if len([]rune(target)) > 8 {
-		limit = 3
-	}
-	if best == "" || bestDistance > limit {
-		return "", false
-	}
-	return best, true
-}
-
-func betterDiagnosticCandidate(target string, candidate string, best string, distance int, bestDistance int) bool {
-	if distance < bestDistance {
-		return true
-	}
-	if distance != bestDistance {
-		return false
-	}
-	candidateSamePrefix := sameFirstFold(target, candidate)
-	bestSamePrefix := sameFirstFold(target, best)
-	if candidateSamePrefix != bestSamePrefix {
-		return candidateSamePrefix
-	}
-	return best == "" || candidate < best
-}
-
-func sameFirstFold(left string, right string) bool {
-	leftRunes := []rune(strings.ToLower(left))
-	rightRunes := []rune(strings.ToLower(right))
-	return len(leftRunes) > 0 && len(rightRunes) > 0 && leftRunes[0] == rightRunes[0]
-}
-
-func levenshtein(left string, right string) int {
-	leftRunes := []rune(left)
-	rightRunes := []rune(right)
-	previous := make([]int, len(rightRunes)+1)
-	for index := range previous {
-		previous[index] = index
-	}
-	for i, leftRune := range leftRunes {
-		current := make([]int, len(rightRunes)+1)
-		current[0] = i + 1
-		for j, rightRune := range rightRunes {
-			cost := 1
-			if leftRune == rightRune {
-				cost = 0
-			}
-			current[j+1] = minInt(current[j]+1, previous[j+1]+1, previous[j]+cost)
-		}
-		previous = current
-	}
-	return previous[len(rightRunes)]
-}
-
-func minInt(values ...int) int {
-	minimum := values[0]
-	for _, value := range values[1:] {
-		if value < minimum {
-			minimum = value
-		}
-	}
-	return minimum
-}
-
-func quotedPayload(message string, pattern string) (string, bool) {
-	return regexpPayload(message, pattern)
-}
-
-func barePayload(message string, pattern string) (string, bool) {
-	return regexpPayload(message, pattern)
-}
-
-func regexpPayload(message string, pattern string) (string, bool) {
-	matches := regexp.MustCompile(pattern).FindStringSubmatch(message)
-	if len(matches) != 2 {
-		return "", false
-	}
-	return matches[1], true
 }

@@ -10,17 +10,14 @@ import (
 	"strconv"
 	"strings"
 
+	"kLang/src/diagnostic"
 	"kLang/src/engine/file"
 	"kLang/src/lexer"
 )
 
-const Version = "klang-program-cache-v10-lazy-pipelines"
+const Version = "klang-program-cache-v11-structured-diagnostics"
 
-type Warning struct {
-	File    string `json:"file"`
-	Line    int    `json:"line"`
-	Message string `json:"message"`
-}
+type Warning = diagnostic.Diagnostic
 
 type Entry struct {
 	Version         string         `json:"version"`

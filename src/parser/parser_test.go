@@ -1841,6 +1841,41 @@ transaction {
     local Int current = atomic_load(balance);
     atomic_store(balance, current + 1);
 }
+
+func TestParserBuildsCompleteUTF8AwareStatementAndExpressionSpans(t *testing.T) {
+	program, errors := Parse("function එකතු() : Int {\n    return \"😀\";\n}")
+	assertNoParseErrors(t, errors)
+
+	function, ok := program.Statements[0].(FunctionStatement)
+	if !ok {
+		t.Fatalf("expected function, got %T", program.Statements[0])
+	}
+	if function.Pos.Line != 1 || function.Pos.Column != 1 ||
+		function.Pos.EndLine != 3 || function.Pos.EndColumn != 2 {
+		t.Fatalf("unexpected complete function span: %#v", function.Pos)
+	}
+	if program.Position() != function.Pos {
+		t.Fatalf("program span should cover its statements: program=%#v function=%#v", program.Position(), function.Pos)
+	}
+	returnStatement, ok := function.Body[0].(ReturnStatement)
+	if !ok {
+		t.Fatalf("expected return statement, got %T", function.Body[0])
+	}
+	if returnStatement.Pos.Line != 2 || returnStatement.Pos.Column != 5 ||
+		returnStatement.Pos.EndLine != 2 || returnStatement.Pos.EndColumn != 16 {
+		t.Fatalf("unexpected complete return span: %#v", returnStatement.Pos)
+	}
+	if returnStatement.Expression.Pos.Line != 2 || returnStatement.Expression.Pos.Column != 12 ||
+		returnStatement.Expression.Pos.EndLine != 2 || returnStatement.Expression.Pos.EndColumn != 15 {
+		t.Fatalf("unexpected UTF-8 expression span: %#v", returnStatement.Expression.Pos)
+	}
+	if returnStatement.Expression.Node.Position() != returnStatement.Expression.Pos {
+		t.Fatalf(
+			"expression node span differs from expression wrapper: node=%#v wrapper=%#v",
+			returnStatement.Expression.Node.Position(), returnStatement.Expression.Pos,
+		)
+	}
+}
 `)
 	assertNoParseErrors(t, errors)
 	transaction, ok := program.Statements[0].(TransactionStatement)

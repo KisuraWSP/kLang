@@ -16,7 +16,13 @@ import (
 const anyType = "T"
 const dynamicAnyType = "Any"
 const movedType = "<moved>"
-const errorType = "<error>"
+
+// ErrorType is the checker-only recovery type. It is assignable to every type
+// so one root diagnostic can flow through dependent expressions without
+// producing misleading follow-up errors.
+const ErrorType = "<error>"
+
+const errorType = ErrorType
 
 type Error = diagnostic.Diagnostic
 type Warning = diagnostic.Diagnostic
@@ -224,9 +230,9 @@ func deduplicateDiagnostics(values []diagnostic.Diagnostic) []diagnostic.Diagnos
 	result := make([]diagnostic.Diagnostic, 0, len(values))
 	positions := map[string]int{}
 	for _, value := range values {
-		key := fmt.Sprintf("%s\x00%d\x00%d\x00%s", value.File, value.Line, value.Column, value.Message)
+		key := fmt.Sprintf("%s\x00%d\x00%s\x00%s", value.File, value.Line, value.Code, value.Message)
 		if index, exists := positions[key]; exists {
-			if result[index].Code == "" && value.Code != "" {
+			if diagnosticSpecificity(value) > diagnosticSpecificity(result[index]) {
 				result[index] = value
 			}
 			continue
@@ -235,6 +241,27 @@ func deduplicateDiagnostics(values []diagnostic.Diagnostic) []diagnostic.Diagnos
 		result = append(result, value)
 	}
 	return result
+}
+
+func diagnosticSpecificity(value diagnostic.Diagnostic) int {
+	score := 0
+	if value.Code != "" {
+		score++
+	}
+	if value.Rule != "" {
+		score++
+	}
+	if value.Hint != "" {
+		score++
+	}
+	if value.Column > 1 {
+		score += 2
+	}
+	if value.EndColumn > value.Column {
+		score++
+	}
+	score += len(value.Labels) + len(value.Fixes)
+	return score
 }
 
 func (checker *TypeChecker) applyASTFunctionMetadata(parsed parser.ParsedProgram) {
@@ -1168,10 +1195,8 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 				typeName = exprType
 			}
 			if !checker.isAssignable(typeName, exprType) {
-				checker.addStructuredError(
-					fn.File, line, 0, 0,
-					diagnostic.CodeTypeMismatch,
-					"type compatibility",
+				checker.addTypeMismatch(
+					fn.File, current.Expression.Pos, current.Pos,
 					fmt.Sprintf("cannot assign %s to local %s %s", exprType, typeName, current.Name),
 					fmt.Sprintf("Expected %s but found %s. Change the expression, add an explicit cast, or adjust the declared type.", typeName, exprType),
 					typeName, exprType,
@@ -1270,10 +1295,8 @@ func (checker *TypeChecker) checkSemanticStatement(fn functionSymbol, stmt parse
 		checker.checkSemanticExpression(fn, current.Expression, locals, line)
 		exprType := checker.inferParsedExpression(current.Expression, locals, fn.File, line)
 		if len(fn.ReturnTypes) == 0 && !checker.isAssignable(fn.ReturnType, exprType) {
-			checker.addStructuredError(
-				fn.File, line, 0, 0,
-				diagnostic.CodeTypeMismatch,
-				"type compatibility",
+			checker.addTypeMismatch(
+				fn.File, current.Expression.Pos, current.Pos,
 				fmt.Sprintf("function %s returns %s but return expression is %s", fn.Name, fn.ReturnType, exprType),
 				fmt.Sprintf("Return a %s value or change the function return type.", fn.ReturnType),
 				fn.ReturnType, exprType,
@@ -2824,7 +2847,7 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		if isKnownType(typeName) {
 			return "Int"
 		}
-		checker.addError(source, line, fmt.Sprintf("unknown type %s", typeName))
+		checker.addUnknownType(source, line, typeName)
 		return anyType
 	}
 	if strings.HasPrefix(expr, "move ") {
@@ -2843,6 +2866,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	}
 	if strings.HasPrefix(expr, "await ") {
 		valueType := checker.inferExpression(strings.TrimSpace(strings.TrimPrefix(expr, "await")), locals, source, line)
+		if valueType == errorType {
+			return errorType
+		}
 		if inner, ok := awaitableType(valueType); ok {
 			return inner
 		}
@@ -2853,6 +2879,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		checker.inferExpression(condition, locals, source, line)
 		consequenceType := checker.inferExpression(consequence, locals, source, line)
 		alternativeType := checker.inferExpression(alternative, locals, source, line)
+		if consequenceType == errorType || alternativeType == errorType {
+			return errorType
+		}
 		if isAssignable(consequenceType, alternativeType) {
 			return consequenceType
 		}
@@ -2901,27 +2930,41 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		return checker.checkPipe(expr[:index], expr[index+len("|>"):], locals, source, line)
 	}
 	if strings.HasPrefix(expr, "not ") {
-		checker.inferExpression(strings.TrimSpace(strings.TrimPrefix(expr, "not")), locals, source, line)
+		if checker.inferExpression(strings.TrimSpace(strings.TrimPrefix(expr, "not")), locals, source, line) == errorType {
+			return errorType
+		}
 		return "Bool"
 	}
 	if index := findTopLevelOperator(expr, []string{" or "}); index != -1 {
-		checker.inferExpression(expr[:index], locals, source, line)
-		checker.inferExpression(expr[index+len(" or "):], locals, source, line)
+		left := checker.inferExpression(expr[:index], locals, source, line)
+		right := checker.inferExpression(expr[index+len(" or "):], locals, source, line)
+		if left == errorType || right == errorType {
+			return errorType
+		}
 		return "Bool"
 	}
 	if index := findTopLevelOperator(expr, []string{" xor "}); index != -1 {
-		checker.inferExpression(expr[:index], locals, source, line)
-		checker.inferExpression(expr[index+len(" xor "):], locals, source, line)
+		left := checker.inferExpression(expr[:index], locals, source, line)
+		right := checker.inferExpression(expr[index+len(" xor "):], locals, source, line)
+		if left == errorType || right == errorType {
+			return errorType
+		}
 		return "Bool"
 	}
 	if index := findTopLevelOperator(expr, []string{" and "}); index != -1 {
-		checker.inferExpression(expr[:index], locals, source, line)
-		checker.inferExpression(expr[index+len(" and "):], locals, source, line)
+		left := checker.inferExpression(expr[:index], locals, source, line)
+		right := checker.inferExpression(expr[index+len(" and "):], locals, source, line)
+		if left == errorType || right == errorType {
+			return errorType
+		}
 		return "Bool"
 	}
 	if index, operator := findTopLevelOperatorWithMatch(expr, []string{"==", "!=", ">=", "<=", ">", "<"}); index != -1 {
 		left := checker.inferExpression(expr[:index], locals, source, line)
 		right := checker.inferExpression(expr[index+len(operator):], locals, source, line)
+		if left == errorType || right == errorType {
+			return errorType
+		}
 		if returnType, ok := checker.checkOverloadedBinaryOperator(left, operator, right, source, line); ok {
 			return returnType
 		}
@@ -2930,6 +2973,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	if index := findTopLevelOperator(expr, []string{"+", "-"}); index != -1 && index > 0 {
 		left := checker.inferExpression(expr[:index], locals, source, line)
 		right := checker.inferExpression(expr[index+1:], locals, source, line)
+		if left == errorType || right == errorType {
+			return errorType
+		}
 		operator := expr[index : index+1]
 		if returnType, ok := checker.checkOverloadedBinaryOperator(left, operator, right, source, line); ok {
 			return returnType
@@ -2942,6 +2988,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	if index := findTopLevelOperator(expr, []string{"**"}); index != -1 && index > 0 {
 		left := checker.inferExpression(expr[:index], locals, source, line)
 		right := checker.inferExpression(expr[index+len("**"):], locals, source, line)
+		if left == errorType || right == errorType {
+			return errorType
+		}
 		if returnType, ok := checker.checkOverloadedBinaryOperator(left, "**", right, source, line); ok {
 			return returnType
 		}
@@ -2950,6 +2999,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	if index, operator := findTopLevelOperatorWithMatch(expr, []string{"*", "//", "/", "%"}); index != -1 && index > 0 {
 		left := checker.inferExpression(expr[:index], locals, source, line)
 		right := checker.inferExpression(expr[index+len(operator):], locals, source, line)
+		if left == errorType || right == errorType {
+			return errorType
+		}
 		if returnType, ok := checker.checkOverloadedBinaryOperator(left, operator, right, source, line); ok {
 			return returnType
 		}
@@ -2957,6 +3009,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	}
 	if index := findTopLevelOperator(expr, []string{" as "}); index != -1 && index > 0 {
 		sourceType := checker.inferExpression(expr[:index], locals, source, line)
+		if sourceType == errorType {
+			return errorType
+		}
 		targetType := checker.resolveTypeAlias(expr[index+len(" as "):])
 		if !isKnownType(targetType) {
 			checker.addError(source, line, fmt.Sprintf("unknown cast target type %s", targetType))
@@ -2977,6 +3032,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	}
 	if inner, ok := splitPostfixPropagateExpression(expr); ok {
 		resultType := checker.inferExpression(inner, locals, source, line)
+		if resultType == errorType {
+			return errorType
+		}
 		okType, errorType, ok := resultValueTypes(resultType)
 		if !ok {
 			checker.addError(source, line, fmt.Sprintf("! expects Result, got %s", resultType))
@@ -2991,6 +3049,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 	if targetExpr, indexExpr, ok := splitTrailingIndexExpression(expr); ok {
 		targetType := checker.inferExpression(targetExpr, locals, source, line)
 		indexType := checker.inferExpression(indexExpr, locals, source, line)
+		if targetType == errorType || indexType == errorType {
+			return errorType
+		}
 		return checker.checkIndexExpression(targetType, indexType, source, line)
 	}
 
@@ -3002,6 +3063,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 			return normalizeType(targetExpr)
 		}
 		targetType := checker.inferExpression(targetExpr, locals, source, line)
+		if targetType == errorType {
+			return errorType
+		}
 		if fieldType, ok := checker.selectorFieldType(targetType, fieldName); ok {
 			return fieldType
 		}
@@ -3031,6 +3095,9 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 
 	if calleeExpr, args, ok := parseCallableExpressionCall(expr); ok {
 		calleeType := checker.inferExpression(calleeExpr, locals, source, line)
+		if calleeType == errorType {
+			return errorType
+		}
 		if calleeType == anyType {
 			for _, arg := range args {
 				checker.inferExpression(arg, locals, source, line)
@@ -3067,7 +3134,21 @@ func (checker *TypeChecker) inferExpression(expr string, locals map[string]varia
 		return anyType
 	}
 
-	checker.addError(source, line, fmt.Sprintf("unknown expression %q", expr))
+	if separator := strings.Index(expr, "."); separator > 0 {
+		root := strings.TrimSpace(expr[:separator])
+		if isSimpleIdentifier(root) {
+			if _, variable := checker.lookupVariableNoUse(root, locals); !variable &&
+				!checker.namespaceExists(root) && !checker.enumExists(root) {
+				checker.addUnknownIdentifier(source, line, root)
+				return errorType
+			}
+		}
+	}
+	if isSimpleIdentifier(expr) {
+		checker.addUnknownIdentifier(source, line, expr)
+	} else {
+		checker.addError(source, line, fmt.Sprintf("unknown expression %q", expr))
+	}
 	return errorType
 }
 
@@ -3722,6 +3803,9 @@ func (checker *TypeChecker) inferListLiteral(expr string, locals map[string]vari
 	itemType := ""
 	for _, item := range items {
 		currentType := checker.inferExpression(item, locals, source, line)
+		if currentType == errorType {
+			return errorType
+		}
 		if itemType == "" {
 			itemType = currentType
 			continue
@@ -4740,7 +4824,7 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 						return checker.checkExtensionCall(name, "Bool", method, args, locals, source, line)
 					}
 				}
-				checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
+				checker.addUnknownFunction(source, line, name)
 				return errorType
 			}
 			targetType := targetSymbol.Type
@@ -4789,7 +4873,7 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 				return checker.checkCallbackCall(name, paramTypes, returnType, args, locals, source, line)
 			}
 		}
-		checker.addError(source, line, fmt.Sprintf("unknown function %q", name))
+		checker.addUnknownFunction(source, line, name)
 		return errorType
 	}
 	if fn.Deprecated && !isStdlibImplementationSource(source) {
@@ -4839,7 +4923,11 @@ func (checker *TypeChecker) checkCall(name string, args []string, locals map[str
 			assignable = callSolver.unify(param.Type, argType) || checker.isAssignable(callSolver.apply(param.Type), argType)
 		}
 		if !assignable {
-			checker.addError(source, line, fmt.Sprintf("function %s argument %d expects %s, got %s", name, index+1, param.Type, argType))
+			checker.addCallTypeMismatch(
+				source, line, fn,
+				fmt.Sprintf("function %s argument %d expects %s, got %s", name, index+1, param.Type, argType),
+				param.Type, argType,
+			)
 		}
 	}
 
@@ -5522,7 +5610,14 @@ func longestAliasPath(name string, aliases map[string]string) (string, string, b
 }
 
 func (checker *TypeChecker) addError(source string, line int, message string) {
-	checker.addStructuredError(source, line, 0, 0, "", "", message, "", "", "")
+	checker.addStructuredError(
+		source, line, 1, 1,
+		diagnostic.CodeStaticSemantics,
+		"static semantics",
+		message,
+		"Fix the marked construct so it satisfies the language's static rules.",
+		"", "",
+	)
 }
 
 func (checker *TypeChecker) addStructuredError(
@@ -5537,6 +5632,21 @@ func (checker *TypeChecker) addStructuredError(
 	expectedType string,
 	foundType string,
 ) {
+	if code == "" {
+		code = diagnostic.CodeStaticSemantics
+	}
+	if rule == "" {
+		rule = "static semantics"
+	}
+	if hint == "" {
+		hint = defaultDiagnosticHint(code)
+	}
+	if column <= 0 {
+		column = 1
+	}
+	if endColumn <= 0 {
+		endColumn = column
+	}
 	checker.errors = append(checker.errors, Error{
 		Code:         code,
 		Severity:     diagnostic.SeverityError,
@@ -5554,13 +5664,129 @@ func (checker *TypeChecker) addStructuredError(
 	})
 }
 
+func (checker *TypeChecker) addUnknownIdentifier(source string, line int, name string) {
+	checker.addUnknownIdentifierAt(source, parser.Position{Line: line, Column: 1, EndLine: line, EndColumn: 1}, name)
+}
+
+func (checker *TypeChecker) addUnknownIdentifierAt(source string, position parser.Position, name string) {
+	checker.addStructuredError(
+		source, position.Line, position.Column, position.EndColumn,
+		diagnostic.CodeUnknownIdentifier,
+		"name resolution",
+		fmt.Sprintf("unknown identifier %q", name),
+		"Declare this name before using it, or qualify it with the namespace that defines it.",
+		"", "",
+	)
+}
+
+func (checker *TypeChecker) addUnknownFunction(source string, line int, name string) {
+	checker.addUnknownFunctionAt(source, parser.Position{Line: line, Column: 1, EndLine: line, EndColumn: 1}, name)
+}
+
+func (checker *TypeChecker) addUnknownFunctionAt(source string, position parser.Position, name string) {
+	checker.addStructuredError(
+		source, position.Line, position.Column, position.EndColumn,
+		diagnostic.CodeUnknownFunction,
+		"function resolution",
+		fmt.Sprintf("unknown function %q", name),
+		"Check the function spelling and import or qualify the module that defines it.",
+		"", "",
+	)
+}
+
+func (checker *TypeChecker) addUnknownType(source string, line int, name string) {
+	checker.addStructuredError(
+		source, line, 1, 1,
+		diagnostic.CodeUnknownType,
+		"type resolution",
+		fmt.Sprintf("unknown type %s", name),
+		"Check the case-sensitive type spelling and import or declare the type.",
+		"", "",
+	)
+}
+
+func (checker *TypeChecker) addTypeMismatch(
+	source string,
+	found parser.Position,
+	expected parser.Position,
+	message string,
+	hint string,
+	expectedType string,
+	foundType string,
+) {
+	primary := diagnosticSpan(source, found)
+	if !primary.Valid() {
+		primary = diagnosticSpan(source, expected)
+	}
+	value := Error{
+		Code: diagnostic.CodeTypeMismatch, Severity: diagnostic.SeverityError, Phase: diagnostic.PhaseType,
+		File: filepath.Clean(source), Line: primary.StartLine, Column: primary.StartColumn,
+		EndLine: primary.EndLine, EndColumn: primary.EndColumn,
+		Primary: primary, Message: message, Rule: "type compatibility", Hint: hint,
+		ExpectedType: expectedType, FoundType: foundType,
+	}
+	if found.Valid() {
+		value.Labels = append(value.Labels, diagnostic.Label{Span: diagnosticSpan(source, found), Message: "found " + foundType, Primary: true})
+	}
+	if expected.Valid() {
+		value.Labels = append(value.Labels, diagnostic.Label{Span: diagnosticSpan(source, expected), Message: "expected " + expectedType + " from this declaration"})
+	}
+	checker.errors = append(checker.errors, value)
+}
+
+func (checker *TypeChecker) addCallTypeMismatch(source string, line int, fn functionSymbol, message string, expectedType string, foundType string) {
+	use := diagnostic.Span{File: filepath.Clean(source), StartLine: line, StartColumn: 1, EndLine: line, EndColumn: 1}
+	declaration := diagnostic.Span{File: filepath.Clean(fn.File), StartLine: fn.Line, StartColumn: 1, EndLine: fn.Line, EndColumn: 1}
+	checker.errors = append(checker.errors, Error{
+		Code: diagnostic.CodeTypeMismatch, Severity: diagnostic.SeverityError, Phase: diagnostic.PhaseType,
+		File: use.File, Line: use.StartLine, Column: use.StartColumn, EndLine: use.EndLine, EndColumn: use.EndColumn,
+		Primary: use, Message: message, Rule: "type compatibility",
+		Hint:         fmt.Sprintf("Pass a %s value to this parameter instead of %s.", expectedType, foundType),
+		ExpectedType: expectedType, FoundType: foundType,
+		Labels: []diagnostic.Label{
+			{Span: use, Message: "incompatible value used here", Primary: true},
+			{Span: declaration, Message: "function declared here"},
+		},
+	})
+}
+
+func diagnosticSpan(source string, position parser.Position) diagnostic.Span {
+	return diagnostic.Span{
+		File: filepath.Clean(source), StartLine: position.Line, StartColumn: position.Column,
+		EndLine: position.EndLine, EndColumn: position.EndColumn,
+	}
+}
+
+func defaultDiagnosticHint(code string) string {
+	switch code {
+	case diagnostic.CodeUnknownIdentifier:
+		return "Declare this name before using it, or qualify it with its namespace."
+	case diagnostic.CodeUnknownFunction:
+		return "Check the function spelling and import or qualify the defining module."
+	case diagnostic.CodeUnknownType:
+		return "Check the type spelling and import or declare the type."
+	case diagnostic.CodeTypeMismatch:
+		return "Change the expression or declaration so the expected and found types agree."
+	case diagnostic.CodeTransactionSafety:
+		return "Remove retry-unsafe operations from the transaction body."
+	default:
+		return "Fix the marked construct so it satisfies the language's static rules."
+	}
+}
+
 func (checker *TypeChecker) addWarning(source string, line int, message string) {
 	checker.warnings = append(checker.warnings, Warning{
-		Severity: diagnostic.SeverityWarning,
-		Phase:    diagnostic.PhaseType,
-		File:     filepath.Clean(source),
-		Line:     line,
-		Message:  message,
+		Code:      diagnostic.CodeStaticSemantics,
+		Severity:  diagnostic.SeverityWarning,
+		Phase:     diagnostic.PhaseType,
+		File:      filepath.Clean(source),
+		Line:      line,
+		Column:    1,
+		EndLine:   line,
+		EndColumn: 1,
+		Message:   message,
+		Rule:      "static semantics",
+		Hint:      "Remove the unused declaration or use it in this scope.",
 	})
 }
 
@@ -7201,6 +7427,9 @@ func isNumeric(typeName string) bool {
 func numericResult(left string, right string) string {
 	left = normalizeType(left)
 	right = normalizeType(right)
+	if left == errorType || right == errorType {
+		return errorType
+	}
 	if child, ok := childType(left); ok {
 		left = child.Parent
 	}

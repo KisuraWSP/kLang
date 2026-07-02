@@ -6,15 +6,19 @@ import (
 	"strings"
 	"unicode"
 
+	"kLang/src/diagnostic"
 	"kLang/src/lexer"
 )
 
 type Error struct {
+	Code      string
 	Line      int
 	Column    int
 	EndLine   int
 	EndColumn int
 	Message   string
+	Rule      string
+	Hint      string
 }
 
 type Parser struct {
@@ -56,6 +60,12 @@ func (parser *Parser) ParseProgram() *Program {
 		program.Statements = append(program.Statements, stmt)
 	}
 	program.Statements = lowerDestructuringStatements(program.Statements)
+	if len(program.Statements) != 0 {
+		program.Pos = spanFromPositions(
+			program.Statements[0].Position(),
+			program.Statements[len(program.Statements)-1].Position(),
+		)
+	}
 	return program
 }
 
@@ -64,6 +74,22 @@ func (parser *Parser) Errors() []Error {
 }
 
 func (parser *Parser) parseStatement() Statement {
+	start := parser.pos
+	statement := parser.parseStatementNode()
+	if statement == nil || start >= len(parser.tokens) {
+		return statement
+	}
+	end := parser.pos - 1
+	if end < start {
+		end = start
+	}
+	if end >= len(parser.tokens) {
+		end = len(parser.tokens) - 1
+	}
+	return statementWithSpan(statement, spanFromTokens(parser.tokens[start], parser.tokens[end]))
+}
+
+func (parser *Parser) parseStatementNode() Statement {
 	token := parser.current()
 	if token.Type == lexer.TokenIdentifier && token.Literal == "type" && parser.peek().Type == lexer.TokenIdentifier {
 		return parser.parseTypeAlias()
@@ -331,8 +357,25 @@ func (parser *Parser) parseKeywordMacroInvocation() Statement {
 		}
 		args = append(args, parseExpressionNode(part))
 	}
-	call := CallExpression{Pos: positionFromToken(start), Callee: IdentifierExpression{Name: start.Literal}, Arguments: args}
-	return ExpressionStatement{Pos: positionFromToken(start), Expression: Expression{Node: call}}
+	end := start
+	if len(expr.Tokens) != 0 {
+		end = expr.Tokens[len(expr.Tokens)-1]
+	}
+	call := CallExpression{
+		Pos: spanFromTokens(start, end),
+		Callee: IdentifierExpression{
+			Pos:  positionFromToken(start),
+			Name: start.Literal,
+		},
+		Arguments: args,
+	}
+	return ExpressionStatement{
+		Pos: positionFromToken(start),
+		Expression: Expression{
+			Pos:  spanFromTokens(start, end),
+			Node: call,
+		},
+	}
 }
 
 func (parser *Parser) parseRegion() Statement {
@@ -1970,10 +2013,8 @@ func (parser *Parser) parseExpressionOrAssignment() Statement {
 	}
 
 	if index := assignmentOperatorIndex(expr.Tokens); index != -1 {
-		target := Expression{Tokens: expr.Tokens[:index]}
-		target.Node = parseExpressionNode(target.Tokens)
-		value := Expression{Tokens: expr.Tokens[index+1:]}
-		value.Node = parseExpressionNode(value.Tokens)
+		target := expressionFromTokens(expr.Tokens[:index])
+		value := expressionFromTokens(expr.Tokens[index+1:])
 		return AssignmentStatement{
 			Pos:        positionFromToken(start),
 			Target:     target,
@@ -2307,11 +2348,14 @@ func (parser *Parser) atEnd() bool {
 
 func (parser *Parser) addError(token lexer.Token, message string) {
 	parser.errors = append(parser.errors, Error{
+		Code:      diagnostic.CodeSyntax,
 		Line:      token.Line,
 		Column:    token.Column,
 		EndLine:   token.EndLine,
 		EndColumn: token.EndColumn,
 		Message:   message,
+		Rule:      "syntax",
+		Hint:      "Check the syntax around the marked source span.",
 	})
 }
 
@@ -2343,6 +2387,143 @@ func positionFromToken(token lexer.Token) Position {
 	return Position{
 		Line: token.Line, Column: token.Column,
 		EndLine: token.EndLine, EndColumn: token.EndColumn,
+	}
+}
+
+func spanFromTokens(start lexer.Token, end lexer.Token) Position {
+	return Position{
+		Line: start.Line, Column: start.Column,
+		EndLine: end.EndLine, EndColumn: end.EndColumn,
+	}
+}
+
+func positionFromTokens(tokens []lexer.Token) Position {
+	tokens = trimExpressionTokens(tokens)
+	if len(tokens) == 0 {
+		return Position{}
+	}
+	return spanFromTokens(tokens[0], tokens[len(tokens)-1])
+}
+
+func spanFromPositions(start Position, end Position) Position {
+	if !start.Valid() {
+		return end
+	}
+	if !end.Valid() {
+		return start
+	}
+	return Position{
+		Line: start.Line, Column: start.Column,
+		EndLine: end.EndLine, EndColumn: end.EndColumn,
+	}
+}
+
+func statementWithSpan(statement Statement, position Position) Statement {
+	switch current := statement.(type) {
+	case ImportStatement:
+		current.Pos = position
+		return current
+	case EntryPointStatement:
+		current.Pos = position
+		return current
+	case ModuleDirectiveStatement:
+		current.Pos = position
+		return current
+	case AliasStatement:
+		current.Pos = position
+		return current
+	case TypeAliasStatement:
+		current.Pos = position
+		return current
+	case RegionStatement:
+		current.Pos = position
+		return current
+	case AliasFunctionStatement:
+		current.Pos = position
+		return current
+	case ExtensionStatement:
+		current.Pos = position
+		return current
+	case NamespaceStatement:
+		current.Pos = position
+		return current
+	case TraitStatement:
+		current.Pos = position
+		return current
+	case ImplStatement:
+		current.Pos = position
+		return current
+	case EnumStatement:
+		current.Pos = position
+		return current
+	case FunctionGroupStatement:
+		current.Pos = position
+		return current
+	case FunctionStatement:
+		current.Pos = position
+		return current
+	case VariableStatement:
+		current.Pos = position
+		return current
+	case MultiVariableStatement:
+		current.Pos = position
+		return current
+	case DestructuringStatement:
+		current.Pos = position
+		return current
+	case ReturnStatement:
+		current.Pos = position
+		return current
+	case ThrowStatement:
+		current.Pos = position
+		return current
+	case AssertStatement:
+		current.Pos = position
+		return current
+	case ReportStatement:
+		current.Pos = position
+		return current
+	case BreakStatement:
+		current.Pos = position
+		return current
+	case ContinueStatement:
+		current.Pos = position
+		return current
+	case AssignmentStatement:
+		current.Pos = position
+		return current
+	case ExpressionStatement:
+		current.Pos = position
+		return current
+	case IfStatement:
+		current.Pos = position
+		return current
+	case MatchStatement:
+		current.Pos = position
+		return current
+	case LoopStatement:
+		current.Pos = position
+		return current
+	case TryCatchStatement:
+		current.Pos = position
+		return current
+	case TransactionStatement:
+		current.Pos = position
+		return current
+	case DeferStatement:
+		current.Pos = position
+		return current
+	case RunStatement:
+		current.Pos = position
+		return current
+	case PrivateBlockStatement:
+		current.Pos = position
+		return current
+	case ScopeStatement:
+		current.Pos = position
+		return current
+	default:
+		return statement
 	}
 }
 
@@ -2386,8 +2567,12 @@ func trimExpressionTokens(tokens []lexer.Token) []lexer.Token {
 
 func expressionFromTokens(tokens []lexer.Token) Expression {
 	tokens = trimExpressionTokens(tokens)
-	return Expression{
+	expression := Expression{
 		Tokens: tokens,
 		Node:   parseExpressionNode(tokens),
 	}
+	if len(tokens) != 0 {
+		expression.Pos = spanFromTokens(tokens[0], tokens[len(tokens)-1])
+	}
+	return expression
 }

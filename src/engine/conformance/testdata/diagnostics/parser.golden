@@ -1,0 +1,14 @@
+{
+  "code": "K1002",
+  "severity": "ERROR",
+  "phase": "PARSE",
+  "rule": "syntax",
+  "line": 1,
+  "column": 16,
+  "end_line": 1,
+  "end_column": 17,
+  "message": "expected parameter name",
+  "hint": "Check the syntax around the marked source span.",
+  "label_count": 0,
+  "frame_count": 0
+}

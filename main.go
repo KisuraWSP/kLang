@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"io/fs"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"kLang/src/diagnostic"
 	enginebackend "kLang/src/engine/backend"
 	jsbackend "kLang/src/engine/backend/js"
 	wasmbackend "kLang/src/engine/backend/wasm"
@@ -1620,11 +1622,7 @@ func warningsToCache(warnings []typechecker.Warning) []programcache.Warning {
 	}
 	cached := make([]programcache.Warning, 0, len(warnings))
 	for _, warning := range warnings {
-		cached = append(cached, programcache.Warning{
-			File:    warning.File,
-			Line:    warning.Line,
-			Message: warning.Message,
-		})
+		cached = append(cached, warning)
 	}
 	return cached
 }
@@ -1635,11 +1633,7 @@ func warningsFromCache(warnings []programcache.Warning) []typechecker.Warning {
 	}
 	restored := make([]typechecker.Warning, 0, len(warnings))
 	for _, warning := range warnings {
-		restored = append(restored, typechecker.Warning{
-			File:    warning.File,
-			Line:    warning.Line,
-			Message: warning.Message,
-		})
+		restored = append(restored, warning)
 	}
 	return restored
 }
@@ -1653,16 +1647,12 @@ func printTypeErrors(program file.Program, report typechecker.Report) {
 }
 
 func printTypeWarnings(report typechecker.Report) {
-	for _, warning := range report.Warnings {
-		fmt.Printf("  warning: %s:%d: %s\n", warning.File, warning.Line, warning.Message)
-	}
+	printContextErrors(report.Warnings)
 }
 
 func printContextErrors(errors []langcontext.ErrorContext) {
 	if diagnosticFormat == "json" {
-		encoder := json.NewEncoder(os.Stderr)
-		encoder.SetEscapeHTML(false)
-		if err := encoder.Encode(errors); err != nil {
+		if err := writeJSONDiagnostics(os.Stderr, errors); err != nil {
 			fmt.Fprintf(os.Stderr, `{"code":"K0001","severity":"ERROR","phase":"SOURCE","message":%q}`+"\n", err.Error())
 		}
 		return
@@ -1672,13 +1662,30 @@ func printContextErrors(errors []langcontext.ErrorContext) {
 	}
 }
 
+func writeJSONDiagnostics(out io.Writer, values []langcontext.ErrorContext) error {
+	encoder := json.NewEncoder(out)
+	encoder.SetEscapeHTML(false)
+	for _, value := range values {
+		if err := encoder.Encode(diagnostic.Normalize(value)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func parseDiagnosticFormat(args []string) (string, error) {
 	format := "console"
-	for _, arg := range args {
-		if !strings.HasPrefix(arg, "--diagnostic-format=") {
-			continue
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		if arg == "--diagnostic-format" {
+			if index+1 >= len(args) {
+				return "", fmt.Errorf("--diagnostic-format requires console or json")
+			}
+			index++
+			format = strings.TrimSpace(args[index])
+		} else if strings.HasPrefix(arg, "--diagnostic-format=") {
+			format = strings.TrimSpace(strings.TrimPrefix(arg, "--diagnostic-format="))
 		}
-		format = strings.TrimSpace(strings.TrimPrefix(arg, "--diagnostic-format="))
 	}
 	if format != "console" && format != "json" {
 		return "", fmt.Errorf("--diagnostic-format must be console or json")
@@ -1716,7 +1723,7 @@ func printDiagnostic(out *os.File, diag langcontext.ErrorContext) {
 		caretColumn := maxInt(diag.Column, 1)
 		spanWidth := 1
 		if diag.EndColumn > caretColumn {
-			spanWidth = diag.EndColumn - caretColumn + 1
+			spanWidth = diag.EndColumn - caretColumn
 		}
 		fmt.Fprintf(out, "%*s | %s%s\n\n", width, "", strings.Repeat(" ", maxInt(0, caretColumn-1)), diagnosticUnderline(spanWidth))
 	}
@@ -2119,6 +2126,10 @@ func positionalArgs(args []string) []string {
 			continue
 		}
 		if arg == "--host" || arg == "--port" {
+			index++
+			continue
+		}
+		if arg == "--diagnostic-format" {
 			index++
 			continue
 		}

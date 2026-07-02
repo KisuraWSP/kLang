@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"kLang/src/diagnostic"
 	"kLang/src/engine/file"
 )
 
@@ -3478,6 +3479,66 @@ function Main() : Int {
 `))
 	if len(report.Errors) != 1 || !strings.Contains(report.Errors[0].Message, "unknown function") {
 		t.Fatalf("expected one root unknown-function diagnostic, got %#v", report.Errors)
+	}
+	if report.Errors[0].Column <= 1 || report.Errors[0].EndColumn <= report.Errors[0].Column {
+		t.Fatalf("expected exact unknown-function source span, got %#v", report.Errors[0])
+	}
+}
+
+func TestErrorTypePropagatesThroughDependentExpressions(t *testing.T) {
+	for name, expression := range map[string]string{
+		"binary":   "missing + 1",
+		"selector": "missing.value",
+		"index":    "missing[0]",
+	} {
+		t.Run(name, func(t *testing.T) {
+			report := CheckProgram(programFromSource(`
+function Main() : Int {
+    local Int value = ` + expression + `;
+    return value;
+}
+`))
+			if len(report.Errors) != 1 || report.Errors[0].Code != diagnostic.CodeUnknownIdentifier {
+				t.Fatalf("expected one root unknown-identifier diagnostic, got %#v", report.Errors)
+			}
+		})
+	}
+}
+
+func TestTypeMismatchIncludesExpectedFoundAndDeclarationUseLabels(t *testing.T) {
+	report := CheckProgram(programFromSource(`
+function Accept(value : Int) : Int {
+    return value;
+}
+
+function Main() : Int {
+    local Int value = "bad";
+    return Accept("also bad");
+}
+`))
+	if len(report.Errors) < 2 {
+		t.Fatalf("expected declaration and call mismatches, got %#v", report.Errors)
+	}
+	var declarationMismatch, callMismatch *Error
+	for index := range report.Errors {
+		current := &report.Errors[index]
+		if current.ExpectedType != "Int" || current.FoundType != "String" {
+			continue
+		}
+		if strings.Contains(current.Message, "cannot assign") {
+			declarationMismatch = current
+		}
+		if strings.Contains(current.Message, "argument 1") {
+			callMismatch = current
+		}
+	}
+	if declarationMismatch == nil || len(declarationMismatch.Labels) != 2 ||
+		declarationMismatch.Primary.StartColumn <= 1 {
+		t.Fatalf("expected found-expression and declaration labels, got %#v", declarationMismatch)
+	}
+	if callMismatch == nil || len(callMismatch.Labels) != 2 ||
+		callMismatch.Labels[1].Message != "function declared here" {
+		t.Fatalf("expected call-use and function-declaration labels, got %#v", callMismatch)
 	}
 }
 

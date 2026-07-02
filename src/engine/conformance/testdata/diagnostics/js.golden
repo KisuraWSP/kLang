@@ -1,0 +1,15 @@
+{
+  "code": "K5001",
+  "severity": "ERROR",
+  "phase": "JS",
+  "rule": "js-backend/unsupported-feature",
+  "feature_id": "values.set",
+  "line": 2,
+  "column": 5,
+  "end_line": 2,
+  "end_column": 30,
+  "message": "JS backend does not yet support variable values with type Set[String], lazy, or temporary semantics",
+  "hint": "Use the typed JS core subset or package with Standalone/WASM runtime mode for this feature.",
+  "label_count": 0,
+  "frame_count": 0
+}

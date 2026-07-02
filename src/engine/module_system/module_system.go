@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"kLang/src/diagnostic"
 	"kLang/src/engine/file"
 	"kLang/src/grua"
 	"kLang/src/parser"
@@ -30,10 +31,24 @@ type Module struct {
 }
 
 type Error struct {
-	File    string
-	Line    int
-	Column  int
-	Message string
+	Code      string
+	File      string
+	Line      int
+	Column    int
+	EndLine   int
+	EndColumn int
+	Message   string
+	Rule      string
+	Hint      string
+}
+
+func moduleError(file string, line int, column int, message string) Error {
+	return Error{
+		Code: diagnostic.CodeImportResolution, File: file, Line: line, Column: column,
+		EndLine: line, EndColumn: column, Message: message,
+		Rule: "import resolution",
+		Hint: "Check that the imported module exists, is spelled correctly, and is reachable from this workspace.",
+	}
 }
 
 type Report struct {
@@ -126,7 +141,7 @@ func (resolver *Resolver) resolveStdlibGlobalNamespaces(state *resolutionState, 
 	}
 	paths, err := resolver.globalStdlibCandidates()
 	if err != nil {
-		report.Errors = append(report.Errors, Error{Message: err.Error()})
+		report.Errors = append(report.Errors, moduleError("", 0, 1, err.Error()))
 		return
 	}
 	for _, path := range paths {
@@ -135,7 +150,7 @@ func (resolver *Resolver) resolveStdlibGlobalNamespaces(state *resolutionState, 
 		}
 		imported, err := resolver.loadProgram(path)
 		if err != nil {
-			report.Errors = append(report.Errors, Error{File: path, Message: err.Error()})
+			report.Errors = append(report.Errors, moduleError(path, 0, 1, err.Error()))
 			continue
 		}
 		if resolver.moduleDisabled(imported) {
@@ -242,12 +257,10 @@ func (resolver *Resolver) resolveSource(state *resolutionState, program *file.Pr
 
 	imports, errors := resolver.importsFor(source, *program)
 	for _, parseError := range errors {
-		report.Errors = append(report.Errors, Error{
-			File:    source.Path,
-			Line:    parseError.Line,
-			Column:  parseError.Column,
-			Message: parseError.Message,
-		})
+		current := moduleError(source.Path, parseError.Line, parseError.Column, parseError.Message)
+		current.EndLine = parseError.EndLine
+		current.EndColumn = parseError.EndColumn
+		report.Errors = append(report.Errors, current)
 	}
 	if len(errors) != 0 {
 		return
@@ -256,42 +269,34 @@ func (resolver *Resolver) resolveSource(state *resolutionState, program *file.Pr
 	for _, importStmt := range imports {
 		imported, module, err := resolver.resolveImport(source.Path, importStmt.Path)
 		if err != nil {
-			report.Errors = append(report.Errors, Error{
-				File:    source.Path,
-				Line:    importStmt.Pos.Line,
-				Column:  importStmt.Pos.Column,
-				Message: err.Error(),
-			})
+			current := moduleError(source.Path, importStmt.Pos.Line, importStmt.Pos.Column, err.Error())
+			current.EndLine = importStmt.Pos.EndLine
+			current.EndColumn = importStmt.Pos.EndColumn
+			report.Errors = append(report.Errors, current)
 			continue
 		}
 		if source.Language == file.LanguageGrua {
 			if module.Kind == ImportStdlib && !grua.AllowsModule(importStmt.Path) {
-				report.Errors = append(report.Errors, Error{
-					File:    source.Path,
-					Line:    importStmt.Pos.Line,
-					Column:  importStmt.Pos.Column,
-					Message: fmt.Sprintf("Grua only exposes the basic, file, io, and repl modules; %q is unavailable", importStmt.Path),
-				})
+				report.Errors = append(report.Errors, moduleError(
+					source.Path, importStmt.Pos.Line, importStmt.Pos.Column,
+					fmt.Sprintf("Grua only exposes the basic, file, io, and repl modules; %q is unavailable", importStmt.Path),
+				))
 				continue
 			}
 			if module.Kind == ImportLocal && !programUsesOnlyLanguage(imported, file.LanguageGrua) {
-				report.Errors = append(report.Errors, Error{
-					File:    source.Path,
-					Line:    importStmt.Pos.Line,
-					Column:  importStmt.Pos.Column,
-					Message: fmt.Sprintf("Grua source cannot import non-Grua local module %q", importStmt.Path),
-				})
+				report.Errors = append(report.Errors, moduleError(
+					source.Path, importStmt.Pos.Line, importStmt.Pos.Column,
+					fmt.Sprintf("Grua source cannot import non-Grua local module %q", importStmt.Path),
+				))
 				continue
 			}
 		}
 
 		if resolver.moduleDisabled(imported) {
-			report.Errors = append(report.Errors, Error{
-				File:    source.Path,
-				Line:    importStmt.Pos.Line,
-				Column:  importStmt.Pos.Column,
-				Message: fmt.Sprintf("module %q is disabled", importStmt.Path),
-			})
+			report.Errors = append(report.Errors, moduleError(
+				source.Path, importStmt.Pos.Line, importStmt.Pos.Column,
+				fmt.Sprintf("module %q is disabled", importStmt.Path),
+			))
 			continue
 		}
 
@@ -300,12 +305,10 @@ func (resolver *Resolver) resolveSource(state *resolutionState, program *file.Pr
 		}
 
 		if resolver.moduleIsResolving(state, imported) {
-			report.Errors = append(report.Errors, Error{
-				File:    source.Path,
-				Line:    importStmt.Pos.Line,
-				Column:  importStmt.Pos.Column,
-				Message: fmt.Sprintf("import cycle detected for %q", importStmt.Path),
-			})
+			report.Errors = append(report.Errors, moduleError(
+				source.Path, importStmt.Pos.Line, importStmt.Pos.Column,
+				fmt.Sprintf("import cycle detected for %q", importStmt.Path),
+			))
 			continue
 		}
 

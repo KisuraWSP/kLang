@@ -7,6 +7,7 @@
 - `kLang fmt file.klang` prints formatted source to stdout.
 - `kLang fmt file.klang --write` rewrites one file, and `kLang fmt src --write` rewrites every `.klang` file in a folder.
 - `kLang fmt src --check` fails when any source file would change, which is suitable for CI.
+- Add `--diagnostic-format=json` to `check`, `run`, or `package` for newline-delimited structured diagnostics on stderr. The split form `--diagnostic-format json` is equivalent.
 - Interactive CLI help, successful runs/tests, and fatal errors include a short message from Kibi, the kLang robot companion. Redirected output suppresses Kibi by default, and `--quiet` suppresses successful completion messages. Use `KLANG_MASCOT=always` or `KLANG_MASCOT=never` to override terminal detection.
 
 3. Grua subset

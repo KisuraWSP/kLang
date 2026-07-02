@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"kLang/src/diagnostic"
 	"kLang/src/lexer"
 	"kLang/src/parser"
 )
@@ -794,14 +793,7 @@ func (checker *TypeChecker) checkScopeExpression(expr parser.ExpressionNode, sco
 			checker.namespaceExists(current.Name) || checker.aliasExists(current.Name) || checker.enumExists(current.Name) {
 			return
 		}
-		checker.addStructuredError(
-			source, line, 0, 0,
-			diagnostic.CodeUnknownIdentifier,
-			"name resolution",
-			fmt.Sprintf("unknown identifier %q", current.Name),
-			"",
-			"", "",
-		)
+		checker.addUnknownIdentifierAt(source, current.Pos, current.Name)
 	case parser.LiteralExpression:
 		return
 	case parser.UnaryExpression:
@@ -890,14 +882,7 @@ func (checker *TypeChecker) checkCallScope(callee parser.ExpressionNode, scope *
 			checker.functionGroupExistsInNamespace(current.Name, namespace) || checker.keywordMacroExists(current.Name) {
 			return
 		}
-		checker.addStructuredError(
-			source, line, 0, 0,
-			diagnostic.CodeUnknownFunction,
-			"function resolution",
-			fmt.Sprintf("unknown function %q", current.Name),
-			"",
-			"", "",
-		)
+		checker.addUnknownFunctionAt(source, current.Pos, current.Name)
 	case parser.SelectorExpression:
 		if checker.selectorFunctionExists(current) {
 			return

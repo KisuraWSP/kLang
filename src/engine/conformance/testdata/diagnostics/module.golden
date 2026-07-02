@@ -1,0 +1,14 @@
+{
+  "code": "K1001",
+  "severity": "ERROR",
+  "phase": "MODULE",
+  "rule": "import resolution",
+  "line": 1,
+  "column": 1,
+  "end_line": 1,
+  "end_column": 38,
+  "message": "could not resolve import \"definitely_missing_p1_module\" in raw-lang mode",
+  "hint": "Check that the imported module exists, is spelled correctly, and is reachable from this workspace.",
+  "label_count": 0,
+  "frame_count": 0
+}

@@ -23,6 +23,13 @@ type expressionParser struct {
 	pos    int
 }
 
+func expressionNodePosition(node ExpressionNode) Position {
+	if node == nil {
+		return Position{}
+	}
+	return node.Position()
+}
+
 func parseExpressionNode(tokens []lexer.Token) ExpressionNode {
 	tokens = trimExpressionTokens(tokens)
 	if len(tokens) == 0 {
@@ -32,7 +39,7 @@ func parseExpressionNode(tokens []lexer.Token) ExpressionNode {
 		if lambda, ok := parseLambdaExpressionTokens(tokens); ok {
 			return lambda
 		}
-		return RawExpression{Tokens: tokens}
+		return RawExpression{Pos: positionFromTokens(tokens), Tokens: tokens}
 	}
 	if conditional, ok := parseConditionalExpression(tokens); ok {
 		return conditional
@@ -41,7 +48,7 @@ func parseExpressionNode(tokens []lexer.Token) ExpressionNode {
 	parser := &expressionParser{tokens: tokens}
 	node := parser.parseExpression(precedenceLowest)
 	if node == nil || !parser.atEnd() {
-		return RawExpression{Tokens: tokens}
+		return RawExpression{Pos: positionFromTokens(tokens), Tokens: tokens}
 	}
 	return node
 }
@@ -65,6 +72,7 @@ func parseConditionalExpression(tokens []lexer.Token) (ExpressionNode, bool) {
 		return nil, false
 	}
 	return ConditionalExpression{
+		Pos:         positionFromTokens(tokens),
 		Condition:   parseExpressionNode(tokens[1:thenIndex]),
 		Consequence: parseExpressionNode(consequenceTokens),
 		Alternative: parseExpressionNode(alternativeTokens),
@@ -123,23 +131,25 @@ func (parser *expressionParser) parsePrefix() ExpressionNode {
 	token := parser.advance()
 	switch token.Type {
 	case lexer.TokenIdentifier, lexer.TokenLet, lexer.TokenVar, lexer.TokenVal, lexer.TokenConst, lexer.TokenModule, lexer.TokenEnum:
-		return IdentifierExpression{Name: token.Literal}
+		return IdentifierExpression{Pos: positionFromToken(token), Name: token.Literal}
 	case lexer.TokenInt:
-		return LiteralExpression{Kind: "Int", Value: token.Literal}
+		return LiteralExpression{Pos: positionFromToken(token), Kind: "Int", Value: token.Literal}
 	case lexer.TokenFloat:
-		return LiteralExpression{Kind: "Float", Value: token.Literal}
+		return LiteralExpression{Pos: positionFromToken(token), Kind: "Float", Value: token.Literal}
 	case lexer.TokenString:
-		return LiteralExpression{Kind: "String", Value: token.Literal}
+		return LiteralExpression{Pos: positionFromToken(token), Kind: "String", Value: token.Literal}
 	case lexer.TokenChar:
-		return LiteralExpression{Kind: "Char", Value: token.Literal}
+		return LiteralExpression{Pos: positionFromToken(token), Kind: "Char", Value: token.Literal}
 	case lexer.TokenAtom:
-		return LiteralExpression{Kind: "Atom", Value: token.Literal[1:]}
+		return LiteralExpression{Pos: positionFromToken(token), Kind: "Atom", Value: token.Literal[1:]}
 	case lexer.TokenBool:
-		return LiteralExpression{Kind: "Bool", Value: token.Literal}
+		return LiteralExpression{Pos: positionFromToken(token), Kind: "Bool", Value: token.Literal}
 	case lexer.TokenMinus, lexer.TokenNot, lexer.TokenCall, lexer.TokenMove, lexer.TokenCopy, lexer.TokenClone, lexer.TokenAwait:
+		right := parser.parseExpression(precedencePrefix)
 		return UnaryExpression{
+			Pos:      spanFromPositions(positionFromToken(token), expressionNodePosition(right)),
 			Operator: token.Literal,
-			Right:    parser.parseExpression(precedencePrefix),
+			Right:    right,
 		}
 	case lexer.TokenLambdaFunc:
 		return parser.parseLambda(token)
@@ -148,7 +158,7 @@ func (parser *expressionParser) parsePrefix() ExpressionNode {
 		if !parser.match(lexer.TokenRightBrace) {
 			return nil
 		}
-		return GroupExpression{Inner: inner}
+		return GroupExpression{Pos: spanFromTokens(token, parser.previous()), Inner: inner}
 	case lexer.TokenLeftSquareBrace:
 		return parser.parseList()
 	case lexer.TokenScopeBegin:
@@ -196,7 +206,10 @@ func parseLambdaExpressionTokens(tokens []lexer.Token) (ExpressionNode, bool) {
 	}
 	params = applyTypeParameterRestrictions(params, typeParams)
 	returnType = applyReturnTypeRestriction(returnType, typeParams)
-	return LambdaExpression{TypeParams: typeParams, Params: params, ReturnType: returnType, Body: body}, true
+	return LambdaExpression{
+		Pos: positionFromTokens(tokens), TypeParams: typeParams, Params: params,
+		ReturnType: returnType, Body: body,
+	}, true
 }
 
 func findLambdaBodyStart(tokens []lexer.Token, start int) int {
@@ -250,6 +263,7 @@ func (parser *expressionParser) parseBinary(left ExpressionNode) ExpressionNode 
 	}
 	right := parser.parseExpression(precedence)
 	return BinaryExpression{
+		Pos:      spanFromPositions(expressionNodePosition(left), expressionNodePosition(right)),
 		Left:     left,
 		Operator: token.Literal,
 		Right:    right,
@@ -257,7 +271,7 @@ func (parser *expressionParser) parseBinary(left ExpressionNode) ExpressionNode 
 }
 
 func (parser *expressionParser) parseCall(callee ExpressionNode) ExpressionNode {
-	start := parser.advance()
+	parser.advance()
 	var args []ExpressionNode
 	if !parser.check(lexer.TokenRightBrace) {
 		for {
@@ -270,7 +284,7 @@ func (parser *expressionParser) parseCall(callee ExpressionNode) ExpressionNode 
 	if !parser.match(lexer.TokenRightBrace) {
 		return nil
 	}
-	return CallExpression{Pos: positionFromToken(start), Callee: callee, Arguments: args}
+	return CallExpression{Pos: spanFromPositions(expressionNodePosition(callee), positionFromToken(parser.previous())), Callee: callee, Arguments: args}
 }
 
 func (parser *expressionParser) parseIndex(target ExpressionNode) ExpressionNode {
@@ -279,7 +293,7 @@ func (parser *expressionParser) parseIndex(target ExpressionNode) ExpressionNode
 	if !parser.match(lexer.TokenRightSquareBrace) {
 		return nil
 	}
-	return IndexExpression{Target: target, Index: index}
+	return IndexExpression{Pos: spanFromPositions(expressionNodePosition(target), positionFromToken(parser.previous())), Target: target, Index: index}
 }
 
 func (parser *expressionParser) parseSelector(target ExpressionNode) ExpressionNode {
@@ -288,7 +302,7 @@ func (parser *expressionParser) parseSelector(target ExpressionNode) ExpressionN
 	if field.Type != lexer.TokenIdentifier && field.Type != lexer.TokenCopy && field.Type != lexer.TokenClone && field.Type != lexer.TokenModule {
 		return nil
 	}
-	return SelectorExpression{Target: target, Field: field.Literal}
+	return SelectorExpression{Pos: spanFromPositions(expressionNodePosition(target), positionFromToken(field)), Target: target, Field: field.Literal}
 }
 
 func (parser *expressionParser) parseCast(value ExpressionNode) ExpressionNode {
@@ -297,28 +311,32 @@ func (parser *expressionParser) parseCast(value ExpressionNode) ExpressionNode {
 	if typeName == "" {
 		return nil
 	}
-	return CastExpression{Value: value, Type: typeName}
+	return CastExpression{Pos: spanFromPositions(expressionNodePosition(value), positionFromToken(parser.previous())), Value: value, Type: typeName}
 }
 
 func (parser *expressionParser) parseNullCheck(value ExpressionNode) ExpressionNode {
-	parser.advance()
-	return NullCheckExpression{Value: value}
+	end := parser.advance()
+	return NullCheckExpression{Pos: spanFromPositions(expressionNodePosition(value), positionFromToken(end)), Value: value}
 }
 
 func (parser *expressionParser) parsePropagate(value ExpressionNode) ExpressionNode {
-	parser.advance()
-	return PropagateExpression{Value: value}
+	end := parser.advance()
+	return PropagateExpression{Pos: spanFromPositions(expressionNodePosition(value), positionFromToken(end)), Value: value}
 }
 
 func (parser *expressionParser) parseList() ExpressionNode {
+	start := parser.tokens[parser.pos-1]
 	body, ok := parser.consumeListBody()
 	if !ok {
 		return nil
 	}
 	if len(body) == 0 {
-		return ListExpression{}
+		return ListExpression{Pos: spanFromTokens(start, parser.previous())}
 	}
 	if comprehension, ok := parseListComprehension(body); ok {
+		current := comprehension.(ListComprehensionExpression)
+		current.Pos = spanFromTokens(start, parser.previous())
+		comprehension = current
 		return comprehension
 	}
 
@@ -330,7 +348,7 @@ func (parser *expressionParser) parseList() ExpressionNode {
 		}
 		items = append(items, parseExpressionNode(part))
 	}
-	return ListExpression{Items: items}
+	return ListExpression{Pos: spanFromTokens(start, parser.previous()), Items: items}
 }
 
 func (parser *expressionParser) consumeListBody() ([]lexer.Token, bool) {
@@ -397,6 +415,7 @@ func parseListComprehension(tokens []lexer.Token) (ExpressionNode, bool) {
 	}
 
 	return ListComprehensionExpression{
+		Pos:       positionFromTokens(tokens),
 		Value:     parseExpressionNode(tokens[:forIndex]),
 		Iterator:  iterator,
 		Iterable:  parseExpressionNode(tokens[iterableStart:iterableEnd]),
@@ -498,15 +517,18 @@ func (parser *expressionParser) parseTypeName() string {
 }
 
 func (parser *expressionParser) parseMap() ExpressionNode {
+	start := parser.tokens[parser.pos-1]
 	var entries []MapEntry
 	if !parser.check(lexer.TokenScopeEnd) {
 		for {
 			key := parser.parseExpression(precedenceLowest)
 			if !parser.match(lexer.TokenInferReturn) {
-				return RawExpression{Tokens: parser.tokens}
+				return RawExpression{Pos: positionFromTokens(parser.tokens), Tokens: parser.tokens}
 			}
 			value := parser.parseExpression(precedenceLowest)
-			entries = append(entries, MapEntry{Key: key, Value: value})
+			entries = append(entries, MapEntry{
+				Pos: spanFromPositions(expressionNodePosition(key), expressionNodePosition(value)), Key: key, Value: value,
+			})
 			if !parser.match(lexer.TokenComma) {
 				break
 			}
@@ -515,7 +537,7 @@ func (parser *expressionParser) parseMap() ExpressionNode {
 	if !parser.match(lexer.TokenScopeEnd) {
 		return nil
 	}
-	return MapExpression{Entries: entries}
+	return MapExpression{Pos: spanFromTokens(start, parser.previous()), Entries: entries}
 }
 
 func (parser *expressionParser) currentPrecedence() int {
@@ -580,6 +602,13 @@ func (parser *expressionParser) advance() lexer.Token {
 		parser.pos++
 	}
 	return token
+}
+
+func (parser *expressionParser) previous() lexer.Token {
+	if parser.pos == 0 || len(parser.tokens) == 0 {
+		return lexer.Token{Type: lexer.TokenEOFDescriptor}
+	}
+	return parser.tokens[parser.pos-1]
 }
 
 func (parser *expressionParser) current() lexer.Token {

@@ -277,37 +277,6 @@ closure diagnostics instead.
 
 Each item below is designed to be implementable one prompt at a time.
 
-### P1 — Finish structured diagnostics
-
-Why:
-
-The shared diagnostic model now exists, including stable codes, severity, spans,
-labels, fixes, expected/found types, red console output, and structured runtime
-frames. Many older producers still create message-only diagnostics.
-
-Scope:
-
-1. Give lexer tokens and all AST nodes complete UTF-8-aware source spans.
-2. Replace remaining message parsing with producer-owned codes and fields.
-3. Add secondary labels for declaration/use and expected/found locations.
-4. Add explicit `ErrorType` propagation to suppress cascaded diagnostics.
-5. Add `--diagnostic-format=json` for editors and CI.
-6. Add golden tests for parser, type, module, runtime, JS, and WASM output.
-7. Keep Atom propagation separate from rich diagnostic metadata.
-
-Done when:
-
-- diagnostic rule, code, span, and hint never depend on parsing prose;
-- one root mistake does not produce a large cascade;
-- CLI and JSON renderings come from the same structured value; and
-- editor consumers receive stable machine-readable fields.
-
-Suggested first prompt:
-
-> Add complete source spans to lexer tokens and parser expressions/statements,
-> preserving compatibility with Position. Migrate unknown-name diagnostics to
-> use those spans without searching source text.
-
 ### P2 — Backend capabilities and typed `foreign`
 
 Why:

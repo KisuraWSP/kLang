@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	langdiagnostic "kLang/src/diagnostic"
 	"kLang/src/engine/backend"
 	jsbackend "kLang/src/engine/backend/js"
 	"kLang/src/engine/bytecode"
@@ -64,6 +65,9 @@ func (compiler *Compiler) lower(request backend.Request) (bytecode.Program, []ba
 	request.Backend = "WASM"
 	program, diagnostics := jsbackend.LowerIR(request)
 	for index := range diagnostics {
+		diagnostics[index].Code = langdiagnostic.CodeBackendUnsupported
+		diagnostics[index].Severity = langdiagnostic.SeverityError
+		diagnostics[index].Phase = langdiagnostic.PhaseWASM
 		diagnostics[index].Rule = "WASM_BYTECODE_UNSUPPORTED"
 		diagnostics[index].Hint = "This project will use the browser interpreter fallback until the bytecode subset supports this construct."
 	}
@@ -73,6 +77,7 @@ func (compiler *Compiler) lower(request backend.Request) (bytecode.Program, []ba
 	compiled, compileDiagnostics := bytecode.Compile(program)
 	for _, diagnostic := range compileDiagnostics {
 		diagnostics = append(diagnostics, backend.Diagnostic{
+			Code: langdiagnostic.CodeBackendUnsupported, Severity: langdiagnostic.SeverityError, Phase: langdiagnostic.PhaseWASM,
 			File: diagnostic.File, Line: diagnostic.Line, Column: diagnostic.Column,
 			EndColumn: diagnostic.Column + 1,
 			Rule:      "WASM_BYTECODE_UNSUPPORTED",

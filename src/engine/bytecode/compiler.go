@@ -40,17 +40,17 @@ func Compile(source ir.Program) (Program, []Diagnostic) {
 		stringIndex:   map[string]int{},
 	}
 	if len(source.Globals) != 0 {
-		current.addDiagnostic(ir.Position{}, "global variables are not supported by the WASM bytecode subset", "Move state into Main or pass it through function parameters.")
+		current.addDiagnostic(ir.Position{}, conformance.FeatureModules, "global variables are not supported by the WASM bytecode subset", "Move state into Main or pass it through function parameters.")
 	}
 	for _, structure := range source.Structs {
-		current.addDiagnostic(structure.Pos, fmt.Sprintf("struct alias %s is not supported by the WASM bytecode subset", structure.Name), "The browser interpreter fallback preserves full struct semantics.")
+		current.addDiagnostic(structure.Pos, conformance.FeatureStructAliases, fmt.Sprintf("struct alias %s is not supported by the WASM bytecode subset", structure.Name), "The browser interpreter fallback preserves full struct semantics.")
 	}
 	for _, extension := range source.Extensions {
-		current.addDiagnostic(ir.Position{}, fmt.Sprintf("extension method %s.%s is not supported by the WASM bytecode subset", extension.Target, extension.Name), "The browser interpreter fallback preserves extension methods.")
+		current.addDiagnostic(ir.Position{}, conformance.FeatureExtensions, fmt.Sprintf("extension method %s.%s is not supported by the WASM bytecode subset", extension.Target, extension.Name), "The browser interpreter fallback preserves extension methods.")
 	}
 	for _, function := range source.Functions {
 		if _, exists := current.functionIndex[function.Name]; exists {
-			current.addDiagnostic(function.Pos, fmt.Sprintf("duplicate bytecode function %q", function.Name), "")
+			current.addDiagnostic(function.Pos, conformance.FeatureDirectFunctions, fmt.Sprintf("duplicate bytecode function %q", function.Name), "")
 			continue
 		}
 		current.functionIndex[function.Name] = len(current.program.Functions)
@@ -58,7 +58,7 @@ func Compile(source ir.Program) (Program, []Diagnostic) {
 	}
 	entry, ok := current.functionIndex[source.EntryPoint]
 	if !ok {
-		current.addDiagnostic(ir.Position{}, fmt.Sprintf("bytecode entry function %q was not found", source.EntryPoint), "Define Main() : Int or a valid custom entry point.")
+		current.addDiagnostic(ir.Position{}, conformance.FeatureDirectFunctions, fmt.Sprintf("bytecode entry function %q was not found", source.EntryPoint), "Define Main() : Int or a valid custom entry point.")
 	} else {
 		current.program.Entry = entry
 	}
@@ -81,11 +81,11 @@ func (current *compiler) compileFunction(source ir.Function) Function {
 		scopes:   []map[string]int{{}},
 	}
 	if !bytecodeTypeSupported(source.ReturnType) {
-		current.addDiagnostic(source.Pos, fmt.Sprintf("function %s returns unsupported bytecode type %s", source.Name, source.ReturnType), "Use Int, UInt, Float, Bool, String, or T in the initial bytecode subset.")
+		current.addDiagnostic(source.Pos, bytecodeTypeFeatureID(source.ReturnType), fmt.Sprintf("function %s returns unsupported bytecode type %s", source.Name, source.ReturnType), "Use Int, UInt, Float, Bool, String, or T in the initial bytecode subset.")
 	}
 	for _, parameter := range source.Params {
 		if !bytecodeTypeSupported(parameter.Type) {
-			current.addDiagnostic(source.Pos, fmt.Sprintf("function %s parameter %s uses unsupported bytecode type %s", source.Name, parameter.Name, parameter.Type), "")
+			current.addDiagnostic(source.Pos, bytecodeTypeFeatureID(parameter.Type), fmt.Sprintf("function %s parameter %s uses unsupported bytecode type %s", source.Name, parameter.Name, parameter.Type), "")
 		}
 		result.define(parameter.Name)
 	}
@@ -113,7 +113,7 @@ func (current *functionCompiler) compileStatement(statement ir.Statement) {
 	switch statement.Kind {
 	case ir.StatementVariable:
 		if !bytecodeTypeSupported(statement.Binding.Type) {
-			current.owner.addDiagnostic(statement.Pos, fmt.Sprintf("variable %s uses unsupported bytecode type %s", statement.Binding.Name, statement.Binding.Type), "")
+			current.owner.addDiagnostic(statement.Pos, bytecodeTypeFeatureID(statement.Binding.Type), fmt.Sprintf("variable %s uses unsupported bytecode type %s", statement.Binding.Name, statement.Binding.Type), "")
 		}
 		slot := current.define(statement.Binding.Name)
 		if statement.Value.Kind == "" {
@@ -128,12 +128,12 @@ func (current *functionCompiler) compileStatement(statement ir.Statement) {
 			return
 		}
 		if statement.Target.Kind != ir.ExpressionIdentifier {
-			current.owner.addDiagnostic(statement.Pos, "bytecode assignments require a local variable or indexed local List target", "")
+			current.owner.addDiagnostic(statement.Pos, conformance.FeatureValuesList, "bytecode assignments require a local variable or indexed local List target", "")
 			return
 		}
 		slot, ok := current.lookup(statement.Target.Name)
 		if !ok {
-			current.owner.addDiagnostic(statement.Pos, fmt.Sprintf("unknown bytecode local %q", statement.Target.Name), "")
+			current.owner.addDiagnostic(statement.Pos, conformance.FeatureDirectFunctions, fmt.Sprintf("unknown bytecode local %q", statement.Target.Name), "")
 			return
 		}
 		if statement.Operator != "=" {
@@ -186,7 +186,7 @@ func (current *functionCompiler) compileStatement(statement ir.Statement) {
 		current.compileForEach(statement)
 	case ir.StatementBreak:
 		if len(current.loopStack) == 0 {
-			current.owner.addDiagnostic(statement.Pos, "break is outside a bytecode loop", "")
+			current.owner.addDiagnostic(statement.Pos, conformance.FeatureLoops, "break is outside a bytecode loop", "")
 			return
 		}
 		jump := current.emit(OpJump, 0, 0, line)
@@ -194,7 +194,7 @@ func (current *functionCompiler) compileStatement(statement ir.Statement) {
 		current.loopStack[index].breaks = append(current.loopStack[index].breaks, jump)
 	case ir.StatementContinue:
 		if len(current.loopStack) == 0 {
-			current.owner.addDiagnostic(statement.Pos, "continue is outside a bytecode loop", "")
+			current.owner.addDiagnostic(statement.Pos, conformance.FeatureLoops, "continue is outside a bytecode loop", "")
 			return
 		}
 		jump := current.emit(OpJump, 0, 0, line)
@@ -206,7 +206,7 @@ func (current *functionCompiler) compileStatement(statement ir.Statement) {
 	case ir.StatementBlock:
 		current.compileStatements(statement.Body, true)
 	default:
-		current.owner.addDiagnostic(statement.Pos, fmt.Sprintf("statement %s is not supported by the WASM bytecode subset", statement.Kind), "")
+		current.owner.addDiagnostic(statement.Pos, bytecodeStatementFeatureID(statement.Kind), fmt.Sprintf("statement %s is not supported by the WASM bytecode subset", statement.Kind), "")
 	}
 }
 
@@ -218,14 +218,14 @@ func (current *functionCompiler) compileExpression(expression ir.Expression, pos
 		case "Int", "UInt":
 			value, err := strconv.ParseInt(strings.ReplaceAll(expression.Value, "_", ""), 0, 64)
 			if err != nil {
-				current.owner.addDiagnostic(position, fmt.Sprintf("invalid bytecode integer %q", expression.Value), "")
+				current.owner.addDiagnostic(position, conformance.FeatureValuesPrimitives, fmt.Sprintf("invalid bytecode integer %q", expression.Value), "")
 				value = 0
 			}
 			current.emit(OpConstInt, value, 0, line)
 		case "Float":
 			value, err := strconv.ParseFloat(strings.ReplaceAll(expression.Value, "_", ""), 64)
 			if err != nil {
-				current.owner.addDiagnostic(position, fmt.Sprintf("invalid bytecode float %q", expression.Value), "")
+				current.owner.addDiagnostic(position, conformance.FeatureValuesPrimitives, fmt.Sprintf("invalid bytecode float %q", expression.Value), "")
 				value = 0
 			}
 			current.emit(OpConstFloat, int64(math.Float64bits(value)), 0, line)
@@ -238,7 +238,7 @@ func (current *functionCompiler) compileExpression(expression ir.Expression, pos
 		case "String":
 			current.emit(OpConstString, int64(current.owner.intern(expression.Value)), 0, line)
 		default:
-			current.owner.addDiagnostic(position, fmt.Sprintf("literal type %s is not supported by bytecode", expression.Type), "")
+			current.owner.addDiagnostic(position, bytecodeTypeFeatureID(expression.Type), fmt.Sprintf("literal type %s is not supported by bytecode", expression.Type), "")
 			current.emit(OpConstNull, 0, 0, line)
 		}
 	case ir.ExpressionIdentifier:
@@ -251,7 +251,7 @@ func (current *functionCompiler) compileExpression(expression ir.Expression, pos
 			current.emit(OpConstFunction, int64(function), 0, line)
 			return
 		}
-		current.owner.addDiagnostic(position, fmt.Sprintf("unknown bytecode local or function %q", expression.Name), "")
+		current.owner.addDiagnostic(position, conformance.FeatureDirectFunctions, fmt.Sprintf("unknown bytecode local or function %q", expression.Name), "")
 		current.emit(OpConstNull, 0, 0, line)
 	case ir.ExpressionUnary:
 		current.compileExpression(*expression.Right, position)
@@ -261,7 +261,7 @@ func (current *functionCompiler) compileExpression(expression ir.Expression, pos
 		case "not":
 			current.emit(OpNot, 0, 0, line)
 		default:
-			current.owner.addDiagnostic(position, fmt.Sprintf("unsupported bytecode unary operator %s", expression.Operator), "")
+			current.owner.addDiagnostic(position, conformance.FeatureValuesPrimitives, fmt.Sprintf("unsupported bytecode unary operator %s", expression.Operator), "")
 		}
 	case ir.ExpressionBinary:
 		if expression.Operator == "and" || expression.Operator == "or" {
@@ -276,7 +276,7 @@ func (current *functionCompiler) compileExpression(expression ir.Expression, pos
 			methodName := strings.TrimPrefix(expression.Name, "__pipeline:")
 			method, ok := bytecodePipelineMethod(methodName)
 			if !ok {
-				current.owner.addDiagnostic(position, fmt.Sprintf("pipeline method %s is not supported by bytecode", methodName), "Use collect, sort, fold, any, all, or for_each as the terminal operation.")
+				current.owner.addDiagnostic(position, conformance.FeatureIteratorPipelines, fmt.Sprintf("pipeline method %s is not supported by bytecode", methodName), "Use collect, sort, fold, any, all, or for_each as the terminal operation.")
 				current.emit(OpConstNull, 0, 0, line)
 				return
 			}
@@ -288,7 +288,7 @@ func (current *functionCompiler) compileExpression(expression ir.Expression, pos
 		}
 		if expression.Name == "__len" || expression.Name == "len" {
 			if len(expression.Arguments) != 1 {
-				current.owner.addDiagnostic(position, "len expects exactly one bytecode argument", "")
+				current.owner.addDiagnostic(position, conformance.FeatureValuesList, "len expects exactly one bytecode argument", "")
 				current.emit(OpConstInt, 0, 0, line)
 				return
 			}
@@ -304,7 +304,7 @@ func (current *functionCompiler) compileExpression(expression ir.Expression, pos
 		}
 		target, ok := current.owner.functionIndex[expression.Name]
 		if !ok {
-			current.owner.addDiagnostic(position, fmt.Sprintf("bytecode cannot call unknown or builtin function %q", expression.Name), "The initial bytecode VM supports direct Klang calls and print.")
+			current.owner.addDiagnostic(position, conformance.FeatureDirectFunctions, fmt.Sprintf("bytecode cannot call unknown or builtin function %q", expression.Name), "The initial bytecode VM supports direct Klang calls and print.")
 			current.emit(OpConstNull, 0, 0, line)
 			return
 		}
@@ -331,13 +331,13 @@ func (current *functionCompiler) compileExpression(expression ir.Expression, pos
 		current.compileIndex(expression, position)
 	case ir.ExpressionSelector:
 		if expression.Name != "count" {
-			current.owner.addDiagnostic(position, fmt.Sprintf("selector .%s is not supported by the WASM bytecode subset", expression.Name), "")
+			current.owner.addDiagnostic(position, conformance.FeatureValuesPrimitives, fmt.Sprintf("selector .%s is not supported by the WASM bytecode subset", expression.Name), "")
 			current.emit(OpConstNull, 0, 0, line)
 			return
 		}
 		current.compileLength(*expression.Left, position)
 	default:
-		current.owner.addDiagnostic(position, fmt.Sprintf("expression %s is not supported by the WASM bytecode subset", expression.Kind), "")
+		current.owner.addDiagnostic(position, bytecodeExpressionFeatureID(expression.Kind), fmt.Sprintf("expression %s is not supported by the WASM bytecode subset", expression.Kind), "")
 		current.emit(OpConstNull, 0, 0, line)
 	}
 }
@@ -370,7 +370,7 @@ func (current *functionCompiler) emitBinary(operator string, position ir.Positio
 	}
 	opcode, ok := opcodes[operator]
 	if !ok {
-		current.owner.addDiagnostic(position, fmt.Sprintf("unsupported bytecode binary operator %s", operator), "")
+		current.owner.addDiagnostic(position, conformance.FeatureValuesPrimitives, fmt.Sprintf("unsupported bytecode binary operator %s", operator), "")
 		return
 	}
 	current.emit(opcode, 0, 0, position.Line)
@@ -398,12 +398,12 @@ func (current *functionCompiler) emitZero(typeName string, line int) {
 func (current *functionCompiler) compileIndexAssignment(statement ir.Statement) {
 	target := statement.Target
 	if target.Left == nil || target.Right == nil || target.Left.Kind != ir.ExpressionIdentifier {
-		current.owner.addDiagnostic(statement.Pos, "indexed bytecode mutation requires a local List binding", "")
+		current.owner.addDiagnostic(statement.Pos, conformance.FeatureValuesList, "indexed bytecode mutation requires a local List binding", "")
 		return
 	}
 	slot, ok := current.lookup(target.Left.Name)
 	if !ok {
-		current.owner.addDiagnostic(statement.Pos, fmt.Sprintf("unknown bytecode local %q", target.Left.Name), "")
+		current.owner.addDiagnostic(statement.Pos, conformance.FeatureValuesList, fmt.Sprintf("unknown bytecode local %q", target.Left.Name), "")
 		return
 	}
 	current.compileExpression(*target.Right, statement.Pos)
@@ -412,7 +412,7 @@ func (current *functionCompiler) compileIndexAssignment(statement ir.Statement) 
 	if statement.Operator != "=" {
 		opcode, exists := bytecodeBinaryOpcode(strings.TrimSuffix(statement.Operator, "="))
 		if !exists {
-			current.owner.addDiagnostic(statement.Pos, fmt.Sprintf("unsupported indexed assignment operator %s", statement.Operator), "")
+			current.owner.addDiagnostic(statement.Pos, conformance.FeatureValuesList, fmt.Sprintf("unsupported indexed assignment operator %s", statement.Operator), "")
 			return
 		}
 		operator = int64(opcode)
@@ -605,38 +605,52 @@ func (current *compiler) intern(value string) int {
 	return index
 }
 
-func (current *compiler) addDiagnostic(position ir.Position, message string, hint string) {
+func (current *compiler) addDiagnostic(position ir.Position, feature conformance.FeatureID, message string, hint string) {
 	current.diagnostics = append(current.diagnostics, Diagnostic{
 		File: position.File, Line: position.Line, Column: position.Column,
-		Message: message, FeatureID: bytecodeFeatureID(message), Hint: hint,
+		Message: message, FeatureID: string(feature), Hint: hint,
 	})
 }
 
-func bytecodeFeatureID(message string) string {
+func bytecodeTypeFeatureID(typeName string) conformance.FeatureID {
 	switch {
-	case strings.Contains(message, "global"):
-		return string(conformance.FeatureModules)
-	case strings.Contains(message, "struct"):
-		return string(conformance.FeatureStructAliases)
-	case strings.Contains(message, "extension"):
-		return string(conformance.FeatureExtensions)
-	case strings.Contains(message, "pipeline"):
-		return string(conformance.FeatureIteratorPipelines)
-	case strings.Contains(message, "Table"):
-		return string(conformance.FeatureValuesTable)
-	case strings.Contains(message, "Map"):
-		return string(conformance.FeatureValuesMap)
-	case strings.Contains(message, "Set"):
-		return string(conformance.FeatureValuesSet)
-	case strings.Contains(message, "JSON"):
-		return string(conformance.FeatureValuesJSON)
-	case strings.Contains(message, "loop"), strings.Contains(message, "break"), strings.Contains(message, "continue"):
-		return string(conformance.FeatureLoops)
-	case strings.Contains(message, "List"), strings.Contains(message, "indexed"):
-		return string(conformance.FeatureValuesList)
-	case strings.Contains(message, "function"), strings.Contains(message, "call"), strings.Contains(message, "return"):
-		return string(conformance.FeatureDirectFunctions)
+	case strings.HasPrefix(typeName, "Table"):
+		return conformance.FeatureValuesTable
+	case strings.HasPrefix(typeName, "Map["):
+		return conformance.FeatureValuesMap
+	case strings.HasPrefix(typeName, "Set["):
+		return conformance.FeatureValuesSet
+	case strings.HasPrefix(typeName, "JSON"):
+		return conformance.FeatureValuesJSON
+	case strings.HasPrefix(typeName, "List["):
+		return conformance.FeatureValuesList
+	case strings.HasPrefix(typeName, "Function["):
+		return conformance.FeatureDirectFunctions
 	default:
-		return string(conformance.FeatureValuesPrimitives)
+		return conformance.FeatureValuesPrimitives
+	}
+}
+
+func bytecodeStatementFeatureID(kind ir.StatementKind) conformance.FeatureID {
+	switch kind {
+	case ir.StatementWhile, ir.StatementRange, ir.StatementForEach, ir.StatementBreak, ir.StatementContinue:
+		return conformance.FeatureLoops
+	case ir.StatementReturn:
+		return conformance.FeatureDirectFunctions
+	default:
+		return conformance.FeatureValuesPrimitives
+	}
+}
+
+func bytecodeExpressionFeatureID(kind ir.ExpressionKind) conformance.FeatureID {
+	switch kind {
+	case ir.ExpressionList, ir.ExpressionIndex, ir.ExpressionComprehension:
+		return conformance.FeatureValuesList
+	case ir.ExpressionMap:
+		return conformance.FeatureValuesMap
+	case ir.ExpressionCall:
+		return conformance.FeatureDirectFunctions
+	default:
+		return conformance.FeatureValuesPrimitives
 	}
 }

@@ -7,14 +7,21 @@ import (
 )
 
 type Program struct {
+	Pos        Position
 	Statements []Statement
 }
+
+func (program Program) Position() Position { return program.Pos }
 
 type Position struct {
 	Line      int
 	Column    int
 	EndLine   int
 	EndColumn int
+}
+
+func (position Position) Valid() bool {
+	return position.Line > 0 && position.Column > 0
 }
 
 type Node interface {
@@ -350,29 +357,35 @@ type ScopeStatement struct {
 }
 
 type Expression struct {
+	Pos    Position
 	Tokens []lexer.Token
 	Node   ExpressionNode
 }
 
 type ExpressionNode interface {
+	Node
 	expressionNode()
 }
 
 type IdentifierExpression struct {
+	Pos  Position
 	Name string
 }
 
 type LiteralExpression struct {
+	Pos   Position
 	Kind  string
 	Value string
 }
 
 type UnaryExpression struct {
+	Pos      Position
 	Operator string
 	Right    ExpressionNode
 }
 
 type BinaryExpression struct {
+	Pos      Position
 	Left     ExpressionNode
 	Operator string
 	Right    ExpressionNode
@@ -385,39 +398,47 @@ type CallExpression struct {
 }
 
 type IndexExpression struct {
+	Pos    Position
 	Target ExpressionNode
 	Index  ExpressionNode
 }
 
 type SelectorExpression struct {
+	Pos    Position
 	Target ExpressionNode
 	Field  string
 }
 
 type CastExpression struct {
+	Pos   Position
 	Value ExpressionNode
 	Type  string
 }
 
 type NullCheckExpression struct {
+	Pos   Position
 	Value ExpressionNode
 }
 
 type PropagateExpression struct {
+	Pos   Position
 	Value ExpressionNode
 }
 
 type ConditionalExpression struct {
+	Pos         Position
 	Condition   ExpressionNode
 	Consequence ExpressionNode
 	Alternative ExpressionNode
 }
 
 type ListExpression struct {
+	Pos   Position
 	Items []ExpressionNode
 }
 
 type ListComprehensionExpression struct {
+	Pos       Position
 	Value     ExpressionNode
 	Iterator  string
 	Iterable  ExpressionNode
@@ -425,19 +446,23 @@ type ListComprehensionExpression struct {
 }
 
 type MapExpression struct {
+	Pos     Position
 	Entries []MapEntry
 }
 
 type MapEntry struct {
+	Pos   Position
 	Key   ExpressionNode
 	Value ExpressionNode
 }
 
 type GroupExpression struct {
+	Pos   Position
 	Inner ExpressionNode
 }
 
 type LambdaExpression struct {
+	Pos        Position
 	TypeParams []TypeParameter
 	Params     []Parameter
 	ReturnType string
@@ -445,6 +470,7 @@ type LambdaExpression struct {
 }
 
 type RawExpression struct {
+	Pos    Position
 	Tokens []lexer.Token
 }
 
@@ -536,6 +562,8 @@ func (stmt PrivateBlockStatement) Position() Position {
 }
 func (stmt ScopeStatement) Position() Position { return stmt.Pos }
 
+func (expr Expression) Position() Position { return expr.Pos }
+
 func (expr IdentifierExpression) expressionNode()  {}
 func (expr LiteralExpression) expressionNode()     {}
 func (expr UnaryExpression) expressionNode()       {}
@@ -555,6 +583,28 @@ func (expr GroupExpression) expressionNode() {}
 func (expr LambdaExpression) expressionNode() {
 }
 func (expr RawExpression) expressionNode() {}
+
+func (expr IdentifierExpression) Position() Position { return expr.Pos }
+func (expr LiteralExpression) Position() Position    { return expr.Pos }
+func (expr UnaryExpression) Position() Position      { return expr.Pos }
+func (expr BinaryExpression) Position() Position     { return expr.Pos }
+func (expr CallExpression) Position() Position       { return expr.Pos }
+func (expr IndexExpression) Position() Position      { return expr.Pos }
+func (expr SelectorExpression) Position() Position   { return expr.Pos }
+func (expr CastExpression) Position() Position       { return expr.Pos }
+func (expr NullCheckExpression) Position() Position  { return expr.Pos }
+func (expr PropagateExpression) Position() Position  { return expr.Pos }
+func (expr ConditionalExpression) Position() Position {
+	return expr.Pos
+}
+func (expr ListExpression) Position() Position { return expr.Pos }
+func (expr ListComprehensionExpression) Position() Position {
+	return expr.Pos
+}
+func (expr MapExpression) Position() Position    { return expr.Pos }
+func (expr GroupExpression) Position() Position  { return expr.Pos }
+func (expr LambdaExpression) Position() Position { return expr.Pos }
+func (expr RawExpression) Position() Position    { return expr.Pos }
 
 func (pattern DestructuringBinding) destructuringPattern() {}
 func (pattern DestructuringListPattern) destructuringPattern() {

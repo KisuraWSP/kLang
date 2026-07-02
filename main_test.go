@@ -1,7 +1,8 @@
 package main
 
 import (
-	"errors"
+	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
@@ -25,21 +26,45 @@ func TestParseDiagnosticFormat(t *testing.T) {
 	if _, err := parseDiagnosticFormat([]string{"check", "main.klang", "--diagnostic-format=xml"}); err == nil {
 		t.Fatal("expected unsupported diagnostic format to fail")
 	}
-}
-
-func TestRuntimeErrorPartsExtractsLineColumnAndMessage(t *testing.T) {
-	line, column, message := langcontext.RuntimeErrorParts(errors.New("runtime failed: line 3:9: cannot assign String to Int"))
-
-	if line != 3 || column != 9 || message != "cannot assign String to Int" {
-		t.Fatalf("unexpected runtime parts: %d %d %q", line, column, message)
+	format, err = parseDiagnosticFormat([]string{"check", "--diagnostic-format", "json", "main.klang"})
+	if err != nil || format != "json" {
+		t.Fatalf("expected split JSON diagnostic format, got %q, %v", format, err)
+	}
+	values := positionalArgs([]string{"--diagnostic-format", "json", "main.klang"})
+	if len(values) != 1 || values[0] != "main.klang" {
+		t.Fatalf("diagnostic format value leaked into positional args: %#v", values)
 	}
 }
 
-func TestHumanTypeMessageAddsHelpfulContext(t *testing.T) {
-	message := langcontext.HumanTypeMessage("cannot assign String to local Int value")
-
-	if !strings.Contains(message, "This value does not have the type declared") {
-		t.Fatalf("expected helpful type context, got %q", message)
+func TestJSONDiagnosticsAreStableNewlineDelimitedObjects(t *testing.T) {
+	values := []langcontext.ErrorContext{
+		{
+			Code: diagnostic.CodeSyntax, Severity: diagnostic.SeverityError, Phase: diagnostic.PhaseParse,
+			File: "main.klang", Line: 2, Column: 4, EndLine: 2, EndColumn: 8,
+			Message: "bad syntax", Rule: "syntax", Hint: "Check the syntax.",
+		},
+		{
+			Code: diagnostic.CodeStaticSemantics, Severity: diagnostic.SeverityWarning, Phase: diagnostic.PhaseType,
+			File: "main.klang", Line: 3, Column: 1, EndLine: 3, EndColumn: 6,
+			Message: "unused value", Rule: "static semantics", Hint: "Use or remove it.",
+		},
+	}
+	var output bytes.Buffer
+	if err := writeJSONDiagnostics(&output, values); err != nil {
+		t.Fatalf("write JSON diagnostics: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected one JSON object per diagnostic, got %q", output.String())
+	}
+	for index, line := range lines {
+		var decoded langcontext.ErrorContext
+		if err := json.Unmarshal([]byte(line), &decoded); err != nil {
+			t.Fatalf("line %d is not JSON: %v", index+1, err)
+		}
+		if decoded.Code != values[index].Code || decoded.Primary.StartColumn != values[index].Column {
+			t.Fatalf("line %d lost structured fields: %#v", index+1, decoded)
+		}
 	}
 }
 

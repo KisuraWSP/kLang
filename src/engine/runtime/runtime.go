@@ -271,10 +271,18 @@ func errorAt(pos parser.Position, message string) error {
 
 func errorAtCode(pos parser.Position, code string, rule string, message string, hint string) error {
 	if pos.Line > 0 {
+		endLine := pos.EndLine
+		if endLine == 0 {
+			endLine = pos.Line
+		}
+		endColumn := pos.EndColumn
+		if endColumn == 0 {
+			endColumn = pos.Column
+		}
 		return Error{
 			Code: code, Rule: rule, Hint: hint,
 			Line: pos.Line, Column: pos.Column,
-			EndLine: pos.Line, EndColumn: pos.Column,
+			EndLine: endLine, EndColumn: endColumn,
 			Message: message,
 		}
 	}
